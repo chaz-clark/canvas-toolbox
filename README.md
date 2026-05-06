@@ -39,8 +39,9 @@ The agent checks what's installed, handles anything missing, and guides you thro
 
 **1. Check git** — run `git --version`
 - Found: continue.
-- Mac, not found: run `xcode-select --install`.
-- Windows, not found: ask the user to download [GitHub Desktop](https://desktop.github.com/) — it installs git without a terminal. Wait for them to confirm before continuing.
+- Not found: tell the user git is missing and ask permission to install it, then run:
+  - Mac: `xcode-select --install` — a dialog will appear; ask the user to click Install and confirm when done.
+  - Windows: `winget install --id Git.Git -e --source winget`
 
 **2. Clone the toolkit**
 ```bash
@@ -49,8 +50,9 @@ git clone https://github.com/chaz-clark/canvas-toolbox.git canvas_toolbox
 
 **3. Check uv** — run `uv --version`
 - Found: continue.
-- Not found on Mac/Linux: run `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- Not found on Windows: run `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+- Not found: tell the user uv is missing and ask permission to install it, then run:
+  - Mac/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+  - Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
 - After installing: ask the user to close and reopen their terminal, then confirm `uv --version` works before continuing.
 
 **4. Install toolkit dependencies** (one-time)
