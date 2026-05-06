@@ -25,52 +25,77 @@ Choose the path that fits your situation:
 
 ---
 
-## Option A — Simplest: let your AI coding tool set it up
+## Option A — Start here: your agent sets it up
 
-Two one-time installs, then your AI coding tool handles the rest.
+Create a new empty folder on your computer, open it in Antigravity, Claude Code, Cursor, or any AI coding tool, then give the agent this prompt:
 
-**Install git:**
-- **Mac:** already installed — nothing to do
-- **Windows:** download [GitHub Desktop](https://desktop.github.com/) — it installs git for you
+*"Help me set up Canvas Toolbox for my Canvas course. The toolkit is at https://github.com/chaz-clark/canvas-toolbox — please clone it, install dependencies, and walk me through connecting it to my course."*
 
-**Install uv** (it manages Python for you):
+The agent checks what's installed, handles anything missing, and guides you through the rest. You just answer its questions.
 
-Mac or Linux — open Terminal (Cmd + Space, type "Terminal") and run:
+---
+
+**Agent setup checklist** — *the agent follows these steps; the user responds when asked*
+
+**1. Check git** — run `git --version`
+- Found: continue.
+- Mac, not found: run `xcode-select --install`.
+- Windows, not found: ask the user to download [GitHub Desktop](https://desktop.github.com/) — it installs git without a terminal. Wait for them to confirm before continuing.
+
+**2. Clone the toolkit**
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+git clone https://github.com/chaz-clark/canvas-toolbox.git canvas_toolbox
 ```
 
-Windows — open PowerShell (Windows key, type "PowerShell") and run:
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+**3. Check uv** — run `uv --version`
+- Found: continue.
+- Not found on Mac/Linux: run `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- Not found on Windows: run `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+- After installing: ask the user to close and reopen their terminal, then confirm `uv --version` works before continuing.
+
+**4. Install toolkit dependencies** (one-time)
+```bash
+cd canvas_toolbox && uv sync && cd ..
 ```
 
-Close and reopen your terminal after installing uv.
+**5. Create config files**
+```bash
+cp canvas_toolbox/scaffold/.env.example .env
+cp canvas_toolbox/scaffold/gitignore .gitignore
+```
 
-**Then:**
+**6. Collect Canvas credentials** — ask the user for:
+- **Course ID** — the number after `/courses/` in their Canvas course URL
+- **API token** — Canvas → Account → Settings → Approved Integrations → New Access Token (requires instructor or admin role)
+- **Institution URL** — their Canvas login address (e.g., `https://byui.instructure.com`)
 
-1. Create a new empty folder for your course
-2. Open that folder in Antigravity, Claude Code, Cursor, or any AI coding tool
-3. Ask the agent: *"Set up Canvas Toolbox for my course — the repo is at https://github.com/chaz-clark/canvas-toolbox"*
+**7. Fill in `.env`** with their credentials:
+```
+CANVAS_API_TOKEN=their_token
+CANVAS_BASE_URL=https://their-institution.instructure.com
+CANVAS_COURSE_ID=123456
+```
 
-The agent clones the toolkit, installs dependencies, creates your `.env`, and walks you through entering your Canvas credentials. It reads the toolkit's setup instructions automatically and will ask you for what it needs as you go.
+**8. Pull the course**
+```bash
+uv run python canvas_toolbox/lib/tools/canvas_sync.py --init
+```
+This mirrors the entire course — modules, pages, assignments, quizzes, discussions, and syllabus — into a `course/` folder. It may take a minute.
 
 ---
 
 ## Option B — Manual setup
 
-Use this if you prefer to do each step yourself, or if your AI tool doesn't run terminal commands.
+Use this if you prefer to run each step yourself, or if your AI tool doesn't run terminal commands. Install git and uv first using the same steps in Option A's checklist above, then continue here.
 
 **Open a terminal:**
 - **Mac:** press Cmd + Space, type "Terminal", press Enter
 - **Windows:** press the Windows key, type "PowerShell", press Enter
 
-Install git and uv the same way as Option A above if you haven't already.
-
 **Step 1 — Download the toolkit**
 
 ```bash
-git clone https://github.com/chaz-clark/canvas_toolbox.git canvas_toolbox
+git clone https://github.com/chaz-clark/canvas-toolbox.git canvas_toolbox
 ```
 
 A `canvas_toolbox` folder will appear in your current directory.
