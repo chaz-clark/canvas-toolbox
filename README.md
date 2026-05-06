@@ -41,7 +41,7 @@ The agent checks what's installed, handles anything missing, and guides you thro
 - Found: continue.
 - Not found: tell the user git is missing and ask permission to install it, then run:
   - Mac: `xcode-select --install` — a dialog will appear; ask the user to click Install and confirm when done.
-  - Windows: `winget install --id Git.Git -e --source winget`
+  - Windows: `winget install --id Git.Git -e --source winget` — if winget is not available, ask the user to download Git from [git-scm.com/download/win](https://git-scm.com/download/win) and confirm when the install is done.
 
 **2. Clone the toolkit**
 ```bash
