@@ -78,9 +78,10 @@ For the full principles and override rules, see `knowledge/behavioral_discipline
 
 ## Active Context
 
-_Last updated: 2026-05-01_
+_Last updated: 2026-05-06_
 
-- **v0.9.0 just shipped** — `course_quality_check.py --validate-dates` (out-of-window, ordering sanity, duplicate due dates per group, label-vs-week/sprint drift; read-only, exits non-zero on findings; #20). Also: repo restructured into `lib/` / `scaffold/` / `examples/` for pull-safe boundaries (#19) — consumers clone `canvas_toolbox/` as a subdirectory and `git pull` safely updates only toolkit files.
+- **v0.12.0 just shipped** — `validate_blueprint_sync.py` (post-Blueprint-sync validation: section drift, Blueprint field drift, duplicate detection, locked-item prerequisite check; live API, read-only, exits non-zero on findings; #24). Also: `course_quality_check.py` Blueprint-aware duplicate detection — Blueprint-locked copy is canonical, routes to `manual_review` instead of auto-deleting (#23). Canvas sync field gaps closed: quiz dates via linked assignment endpoint, discussion `todo_date`, assignment `name` on push, `allowed_extensions`, `omit_from_final_grade`, quiz metadata fields (#21, #22).
+- **v0.9.0** — `course_quality_check.py --validate-dates` (out-of-window, ordering sanity, duplicate due dates per group, label-vs-week/sprint drift; read-only, exits non-zero on findings; #20). Also: repo restructured into `lib/` / `scaffold/` / `examples/` for pull-safe boundaries (#19).
 - **v0.6.0 / 0.7.0 / 0.8.0** — three independent opt-in audit/sync features:
   - `canvas_sync.py --pull-files` / `--find-file` / `--pull-file` (file-aware pulling, fuzzy search, pre-download confirmation thresholds; #16)
   - `course_quality_check.py --files` (orphan + broken-reference + duplicate audit, read-only; #17)
@@ -135,6 +136,7 @@ Before generating new sync or audit code, check whether these already do what's 
 | `lib/tools/blueprint_sync.py` | Master → Blueprint sync (one-way overwrite, content + dates + completion requirements) | Online programs using Canvas Blueprint |
 | `lib/tools/course_mirror.py` | Source → Master one-off mirror | Manually replicating between two courses |
 | `lib/tools/course_quality_check.py` | Four opt-in audit modes (mode-switching, not combined): structural (default — duplicates, floating items, empty modules, date window), `--files` (orphans + broken refs + duplicates), `--alignment` (Course Outcome → Module Outcome → Rubric Criterion chain breaks), `--validate-dates` (out-of-window, ordering sanity, duplicate due dates per group, label-vs-week/sprint drift) | After every push to any course; `--files`, `--alignment`, and `--validate-dates` on demand |
+| `lib/tools/validate_blueprint_sync.py` | Post-Blueprint-sync validation: section drift, Blueprint field drift (lock_at, allowed_extensions, submission_types), duplicate detection, locked-item prerequisite check. Live API queries, read-only. `--report` writes markdown. | After every Canvas Blueprint sync |
 | `lib/tools/canvas_quiz_questions.py` | Classic quiz question manager (push, list, clear) | Editing quiz questions outside Canvas UI |
 | `lib/tools/canvas_api_tool.py` | Audit engine + Canvas write functions | Wrapped by audit agents; rarely invoked directly |
 | `lib/agents/canvas_course_expert` | 8-framework instructional-design audit | Conceptual / pedagogical audit |
