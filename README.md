@@ -25,44 +25,49 @@ Choose the path that fits your situation:
 
 ---
 
-## Option A — Simplest: open in Antigravity (no terminal required)
+## Option A — Simplest: let your AI coding tool set it up
 
-1. Go to [github.com/chaz-clark/canvas_toolbox](https://github.com/chaz-clark/canvas_toolbox), click the green **Code** button, then click **Download ZIP**
-2. Extract the ZIP to your course folder
-3. Open the extracted folder in Antigravity (or any AI coding tool — see the "Using with AI coding tools" section below)
-4. Ask the agent: *"Help me set up this toolkit for my Canvas course"*
+Two one-time installs, then your AI coding tool handles the rest.
 
-The agent reads the toolkit's setup instructions automatically and will ask you for what it needs as you go.
+**Install git:**
+- **Mac:** already installed — nothing to do
+- **Windows:** download [GitHub Desktop](https://desktop.github.com/) — it installs git for you
+
+**Install uv** (it manages Python for you):
+
+Mac or Linux — open Terminal (Cmd + Space, type "Terminal") and run:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Windows — open PowerShell (Windows key, type "PowerShell") and run:
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Close and reopen your terminal after installing uv.
+
+**Then:**
+
+1. Create a new empty folder for your course
+2. Open that folder in Antigravity, Claude Code, Cursor, or any AI coding tool
+3. Ask the agent: *"Set up Canvas Toolbox for my course — the repo is at https://github.com/chaz-clark/canvas-toolbox"*
+
+The agent clones the toolkit, installs dependencies, creates your `.env`, and walks you through entering your Canvas credentials. It reads the toolkit's setup instructions automatically and will ask you for what it needs as you go.
 
 ---
 
-## Option B — With git: stays updatable
+## Option B — Manual setup
 
-Use this if you want to pull toolkit updates later with a single command. Requires a terminal.
+Use this if you prefer to do each step yourself, or if your AI tool doesn't run terminal commands.
 
 **Open a terminal:**
 - **Mac:** press Cmd + Space, type "Terminal", press Enter
 - **Windows:** press the Windows key, type "PowerShell", press Enter
 
-All commands below are typed into the terminal and run by pressing Enter.
+Install git and uv the same way as Option A above if you haven't already.
 
-**Step 1 — Install uv** (it manages Python for you)
-
-Mac or Linux:
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-Windows (PowerShell):
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-Close and reopen your terminal after installing.
-
-**Also needed: git** — already installed on Mac. Windows users: download [GitHub Desktop](https://desktop.github.com/), which installs git for you.
-
-**Step 2 — Download the toolkit**
+**Step 1 — Download the toolkit**
 
 ```bash
 git clone https://github.com/chaz-clark/canvas_toolbox.git canvas_toolbox
@@ -70,7 +75,7 @@ git clone https://github.com/chaz-clark/canvas_toolbox.git canvas_toolbox
 
 A `canvas_toolbox` folder will appear in your current directory.
 
-**Step 3 — Install dependencies**
+**Step 2 — Install dependencies**
 
 ```bash
 cd canvas_toolbox
@@ -80,7 +85,7 @@ cd ..
 
 uv downloads everything the toolkit needs. This only runs once.
 
-**Step 4 — Create your configuration files**
+**Step 3 — Create your configuration files**
 
 ```bash
 cp canvas_toolbox/scaffold/.env.example .env
@@ -89,7 +94,7 @@ cp canvas_toolbox/scaffold/gitignore .gitignore
 
 This creates a `.env` file in your folder — you'll fill it in next.
 
-**Step 5 — Enter your Canvas credentials**
+**Step 4 — Enter your Canvas credentials**
 
 You'll need three things before this step:
 - **Course ID:** open your Canvas course — it's the number in the URL after `/courses/`
@@ -110,7 +115,7 @@ CANVAS_COURSE_ID=123456
 
 Save and close the file.
 
-**Step 6 — Pull your course into a local folder**
+**Step 5 — Pull your course into a local folder**
 
 **Ask your agent:** *"Pull my Canvas course into a local folder so I can start working with it"*
 
