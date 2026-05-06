@@ -33,9 +33,9 @@ Folder structure:
 
 Item types pulled:
     Page        → .html  (body only, metadata in _module.json items list)
-    Assignment  → .json  (description + points, due_at, submission_types)
-    Discussion  → .json  (message + metadata)
-    Quiz        → .json  (description + points_possible)
+    Assignment  → .json  (name, description, points, due_at, submission_types, allowed_extensions, omit_from_final_grade)
+    Discussion  → .json  (title, message, todo_date, published)
+    Quiz        → .json  (title, description, points_possible, time_limit, allowed_attempts, shuffle_answers, due_at via assignment_id)
     ExternalTool, SubHeader, ExternalUrl → .json (metadata only, no editable body)
 
 Items NOT pulled (Canvas-generated, not instructor-authored):
@@ -408,6 +408,8 @@ def _pull_assignment(course_id: str, assignment_id: int) -> Optional[dict]:
         "lock_at": data.get("lock_at"),
         "unlock_at": data.get("unlock_at"),
         "submission_types": data.get("submission_types", []),
+        "allowed_extensions": data.get("allowed_extensions", []),
+        "omit_from_final_grade": data.get("omit_from_final_grade", False),
         "published": data.get("published", False),
     }
 
@@ -420,9 +422,7 @@ def _pull_discussion(course_id: str, topic_id: int) -> Optional[dict]:
         "canvas_id": data.get("id"),
         "title": data.get("title"),
         "message": data.get("message", ""),
-        "due_at": data.get("assignment", {}).get("due_at") if data.get("assignment") else None,
-        "lock_at": data.get("assignment", {}).get("lock_at") if data.get("assignment") else None,
-        "unlock_at": data.get("assignment", {}).get("unlock_at") if data.get("assignment") else None,
+        "todo_date": data.get("todo_date"),
         "published": data.get("published", False),
     }
 
@@ -433,10 +433,14 @@ def _pull_quiz(course_id: str, quiz_id: int) -> Optional[dict]:
         return None
     return {
         "canvas_id": data.get("id"),
+        "assignment_id": data.get("assignment_id"),
         "title": data.get("title"),
         "description": data.get("description", ""),
         "points_possible": data.get("points_possible"),
         "quiz_type": data.get("quiz_type"),
+        "time_limit": data.get("time_limit"),
+        "allowed_attempts": data.get("allowed_attempts"),
+        "shuffle_answers": data.get("shuffle_answers", False),
         "due_at": data.get("due_at"),
         "lock_at": data.get("lock_at"),
         "unlock_at": data.get("unlock_at"),
@@ -1100,12 +1104,17 @@ def _push_assignment(filepath: Path, meta: dict) -> bool:
         return False
     data = json.loads(filepath.read_text(encoding="utf-8"))
     payload: dict = {
+        "name": data.get("name", ""),
         "description": data.get("description", ""),
         "points_possible": data.get("points_possible"),
         "published": data.get("published", True),
     }
     if "submission_types" in data:
         payload["submission_types"] = data["submission_types"]
+    if "allowed_extensions" in data:
+        payload["allowed_extensions"] = data["allowed_extensions"]
+    if "omit_from_final_grade" in data:
+        payload["omit_from_final_grade"] = data["omit_from_final_grade"]
     if "grading_type" in data:
         gt = data["grading_type"]
         if gt not in _VALID_GRADING_TYPES:
@@ -1122,7 +1131,7 @@ def _push_assignment(filepath: Path, meta: dict) -> bool:
 
 
 def _push_quiz(filepath: Path, meta: dict) -> bool:
-    """Push classic quiz title, description, and points via the quizzes endpoint."""
+    """Push classic quiz metadata via quizzes endpoint; dates via linked assignment endpoint."""
     canvas_id = meta.get("canvas_id")
     if not canvas_id:
         print(f"    ERROR: no canvas_id in index for {filepath}")
@@ -1133,12 +1142,31 @@ def _push_quiz(filepath: Path, meta: dict) -> bool:
         payload["title"] = data["title"]
     if "points_possible" in data:
         payload["points_possible"] = data["points_possible"]
+    if "time_limit" in data:
+        payload["time_limit"] = data["time_limit"]
+    if "shuffle_answers" in data:
+        payload["shuffle_answers"] = data["shuffle_answers"]
+    if "allowed_attempts" in data:
+        payload["allowed_attempts"] = data["allowed_attempts"]
     result = _put(f"/courses/{CANVAS_COURSE_ID}/quizzes/{canvas_id}", {
         "quiz": payload
     })
     if result.get("error"):
         print(f"    ERROR: {result['error']}")
         return False
+    # Dates must go to the linked assignment endpoint — quiz endpoint ignores due_at
+    assignment_id = data.get("assignment_id")
+    if assignment_id and any(k in data for k in ("due_at", "lock_at", "unlock_at")):
+        date_result = _put(f"/courses/{CANVAS_COURSE_ID}/assignments/{assignment_id}", {
+            "assignment": {
+                "due_at": data.get("due_at"),
+                "lock_at": data.get("lock_at"),
+                "unlock_at": data.get("unlock_at"),
+            }
+        })
+        if date_result.get("error"):
+            print(f"    ERROR (dates): {date_result['error']}")
+            return False
     return True
 
 
@@ -1151,6 +1179,7 @@ def _push_discussion(filepath: Path, meta: dict) -> bool:
     result = _put(f"/courses/{CANVAS_COURSE_ID}/discussion_topics/{canvas_id}", {
         "title": data.get("title", ""),
         "message": data.get("message", ""),
+        "todo_date": data.get("todo_date"),
         "published": data.get("published", True),
     })
     if result.get("error"):
