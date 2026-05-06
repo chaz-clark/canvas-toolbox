@@ -279,13 +279,41 @@ Master course   ← clean template
 Blueprint       ← Canvas clones new sections from this
 ```
 
+## Syncing master → Blueprint
+
+**Ask your agent:** *"Sync my master course to the Blueprint"*
+
+Approve the run of:
 ```bash
 uv run python canvas_toolbox/lib/tools/blueprint_sync.py --pull    # mirror blueprint locally
 uv run python canvas_toolbox/lib/tools/blueprint_sync.py --status  # see what's changed
 uv run python canvas_toolbox/lib/tools/blueprint_sync.py --push    # sync master → blueprint
 ```
 
-If you only have one course, ignore this entirely — `canvas_sync.py` is all you need.
+Then let Canvas run its built-in Blueprint sync to push changes to sections.
+
+## Validating after a Blueprint sync
+
+After Canvas finishes syncing to sections, run this to confirm it landed correctly:
+
+**Ask your agent:** *"Validate that the Blueprint sync landed correctly across all sections"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/validate_blueprint_sync.py
+```
+
+Checks for:
+- Items present in one section but missing from another
+- Fields that diverged from Blueprint — `lock_at`, `allowed_extensions`, `submission_types`
+- Duplicate assignments or quizzes from direct-push + Blueprint overlap (see the quality check for resolution)
+- Items with completion requirements whose `lock_at` has passed — students cannot submit and the downstream prerequisite chain is blocked
+
+Add `--report` to save findings to `blueprint_sync_validation.md`.
+
+Requires `BLUEPRINT_COURSE_ID` and at least one `S1_COURSE_ID` in your `.env`.
+
+If you only have one course, ignore this section entirely — `canvas_sync.py` is all you need.
 
 ---
 

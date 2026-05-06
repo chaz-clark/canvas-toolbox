@@ -108,6 +108,20 @@ uv run python lib/tools/blueprint_sync.py --pull       # mirror blueprint + buil
 
 `blueprint_sync --pull` builds `.canvas/blueprint_index.json` — the title→ID mapping used when syncing master → blueprint.
 
+After Canvas runs its built-in Blueprint sync to push content to sections, validate that it landed correctly:
+
+```bash
+uv run python lib/tools/validate_blueprint_sync.py
+```
+
+This checks all configured sections (`S1_COURSE_ID`, `S2_COURSE_ID`, …) against the Blueprint for:
+- Items present in one section but missing from another (section drift)
+- `lock_at`, `allowed_extensions`, or `submission_types` diverging from Blueprint
+- Duplicate assignments or quizzes from direct-push + Blueprint overlap
+- Completion-requirement items whose `lock_at` has passed, blocking the prerequisite chain
+
+Add `--report` to write findings to `blueprint_sync_validation.md`.
+
 ---
 
 ## Phase 6 — First Quality Check
@@ -125,7 +139,7 @@ Review `quality_report.md`. Common issues in a fresh course:
 | `published_not_in_module` | Item exists but students cannot find it — link it to a module or unpublish it |
 | `empty_module` | Module has no items (or only NewQuiz/ExternalTool) — students see an empty module |
 | `date_out_of_window` | Due/lock/unlock date is outside the course start–end window |
-| `duplicate_assignment` | Same title appears twice — one is likely a sync artifact, delete the extra |
+| `duplicate_assignment` | Same title appears twice — if one copy is Blueprint-locked it goes to `manual_review` (keep the locked copy); otherwise `auto_fixable` |
 
 Fix `auto_fixable` items with:
 ```bash
