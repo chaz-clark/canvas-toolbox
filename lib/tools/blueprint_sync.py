@@ -463,10 +463,19 @@ def cmd_pull():
                            if master_index["files"].get(fp, {}).get("type") not in NO_PUSH_TYPES
                            and master_index["files"].get(fp, {}).get("type") != "NewQuiz"]
         if unmapped_non_nq:
-            print(f"  {len(unmapped_non_nq)} master items not found in blueprint (will be created on --push):")
-            for fp in unmapped_non_nq[:10]:
-                t = master_index["files"].get(fp, {}).get("type", "?")
-                print(f"    [{t}] {fp}")
+            unmapped_pages = [fp for fp in unmapped_non_nq
+                              if master_index["files"].get(fp, {}).get("type") == "Page"]
+            unmapped_manual = [fp for fp in unmapped_non_nq
+                               if master_index["files"].get(fp, {}).get("type") in ("Assignment", "Discussion", "Quiz")]
+            if unmapped_pages:
+                print(f"  {len(unmapped_pages)} new Pages will be created in blueprint on --push:")
+                for fp in unmapped_pages[:10]:
+                    print(f"    [Page] {fp}")
+            if unmapped_manual:
+                print(f"  {len(unmapped_manual)} new items must be added manually in Blueprint UI (--push will warn):")
+                for fp in unmapped_manual[:10]:
+                    t = master_index["files"].get(fp, {}).get("type", "?")
+                    print(f"    [{t}] {fp}")
     print(f"\n  Blueprint mirror → {BLUEPRINT_DIR}/")
     print(f"  Mapping saved    → {BLUEPRINT_INDEX}")
     print(f"  Run --status to review coverage, then --push to sync.")
@@ -602,7 +611,12 @@ def cmd_push():
 
         # Unmapped — create new in blueprint if it's a pushable Page
         if not bp_meta:
-            if item_type in NO_PUSH_TYPES or item_type in ("NewQuiz", "Assignment", "Discussion", "Quiz"):
+            if item_type in NO_PUSH_TYPES or item_type == "NewQuiz":
+                skipped += 1
+                continue
+            if item_type in ("Assignment", "Discussion", "Quiz"):
+                title = master_meta.get("title", Path(master_fp).stem)
+                print(f"  [{item_type}] NEW — add manually in Blueprint UI, then re-run --pull: {title}")
                 skipped += 1
                 continue
             if item_type == "Page":
