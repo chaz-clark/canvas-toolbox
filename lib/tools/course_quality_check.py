@@ -151,14 +151,39 @@ def _audit_course(course_id: str) -> dict:
         if len(items) > 1:
             # Sort by id ascending — lowest id is oldest (original)
             items_sorted = sorted(items, key=lambda x: x["id"])
-            for dup in items_sorted[1:]:
-                auto_fixable.append({
+            # Blueprint-locked copy is canonical — newer, higher ID. "Keep oldest" is wrong here.
+            bp_locked = [a for a in items_sorted if a.get("locked_by_master_course")]
+            if bp_locked:
+                keep_id = bp_locked[0]["id"]
+                copies = [
+                    {
+                        "canvas_id": a["id"],
+                        "due_at": a.get("due_at"),
+                        "allowed_extensions": a.get("allowed_extensions", []),
+                        "blueprint_locked": bool(a.get("locked_by_master_course")),
+                    }
+                    for a in items_sorted
+                ]
+                manual_review.append({
                     "type": "duplicate_assignment",
                     "title": name,
-                    "canvas_id": dup["id"],
-                    "action": f"DELETE /api/v1/courses/{course_id}/assignments/{dup['id']}",
-                    "note": f"Duplicate assignment '{name}' (id={dup['id']})"
+                    "copies": copies,
+                    "note": (
+                        f"Duplicate assignment '{name}' — Blueprint-locked copy (id={keep_id}) is canonical; "
+                        "delete non-locked copies manually. "
+                        "Likely cause: direct push overlapping a Blueprint sync."
+                    ),
+                    "action": f"Canvas UI → Assignments — delete copies other than id={keep_id}",
                 })
+            else:
+                for dup in items_sorted[1:]:
+                    auto_fixable.append({
+                        "type": "duplicate_assignment",
+                        "title": name,
+                        "canvas_id": dup["id"],
+                        "action": f"DELETE /api/v1/courses/{course_id}/assignments/{dup['id']}",
+                        "note": f"Duplicate assignment '{name}' (id={dup['id']})"
+                    })
 
     # Date checks — assignments
     if start_at and end_at:
@@ -194,14 +219,37 @@ def _audit_course(course_id: str) -> dict:
     for title, items in qby_name.items():
         if len(items) > 1:
             items_sorted = sorted(items, key=lambda x: x["id"])
-            for dup in items_sorted[1:]:
-                auto_fixable.append({
+            bp_locked = [q for q in items_sorted if q.get("locked_by_master_course")]
+            if bp_locked:
+                keep_id = bp_locked[0]["id"]
+                copies = [
+                    {
+                        "canvas_id": q["id"],
+                        "due_at": q.get("due_at"),
+                        "blueprint_locked": bool(q.get("locked_by_master_course")),
+                    }
+                    for q in items_sorted
+                ]
+                manual_review.append({
                     "type": "duplicate_quiz",
                     "title": title,
-                    "canvas_id": dup["id"],
-                    "action": f"DELETE /api/v1/courses/{course_id}/quizzes/{dup['id']}",
-                    "note": f"Duplicate quiz '{title}' (id={dup['id']})"
+                    "copies": copies,
+                    "note": (
+                        f"Duplicate quiz '{title}' — Blueprint-locked copy (id={keep_id}) is canonical; "
+                        "delete non-locked copies manually. "
+                        "Likely cause: direct push overlapping a Blueprint sync."
+                    ),
+                    "action": f"Canvas UI → Quizzes — delete copies other than id={keep_id}",
                 })
+            else:
+                for dup in items_sorted[1:]:
+                    auto_fixable.append({
+                        "type": "duplicate_quiz",
+                        "title": title,
+                        "canvas_id": dup["id"],
+                        "action": f"DELETE /api/v1/courses/{course_id}/quizzes/{dup['id']}",
+                        "note": f"Duplicate quiz '{title}' (id={dup['id']})"
+                    })
 
     if start_at and end_at:
         for q in quizzes:
@@ -985,6 +1033,8 @@ def _write_md_report(reports: list[dict], labels: dict, path: Path):
                 "empty_module":            "Empty Modules (no items — possible sync artifact)",
                 "date_out_of_window":      "Dates Outside Window (Unpublished Items)",
                 "published_not_in_module": "Published Content Not Linked in Any Module",
+                "duplicate_assignment":    "Duplicate Assignments (Blueprint-lock conflict — manual resolution required)",
+                "duplicate_quiz":          "Duplicate Quizzes (Blueprint-lock conflict — manual resolution required)",
             }
             for t, items in by_type.items():
                 lines.append(f"**{type_labels.get(t, t)}**")
