@@ -85,6 +85,29 @@
 
 ---
 
+## Behavioral Discipline (core)
+
+This is a **deterministic Python script** (`lib/tools/blueprint_sync.py`) — no LLM at runtime. The v3.6 behavioral discipline therefore applies to the **operator** invoking the sync: either a human (running the CLI directly) or an upstream LLM agent (e.g., `canvas_course_expert` orchestrating the sync). Interaction pattern: **multi_step_batch** (the push decomposes into many per-item Canvas PUTs).
+
+Full source: `make-ai-agents/knowledge/behavioral_discipline.md`. All 10 principles apply to the operator:
+
+- **P-001 Read Before Claiming** — Read `canvas_sync.py --status` and `blueprint_sync.py --status` output before claiming the master is current or the blueprint is mapped. Don't assert "everything looks good" without reading the actual coverage counts.
+- **P-002 Plan Before Acting** — Always run `--status` and present coverage to the user before `--push`. The status output IS the batch plan. Wait for explicit approval.
+- **P-003 Stop on Defect** — If `--pull` produces many unmapped items, if `--status` shows <80% mapping coverage, or if a push logs FAILED lines — stop and surface the issue. Don't proceed assuming "it'll be fine."
+- **P-004 Find the Root Cause** — When a page 404s on push: don't retry. Find why (title renamed in Canvas UI? page deleted? blueprint restructured?). Re-pull mappings, then push.
+- **P-005 Small Steps, Evenly Sized** — The script already enforces this (each item is its own PUT). The operator must not bypass this by running `--push` repeatedly to "force through" failures — investigate failures before re-running.
+- **P-006 Document the Change** — The final report (pushed count, failed count, settings results) is the A3. A non-technical reviewer should be able to read it without inspecting the API responses.
+- **P-007 Pull, Don't Push** — Don't speculatively edit Blueprint content in Canvas UI between pulls — the script will overwrite it on next push. If a Blueprint-only change is needed, it belongs in master first.
+- **P-008 Mistake-Proof Outputs** — Same `--status` format, same final report format every run. The operator should know what to expect.
+- **P-009 Reflect, and Tell the User** — If a push surfaced something new (e.g., a NewQuiz that couldn't be content-pushed via REST, or an unexpected 403 pattern), name it and append to "External System Lessons" in this file.
+- **P-010 Respect the User's Intent** — Don't run `--push` mid-semester unless explicitly asked (active student cohorts using the Blueprint may be affected by content-lock changes). Don't drift into "while I was in there I also synced dates differently."
+
+**No-override principles:** P-001, P-003, P-007, P-010 apply unconditionally.
+
+**BD-QC checks N/A for this agent:** BD-QC-002 (no system_prompt — no LLM at runtime) and BD-QC-004 (no LLM tool enumeration — behavior is defined by the Python source).
+
+---
+
 ## How to Use This Agent
 
 ### Prerequisites

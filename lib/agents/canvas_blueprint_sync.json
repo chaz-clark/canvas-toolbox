@@ -1,8 +1,66 @@
 {
-  "agent_name": "canvas_blueprint_sync",
-  "version": "1.0",
-  "description": "One-way sync: master course → Canvas Blueprint course. Python-driven, no LLM analysis.",
-
+  "_metadata": {
+    "template_version": "3.6",
+    "last_updated": "2026-05-13",
+    "description": "One-way sync: master course → Canvas Blueprint course. Python-driven, no LLM analysis.",
+    "usage": "See canvas_blueprint_sync.md for narrative guide. Python implementation: lib/tools/blueprint_sync.py.",
+    "companion_files": {
+      "conceptual_guide": "canvas_blueprint_sync.md",
+      "python_implementation": "lib/tools/blueprint_sync.py",
+      "post_sync_validator": "lib/tools/validate_blueprint_sync.py",
+      "blueprint_index": ".canvas/blueprint_index.json"
+    },
+    "agent_details": {
+      "agent_name": "canvas_blueprint_sync",
+      "version": "1.0",
+      "last_updated": "2026-05-13",
+      "description": "One-way sync: master course → Canvas Blueprint course. Python-driven, no LLM analysis.",
+      "owner": "Chaz Clark",
+      "complexity": "standard"
+    },
+    "_retrofit_note": "v(unversioned) -> v3.6 - retrofitted per make_agent.md retrofit checklist. Non-llm_agent (Python-driven deterministic script). Wrapped prior flat agent_name/version/description in _metadata. Added agent_type, interaction_pattern, behavioral_discipline (operator-applies), cross_references.knowledge_files. No system_prompt added (no LLM at runtime; BD-QC-002 and BD-QC-004 N/A)."
+  },
+  "agent_type": {
+    "_tier": "tier_1_core",
+    "type": "deterministic_script",
+    "description": "One-way Python-driven sync: master course -> Canvas Blueprint course. No LLM at runtime. Behavioral discipline applies to the operator (human or LLM agent) that invokes the script, not to the script itself."
+  },
+  "interaction_pattern": "multi_step_batch",
+  "behavioral_discipline": {
+    "interaction_pattern": "multi_step_batch",
+    "applies_to": "operator",
+    "_applies_to_note": "This agent is a deterministic Python script with no LLM at runtime. The behavioral discipline below applies to the OPERATOR invoking the script - either a human or an upstream LLM agent (e.g., canvas_course_expert orchestrating the sync). The script itself enforces the safety boundaries listed in constraints.safety_boundaries.",
+    "applicable_principles": [
+      "P-001",
+      "P-002",
+      "P-003",
+      "P-004",
+      "P-005",
+      "P-006",
+      "P-007",
+      "P-008",
+      "P-009",
+      "P-010"
+    ],
+    "no_override_principles": [
+      "P-001",
+      "P-003",
+      "P-007",
+      "P-010"
+    ],
+    "override_decisions": [],
+    "_source": "knowledge/behavioral_discipline.md and knowledge/behavioral_discipline.json in make-ai-agents",
+    "_qc_checks_applied": [
+      "BD-QC-001",
+      "BD-QC-003",
+      "BD-QC-005",
+      "BD-QC-006"
+    ],
+    "_qc_checks_na": {
+      "BD-QC-002": "No system_prompt to validate - deterministic script has no LLM at runtime",
+      "BD-QC-004": "No LLM tools to enumerate - the script's behavior is defined by the Python source"
+    }
+  },
   "primary_data": {
     "sync_scope": {
       "included": [
@@ -24,10 +82,9 @@
         "Files and media (images referenced by URL, not copied)"
       ]
     },
-
     "api_endpoints": {
       "late_policy": {
-        "read":  "GET  /api/v1/courses/:id/late_policy",
+        "read": "GET  /api/v1/courses/:id/late_policy",
         "write": "PATCH /api/v1/courses/:id/late_policy",
         "payload": {
           "late_policy": {
@@ -40,28 +97,57 @@
             "missing_submission_deduction": 0.0
           }
         },
-        "success_codes": [200, 204]
+        "success_codes": [
+          200,
+          204
+        ]
       },
       "course_settings": {
         "write": "PUT /api/v1/courses/:id",
-        "payload_grading": {"course": {"grading_standard_id": 1}},
-        "payload_announcements": {"course": {"show_announcements_on_home_page": false}},
-        "success_codes": [200]
+        "payload_grading": {
+          "course": {
+            "grading_standard_id": 1
+          }
+        },
+        "payload_announcements": {
+          "course": {
+            "show_announcements_on_home_page": false
+          }
+        },
+        "success_codes": [
+          200
+        ]
       },
       "homepage": {
-        "read":  "GET /api/v1/courses/:id/front_page",
+        "read": "GET /api/v1/courses/:id/front_page",
         "write": "PUT /api/v1/courses/:id/pages/:page_url",
-        "payload": {"wiki_page": {"body": "<html body>", "published": true}},
+        "payload": {
+          "wiki_page": {
+            "body": "<html body>",
+            "published": true
+          }
+        },
         "note": "page_url for front page is typically 'front-page' or the course homepage slug"
       },
       "syllabus": {
         "write": "PUT /api/v1/courses/:id",
-        "payload": {"course": {"syllabus_body": "<html body>"}},
-        "success_codes": [200]
+        "payload": {
+          "course": {
+            "syllabus_body": "<html body>"
+          }
+        },
+        "success_codes": [
+          200
+        ]
       },
       "pages": {
         "write": "PUT /api/v1/courses/:id/pages/:page_url",
-        "payload": {"wiki_page": {"body": "<html body>", "published": true}},
+        "payload": {
+          "wiki_page": {
+            "body": "<html body>",
+            "published": true
+          }
+        },
         "note": "page_url is the slug, not the canvas ID. Fetched during --pull."
       },
       "assignments": {
@@ -85,7 +171,11 @@
       },
       "quizzes": {
         "write": "PUT /api/v1/courses/:id/quizzes/:quiz_id",
-        "payload": {"quiz": {"description": "<html body>"}},
+        "payload": {
+          "quiz": {
+            "description": "<html body>"
+          }
+        },
         "note": "Classic quizzes only. NewQuiz (external_tool submission type) cannot be updated via REST API."
       },
       "modules": {
@@ -93,14 +183,16 @@
         "note": "Used during --pull to discover blueprint canvas IDs. Module structure is not synced."
       }
     },
-
     "blueprint_index_schema": {
       "description": "Stored at .canvas/blueprint_index.json. Maps master filepaths to blueprint canvas IDs.",
       "fields": {
         "blueprint_course_id": "Canvas course ID of the blueprint (from BLUEPRINT_COURSE_ID env)",
         "master_course_id": "Canvas course ID of the master (from CANVAS_COURSE_ID env)",
         "pulled_at": "ISO timestamp of last --pull",
-        "homepage": {"page_url": "blueprint front_page slug", "title": "page title"},
+        "homepage": {
+          "page_url": "blueprint front_page slug",
+          "title": "page title"
+        },
         "mappings": {
           "course/sprint-1.../sprint-1-overview.html": {
             "blueprint_canvas_id": 12345,
@@ -110,23 +202,31 @@
             "module": "Sprint 1: Foundations (W01-W02)"
           }
         },
-        "unmapped_master": ["list of master filepaths with no blueprint match"],
-        "unmapped_blueprint": ["list of blueprint item titles with no master match"]
+        "unmapped_master": [
+          "list of master filepaths with no blueprint match"
+        ],
+        "unmapped_blueprint": [
+          "list of blueprint item titles with no master match"
+        ]
       }
     }
   },
-
   "implementation": {
+    "_tier": "tier_1_core",
     "python_script": "tools/blueprint_sync.py",
     "commands": {
       "pull": "uv run python tools/blueprint_sync.py --pull",
       "push": "uv run python tools/blueprint_sync.py --push",
       "status": "uv run python tools/blueprint_sync.py --status"
     },
-    "env_required": ["CANVAS_API_TOKEN", "CANVAS_BASE_URL", "CANVAS_COURSE_ID", "BLUEPRINT_COURSE_ID"],
+    "env_required": [
+      "CANVAS_API_TOKEN",
+      "CANVAS_BASE_URL",
+      "CANVAS_COURSE_ID",
+      "BLUEPRINT_COURSE_ID"
+    ],
     "matching_strategy": "Title-based: blueprint item titles are matched to master item titles (case-insensitive, exact). Rebuild mapping with --pull whenever titles change in either course."
   },
-
   "validation": {
     "pre_push_checklist": [
       "canvas_sync.py --status returns 'Nothing to push' (master fully synced)",
@@ -150,7 +250,6 @@
       "failed_count": 0
     }
   },
-
   "error_handling": {
     "known_failures": [
       {
@@ -180,25 +279,51 @@
       "missing_blueprint_index": "Aborts with clear error: 'Run blueprint_sync.py --pull first'"
     }
   },
-
   "constraints": {
     "safety_boundaries": {
-      "never_sync": ["due_at", "lock_at", "unlock_at", "student_data", "gradebook"],
+      "never_sync": [
+        "due_at",
+        "lock_at",
+        "unlock_at",
+        "student_data",
+        "gradebook"
+      ],
       "never_read_from_blueprint": "Blueprint content is never used as source of truth",
       "human_in_the_loop": "Agent shows --status coverage before --push and waits for confirmation"
     }
   },
-
   "cross_references": {
+    "knowledge_files": [],
+    "_knowledge_files_note": "Deterministic field-level sync - no instructional-design knowledge consumed. All operating rules live in primary_data.api_endpoints and primary_data.sync_scope.",
     "related_agents": [
-      {"name": "canvas_semester_setup", "file": "agents/canvas_semester_setup.md", "role": "Sets due dates in each new course section created from Blueprint"},
-      {"name": "canvas_content_sync", "file": "agents/canvas_content_sync.md", "role": "Pushes individual content changes to master course"}
+      {
+        "name": "canvas_semester_setup",
+        "file": "agents/canvas_semester_setup.md",
+        "role": "Sets due dates in each new course section created from Blueprint"
+      },
+      {
+        "name": "canvas_content_sync",
+        "file": "agents/canvas_content_sync.md",
+        "role": "Pushes individual content changes to master course"
+      }
     ],
     "related_files": [
-      {"path": "tools/blueprint_sync.py", "role": "Python implementation — source of truth for all sync behavior"},
-      {"path": ".canvas/blueprint_index.json", "role": "master filepath → blueprint canvas ID mapping (gitignored)"},
-      {"path": ".canvas/blueprint_log.md", "role": "Append-only audit trail of all blueprint pushes (gitignored)"},
-      {"path": "tools/canvas_sync.py", "role": "Master course sync — must be run and clean before blueprint sync"}
+      {
+        "path": "tools/blueprint_sync.py",
+        "role": "Python implementation — source of truth for all sync behavior"
+      },
+      {
+        "path": ".canvas/blueprint_index.json",
+        "role": "master filepath → blueprint canvas ID mapping (gitignored)"
+      },
+      {
+        "path": ".canvas/blueprint_log.md",
+        "role": "Append-only audit trail of all blueprint pushes (gitignored)"
+      },
+      {
+        "path": "tools/canvas_sync.py",
+        "role": "Master course sync — must be run and clean before blueprint sync"
+      }
     ]
   }
 }
