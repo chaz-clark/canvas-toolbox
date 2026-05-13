@@ -1,8 +1,8 @@
 {
   "_metadata": {
-    "template_version": "3.1",
-    "last_updated": "2026-04-17",
-    "description": "Canvas Schedule Auditor Agent — reads course setup notes, audits all item dates against setup-notes rules, and proposes corrected UTC timestamps for instructor approval.",
+    "template_version": "3.6",
+    "last_updated": "2026-05-13",
+    "description": "Canvas Schedule Auditor Agent \u2014 reads course setup notes, audits all item dates against setup-notes rules, and proposes corrected UTC timestamps for instructor approval.",
     "usage": "See canvas_schedule_auditor.md for narrative guide. Course mirror operations use tools/canvas_sync.py. Canvas API writes use patterns in api_patterns below.",
     "companion_files": {
       "conceptual_guide": "canvas_schedule_auditor.md",
@@ -17,15 +17,45 @@
       "description": "Audits Canvas course dates against instructor-defined setup notes rules. Produces a week-by-week audit table and proposes corrections. Propose-before-execute enforced.",
       "owner": "Chaz Clark",
       "complexity": "standard"
-    }
+    },
+    "_retrofit_note": "v3.1 -> v3.6 - predates v3.0 behavioral discipline framework; retrofitted per make_agent.md retrofit checklist. TESTING ONLY hardcoded protected IDs extracted to .env PROTECTED_COURSE_IDS."
   },
-
   "agent_type": {
     "_tier": "tier_1_core",
     "type": "llm_agent",
     "description": "LLM agent with tool use. Audit mode requires no write credentials. Full mode requires Canvas API token for applying approved corrections."
   },
-
+  "interaction_pattern": "multi_step_batch",
+  "behavioral_discipline": {
+    "interaction_pattern": "multi_step_batch",
+    "applicable_principles": [
+      "P-001",
+      "P-002",
+      "P-003",
+      "P-004",
+      "P-005",
+      "P-006",
+      "P-007",
+      "P-008",
+      "P-009",
+      "P-010"
+    ],
+    "no_override_principles": [
+      "P-001",
+      "P-003",
+      "P-007",
+      "P-010"
+    ],
+    "override_decisions": [],
+    "_source": "knowledge/behavioral_discipline.md and knowledge/behavioral_discipline.json in make-ai-agents",
+    "_qc_checks_applied": [
+      "BD-QC-001",
+      "BD-QC-002",
+      "BD-QC-003",
+      "BD-QC-005",
+      "BD-QC-006"
+    ]
+  },
   "implementation": {
     "_tier": "tier_1_core",
     "llm_agent": {
@@ -37,7 +67,7 @@
         "disable_parallel_tool_use": false,
         "stop_sequences": []
       },
-      "system_prompt": "You are the Canvas Schedule Auditor for BYU-Idaho. Your job is to verify that every assignment, quiz, module, and discussion in a Canvas course has dates that match the instructor's setup notes rules.\n\nWRITE TARGET: The only course eligible for writes is the one in the CANVAS_COURSE_ID environment variable. Never write to any other course.\n\n[TESTING ONLY — REMOVE AFTER TESTING IS COMPLETE]\nDuring initial testing, course IDs 402262 (ITM 327 master) and 339374 (DS 250 master) are being used as read-only reference examples. You may READ from them. You may NEVER write to them. If apply_date_corrections is called with either ID, refuse and explain. For comparison work against these courses, produce a local pseudo-mirror table only — no API calls.\n[END TESTING BLOCK]\n\nYou operate in three phases:\n\nPHASE 0 — INSTITUTION + CLARIFY (before any date computation):\n1. Determine the institution: check course/_course.json for account name, check CANVAS_BASE_URL against known domains, check INSTITUTION env var. If none resolve, ask: 'Which institution is this course from? This determines which scheduling conventions I apply automatically.' Match against institution_rules in the JSON.\n2. Load and parse the setup notes page.\n3. If institution is confirmed, apply its institution_rules automatically — announce which rules you are applying but do not ask for confirmation on them.\n4. For every other phrase that is ambiguous or could be misinterpreted, present a numbered clarification list: 'I read [phrase] as [interpretation] — is that correct?' Wait for responses before proceeding.\n5. After clarifications, propose specific wording improvements to the setup notes for each resolved ambiguity. Keep language plain English, preserve the existing table structure and section order. Never add JSON, code blocks, or machine syntax to setup notes.\n\nPHASE 1 — AUDIT (read-only):\n5. Build the week calendar from semester start date.\n6. Read .canvas/index.json for all item dates.\n7. For each item, infer its week from module slug (regex w(\\d{2})), apply the confirmed rule, compare actual vs expected with 1-hour tolerance.\n8. Present the full audit table: Item | Type | Module | Current | Expected | Status (OK / FLAG / MISSING).\n\nPHASE 2 — CORRECT (writes require approval):\n9. List flagged items with before/after values and the rule each derives from.\n10. Call request_confirmation(). NEVER apply any correction without approved=true.\n11. For approved corrections: update local .json files, call Canvas API, update index, log to .canvas/push_log.md.\n\nCRITICAL RULES:\n- NEVER write to Canvas without request_confirmation() returning approved=true.\n- NEVER silently choose an interpretation of an ambiguous rule — always ask.\n- ALWAYS complete Phase 0 before Phase 1. Do not start the audit until clarifications are resolved.\n- Use 1-hour tolerance (3600 seconds) when comparing timestamps.\n- Always confirm target course ID before any write. Display course name.\n\nUTC OFFSET RULES:\n- BYUI uses Mountain Time. MDT (Apr-Oct) = UTC-6. MST (Nov-Mar) = UTC-7.\n- 11:59 PM MT due/until: MDT → T05:59:00Z, MST → T06:59:00Z\n- 12:00 AM MT available: MDT → T06:00:00Z, MST → T07:00:00Z\n- Determine DST from the semester's dates, not today's date.\n\nWEEK INFERENCE:\n- Extract week numbers from module slug with regex w(\\d{2}).\n- Multi-week sprints (e.g., w05-w06): sprint-start rules → W05, sprint-end rules → W06.\n- Modules with no week encoding (instructor-resources, syllabus, etc.) → skip date audit.",
+      "system_prompt": "You are the Canvas Schedule Auditor for BYU-Idaho. Your job is to verify that every assignment, quiz, module, and discussion in a Canvas course has dates that match the instructor's setup notes rules.\n\nWRITE TARGET: The only course eligible for writes is the one in the CANVAS_COURSE_ID environment variable. Never write to any other course.\n\n[PROTECTED COURSES - read-only safety guardrail]\nSome course IDs are designated read-only references (typically master/template courses for the program). Read the list from the PROTECTED_COURSE_IDS environment variable (comma-separated course IDs in .env). If apply_date_corrections is called with a course_id in PROTECTED_COURSE_IDS, refuse and explain - produce a local pseudo-mirror table for comparison instead. If PROTECTED_COURSE_IDS is empty or unset, no IDs are protected.\n[END PROTECTED COURSES BLOCK]\n\nYou operate in three phases:\n\nPHASE 0 \u2014 INSTITUTION + CLARIFY (before any date computation):\n1. Determine the institution: check course/_course.json for account name, check CANVAS_BASE_URL against known domains, check INSTITUTION env var. If none resolve, ask: 'Which institution is this course from? This determines which scheduling conventions I apply automatically.' Match against institution_rules in the JSON.\n2. Load and parse the setup notes page.\n3. If institution is confirmed, apply its institution_rules automatically \u2014 announce which rules you are applying but do not ask for confirmation on them.\n4. For every other phrase that is ambiguous or could be misinterpreted, present a numbered clarification list: 'I read [phrase] as [interpretation] \u2014 is that correct?' Wait for responses before proceeding.\n5. After clarifications, propose specific wording improvements to the setup notes for each resolved ambiguity. Keep language plain English, preserve the existing table structure and section order. Never add JSON, code blocks, or machine syntax to setup notes.\n\nPHASE 1 \u2014 AUDIT (read-only):\n5. Build the week calendar from semester start date.\n6. Read .canvas/index.json for all item dates.\n7. For each item, infer its week from module slug (regex w(\\d{2})), apply the confirmed rule, compare actual vs expected with 1-hour tolerance.\n8. Present the full audit table: Item | Type | Module | Current | Expected | Status (OK / FLAG / MISSING).\n\nPHASE 2 \u2014 CORRECT (writes require approval):\n9. List flagged items with before/after values and the rule each derives from.\n10. Call request_confirmation(). NEVER apply any correction without approved=true.\n11. For approved corrections: update local .json files, call Canvas API, update index, log to .canvas/push_log.md.\n\nCRITICAL RULES:\n- NEVER write to Canvas without request_confirmation() returning approved=true.\n- NEVER silently choose an interpretation of an ambiguous rule \u2014 always ask.\n- ALWAYS complete Phase 0 before Phase 1. Do not start the audit until clarifications are resolved.\n- Use 1-hour tolerance (3600 seconds) when comparing timestamps.\n- Always confirm target course ID before any write. Display course name.\n\nUTC OFFSET RULES:\n- BYUI uses Mountain Time. MDT (Apr-Oct) = UTC-6. MST (Nov-Mar) = UTC-7.\n- 11:59 PM MT due/until: MDT \u2192 T05:59:00Z, MST \u2192 T06:59:00Z\n- 12:00 AM MT available: MDT \u2192 T06:00:00Z, MST \u2192 T07:00:00Z\n- Determine DST from the semester's dates, not today's date.\n\nWEEK INFERENCE:\n- Extract week numbers from module slug with regex w(\\d{2}).\n- Multi-week sprints (e.g., w05-w06): sprint-start rules \u2192 W05, sprint-end rules \u2192 W06.\n- Modules with no week encoding (instructor-resources, syllabus, etc.) \u2192 skip date audit.\n\n## Behavioral Discipline\n\nYou operate under a behavioral discipline that produces predictable, trustworthy behavior for end users. The full source is in make-ai-agents/knowledge/behavioral_discipline.md (populated as a local clone in canvas-toolbox). Applicable principles for this agent (interaction_pattern: multi_step_batch - the full discipline applies because batch operations decompose into individual writes):\n\n- P-001 Read Before Claiming: Read the actual source before claiming anything about content, code, or system state. Training-data priors are not a substitute for reading what's in front of you.\n- P-002 Plan Before Acting: For any state-changing task with more than one step, propose the plan and wait for user confirmation before non-reversible action. The plan is a draft \u2014 refine through back-and-forth before committing.\n- P-003 Stop on Defect: First failed test, first failed precondition, first ambiguity that can't be resolved \u2192 stop. Don't paper over. Don't retry blindly. Surface the issue: 'I cannot proceed because X.'\n- P-004 Find the Root Cause: When something doesn't work as expected, walk the chain of causation. Stop when the answer is structural \u2014 that's where the fix lives.\n- P-005 Small Steps, Evenly Sized: Break work into small verifiable units of roughly equal size. Verify each before starting the next. Reversibility is a feature.\n- P-006 Document the Change: For any non-trivial change, structure the report so a non-technical reviewer can audit it without reading the diff. Use the A3 template (see templates.a3_change_report).\n- P-007 Pull, Don't Push: Generate exactly what was asked. No speculative features. The discipline isn't laziness \u2014 it leaves room for the user to decide what comes next.\n- P-008 Mistake-Proof Outputs: Format outputs consistently across runs so the user can predict what they'll see. Decide once for the agent: JSON for parsed output, Markdown for human-read output, Markdown+JSON code block for both.\n- P-009 Reflect, and Tell the User: At the end of any task that produced a surprise, took longer than expected, or revealed non-obvious behavior, name the lesson in the response ('Worth noting: ...') AND append it to the agent's spec MD External System Lessons section.\n- P-010 Respect the User's Intent: Two failure modes: (a) anti-substitution \u2014 don't override or reinterpret the user's stated goal silently; (b) anti-drift \u2014 in long sessions, every action should still trace to the original goal; surface drift when it happens.\n\nHard rule: before skipping any principle, state in one sentence which principle is being skipped and why. The principles in [P-001, P-003, P-007, P-010] have no override under any circumstances.\n\nBatch-specific applications: P-002 (the proposal diff table IS the batch plan); P-003 (on first 4xx response in the batch, STOP - do not retry blindly across remaining items, surface the error and let the user decide); P-005 (decompose the batch into per-item writes so each can fail independently); P-006 (the final A3 reports which items succeeded, which failed, and why).",
       "tools": [
         {
           "name": "clarify_setup_notes",
@@ -50,7 +80,9 @@
                 "description": "Full text of the setup notes page (markdown or plain text)."
               }
             },
-            "required": ["setup_notes_content"]
+            "required": [
+              "setup_notes_content"
+            ]
           },
           "strict": false
         },
@@ -63,14 +95,19 @@
               "clarifications": {
                 "type": "array",
                 "description": "List of resolved clarifications from the instructor. Each entry: {phrase, interpretation_confirmed, instructor_correction (if any)}.",
-                "items": {"type": "object"}
+                "items": {
+                  "type": "object"
+                }
               },
               "setup_notes_content": {
                 "type": "string",
                 "description": "Original setup notes text to be improved."
               }
             },
-            "required": ["clarifications", "setup_notes_content"]
+            "required": [
+              "clarifications",
+              "setup_notes_content"
+            ]
           },
           "strict": false
         },
@@ -127,7 +164,9 @@
                 "description": "Optional. Last day of the semester for W14 'last day of semester' rules. Example: '2026-07-18'"
               }
             },
-            "required": ["week1_monday"]
+            "required": [
+              "week1_monday"
+            ]
           },
           "strict": false
         },
@@ -150,7 +189,11 @@
                 "description": "Output from read_course_index."
               }
             },
-            "required": ["rules", "week_calendar", "course_index"]
+            "required": [
+              "rules",
+              "week_calendar",
+              "course_index"
+            ]
           },
           "strict": false
         },
@@ -172,7 +215,10 @@
                 }
               }
             },
-            "required": ["proposal_summary", "corrections"]
+            "required": [
+              "proposal_summary",
+              "corrections"
+            ]
           },
           "strict": false
         },
@@ -194,33 +240,41 @@
                 "description": "Target Canvas course ID. Must match the course displayed to instructor during confirmation."
               }
             },
-            "required": ["approved_corrections", "canvas_course_id"]
+            "required": [
+              "approved_corrections",
+              "canvas_course_id"
+            ]
           },
           "strict": false
         }
-      ]
+      ],
+      "mcp_servers": [],
+      "_mcp_servers_note": "This agent does not use MCP. All Canvas operations route through canvas_api_tool.py (Python requests with the same CANVAS_API_TOKEN). No Docker dependency."
     }
   },
-
   "institution_detection": {
     "_tier": "tier_1_core",
     "_description": "How the agent determines which institution it is working with, and therefore which institution_rules to apply.",
     "detection_order": [
-      "1. Read course/_course.json → account.name or root_account_name field",
-      "2. Read CANVAS_BASE_URL from env — match against known institution domains",
+      "1. Read course/_course.json \u2192 account.name or root_account_name field",
+      "2. Read CANVAS_BASE_URL from env \u2014 match against known institution domains",
       "3. Read INSTITUTION env var if set (e.g., INSTITUTION=byui)",
       "4. If none of the above resolve, ask the instructor: 'Which institution is this course from? This affects which scheduling conventions I apply automatically.'"
     ],
     "known_institutions": {
       "byui": {
-        "match_domains": ["byui.instructure.com"],
-        "match_account_names": ["BYU-Idaho", "BYUI"],
+        "match_domains": [
+          "byui.instructure.com"
+        ],
+        "match_account_names": [
+          "BYU-Idaho",
+          "BYUI"
+        ],
         "rules_key": "byui"
       }
     },
-    "unknown_institution": "Apply no institution-specific rules. Rely entirely on setup notes for all scheduling conventions. Flag ambiguities as clarification questions — do not assume any BYUI-specific behavior."
+    "unknown_institution": "Apply no institution-specific rules. Rely entirely on setup notes for all scheduling conventions. Flag ambiguities as clarification questions \u2014 do not assume any BYUI-specific behavior."
   },
-
   "institution_rules": {
     "_tier": "tier_1_core",
     "_description": "Institution-specific scheduling conventions keyed by institution ID. Only applied when the institution is confirmed. Add new institutions here as the agent is adopted elsewhere.",
@@ -230,26 +284,25 @@
       "rules": [
         {
           "id": "no_sunday_due_dates",
-          "description": "BYUI online assignments, quizzes, and discussions are never intentionally due on Sunday. The BYUI Canvas week runs Monday–Saturday. A date on Sunday is drift, not intent.",
+          "description": "BYUI online assignments, quizzes, and discussions are never intentionally due on Sunday. The BYUI Canvas week runs Monday\u2013Saturday. A date on Sunday is drift, not intent.",
           "audit_behavior": "Flag any due_at or lock_at that falls on a Sunday. Proposed correction: move to Saturday of the same week at 11:59 PM MT.",
-          "setup_notes_behavior": "If setup notes say 'Saturday' and actual dates are Sunday, the dates are wrong — not the rule. Do not ask for clarification, flag as drift."
+          "setup_notes_behavior": "If setup notes say 'Saturday' and actual dates are Sunday, the dates are wrong \u2014 not the rule. Do not ask for clarification, flag as drift."
         },
         {
           "id": "w05_student_feedback",
           "description": "Every BYUI online course has a 'Student Feedback to Instructor' assignment in W05. Its due date is set by the university, not derived from the course's weekly due-day rule. It will not match the standard weekly rule.",
-          "audit_behavior": "If setup notes have no explicit exception for this item, mark it SKIP with note: 'University-set date — confirm expected value with instructor before flagging.'",
-          "setup_notes_behavior": "If setup notes omit this exception, propose adding: 'W05 Student Feedback to Instructor: Due [date] — university-set date, does not follow standard weekly rule.'"
+          "audit_behavior": "If setup notes have no explicit exception for this item, mark it SKIP with note: 'University-set date \u2014 confirm expected value with instructor before flagging.'",
+          "setup_notes_behavior": "If setup notes omit this exception, propose adding: 'W05 Student Feedback to Instructor: Due [date] \u2014 university-set date, does not follow standard weekly rule.'"
         },
         {
           "id": "standard_times",
           "description": "All BYUI Canvas dates use 12:00 AM MT for available-from and 11:59 PM MT for due/until. These are system defaults that never vary.",
           "audit_behavior": "Never propose a different time-of-day. Flag any timestamp with an unusual time (e.g., 5:00 PM) as unexpected.",
-          "setup_notes_behavior": "Times are universal — do not add time language to proposed setup notes improvements."
+          "setup_notes_behavior": "Times are universal \u2014 do not add time language to proposed setup notes improvements."
         }
       ]
     }
   },
-
   "scheduling_rule_schema": {
     "_tier": "tier_1_core",
     "_description": "Expected structure after parsing a setup notes page. The agent extracts this from the natural language table.",
@@ -263,8 +316,14 @@
           "unlock_day": "Saturday",
           "unlock_offset_weeks": -2,
           "exceptions": [
-            {"item_pattern": "W01", "rule": "Always open from semester start"},
-            {"item_pattern": "W02", "rule": "Open Wednesday of W01"}
+            {
+              "item_pattern": "W01",
+              "rule": "Always open from semester start"
+            },
+            {
+              "item_pattern": "W02",
+              "rule": "Open Wednesday of W01"
+            }
           ]
         },
         "assignments": {
@@ -274,8 +333,14 @@
           "until_day": "Saturday",
           "until_offset": "following_week",
           "exceptions": [
-            {"item_pattern": "W14", "rule": "Due last day of semester"},
-            {"item_pattern": "standup", "rule": "Due end of each week"}
+            {
+              "item_pattern": "W14",
+              "rule": "Due last day of semester"
+            },
+            {
+              "item_pattern": "standup",
+              "rule": "Due end of each week"
+            }
           ]
         },
         "quizzes": {
@@ -296,7 +361,6 @@
       }
     }
   },
-
   "date_patterns": {
     "_tier": "tier_1_core",
     "utc_offsets": {
@@ -328,11 +392,10 @@
       "Saturday": "Saturday of the item's week at 11:59 PM MT",
       "The following Saturday": "Saturday of the following week at 11:59 PM MT",
       "Last day of semester": "Use semester_end_date at 11:59 PM MT",
-      "N/A": "null — remove any existing date",
+      "N/A": "null \u2014 remove any existing date",
       "With semester start": "Use course start_at from _course.json"
     }
   },
-
   "field_name_mapping": {
     "_tier": "tier_1_core",
     "_description": "Translates between UI labels (setup notes), Canvas API field names, and local JSON field names.",
@@ -355,51 +418,97 @@
       "ui_label": "Lock Until (module)",
       "api_field": "unlock_at",
       "api_endpoint": "PUT /api/v1/courses/:id/modules/:module_id",
-      "api_body": {"module": {"unlock_at": "<ISO_UTC_string>"}}
+      "api_body": {
+        "module": {
+          "unlock_at": "<ISO_UTC_string>"
+        }
+      }
     }
   },
-
   "api_patterns": {
     "_tier": "tier_1_core",
     "assignment": {
       "endpoint": "PUT /api/v1/courses/:course_id/assignments/:assignment_id",
-      "body": {"assignment": {"due_at": null, "lock_at": null, "unlock_at": null}},
+      "body": {
+        "assignment": {
+          "due_at": null,
+          "lock_at": null,
+          "unlock_at": null
+        }
+      },
       "note": "Send null explicitly to clear a field. Omitting a field leaves its current value unchanged."
     },
     "quiz": {
       "endpoint_quiz": "PUT /api/v1/courses/:course_id/quizzes/:quiz_id",
-      "body_quiz": {"quiz": {"due_at": null, "lock_at": null, "unlock_at": null}},
+      "body_quiz": {
+        "quiz": {
+          "due_at": null,
+          "lock_at": null,
+          "unlock_at": null
+        }
+      },
       "endpoint_assignment": "PUT /api/v1/courses/:course_id/assignments/:assignment_id",
-      "body_assignment": {"assignment": {"due_at": null, "lock_at": null, "unlock_at": null}},
+      "body_assignment": {
+        "assignment": {
+          "due_at": null,
+          "lock_at": null,
+          "unlock_at": null
+        }
+      },
       "note": "Classic quizzes require updating BOTH endpoints. Get assignment_id from the quiz .json file in course/."
     },
     "module": {
       "endpoint": "PUT /api/v1/courses/:course_id/modules/:module_id",
-      "body": {"module": {"unlock_at": null}},
+      "body": {
+        "module": {
+          "unlock_at": null
+        }
+      },
       "note": "Module unlock_at is separate from item-level unlock_at. Form-encoded required for prerequisite_module_ids; JSON works for unlock_at."
     },
     "discussion": {
       "endpoint": "PUT /api/v1/courses/:course_id/discussion_topics/:topic_id",
-      "body": {"discussion_topic": {"due_at": null, "lock_at": null, "unlock_at": null}}
+      "body": {
+        "discussion_topic": {
+          "due_at": null,
+          "lock_at": null,
+          "unlock_at": null
+        }
+      }
     }
   },
-
   "output_format": {
     "_tier": "tier_1_core",
     "audit_table": {
       "description": "Week-by-week table of all date-bearing items. Show ALL items, not just flagged ones.",
-      "columns": ["Week", "Item", "Type", "Field", "Current", "Expected", "Status"],
+      "columns": [
+        "Week",
+        "Item",
+        "Type",
+        "Field",
+        "Current",
+        "Expected",
+        "Status"
+      ],
       "status_values": {
         "OK": "Actual matches expected within 1-hour tolerance",
         "FLAG": "Actual differs from expected by more than 1 hour",
         "MISSING": "Expected date present per rules but actual is null",
         "EXTRA": "Date is set but rules say N/A (null expected)",
-        "SKIP": "Item has no week encoding in module slug — not audited"
+        "SKIP": "Item has no week encoding in module slug \u2014 not audited"
       }
     },
     "correction_proposal": {
       "description": "List of proposed corrections for flagged/missing/extra items only.",
-      "per_item_fields": ["filepath", "title", "type", "field", "current_value", "proposed_value", "rule_source"],
+      "per_item_fields": [
+        "filepath",
+        "title",
+        "type",
+        "field",
+        "current_value",
+        "proposed_value",
+        "rule_source"
+      ],
       "example": {
         "filepath": "course/sprint-3-sftp-dag-w05-w06/w06-reading-quiz.json",
         "title": "W06 Reading Quiz",
@@ -411,7 +520,6 @@
       }
     }
   },
-
   "infer_mode": {
     "_tier": "tier_2_recommended",
     "description": "Fallback when no setup notes page exists. Agent scans actual dates to reverse-engineer dominant patterns.",
@@ -423,42 +531,45 @@
       "Check if module unlock_at values cluster around Saturday two weeks before.",
       "Detect W14 exceptions: items due on a different pattern than rest.",
       "Draft a scheduling_rule_schema from findings.",
-      "Present to instructor: 'I detected these patterns — does this match your intent?'",
+      "Present to instructor: 'I detected these patterns \u2014 does this match your intent?'",
       "Save confirmed rules to course_ref/setup_notes_draft.md for Canvas upload.",
       "Do NOT audit against inferred rules without instructor confirmation."
     ]
   },
-
   "constraints": {
     "_tier": "tier_1_core",
     "safety_boundaries": {
       "human_in_the_loop": "Required. request_confirmation() must return approved=true before any Canvas write. No exceptions.",
       "max_items_per_run": 60,
       "write_allowed_courses": {
-        "note": "WRITES ARE ONLY PERMITTED TO THE COURSE IN CANVAS_COURSE_ID. The two example courses below are hardcoded read-only for testing only — remove after testing is complete.",
+        "note": "WRITES ARE ONLY PERMITTED TO THE COURSE IN CANVAS_COURSE_ID. The two example courses below are hardcoded read-only for testing only \u2014 remove after testing is complete.",
         "_todo_remove_after_testing": "Delete read_only_forever, update target_courses, and remove the HARD BLOCK guardrail below once testing against 402262 and 339374 is complete. Agent should then derive write target solely from CANVAS_COURSE_ID env var.",
-        "allowed": ["CANVAS_COURSE_ID"],
-        "read_only_forever_TESTING_ONLY": ["402262", "339374"],
+        "allowed": [
+          "CANVAS_COURSE_ID"
+        ],
+        "read_only_forever_TESTING_ONLY": [
+          "402262",
+          "339374"
+        ],
         "read_only_reason": "TEMPORARY: 402262 (ITM 327 master) and 339374 (DS 250 master) are reference courses used only as setup notes examples during initial agent testing. Remove this block after testing."
       },
       "target_courses": "Always use CANVAS_COURSE_ID from env. During testing, also refuse writes to 402262 and 339374. Remove the 402262/339374 block after testing.",
       "guardrails": [
-        "HARD BLOCK (TESTING ONLY — REMOVE AFTER): Never call apply_date_corrections with canvas_course_id 402262 or 339374. Return an error and explain these are read-only reference courses.",
+        "HARD BLOCK (TESTING ONLY \u2014 REMOVE AFTER): Never call apply_date_corrections with canvas_course_id 402262 or 339374. Return an error and explain these are read-only reference courses.",
         "Never apply corrections to a course whose name was not confirmed by the instructor",
-        "Never infer and apply rules in a single pass — infer mode produces a draft for review, not auto-corrections",
+        "Never infer and apply rules in a single pass \u2014 infer mode produces a draft for review, not auto-corrections",
         "Never clear (null) a date field without explicitly stating 'removing close date' in the proposal",
-        "When using example courses for comparison, work in a local pseudo-mirror only — simulate what corrections WOULD look like, never send them to Canvas"
+        "When using example courses for comparison, work in a local pseudo-mirror only \u2014 simulate what corrections WOULD look like, never send them to Canvas"
       ]
     }
   },
-
   "error_handling": {
     "_tier": "tier_2_recommended",
     "known_failures": [
       {
         "failure": "Setup notes page exists but has no date table",
         "cause": "Page was created from template but never filled in",
-        "handling": "Surface to instructor: 'Setup notes page exists but contains only the template — no rules are filled in. Proceed with infer mode?'"
+        "handling": "Surface to instructor: 'Setup notes page exists but contains only the template \u2014 no rules are filled in. Proceed with infer mode?'"
       },
       {
         "failure": "Module slug has no week encoding",
@@ -477,11 +588,10 @@
       }
     ],
     "fallbacks": {
-      "no_setup_notes": "Enter infer mode (see infer_mode section). Never block — degrade gracefully.",
-      "canvas_api_failure": "Log failure, skip that item, report at end: 'N items failed — apply manually.'"
+      "no_setup_notes": "Enter infer mode (see infer_mode section). Never block \u2014 degrade gracefully.",
+      "canvas_api_failure": "Log failure, skip that item, report at end: 'N items failed \u2014 apply manually.'"
     }
   },
-
   "validation": {
     "_tier": "tier_1_core",
     "pre_run_checklist": [
@@ -499,60 +609,86 @@
     ],
     "test_cases": [
       {
-        "name": "UTC offset — MDT semester",
-        "input": {"week1_monday": "2026-04-20", "rule": "due Saturday 11:59 PM MT"},
+        "name": "UTC offset \u2014 MDT semester",
+        "input": {
+          "week1_monday": "2026-04-20",
+          "rule": "due Saturday 11:59 PM MT"
+        },
         "expected_output": "2026-04-25T05:59:00Z",
         "validation_method": "exact_match"
       },
       {
-        "name": "UTC offset — MST semester",
-        "input": {"week1_monday": "2026-01-05", "rule": "due Saturday 11:59 PM MT"},
+        "name": "UTC offset \u2014 MST semester",
+        "input": {
+          "week1_monday": "2026-01-05",
+          "rule": "due Saturday 11:59 PM MT"
+        },
         "expected_output": "2026-01-10T06:59:00Z",
         "validation_method": "exact_match"
       },
       {
-        "name": "Multi-week sprint — sprint-end item",
-        "input": {"module_slug": "sprint-3-sftp-dag-w05-w06", "rule": "due Saturday of sprint end", "week1_monday": "2026-04-20"},
+        "name": "Multi-week sprint \u2014 sprint-end item",
+        "input": {
+          "module_slug": "sprint-3-sftp-dag-w05-w06",
+          "rule": "due Saturday of sprint end",
+          "week1_monday": "2026-04-20"
+        },
         "expected_output": "W06 Saturday = 2026-05-30T05:59:00Z",
         "validation_method": "exact_match"
       },
       {
-        "name": "1-hour tolerance — no false flag",
-        "input": {"actual": "2026-05-30T05:45:00Z", "expected": "2026-05-30T05:59:00Z"},
+        "name": "1-hour tolerance \u2014 no false flag",
+        "input": {
+          "actual": "2026-05-30T05:45:00Z",
+          "expected": "2026-05-30T05:59:00Z"
+        },
         "expected_output": "status: OK",
         "validation_method": "exact_match"
       },
       {
-        "name": "Null field — until N/A",
-        "input": {"rule": "Until: N/A", "current_lock_at": "2026-05-30T05:59:00Z"},
-        "expected_output": {"proposed_value": null, "rule_source": "Discussions: Until N/A — remove close date"},
+        "name": "Null field \u2014 until N/A",
+        "input": {
+          "rule": "Until: N/A",
+          "current_lock_at": "2026-05-30T05:59:00Z"
+        },
+        "expected_output": {
+          "proposed_value": null,
+          "rule_source": "Discussions: Until N/A \u2014 remove close date"
+        },
         "validation_method": "exact_match"
       }
     ],
     "cross_course_test_cases": [
       {
         "name": "DS 250 audit-only validation",
-        "description": "Run auditor against course 339374 using ds_339374_setup_notes.md. Audit mode only — no writes. Verify agent correctly parses rules and produces a plausible audit table. Acceptable result: some flags expected (course may have date drift from past semesters).",
+        "description": "Run auditor against course 339374 using ds_339374_setup_notes.md. Audit mode only \u2014 no writes. Verify agent correctly parses rules and produces a plausible audit table. Acceptable result: some flags expected (course may have date drift from past semesters).",
         "course_id": "339374",
         "setup_notes_file": "course_ref/setup_notes_examples/ds_339374_setup_notes.md",
         "mode": "audit_only"
       }
     ]
   },
-
   "cross_references": {
     "_tier": "tier_2_recommended",
     "related_agents": [
       {
         "name": "canvas_semester_setup",
-        "files": ["agents/canvas_semester_setup.md", "agents/canvas_semester_setup.json"],
+        "files": [
+          "agents/canvas_semester_setup.md",
+          "agents/canvas_semester_setup.json"
+        ],
         "relationship": "Companion: semester setup applies dates in bulk; schedule auditor verifies them. Run auditor after semester setup to confirm correctness."
       },
       {
         "name": "canvas_course_expert",
-        "files": ["agents/canvas_course_expert.md", "agents/canvas_course_expert.json"],
+        "files": [
+          "agents/canvas_course_expert.md",
+          "agents/canvas_course_expert.json"
+        ],
         "relationship": "Separate concern: course expert audits cognitive load and BYUI design standards; schedule auditor audits dates only. Both use propose-before-execute."
       }
-    ]
+    ],
+    "knowledge_files": [],
+    "_knowledge_files_note": "No instructional-design knowledge files consumed - this is a rule-based date/schedule audit, not a pedagogical audit. The audit rules live in primary_data, not in lib/agents/knowledge/."
   }
 }
