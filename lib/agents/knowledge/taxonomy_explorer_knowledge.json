@@ -1,0 +1,109 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "make_agent_knowledge v1.0 (retrofit mode)",
+    "knowledge_id": "taxonomy_explorer_knowledge",
+    "last_updated": "2026-05-13",
+    "description": "BYUI Taxonomy Explorer — institutional verb-classification tool for the three learning domains (Cognitive Bloom Revised, Affective Krathwohl, Psychomotor Simpson). The BYUI-flavored sibling of three_domains_knowledge (which uses Wilson/Harrow psychomotor).",
+    "owner": "Chaz Clark (BYUI course-design audit framework)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Body MD ~8,127 chars / 4 ≈ 2,032 tokens — at the boundary of 'either' band per runtime_strategy_rules. Set to read_at_runtime per named_override_patterns.selective_load: canvas_course_expert loads 2-3 of ~12 knowledge files per audit task. Selective-load defeats embed-cache benefits."
+  },
+  "shape": "reference",
+  "scope": "BYUI's institutional view of the three learning domains, including BYUI's chosen psychomotor model (Simpson 1972, 7 levels) and the live verb-classification tool faculty actually use. Faculty preferring BYUI tool view → this file; faculty preferring academic-research view → three_domains_knowledge.md. For domain theory, affective-domain-matters argument, physical ≠ psychomotor distinction, and audit interpretation, defer to three_domains_knowledge.",
+  "consumed_by": [
+    "canvas_course_expert.md"
+  ],
+  "facts": [
+    {
+      "id": "tool_overview",
+      "term": "BYUI Taxonomy Explorer",
+      "definition": "A live BYUI tool that classifies educational objectives by domain (Cognitive, Affective, Psychomotor) and level. Two functions: (1) domain hierarchy view — visual pyramid of each domain's levels; (2) verb lookup — instructor enters a verb (e.g., evaluate, organize, adapt) and the tool returns the matching domain + level. The tool is what BYUI faculty are pointed to when writing learning outcomes.",
+      "citations": ["BYU-Idaho. The Taxonomy Explorer. https://content.byui.edu/file/c5d91be3-1a6e-4f21-bf0a-610f9f1e2dd6/1/Taxonomy_Explorer.html"]
+    },
+    {
+      "id": "domain_summaries",
+      "term": "BYUI Domain Summaries (verbatim)",
+      "definition": "Cognitive: 'Intellectual skills, knowledge, and mental processes' — knowledge acquisition, comprehension, thinking processes from basic recall to complex evaluation and creation. Affective: 'Growth in feelings, values, appreciation, and attitudes' — progresses from basic receiving to internal characterization of a personal value system. Psychomotor: 'Physical movement, coordination, and motor-skill areas' — progresses from basic perception and imitation to independent mastery and creative original performance.",
+      "citations": ["BYUI Taxonomy Explorer main page"]
+    },
+    {
+      "id": "cognitive_bloom_revised",
+      "term": "Cognitive Domain — Bloom Revised (Anderson & Krathwohl 2001)",
+      "definition": "Six levels, simple → complex: (1) Remembering — retrieve relevant knowledge from long-term memory; (2) Understanding — construct meaning from instructional messages; (3) Applying — carry out or use a procedure in a given situation; (4) Analyzing — break material into parts, detect relationships; (5) Evaluating — make judgments based on criteria and standards; (6) Creating — put elements together to form a coherent or original whole.",
+      "citations": ["Anderson & Krathwohl (2001)"]
+    },
+    {
+      "id": "affective_krathwohl",
+      "term": "Affective Domain — Krathwohl (1964)",
+      "definition": "Five levels of internalization: (1) Receiving — awareness, willingness to attend; (2) Responding — active attention, motivation to engage; (3) Valuing — acceptance, preference, or commitment to a value; (4) Organizing — sorting values into a coherent system; (5) Characterizing — values become a stable life pattern.",
+      "citations": ["Krathwohl (1964)"]
+    },
+    {
+      "id": "psychomotor_simpson",
+      "term": "Psychomotor Domain — Simpson (1972) — BYUI's chosen model",
+      "definition": "Seven levels of motor-skill acquisition: (1) Perception — using sensory cues to guide motor activity; (2) Set — readiness to act (mental, physical, emotional); (3) Guided Response — early performance via imitation and trial-and-error; (4) Mechanism — learned responses become habitual, basic proficiency; (5) Complex Overt Response — skilled performance of complex motor acts; (6) Adaptation — modifying skills to fit new or problem situations; (7) Origination — creating new movement patterns to fit a situation. This is where BYUI diverges from Wilson (who uses Harrow's 6 levels).",
+      "citations": ["Simpson, E.J. (1972)"]
+    },
+    {
+      "id": "simpson_vs_harrow",
+      "term": "Simpson vs. Harrow — Which to Use When",
+      "definition": "Use Simpson (this file) when: auditing against BYUI's Taxonomy Explorer tool; faculty wrote outcomes using BYUI verb-lookup; skill acquisition is the focus (lab technique, performance). Use Harrow (three_domains_knowledge.md) when: auditing against Wilson's Second Principle or general instructional-design literature; faculty wrote outcomes from Bloom/Wilson reference materials; movement development is the focus (PE, dance, early-childhood motor skills). Mechanism (Simpson) ≈ Skilled movements (Harrow); Origination (Simpson) ≈ Nondiscursive communication (Harrow). Simpson's Set and Guided Response have no clean Harrow analog.",
+      "citations": ["This knowledge file's Simpson vs. Harrow table"]
+    },
+    {
+      "id": "verb_lookup_process",
+      "term": "Verb Lookup for Audit",
+      "definition": "(1) Pull the verb from each learning outcome. (2) Look it up (or simulate using level definitions above). (3) Compare claimed cognitive level (in outcome statement) to the tool's classification of the verb actually used. Common audit finding: outcome says 'students will understand…' (Lvl 2 cognitive) but assessment requires analyzing or evaluating (Lvl 4-5). Misalignment.",
+      "citations": ["This knowledge file's Verb Lookup section"]
+    },
+    {
+      "id": "audit_signals_byui_framing",
+      "term": "Canvas Audit Indicators (BYUI-Tool Framing)",
+      "definition": "Flag: outcome verb classifies as cognitive Lvl 1-2 but assessment requires Lvl 4-6 (outcome-assessment misalignment); outcome uses a verb the BYUI tool does not classify (vague: 'know', 'learn', 'be familiar with') — unmeasurable; all outcomes classify as Cognitive only (no Affective, no Psychomotor) — single-domain course; course claims psychomotor outcome but verb classifies as cognitive — physical-supporting-cognitive miscategorization; Affective outcomes use Lvl 1 (Receiving) verbs only — surface affective design.",
+      "citations": ["This knowledge file's audit table"]
+    },
+    {
+      "id": "taxonomy_source_tag",
+      "term": "taxonomy_source Audit Tag",
+      "definition": "Value enum: byui_explorer (classification follows BYUI Taxonomy Explorer with Simpson psychomotor); wilson (classification follows Wilson/Harrow psychomotor); agnostic (cognitive or affective only — both sources agree). Pair with learning_domain and hattie_phase tags. The taxonomy_source field tells the reader which framework the audit applied — important when a course's outcomes were authored using BYUI's tool.",
+      "citations": ["This knowledge file's Tag section"]
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "BYU-Idaho. The Taxonomy Explorer. https://content.byui.edu/file/c5d91be3-1a6e-4f21-bf0a-610f9f1e2dd6/1/Taxonomy_Explorer.html",
+      "Anderson, L.W. & Krathwohl, D.R. (2001). Cognitive taxonomy revision.",
+      "Krathwohl, D.R. (1964). Affective taxonomy.",
+      "Simpson, E.J. (1972). The classification of educational objectives in the psychomotor domain."
+    ],
+    "last_reviewed": "2026-05-13"
+  },
+  "validation": {
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "Each entry in consumed_by[] resolves to an existing agent spec"
+    ],
+    "post_run_checklist": [
+      "knowledge/taxonomy_explorer_knowledge.md exists",
+      "knowledge/taxonomy_explorer_knowledge.json exists with shape=reference and facts[] present",
+      "_metadata.runtime_strategy is set",
+      "consumed_by[] is non-empty",
+      "provenance.sources[] is non-empty (reference shape)"
+    ],
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "1.0",
+        "date": "2026-05-13",
+        "changes": [
+          "Retrofit: JSON companion authored for pre-existing canvas-toolbox knowledge MD.",
+          "MD body and canvas-toolbox header convention preserved.",
+          "Runtime strategy set to read_at_runtime via selective_load override (either band; selective audit-task loading pattern)."
+        ]
+      }
+    ]
+  }
+}

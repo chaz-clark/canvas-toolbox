@@ -1,0 +1,155 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "make_agent_knowledge v1.0 (retrofit mode)",
+    "knowledge_id": "outcomes_quality_knowledge",
+    "last_updated": "2026-05-13",
+    "description": "CLO Quality & Outcome Hierarchy \u2014 well-formedness criteria (AoL 6-criterion rubric), outcome hierarchy (ILO\u2192PLO\u2192CLO\u2192LLO), BYUI's 5 kinds of outcomes, behavioral vs cognitive objective formats, observable verb reference, Merrill's performance-content matrix.",
+    "owner": "Chaz Clark (BYUI course-design audit framework)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Body MD ~10,533 chars / 4 \u2248 2,633 tokens \u2014 within the 'either' band per runtime_strategy_rules. Set to read_at_runtime per named_override_patterns.selective_load: canvas_course_expert loads 2-3 of ~12 knowledge files per audit task. Selective-load defeats embed-cache benefits."
+  },
+  "shape": "reference",
+  "scope": "Framework for evaluating whether learning outcomes are well-formed BEFORE auditing whether they are aligned. Alignment checks that outcomes are wired together; this framework checks that the outcomes themselves are worth wiring. Boundaries: alignment traceability lives in course_design_language Principle 6; Bloom verb classification lives in taxonomy_explorer.",
+  "consumed_by": [
+    "canvas_course_expert.md",
+    "canvas_new_course_setup.md",
+    "ira_program_alignment.md"
+  ],
+  "facts": [
+    {
+      "id": "outcome_hierarchy",
+      "term": "Outcome Hierarchy (ILO \u2192 PLO \u2192 CLO \u2192 LLO)",
+      "definition": "ILO (Institutional Learning Outcome \u2014 university-wide graduate goals, indirect/proxy measures). PLO (Program/Major \u2014 competencies for a degree, direct + indirect). CLO (Course Learning Outcome \u2014 what a student achieves by completing the course, direct measures). LLO (Lesson/Class \u2014 what a student achieves in a single session, direct within session). Rule: Classroom outcomes accomplish course outcomes; course outcomes combined accomplish program and institutional outcomes. If any level is broken, the level above is unsupported.",
+      "citations": [
+        "Morrison et al. (2019); BYUI Learning and Teaching"
+      ]
+    },
+    {
+      "id": "byui_full_hierarchy",
+      "term": "BYUI Full Hierarchy",
+      "definition": "University Academic Outcomes \u2192 Foundations Outcomes \u2192 College Outcomes \u2192 Department Outcomes \u2192 Major Outcomes \u2192 Course Outcomes \u2192 Lesson Outcomes (general \u2192 specific).",
+      "citations": [
+        "BYUI Learning and Teaching"
+      ]
+    },
+    {
+      "id": "byui_five_kinds",
+      "term": "BYUI's 5 Kinds of Learning Outcomes",
+      "definition": "Knowledge (information, concepts, facts); Character & Values (attitudes, professional behavior, judgment); Skills (observable abilities students can perform); Experiences (meaningful contexts that shape perspective); Learning-to-Learn (metacognitive habits, self-regulation). Most audits find CLOs only in Knowledge and Skills buckets \u2014 the high-value gap is almost always Character & Values.",
+      "citations": [
+        "BYUI Learning and Teaching"
+      ]
+    },
+    {
+      "id": "standard_statement_format",
+      "term": "Standard Statement Format",
+      "definition": "Every outcome: 'The student will be able to: [action verb] + [subject-content reference]'. Optional additions sharpen precision: level of achievement ('with 90% accuracy') and conditions of performance ('Given a client scenario').",
+      "citations": [
+        "Morrison et al. (2019), Ch.5"
+      ]
+    },
+    {
+      "id": "behavioral_format",
+      "term": "Behavioral (Mager-style) Format",
+      "definition": "Most precise format. Specifies verb + content + optional standard + optional conditions. Best for mastery-based or competency-based programs. Example: 'Given five black-and-white photographs of insects, the learner will correctly identify the three insects detrimental to corn.'",
+      "citations": [
+        "Mager via Morrison et al. (2019)"
+      ]
+    },
+    {
+      "id": "cognitive_format",
+      "term": "Cognitive (Gronlund-style) Format",
+      "definition": "More flexible format. States a general outcome, then lists 2-3 sample behaviors that indicate mastery. Best for higher-order outcomes where the full range of performance can't be specified in advance. Example: 'Interprets a graph. (1) Determines which group sold the most. (2) Identifies groups performing below average. (3) Determines the year with the greatest number of sales.'",
+      "citations": [
+        "Gronlund via Morrison et al. (2019)"
+      ]
+    },
+    {
+      "id": "aol_clo_rubric",
+      "term": "AoL CLO Quality Rubric (6 Criteria)",
+      "definition": "BYU-Idaho's Assurance of Learning rubric scores CLOs on six dimensions: Scope (3-6 ideal, 3-8 acceptable), Language Clarity (no jargon/subjective/comparative language), Measurable (observable action verb), Single-barreled (one goal per CLO), Rigor (mix of know/do/become verb levels appropriate to course level), Relevance (logical fit for course), Recency (current industry practice/research). Scope and Measurability failures are most common and most fixable; Rigor failures are most consequential.",
+      "citations": [
+        "BYU-Idaho Assurance of Learning CLO Rubric AoL"
+      ]
+    },
+    {
+      "id": "process_outcome_antipattern",
+      "term": "Process vs. Outcome Anti-Pattern",
+      "definition": "Most common writing error: stating what the instructor does or what activity students complete, instead of what the student achieves. Examples: 'To view a videotape on ecological safeguards' (activity, not outcome); 'The instructor will describe types of fire extinguishers' (instructor-focused); 'Students will understand the water cycle' (non-observable verb). Test: 'Is this outcome what I want the learner to know or demonstrate after completing the topic?'",
+      "citations": [
+        "Morrison et al. (2019)"
+      ]
+    },
+    {
+      "id": "observable_verbs",
+      "term": "Observable Verb Reference (Bloom's Revised)",
+      "definition": "Remembering: arrange, define, duplicate, label, list, match, memorize, name, order, relate, repeat, reproduce, state. Understanding: classify, describe, discuss, explain, express, identify, indicate, locate, report, restate, review, select, sort, tell, translate. Applying: apply, choose, demonstrate, dramatize, employ, illustrate, interpret, operate, practice, prepare, schedule, sketch, solve, use. Analyzing: analyze, appraise, calculate, categorize, compare, contrast, criticize, diagram, differentiate, discriminate, distinguish, examine, experiment, question, test. Evaluating: argue, assess, defend, design, determine, evaluate, judge, predict, rate, value. Creating: combine, construct, decide, estimate, formulate, organize, predict, rank, synthesize, write. Flag verbs (non-observable): understand, know, appreciate, be aware of, learn, feel, recognize.",
+      "citations": [
+        "Anderson, Krathwohl et al. (2001)"
+      ]
+    },
+    {
+      "id": "performance_content_matrix",
+      "term": "Performance-Content Matrix (Merrill 1983)",
+      "definition": "Classifies each CLO by content type AND performance level. Fact (specific association \u2014 recall only). Concept (category/class \u2014 recall or application). Principle/Rule (relationship between concepts \u2014 recall or application). Procedure (sequence of steps \u2014 recall list, or application perform). Interpersonal (spoken/nonverbal interaction \u2014 application). Attitude (disposition \u2014 application, inferred from behavior). A course designed around Fact-Recall objectives cannot develop Procedure-Application competencies.",
+      "citations": [
+        "Merrill (1983)"
+      ]
+    },
+    {
+      "id": "canvas_audit_signals",
+      "term": "Canvas Audit Signals",
+      "definition": "Flag: no outcome statements visible in course intro/module overviews/syllabus; outcomes use 'understand/know/appreciate' or other non-observable verbs; <3 or >8 CLOs; all CLOs cluster at same Bloom level (no rigor spread); outcomes describe instructor activities; all outcomes are Knowledge-type (no Character/Values, Skills, Experiences, Learning-to-Learn); rubric criteria don't trace back to a named CLO.",
+      "citations": [
+        "This knowledge file's Canvas Audit Indicators"
+      ]
+    },
+    {
+      "id": "clo_quality_tag",
+      "term": "clo_quality Audit Tag",
+      "definition": "Value enum: meets_criteria | partial | needs_revision. Companion tag clo_criteria_flags lists which of the 6 AoL criteria fail: scope, clarity, measurable, single_barreled, rigor, relevance, recency.",
+      "citations": [
+        "This knowledge file's Audit tag section"
+      ]
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "Morrison, G.R., Ross, S.M., Morrison, J.R., & Kalman, H.K. (2019). Designing Effective Instruction, 8th ed. Chapter 5. Wiley.",
+      "BYU-Idaho Learning and Teaching. Learning Outcomes. learningandteaching.byui.edu",
+      "BYU-Idaho Assurance of Learning. CLO Rubric AoL (internal document).",
+      "Anderson, L.W., Krathwohl, D.R., et al. (2001). A Taxonomy for Learning, Teaching, and Assessing.",
+      "Merrill, M.D. (1983). Component Display Theory."
+    ],
+    "last_reviewed": "2026-05-13"
+  },
+  "validation": {
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "Each entry in consumed_by[] resolves to an existing agent spec"
+    ],
+    "post_run_checklist": [
+      "knowledge/outcomes_quality_knowledge.md exists",
+      "knowledge/outcomes_quality_knowledge.json exists with shape=reference and facts[] present",
+      "_metadata.runtime_strategy is set",
+      "consumed_by[] is non-empty",
+      "provenance.sources[] is non-empty (reference shape)"
+    ],
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "1.0",
+        "date": "2026-05-13",
+        "changes": [
+          "Retrofit: JSON companion authored for pre-existing canvas-toolbox knowledge MD.",
+          "MD body and canvas-toolbox header convention preserved.",
+          "consumed_by inferred (canvas_course_expert.md) \u2014 MD has no explicit 'Used by:' line, but body has 'Canvas Audit Indicators' section and 'clo_quality' audit tag, indicating canvas-audit consumption. KNW-QC-006 reported as PARTIAL: consumer named in body prose (audit-tag references) rather than a labeled line. User-confirmable in follow-up.",
+          "Runtime strategy set to read_at_runtime via selective_load override (either band; selective audit-task loading pattern)."
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "make_agent_knowledge v1.0 (retrofit mode)",
+    "knowledge_id": "designer_thinking_knowledge",
+    "last_updated": "2026-05-13",
+    "description": "Designer Thinking \u2014 the backward-design framework (Outcome \u2192 Evidence \u2192 Experience \u2192 Content \u2192 Reality Check) that shifts the instructor from teacher thinking ('what am I covering?') to designer thinking ('what will students be able to do?').",
+    "owner": "Chaz Clark (BYUI faculty-development; Architects of Learning)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Body MD ~2,937 chars / 4 \u2248 735 tokens \u2014 within the 'embed' band per runtime_strategy_rules. Override to read_at_runtime per named_override_patterns.selective_load: canvas_course_expert loads 2-3 of ~12 knowledge files per audit task, not all of them. Selective-load defeats embed cache benefits even for small files."
+  },
+  "shape": "identity",
+  "scope": "A framing for course design that shifts the instructor from teacher mode ('what am I covering?') to designer mode ('what will students be able to do?'). The single frame is backward design: Outcome \u2192 Evidence \u2192 Experience \u2192 Content \u2192 Reality Check. Boundaries: does not cover artifact-level coherence (see course_design_language) or working-memory mechanics (see cognitive_load_theory).",
+  "consumed_by": [
+    "canvas_course_expert.md",
+    "canvas_new_course_setup.md",
+    "ira_program_alignment.md"
+  ],
+  "principles": [
+    {
+      "id": "backward_design",
+      "name": "Backward Design (the Designer-Thinking frame)",
+      "compact_statement": "Five stages in order: Outcome (what will students be able to do?) \u2192 Evidence (what would convince me they can do it?) \u2192 Experience (what practice with feedback gets them there?) \u2192 Content (what content serves as a tool toward the outcome?) \u2192 Reality Check (what does success look like in practice, and how could this fail?). Outcome \u2192 Evidence comes BEFORE Experience and Content. Reality Check is last because it tests the design against use, not intent.",
+      "trigger": "Auditing any course, module, or assignment to diagnose whether it is operating in teacher mode (content-focused, topic-by-topic, success = got through everything) or designer mode (capability-focused, skill-by-skill, success = students changed). A module strong on Content but weak on Outcome/Evidence/Experience is in teacher mode even if polished \u2014 flag it.",
+      "trust_marker": "Audit response answers five questions: Outcome present? Evidence aligned? Experience designed? Content subordinated? Reality checked? Worked-example illustrations live in the MD body (teacher vs. designer table; architects-of-learning priority list of Learners \u2192 Outcomes \u2192 Experiences \u2192 Iterations) and inform diagnosis without becoming separate principles."
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "BYUI Architects of Learning (course 405800) \u2014 the framing the course teaches and embodies."
+    ],
+    "last_reviewed": "2026-05-13",
+    "provenance_requirement": "optional (identity shape \u2014 the agent IS the source; provenance documented here for traceability)"
+  },
+  "validation": {
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "Each entry in consumed_by[] resolves to an existing agent spec"
+    ],
+    "post_run_checklist": [
+      "knowledge/designer_thinking_knowledge.md exists",
+      "knowledge/designer_thinking_knowledge.json exists with shape=identity and principles[] present",
+      "_metadata.runtime_strategy is set",
+      "consumed_by[] is non-empty"
+    ],
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "1.0",
+        "date": "2026-05-13",
+        "changes": [
+          "Retrofit: JSON companion authored for pre-existing canvas-toolbox knowledge MD.",
+          "Classified as framework-charter per knowledge_shapes._classification_guidance: shape=identity with principles[] containing ONE entry (backward_design) representing the frame itself. The teacher-vs-designer contrast table and Architects-of-Learning priority list are worked examples in the MD body, not separate principles[] entries \u2014 matches the behavioral_discipline pattern where one principle is illustrated by multiple worked examples.",
+          "Runtime strategy set to read_at_runtime via selective_load override despite small body size (~735 tokens) \u2014 selective audit-task loading pattern."
+        ]
+      }
+    ]
+  }
+}

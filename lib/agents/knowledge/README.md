@@ -8,7 +8,7 @@ These files travel with the upstream `agents/` folder, so any course repo that p
 
 ## How to choose between them
 
-The seven files cover overlapping but distinct ground. Quick routing:
+The twelve files cover overlapping but distinct ground. Quick routing:
 
 | If you're auditing… | Start with |
 |---|---|
@@ -16,7 +16,10 @@ The seven files cover overlapping but distinct ground. Quick routing:
 | Whether learning progresses Surface → Deep → Transfer | [`hattie_3phase_knowledge.md`](hattie_3phase_knowledge.md) |
 | Whether the course covers more than just thinking (cognitive vs. affective vs. psychomotor) | [`three_domains_knowledge.md`](three_domains_knowledge.md) *(academic framing)* or [`taxonomy_explorer_knowledge.md`](taxonomy_explorer_knowledge.md) *(BYUI tool framing)* |
 | Whether the module sequence is brain-aligned (experience before explanation) | [`experiential_learning_knowledge.md`](experiential_learning_knowledge.md) |
-| Whether the course was built backward from outcomes (vs. forward from content) | [`designer_thinking_knowledge.md`](designer_thinking_knowledge.md) |
+| Whether the course was designed backward from outcomes (vs. assembled forward from content) | [`backwards_design_knowledge.md`](backwards_design_knowledge.md) *(Wiggins/McTighe UbD — academic framing)* or [`designer_thinking_knowledge.md`](designer_thinking_knowledge.md) *(BYUI five-stage descendant)* |
+| Whether the course's learning outcomes are well-formed (precedes alignment) | [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md) |
+| Whether a specific assessment is the right type (formative vs. summative) and AI-resistant | [`assessments_knowledge.md`](assessments_knowledge.md) |
+| Whether assessments accept AI-generated work as a substitute for learning | [`inverted_blooms_knowledge.md`](inverted_blooms_knowledge.md) |
 | Whether a BYUI course is a coherent artifact (visual grammar, rubrics, alignment) | [`course_design_language_knowledge.md`](course_design_language_knowledge.md) |
 | Writing a precise change plan for a flagged issue | [`toyota_gap_analysis_knowledge.md`](toyota_gap_analysis_knowledge.md) |
 
@@ -73,13 +76,23 @@ The seven files cover overlapping but distinct ground. Quick routing:
 
 ---
 
+### [`backwards_design_knowledge.md`](backwards_design_knowledge.md)
+
+**Source:** McTighe, J., & Wiggins, G. (2012). *Understanding by Design® Framework.* ASCD. Plus the Wiggins UbD video transcript (ASCD, 10 min).
+**Core idea:** UbD is a planning framework — three stages: (1) Identify desired results, (2) Determine acceptable evidence, (3) Plan learning experiences. Design backward from understanding and transfer goals; *the textbook is a resource, not the syllabus*.
+**When to use:** When auditing whether a course was *designed backward* from intended results or *assembled forward* from content. The academic / research-lineage framing of the same principle BYUI's "designer thinking" implements institutionally.
+**Audit tag:** none yet (reference-shape; consumed via fact lookup).
+**Pairs with:** `designer_thinking_knowledge.md` (BYUI five-stage descendant), `assessments_knowledge.md` (Stage 2 evidence), `outcomes_quality_knowledge.md` (Stage 1 quality gate).
+
+---
+
 ### [`designer_thinking_knowledge.md`](designer_thinking_knowledge.md)
 
 **Source:** Backward Design framework (Wiggins & McTighe lineage), distilled from BYUI *Teacher and Designer Thinking* materials.
 **Core idea:** Design backward from outcomes. Five stages — Outcome → Evidence → Experience → Content → Reality Check. *Content is a tool, not the destination.*
-**When to use:** When a course has lots of content but unclear outcomes, or when assessments don't trace back to claimed outcomes.
+**When to use:** When a course has lots of content but unclear outcomes, or when assessments don't trace back to claimed outcomes. BYUI's institutional descendant of `backwards_design_knowledge.md`.
 **Audit tag:** `design_mode` ∈ {teacher, designer}.
-**Pairs with:** `experiential_learning_knowledge.md` (supplies the neural rationale for content-as-tool).
+**Pairs with:** `backwards_design_knowledge.md` (UbD parent), `experiential_learning_knowledge.md` (supplies the neural rationale for content-as-tool).
 
 ---
 
@@ -109,6 +122,16 @@ The seven files cover overlapping but distinct ground. Quick routing:
 **When to use:** When auditing whether a course's CLOs are well-formed before checking alignment. Precedes `designer_thinking_knowledge.md` in the audit order — you can't meaningfully check backward design if the outcomes themselves are broken.
 **Audit tag:** `clo_quality` ∈ {`meets_criteria`, `partial`, `needs_revision`} + `clo_criteria_flags` listing which of the 6 AoL criteria fail.
 **Pairs with:** `designer_thinking_knowledge.md` (backward design from outcomes), `taxonomy_explorer_knowledge.md` (BYUI verb tool), `three_domains_knowledge.md` (domain coverage and rigor spread).
+
+---
+
+### [`assessments_knowledge.md`](assessments_knowledge.md)
+
+**Source:** Yale Poorvu Center *Formative & Summative Assessments*; Hardman (2024) *Redesigning Instruction & Assessment in the Age of AI*; Wiggins UbD video transcript (ASCD); BYUI *Architects of Learning* assessment week (2026).
+**Core idea:** Formative vs. summative as the two main assessment types — formative is *for* learning (low-stakes, iterative, gap-closing); summative is *of* learning (evaluative, comparative). Plus AI-era design adjustments: productive friction, in-process evidence, oral defenses, staged drafts.
+**When to use:** When classifying a single assessment or evaluating whether its design is right for what it's evidencing. Pairs with `backwards_design` to answer "is this the right assessment for Stage 2?"
+**Audit tag:** none yet (reference-shape; consumed via fact lookup).
+**Pairs with:** `backwards_design_knowledge.md` (upstream UbD logic), `outcomes_quality_knowledge.md` (the outcome the assessment claims to evidence), `inverted_blooms_knowledge.md` (AI-agency framing), `course_design_language_knowledge.md` (observable rubrics).
 
 ---
 

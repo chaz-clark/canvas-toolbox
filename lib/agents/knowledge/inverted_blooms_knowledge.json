@@ -1,0 +1,125 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "make_agent_knowledge v1.0 (retrofit mode)",
+    "knowledge_id": "inverted_blooms_knowledge",
+    "last_updated": "2026-05-13",
+    "description": "Inverted Bloom's for the Age of AI \u2014 assessment-design framework that scaffolds students DOWN the agency scale (from AI-dependent Create toward student-owned Remember). Productive friction, ai_agency audit tag, and the post-creation learning journey.",
+    "owner": "Chaz Clark (BYUI course-design audit framework)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Body MD ~7,449 chars / 4 \u2248 1,862 tokens \u2014 within the 'embed' band per runtime_strategy_rules. Override to read_at_runtime per named_override_patterns.selective_load: canvas_course_expert loads 2-3 of ~12 knowledge files per audit task. Selective-load defeats embed-cache benefits."
+  },
+  "shape": "reference",
+  "scope": "Assessment-design framework for the AI age \u2014 audit whether assessments produce genuine student learning or inadvertently accept AI-generated work as a substitute. Boundaries: does not cover CLO well-formedness (see outcomes_quality) or Bloom verb classification (see taxonomy_explorer); layers on top of those, not replaces them.",
+  "consumed_by": [
+    "canvas_course_expert.md",
+    "ira_program_alignment.md"
+  ],
+  "facts": [
+    {
+      "id": "core_shift",
+      "term": "Core Shift \u2014 AI Inverts Bloom",
+      "definition": "Traditional Bloom's (Remember \u2192 Understand \u2192 Apply \u2192 Analyze \u2192 Evaluate \u2192 Create) assumed students who produced sophisticated work had internalized the lower levels to get there. AI breaks that assumption: students now access tools that generate Create-level output on demand before they've built understanding, analysis, or memory. The output can look polished while the learning didn't happen.",
+      "citations": [
+        "Kassorla, M. Inverted Bloom's for the Age of AI. Substack."
+      ]
+    },
+    {
+      "id": "inverted_agency_scale",
+      "term": "Inverted Agency Scale",
+      "definition": "Six levels from maximum AI influence to minimal: Create (Lvl 1, submits AI-generated artifact with minimal engagement) \u2192 Evaluate (Lvl 2, judges AI output using AI-supplied criteria) \u2192 Analyze (Lvl 3, breaks down AI feedback superficially) \u2192 Apply (Lvl 4, implements insights with personal initiative) \u2192 Understand (Lvl 5, makes connections through reflection and iteration) \u2192 Remember (Lvl 6, internalizes knowledge independently). Goal of assessment design: scaffold students DOWN the agency scale toward student-owned understanding.",
+      "citations": [
+        "Kassorla (Substack)"
+      ]
+    },
+    {
+      "id": "productive_friction",
+      "term": "Productive Friction",
+      "definition": "The cognitive struggle that generates authentic learning. AI bypasses this friction by default; assessment design must deliberately reintroduce it. Examples: revision cycles with instructor/peer feedback; staged drafts with required justification for changes; oral defense or live explanation; process documentation (annotated bibliography, design journal, revision history); failure states that must be diagnosed and corrected. Without productive friction, a polished submission is evidence of AI use, not learning.",
+      "citations": [
+        "Kassorla (Substack)"
+      ]
+    },
+    {
+      "id": "ownership_clause",
+      "term": "Ownership Clause in Outcome Framing",
+      "definition": "Traditional outcome states what students will produce. AI-age outcomes add an ownership clause specifying how students will OWN the production. Example: 'Students will design a marketing campaign ... and explain, in a recorded debrief, why each design decision was made and what alternatives were rejected.' The added clause is not busywork \u2014 it is the only evidence the student traveled through Understand and Apply before arriving at Create.",
+      "citations": [
+        "Kassorla (Substack)"
+      ]
+    },
+    {
+      "id": "ai_dependent_signals",
+      "term": "ai_dependent \u2014 Audit Signals",
+      "definition": "Rubric evaluates only the final artifact (no criteria for process, reasoning, or iteration); no staged submission (no draft, outline, checkpoint); no peer review, reflection prompt, or oral component; CLO could be satisfied by submitting AI-generated response unchanged; text-only products with no embedded rationale.",
+      "citations": [
+        "This knowledge file's Canvas Audit Indicators"
+      ]
+    },
+    {
+      "id": "scaffolded_signals",
+      "term": "scaffolded \u2014 Audit Signals",
+      "definition": "At least one stage before final (draft or outline required); rubric includes at least one process criterion ('sources evaluated', 'revision explained'); reflection prompt exists but is separate, low-weight; peer feedback is optional or ungraded.",
+      "citations": [
+        "This knowledge file's Canvas Audit Indicators"
+      ]
+    },
+    {
+      "id": "student_owned_signals",
+      "term": "student_owned \u2014 Audit Signals",
+      "definition": "Rubric explicitly scores reasoning and decision-making, not just the artifact; multiple checkpoints with required justification for changes; oral defense, screenshare, or live explanation is part of the grade; process documentation graded equally or heavier than artifact; deliberate failure states or revision cycles; assignment-specific AI policy tied to rubric criteria.",
+      "citations": [
+        "This knowledge file's Canvas Audit Indicators"
+      ]
+    },
+    {
+      "id": "auditor_test",
+      "term": "Three-Question Auditor Test",
+      "definition": "For each graded assessment: (1) Could a student submit by pasting AI output and meet the rubric? Yes \u2192 ai_dependent. (2) Does the rubric evaluate how the student thought, not just what they submitted? No \u2192 ai_dependent or scaffolded at best. (3) Is there productive friction \u2014 a stage where failure is possible and must be corrected? Yes \u2192 candidate for student_owned.",
+      "citations": [
+        "This knowledge file's Practical Test section"
+      ]
+    },
+    {
+      "id": "ai_agency_tag",
+      "term": "ai_agency Audit Tag",
+      "definition": "Value enum: ai_dependent | scaffolded | student_owned. Pairs with outcomes_quality (ownership-clause framing starts at outcome level), designer_thinking (backward design includes friction), cognitive_load_theory (germane load is precisely what AI bypasses; student_owned maximizes germane load).",
+      "citations": [
+        "This knowledge file's Audit tag section"
+      ]
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "Kassorla, M. Inverted Bloom's for the Age of AI. Substack. https://michellekassorla.substack.com/p/inverted-blooms-for-the-age-of-ai"
+    ],
+    "last_reviewed": "2026-05-13"
+  },
+  "validation": {
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "Each entry in consumed_by[] resolves to an existing agent spec"
+    ],
+    "post_run_checklist": [
+      "knowledge/inverted_blooms_knowledge.md exists",
+      "knowledge/inverted_blooms_knowledge.json exists with shape=reference and facts[] present",
+      "_metadata.runtime_strategy is set",
+      "consumed_by[] is non-empty",
+      "provenance.sources[] is non-empty (reference shape)"
+    ],
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "1.0",
+        "date": "2026-05-13",
+        "changes": [
+          "Retrofit: JSON companion authored for pre-existing canvas-toolbox knowledge MD.",
+          "MD body and canvas-toolbox header convention preserved.",
+          "Runtime strategy set to read_at_runtime via selective_load override."
+        ]
+      }
+    ]
+  }
+}

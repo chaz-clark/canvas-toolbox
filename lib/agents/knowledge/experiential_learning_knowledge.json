@@ -1,0 +1,118 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "make_agent_knowledge v1.0 (retrofit mode)",
+    "knowledge_id": "experiential_learning_knowledge",
+    "last_updated": "2026-05-13",
+    "description": "Experiential learning — the brain-aligned sequencing principle (Experience → Observation → Discussion → Explanation → Theory), multi-region neural activation, learning-precedes-language, and educator-as-designer shift. Audit indicators for experience-first vs explanation-first sequencing.",
+    "owner": "Chaz Clark (BYUI course-design audit framework)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Body MD ~10,203 chars / 4 ≈ 2,551 tokens — within the 'either' band per runtime_strategy_rules. Set to read_at_runtime per named_override_patterns.selective_load: canvas_course_expert loads 2-3 of ~12 knowledge files per audit task, not all as a stable prefix. Selective-load defeats embed-cache benefits."
+  },
+  "shape": "reference",
+  "scope": "Brain-aligned sequencing principle for course delivery — experience before explanation, multi-region neural activation, learning-precedes-language. Supplies the neuroscience rationale for why content is not the destination. Boundaries: does not cover Hattie phase progression (see hattie_3phase) or working-memory mechanics (see cognitive_load_theory).",
+  "consumed_by": [
+    "canvas_course_expert.md"
+  ],
+  "facts": [
+    {
+      "id": "core_claim",
+      "term": "Core Claim — Experience Before Explanation",
+      "definition": "Traditional higher education sequences instruction as explanation first, experience second. Neuroscience research consistently shows the opposite: the brain forms durable neural pathways when learners interact with problems, experiment, receive feedback, and reflect — and then receive formal explanation. 'When experience comes first, explanation sticks.'",
+      "citations": ["Aswad, M. (2024)"]
+    },
+    {
+      "id": "brain_aligned_sequence",
+      "term": "Brain-Aligned Sequence",
+      "definition": "Experience → Observation → Discussion → Explanation → Theory. The operative inversion of the traditional Theory → Worked example → Practice → Apply sequence. Activates sensory, motor, decision-making, and emotional regions rather than only language and short-term memory.",
+      "citations": ["Aswad (2024)"]
+    },
+    {
+      "id": "explanation_first_failure",
+      "term": "Explanation-First as Instructional Design Failure",
+      "definition": "Aswad identifies the transfer gap as instructional design failure, not student failure. Students may 'know' a formula yet struggle to apply it in unfamiliar contexts — this is structural, lives in the sequence of delivery, not in the learner. Explanation-first produces surface learning that fails the transfer test (Hattie Phase 3).",
+      "citations": ["Aswad (2024)"]
+    },
+    {
+      "id": "learning_precedes_language",
+      "term": "Learning Precedes Language",
+      "definition": "Humans grasp cause-effect, risk, patterns and systems long before they can formally articulate them. Explanation and terminology are most effective when they arrive AFTER learners have encountered a concept in action. Design implication: module overviews, vocabulary lists, and frameworks should follow — not precede — encounter with the phenomenon. The dominant LMS pattern (overview → reading → quiz) inverts this.",
+      "citations": ["Aswad (2024)"]
+    },
+    {
+      "id": "multi_region_activation",
+      "term": "Multi-Region Neural Activation",
+      "definition": "Lecture/reading activates language and short-term memory. Experiential learning activates sensory processing, motor control, decision-making, and emotional engagement. Each additional region engaged is another retrieval cue. Extends CLT's dual-channel theory: dual channels don't compete; multi-region activation strengthens schema formation across more pathways.",
+      "citations": ["Aswad (2024); Wilson Three Domains framing"]
+    },
+    {
+      "id": "domain_applications",
+      "term": "Domain-Specific Applications",
+      "definition": "Programming: make systems work, debug, observe outcomes → then name constructs (loops, variables, classes). Cybersecurity: experience simulated breaches → then study formal threat models. AI: train simple models, observe bias/data dependency → then study ML theory. Data Warehousing/SQL: build pipeline against real data, observe what breaks → then introduce normalization and dimensional modeling. Unifying principle: competence emerges from interaction, not exposition.",
+      "citations": ["Aswad (2024)"]
+    },
+    {
+      "id": "educator_role_shift",
+      "term": "Educator-as-Designer Role Shift",
+      "definition": "Educators move from primary transmitters of information to designers of learning experiences: (1) structuring meaningful challenges, (2) curating environments for safe experimentation, (3) guiding reflection and conceptualisation, (4) connecting experience to disciplinary frameworks. Same shift Designer Thinking describes — content as tool, not destination — with the neural rationale attached.",
+      "citations": ["Aswad (2024)"]
+    },
+    {
+      "id": "sequencing_audit_tag",
+      "term": "sequencing Audit Tag",
+      "definition": "Add a sequencing field to relevant audit issues: experience_first (module/item delivers experience before explanation — pass); explanation_first (delivers explanation before any experience — flag); not_applicable (e.g., reference page). Pair with hattie_phase, cognitive_load_type, and learning_domain for a four-axis diagnosis.",
+      "citations": ["This knowledge file's Tag section"]
+    },
+    {
+      "id": "sequencing_audit_signals",
+      "term": "Experience-First Sequencing — Audit Signals",
+      "definition": "Flag: module starts with long reading/lecture before any activity; vocabulary/framework introduced before encounter with phenomenon; first assignment is terminology quiz. Pass: module opens with problem/simulation/build, theory follows; theory positioned as 'how to explain what you just observed'.",
+      "citations": ["This knowledge file's Canvas Audit Indicators section"]
+    },
+    {
+      "id": "multi_region_audit_signals",
+      "term": "Multi-Region Engagement — Audit Signals",
+      "definition": "Flag: module is text-only (read → quiz → next). Pass: module pairs reading with hands-on build/discussion/artifact creation; reflection prompts connect experience to concept; activities require decision-making under uncertainty.",
+      "citations": ["This knowledge file's audit section"]
+    },
+    {
+      "id": "educator_designer_signals",
+      "term": "Educator-as-Designer — Audit Signals",
+      "definition": "Flag (transmission mode): instructions read as 'follow these steps to get the right answer'; rubrics reward correct procedure execution. Pass (designer mode): instructions read as 'here is the situation, here are constraints, design a response'; rubrics reward sound judgment under ambiguity.",
+      "citations": ["This knowledge file's audit section"]
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "Aswad, M. How does the brain learn? And why don't we teach that way? Times Higher Education, Campus (2024). Aswad is academic vice-principal at the Nasser Centre for Science and Technology."
+    ],
+    "last_reviewed": "2026-05-13"
+  },
+  "validation": {
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "Each entry in consumed_by[] resolves to an existing agent spec"
+    ],
+    "post_run_checklist": [
+      "knowledge/experiential_learning_knowledge.md exists",
+      "knowledge/experiential_learning_knowledge.json exists with shape=reference and facts[] present",
+      "_metadata.runtime_strategy is set",
+      "consumed_by[] is non-empty",
+      "provenance.sources[] is non-empty (reference shape)"
+    ],
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "1.0",
+        "date": "2026-05-13",
+        "changes": [
+          "Retrofit: JSON companion authored for pre-existing canvas-toolbox knowledge MD.",
+          "MD body and canvas-toolbox header convention preserved.",
+          "Runtime strategy set to read_at_runtime via selective_load override (either band; selective audit-task loading pattern)."
+        ]
+      }
+    ]
+  }
+}
