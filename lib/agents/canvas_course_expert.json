@@ -1,8 +1,8 @@
 {
   "_metadata": {
-    "template_version": "3.1",
-    "last_updated": "2026-04-08",
-    "description": "Canvas Course Expert Agent — audits Canvas course exports for cognitive load issues and BYUI teaching standards, then applies approved changes via the Canvas MCP server (DMontgomery40/mcp-canvas-lms).",
+    "template_version": "3.6",
+    "last_updated": "2026-05-13",
+    "description": "Canvas Course Expert Agent \u2014 audits Canvas course exports for cognitive load issues and BYUI teaching standards, then applies approved changes via the Canvas MCP server (DMontgomery40/mcp-canvas-lms).",
     "usage": "See canvas_course_expert.md for narrative guide. Canvas API calls are handled by the MCP server (docker-compose.yml). Local tools (parse, audit, file I/O, confirmation) are in canvas_api_tool.py.",
     "companion_files": {
       "conceptual_guide": "canvas_course_expert.md",
@@ -16,20 +16,49 @@
       "description": "Analyzes Canvas course exports, audits cognitive load and BYUI design standards, and applies instructor-approved changes via the Canvas REST API.",
       "owner": "Instructional Design",
       "complexity": "complex"
-    }
+    },
+    "_retrofit_note": "v3.1 \u2192 v3.6 \u2014 predates v3.0 behavioral discipline framework; retrofitted per make_agent.md retrofit checklist."
   },
-
   "agent_type": {
     "_tier": "tier_1_core",
     "type": "llm_agent",
     "description": "LLM agent with tool use. Operates in two modes: audit-only (no API credentials required) and full (audit + propose + apply via Canvas REST API)."
   },
-
+  "interaction_pattern": "single_write_workflow",
+  "behavioral_discipline": {
+    "interaction_pattern": "single_write_workflow",
+    "applicable_principles": [
+      "P-001",
+      "P-002",
+      "P-003",
+      "P-004",
+      "P-006",
+      "P-007",
+      "P-008",
+      "P-009",
+      "P-010"
+    ],
+    "no_override_principles": [
+      "P-001",
+      "P-003",
+      "P-007",
+      "P-010"
+    ],
+    "override_decisions": [],
+    "_source": "knowledge/behavioral_discipline.md and knowledge/behavioral_discipline.json in make-ai-agents",
+    "_qc_checks_applied": [
+      "BD-QC-001",
+      "BD-QC-002",
+      "BD-QC-003",
+      "BD-QC-005",
+      "BD-QC-006"
+    ]
+  },
   "implementation": {
     "_tier": "tier_1_core",
     "llm_agent": {
       "model": "claude-opus-4-6",
-      "system_prompt": "You are a Canvas LMS Course Expert for BYU-Idaho. You help instructors design and improve their Canvas courses by analyzing course structure against a stack of instructional-design frameworks, then applying instructor-approved improvements.\n\nYour expertise covers eight instructional-design frameworks, each with a self-contained reference under agents/knowledge/:\n- Cognitive Load Theory (manage intrinsic, minimize extraneous, maximize germane) — knowledge/cognitive_load_theory_knowledge.md\n- Hattie's 3-Phase Learning Model (Surface → Deep → Transfer) — knowledge/hattie_3phase_knowledge.md\n- Three Domains of Learning (cognitive / affective / psychomotor; Wilson, Harrow) — knowledge/three_domains_knowledge.md\n- BYUI Taxonomy Explorer (BYUI institutional verb-classification tool; Simpson 7-level psychomotor) — knowledge/taxonomy_explorer_knowledge.md\n- Experiential Learning (brain-aligned sequencing: Experience → Observation → Discussion → Explanation → Theory) — knowledge/experiential_learning_knowledge.md\n- Designer Thinking (backward design: Outcome → Evidence → Experience → Content → Reality Check) — knowledge/designer_thinking_knowledge.md\n- Course Design Language (BYUI institutional view: 6 principles for course coherence — visual grammar, narrative metaphor, dual-framing, structural beats, observable rubrics, alignment traceability) — knowledge/course_design_language_knowledge.md, with implementation templates at agents/templates/byui_course_design/\n- Toyota Gap Analysis (A3: Current → Target → Gap → Root Cause → Countermeasure → Verification) — knowledge/toyota_gap_analysis_knowledge.md\n\nPlus BYUI Course Design Standards, UDL, and Canvas LMS structure (modules, pages, assignments, quizzes, discussions).\n\nEvery audit issue you emit can carry up to seven tag dimensions plus the Toyota wrapper: hattie_phase, cognitive_load_type, learning_domain, taxonomy_source (when BYUI-tool framing is used), sequencing, design_mode, design_coherence, design_principle. The last two are paired — design_coherence describes how well a principle is satisfied (architected | partial | assembled), design_principle names which of the six (visual_grammar | narrative_metaphor | dual_framing | structural_beats | observable_rubrics | alignment_traceability). Don't emit dimensions you didn't actually evaluate — empty fields are better than guessed ones.\n\nYou have access to:\n- Local tools: parse_course_export, analyze_cognitive_load, read_local_file, write_local_file, fetch_byui_resources, request_confirmation\n- Canvas MCP server (server name: 'canvas'): all Canvas read and write operations\n\nCRITICAL RULES:\n1. NEVER call any Canvas MCP tool whose name starts with create_, update_, delete_, publish_, or unpublish_ without first calling request_confirmation() with a clear before/after description. Only proceed after it returns approved=true.\n2. Always call parse_course_export() first before any analysis.\n3. Always call analyze_cognitive_load() before making recommendations.\n4. When recommending changes, show a before/after preview for every proposed modification.\n5. Always call write_local_file() before the corresponding Canvas MCP write tool — local copy is updated first, then Canvas.\n6. If fetch_byui_resources() returns empty (login wall), use the byui_standards in your knowledge — do not hallucinate BYUI policy.\n7. Frame every proposed change as a Toyota A3 (Current → Target → Gap → Root Cause → Countermeasure → Verification). No flat to-do lists.\n\nADAPTIVE REPORTING — match the report to what the user wants:\n- 'Audit the whole course' → run all 7 frameworks; emit all tag dimensions per issue.\n- 'Audit Module N only' → all frameworks, scoped to that module; flat list, no score.\n- 'Just check navigation / module structure' → CLT (extraneous focus) + Hattie Surface only.\n- 'Check whether outcomes match assessments' → Designer Thinking + Three Domains/Taxonomy Explorer.\n- 'Is the sequencing brain-aligned?' → Experiential Learning + Hattie.\n- 'Does the course cover affective domain?' → Three Domains (or Taxonomy Explorer if BYUI).\n- No focus given → ask which area before running the full 7-framework audit.\n\nWHEN ASKED 'WHAT CAN YOU DO?' (or similar capability questions) — answer with this TLDR first:\n1. Mirror your Canvas course locally (course/ is source of truth, Canvas is sync target).\n2. Audit against 7 instructional-design frameworks.\n3. Frame every finding as a Toyota A3 gap with root cause and countermeasure.\n4. Propose before applying — every Canvas write shows before/after and waits for approval.\n5. Adapt the report to your focus — full audit, single module, or one framework axis.\nThen ask which they want to start with.\n\nWorkflow:\n1. Parse the course export ZIP (or read course/ if already mirrored)\n2. Confirm reporting focus (full audit vs. specific framework axis vs. single module)\n3. Run the audit against the chosen framework set\n4. Fetch relevant BYUI best practices for flagged issues\n5. Present a Toyota A3 change plan with before/after previews\n6. For each approved change: call request_confirmation → write_local_file → Canvas MCP write tool",
+      "system_prompt": "You are a Canvas LMS Course Expert for BYU-Idaho. You help instructors design and improve their Canvas courses by analyzing course structure against a stack of instructional-design frameworks, then applying instructor-approved improvements.\n\nYour expertise covers twelve instructional-design frameworks, each with a self-contained reference under lib/agents/knowledge/ (both .md and .json companion):\n- Cognitive Load Theory (manage intrinsic, minimize extraneous, maximize germane) \u2014 cognitive_load_theory_knowledge\n- Hattie's 3-Phase Learning Model (Surface \u2192 Deep \u2192 Transfer) \u2014 hattie_3phase_knowledge\n- Three Domains of Learning (cognitive / affective / psychomotor; Wilson, Harrow) \u2014 three_domains_knowledge\n- BYUI Taxonomy Explorer (BYUI institutional verb-classification tool; Simpson 7-level psychomotor) \u2014 taxonomy_explorer_knowledge\n- Experiential Learning (brain-aligned sequencing: Experience \u2192 Observation \u2192 Discussion \u2192 Explanation \u2192 Theory) \u2014 experiential_learning_knowledge\n- Backwards Design (Wiggins & McTighe Understanding by Design \u2014 the academic parent of designer thinking) \u2014 backwards_design_knowledge\n- Designer Thinking (BYUI five-stage backward design: Outcome \u2192 Evidence \u2192 Experience \u2192 Content \u2192 Reality Check) \u2014 designer_thinking_knowledge\n- Course Design Language (BYUI institutional view: 6 principles for course coherence \u2014 visual grammar, narrative metaphor, dual-framing, structural beats, observable rubrics, alignment traceability) \u2014 course_design_language_knowledge, with implementation templates at lib/agents/templates/byui_course_design/\n- Outcomes Quality / CLO Quality (AoL 6-criteria rubric, Bloom's verb tables, outcome hierarchy ILO \u2192 PLO \u2192 CLO \u2192 LLO) \u2014 outcomes_quality_knowledge\n- Assessments (formative vs. summative, alignment to outcomes, AI-resistant design) \u2014 assessments_knowledge\n- Inverted Bloom's (AI-agency framing: ai_dependent / scaffolded / student_owned for assessments) \u2014 inverted_blooms_knowledge\n- Toyota Gap Analysis (A3: Current \u2192 Target \u2192 Gap \u2192 Root Cause \u2192 Countermeasure \u2192 Verification, with genchi_genbutsu as the observation prerequisite) \u2014 toyota_gap_analysis_knowledge\n\nPlus BYUI Course Design Standards, UDL, and Canvas LMS structure (modules, pages, assignments, quizzes, discussions).\n\nEvery audit issue you emit can carry up to seven tag dimensions plus the Toyota wrapper: hattie_phase, cognitive_load_type, learning_domain, taxonomy_source (when BYUI-tool framing is used), sequencing, design_mode, design_coherence, design_principle. The last two are paired \u2014 design_coherence describes how well a principle is satisfied (architected | partial | assembled), design_principle names which of the six (visual_grammar | narrative_metaphor | dual_framing | structural_beats | observable_rubrics | alignment_traceability). Don't emit dimensions you didn't actually evaluate \u2014 empty fields are better than guessed ones.\n\nYou have access to:\n- Local tools: parse_course_export, analyze_cognitive_load, read_local_file, write_local_file, fetch_byui_resources, request_confirmation\n- Canvas MCP server (server name: 'canvas'): all Canvas read and write operations\n\nCRITICAL RULES:\n1. NEVER call any Canvas MCP tool whose name starts with create_, update_, delete_, publish_, or unpublish_ without first calling request_confirmation() with a clear before/after description. Only proceed after it returns approved=true.\n2. Always call parse_course_export() first before any analysis.\n3. Always call analyze_cognitive_load() before making recommendations.\n4. When recommending changes, show a before/after preview for every proposed modification.\n5. Always call write_local_file() before the corresponding Canvas MCP write tool \u2014 local copy is updated first, then Canvas.\n6. If fetch_byui_resources() returns empty (login wall), use the byui_standards in your knowledge \u2014 do not hallucinate BYUI policy.\n7. Frame every proposed change as a Toyota A3 (Current \u2192 Target \u2192 Gap \u2192 Root Cause \u2192 Countermeasure \u2192 Verification). No flat to-do lists.\n\nADAPTIVE REPORTING \u2014 match the report to what the user wants:\n- 'Audit the whole course' \u2192 run all 12 frameworks; emit all tag dimensions per issue.\n- 'Audit Module N only' \u2192 all frameworks, scoped to that module; flat list, no score.\n- 'Just check navigation / module structure' \u2192 CLT (extraneous focus) + Hattie Surface only.\n- 'Check whether outcomes match assessments' \u2192 Designer Thinking + Three Domains/Taxonomy Explorer.\n- 'Is the sequencing brain-aligned?' \u2192 Experiential Learning + Hattie.\n- 'Does the course cover affective domain?' \u2192 Three Domains (or Taxonomy Explorer if BYUI).\n- No focus given \u2192 ask which area before running the full 12-framework audit.\n\nWHEN ASKED 'WHAT CAN YOU DO?' (or similar capability questions) \u2014 answer with this TLDR first:\n1. Mirror your Canvas course locally (course/ is source of truth, Canvas is sync target).\n2. Audit against 12 instructional-design frameworks (cognitive load, Hattie 3-phase, three domains, taxonomy explorer, experiential learning, backwards design, designer thinking, course design language, outcomes quality, assessments, inverted Bloom's, Toyota gap analysis).\n3. Frame every finding as a Toyota A3 gap with root cause and countermeasure.\n4. Propose before applying \u2014 every Canvas write shows before/after and waits for approval.\n5. Adapt the report to your focus \u2014 full audit, single module, or one framework axis.\nThen ask which they want to start with.\n\nWorkflow:\n1. Parse the course export ZIP (or read course/ if already mirrored)\n2. Confirm reporting focus (full audit vs. specific framework axis vs. single module)\n3. Run the audit against the chosen framework set\n4. Fetch relevant BYUI best practices for flagged issues\n5. Present a Toyota A3 change plan with before/after previews\n6. For each approved change: call request_confirmation \u2192 write_local_file \u2192 Canvas MCP write tool\n\n## Behavioral Discipline\n\nYou operate under a behavioral discipline that produces predictable, trustworthy behavior for end users. The full source is in lib/agents/../make-ai-agents/knowledge/behavioral_discipline.md (or wherever Make-AI-Agents is installed). Applicable principles for this agent (interaction_pattern: single_write_workflow):\n\n- P-001 Read Before Claiming: Read the actual source before claiming anything about content, code, or system state. Training-data priors are not a substitute for reading what's in front of you.\n- P-002 Plan Before Acting: For any state-changing task with more than one step, propose the plan and wait for user confirmation before non-reversible action. The plan is a draft \u2014 refine through back-and-forth before committing.\n- P-003 Stop on Defect: First failed test, first failed precondition, first ambiguity that can't be resolved \u2192 stop. Don't paper over. Don't retry blindly. Surface the issue: 'I cannot proceed because X.'\n- P-004 Find the Root Cause: When something doesn't work as expected, walk the chain of causation. Stop when the answer is structural \u2014 that's where the fix lives.\n- P-006 Document the Change: For any non-trivial change, structure the report so a non-technical reviewer can audit it without reading the diff. Use the A3 template (see templates.a3_change_report).\n- P-007 Pull, Don't Push: Generate exactly what was asked. No speculative features. The discipline isn't laziness \u2014 it leaves room for the user to decide what comes next.\n- P-008 Mistake-Proof Outputs: Format outputs consistently across runs so the user can predict what they'll see. Decide once for the agent: JSON for parsed output, Markdown for human-read output, Markdown+JSON code block for both.\n- P-009 Reflect, and Tell the User: At the end of any task that produced a surprise, took longer than expected, or revealed non-obvious behavior, name the lesson in the response ('Worth noting: ...') AND append it to the agent's spec MD External System Lessons section.\n- P-010 Respect the User's Intent: Two failure modes: (a) anti-substitution \u2014 don't override or reinterpret the user's stated goal silently; (b) anti-drift \u2014 in long sessions, every action should still trace to the original goal; surface drift when it happens.\n\nHard rule: before skipping any principle, state in one sentence which principle is being skipped and why. The principles in [P-001, P-003, P-007, P-010] have no override under any circumstances.\n\nThe CRITICAL RULES above operationalize these principles for the Canvas audit workflow: Rule 1 enforces P-003/P-007 (stop and confirm before mutating); Rule 2 enforces P-001 (read before claiming); Rule 5 enforces P-007 (write local first, then Canvas); Rule 6 enforces P-010 (no hallucinating BYUI policy); Rule 7 enforces P-006 (every change documented as A3).",
       "tools": [
         {
           "name": "parse_course_export",
@@ -46,7 +75,9 @@
                 "description": "Optional. Directory to extract ZIP contents into. Defaults to a temp directory alongside the ZIP file."
               }
             },
-            "required": ["zip_path"]
+            "required": [
+              "zip_path"
+            ]
           },
           "strict": true
         },
@@ -70,10 +101,15 @@
               },
               "after": {
                 "type": "string",
-                "description": "Proposed state description — what will exist after the change."
+                "description": "Proposed state description \u2014 what will exist after the change."
               }
             },
-            "required": ["operation_summary", "resource_type", "before", "after"]
+            "required": [
+              "operation_summary",
+              "resource_type",
+              "before",
+              "after"
+            ]
           },
           "strict": true
         },
@@ -88,13 +124,15 @@
                 "description": "Absolute path to the file within the extracted course directory. Example: '/tmp/course_extract/wiki_content/week-1-overview.html'"
               }
             },
-            "required": ["file_path"]
+            "required": [
+              "file_path"
+            ]
           },
           "strict": true
         },
         {
           "name": "write_local_file",
-          "description": "Writes updated content to a file in the extracted course directory. Always call this BEFORE the corresponding Canvas MCP write tool — local copy is updated first, then synced to Canvas. Creates a backup of the original file at <path>.bak before writing.",
+          "description": "Writes updated content to a file in the extracted course directory. Always call this BEFORE the corresponding Canvas MCP write tool \u2014 local copy is updated first, then synced to Canvas. Creates a backup of the original file at <path>.bak before writing.",
           "parameters": {
             "type": "object",
             "properties": {
@@ -107,7 +145,10 @@
                 "description": "New file content. For HTML pages, must be valid HTML. For XML files (manifest, settings), must be well-formed XML."
               }
             },
-            "required": ["file_path", "content"]
+            "required": [
+              "file_path",
+              "content"
+            ]
           },
           "strict": true
         },
@@ -119,21 +160,25 @@
             "properties": {
               "course_data": {
                 "type": "object",
-                "description": "The structured course data object returned by parse_course_export(). Pass it directly — do not modify."
+                "description": "The structured course data object returned by parse_course_export(). Pass it directly \u2014 do not modify."
               },
               "rules_override": {
                 "type": "array",
                 "description": "Optional. List of rule IDs to skip for this audit. Example: ['CL-003'] to skip the module item count rule. Use sparingly.",
-                "items": { "type": "string" }
+                "items": {
+                  "type": "string"
+                }
               }
             },
-            "required": ["course_data"]
+            "required": [
+              "course_data"
+            ]
           },
           "strict": false
         },
         {
           "name": "fetch_byui_resources",
-          "description": "Fetches relevant content from BYU-Idaho's faculty teaching site (teach.byui.edu) for a given topic. Returns scraped plain text with the source URL. If the page requires login (401/403), returns the relevant entries from the embedded byui_standards knowledge base instead — never returns empty-handed. Use this when making recommendations about module structure, assessment design, activity types, or course naming conventions.",
+          "description": "Fetches relevant content from BYU-Idaho's faculty teaching site (teach.byui.edu) for a given topic. Returns scraped plain text with the source URL. If the page requires login (401/403), returns the relevant entries from the embedded byui_standards knowledge base instead \u2014 never returns empty-handed. Use this when making recommendations about module structure, assessment design, activity types, or course naming conventions.",
           "parameters": {
             "type": "object",
             "properties": {
@@ -142,31 +187,46 @@
                 "description": "The teaching topic to look up. Examples: 'module structure', 'Teach One Another activity', 'Prove It assessment', 'competency alignment', 'course navigation', 'cognitive load'"
               }
             },
-            "required": ["topic"]
+            "required": [
+              "topic"
+            ]
           },
           "strict": true
         },
         {
           "name": "canvas_available",
           "description": "Check whether Python-direct Canvas API mode is available (CANVAS_API_TOKEN + CANVAS_COURSE_ID set). Call this at session start to determine operating mode. Returns {available, reason, recommendation} or {available:true, course_id, base_url}.",
-          "parameters": { "type": "object", "properties": {}, "required": [] },
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          },
           "strict": true
         },
         {
           "name": "fetch_modules",
           "description": "Fetch all modules for the course via Python (requires CANVAS_API_TOKEN). Returns minimal list: [{title, canvas_id, published, item_count}]. Automatically caches all canvas_ids in .canvas/index.json. Prefer this over MCP when CANVAS_API_TOKEN is set.",
-          "parameters": { "type": "object", "properties": {}, "required": [] },
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          },
           "strict": true
         },
         {
           "name": "fetch_module_items",
-          "description": "Fetch items for a single module by canvas_id. Returns [{title, type, canvas_id, position, published}]. Use for targeted lookups only — context budget: max 3 fetches per session.",
+          "description": "Fetch items for a single module by canvas_id. Returns [{title, type, canvas_id, position, published}]. Use for targeted lookups only \u2014 context budget: max 3 fetches per session.",
           "parameters": {
             "type": "object",
             "properties": {
-              "module_id": { "type": "integer", "description": "Canvas module ID from the index or fetch_modules()" }
+              "module_id": {
+                "type": "integer",
+                "description": "Canvas module ID from the index or fetch_modules()"
+              }
             },
-            "required": ["module_id"]
+            "required": [
+              "module_id"
+            ]
           },
           "strict": true
         },
@@ -176,11 +236,21 @@
           "parameters": {
             "type": "object",
             "properties": {
-              "title": { "type": "string" },
-              "body_html": { "type": "string", "description": "Canvas-ready HTML. Run build_canvas_content.py --strip-reader first." },
-              "published": { "type": "boolean" }
+              "title": {
+                "type": "string"
+              },
+              "body_html": {
+                "type": "string",
+                "description": "Canvas-ready HTML. Run build_canvas_content.py --strip-reader first."
+              },
+              "published": {
+                "type": "boolean"
+              }
             },
-            "required": ["title", "body_html"]
+            "required": [
+              "title",
+              "body_html"
+            ]
           },
           "strict": false
         },
@@ -190,12 +260,25 @@
           "parameters": {
             "type": "object",
             "properties": {
-              "slug": { "type": "string", "description": "Page URL slug from the index or create_page() response" },
-              "title": { "type": "string" },
-              "body_html": { "type": "string" },
-              "published": { "type": "boolean" }
+              "slug": {
+                "type": "string",
+                "description": "Page URL slug from the index or create_page() response"
+              },
+              "title": {
+                "type": "string"
+              },
+              "body_html": {
+                "type": "string"
+              },
+              "published": {
+                "type": "boolean"
+              }
             },
-            "required": ["slug", "title", "body_html"]
+            "required": [
+              "slug",
+              "title",
+              "body_html"
+            ]
           },
           "strict": false
         },
@@ -205,28 +288,59 @@
           "parameters": {
             "type": "object",
             "properties": {
-              "module_id": { "type": "integer" },
-              "title": { "type": "string", "description": "Title displayed in the module list" },
-              "page_url": { "type": "string", "description": "Page slug (e.g. 'sprint-1-overview'), NOT the numeric page_id" },
-              "position": { "type": "integer", "description": "Position within the module (1 = first)" },
-              "published": { "type": "boolean" }
+              "module_id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string",
+                "description": "Title displayed in the module list"
+              },
+              "page_url": {
+                "type": "string",
+                "description": "Page slug (e.g. 'sprint-1-overview'), NOT the numeric page_id"
+              },
+              "position": {
+                "type": "integer",
+                "description": "Position within the module (1 = first)"
+              },
+              "published": {
+                "type": "boolean"
+              }
             },
-            "required": ["module_id", "title", "page_url", "position"]
+            "required": [
+              "module_id",
+              "title",
+              "page_url",
+              "position"
+            ]
           },
           "strict": false
         },
         {
           "name": "update_module_item",
-          "description": "Update a module item's display title and/or published state. Required for renames — Canvas does not cascade page title changes to module items. Always call request_confirmation() first.",
+          "description": "Update a module item's display title and/or published state. Required for renames \u2014 Canvas does not cascade page title changes to module items. Always call request_confirmation() first.",
           "parameters": {
             "type": "object",
             "properties": {
-              "module_id": { "type": "integer" },
-              "item_id": { "type": "integer", "description": "Module item ID from the index or fetch_module_items()" },
-              "title": { "type": "string" },
-              "published": { "type": "boolean" }
+              "module_id": {
+                "type": "integer"
+              },
+              "item_id": {
+                "type": "integer",
+                "description": "Module item ID from the index or fetch_module_items()"
+              },
+              "title": {
+                "type": "string"
+              },
+              "published": {
+                "type": "boolean"
+              }
             },
-            "required": ["module_id", "item_id", "title"]
+            "required": [
+              "module_id",
+              "item_id",
+              "title"
+            ]
           },
           "strict": false
         }
@@ -236,7 +350,7 @@
           "type": "url",
           "url": "http://localhost:3000/mcp",
           "name": "canvas",
-          "_notes": "DMontgomery40/mcp-canvas-lms running via docker-compose.yml. Fallback only when CANVAS_API_TOKEN is not set. When token IS set, Python-direct functions handle all reads and writes — MCP is not needed."
+          "_notes": "DMontgomery40/mcp-canvas-lms running via docker-compose.yml. Fallback only when CANVAS_API_TOKEN is not set. When token IS set, Python-direct functions handle all reads and writes \u2014 MCP is not needed."
         }
       ],
       "parameters": {
@@ -246,12 +360,13 @@
         "tool_choice": "auto",
         "response_format": null,
         "disable_parallel_tool_use": false,
-        "stop_sequences": ["</change_plan>"],
+        "stop_sequences": [
+          "</change_plan>"
+        ],
         "_notes": "Temperature 0.1 for tool-use and API operations. Raise to 0.5 only during recommendation narrative generation. stop_sequences closes the structured change plan block."
       }
     }
   },
-
   "io_contract": {
     "_tier": "tier_1_core",
     "inputs": [
@@ -313,26 +428,56 @@
     ],
     "side_effects": "In full mode: modifies local extracted course files, creates .bak backups, and updates Canvas course resources via REST API."
   },
-
   "primary_data": {
     "_tier": "tier_1_core",
     "description": "Audit rules, knowledge-base index, capabilities summary, and adaptive-reporting profiles used by analyze_cognitive_load() and fetch_byui_resources(). Audit rules use the schema in audit_rule_schema below.",
     "format": "array_of_objects",
-
     "knowledge_files": {
       "description": "Self-contained instructional-design references. Each is loaded on demand by the audit framework selected for the current report focus.",
       "files": [
-        {"path": "agents/knowledge/cognitive_load_theory_knowledge.md", "framework": "Cognitive Load Theory", "tag_emitted": "cognitive_load_type"},
-        {"path": "agents/knowledge/hattie_3phase_knowledge.md", "framework": "Hattie 3-Phase Learning Model", "tag_emitted": "hattie_phase"},
-        {"path": "agents/knowledge/three_domains_knowledge.md", "framework": "Three Domains of Learning (Wilson / Harrow)", "tag_emitted": "learning_domain"},
-        {"path": "agents/knowledge/taxonomy_explorer_knowledge.md", "framework": "BYUI Taxonomy Explorer (Simpson)", "tag_emitted": "taxonomy_source"},
-        {"path": "agents/knowledge/experiential_learning_knowledge.md", "framework": "Experiential Learning (brain-aligned sequencing)", "tag_emitted": "sequencing"},
-        {"path": "agents/knowledge/designer_thinking_knowledge.md", "framework": "Designer Thinking (backward design)", "tag_emitted": "design_mode"},
-        {"path": "agents/knowledge/course_design_language_knowledge.md", "framework": "Course Design Language (BYUI institutional view — visual grammar / rubrics / alignment)", "tag_emitted": "design_coherence + design_principle (paired)"},
-        {"path": "agents/knowledge/toyota_gap_analysis_knowledge.md", "framework": "Toyota Gap Analysis (A3)", "tag_emitted": null, "note": "Output format wrapper for every proposed change; not a classifier."}
+        {
+          "path": "agents/knowledge/cognitive_load_theory_knowledge.md",
+          "framework": "Cognitive Load Theory",
+          "tag_emitted": "cognitive_load_type"
+        },
+        {
+          "path": "agents/knowledge/hattie_3phase_knowledge.md",
+          "framework": "Hattie 3-Phase Learning Model",
+          "tag_emitted": "hattie_phase"
+        },
+        {
+          "path": "agents/knowledge/three_domains_knowledge.md",
+          "framework": "Three Domains of Learning (Wilson / Harrow)",
+          "tag_emitted": "learning_domain"
+        },
+        {
+          "path": "agents/knowledge/taxonomy_explorer_knowledge.md",
+          "framework": "BYUI Taxonomy Explorer (Simpson)",
+          "tag_emitted": "taxonomy_source"
+        },
+        {
+          "path": "agents/knowledge/experiential_learning_knowledge.md",
+          "framework": "Experiential Learning (brain-aligned sequencing)",
+          "tag_emitted": "sequencing"
+        },
+        {
+          "path": "agents/knowledge/designer_thinking_knowledge.md",
+          "framework": "Designer Thinking (backward design)",
+          "tag_emitted": "design_mode"
+        },
+        {
+          "path": "agents/knowledge/course_design_language_knowledge.md",
+          "framework": "Course Design Language (BYUI institutional view \u2014 visual grammar / rubrics / alignment)",
+          "tag_emitted": "design_coherence + design_principle (paired)"
+        },
+        {
+          "path": "agents/knowledge/toyota_gap_analysis_knowledge.md",
+          "framework": "Toyota Gap Analysis (A3)",
+          "tag_emitted": null,
+          "note": "Output format wrapper for every proposed change; not a classifier."
+        }
       ]
     },
-
     "audit_rule_schema": {
       "description": "Optional tag fields any audit rule may carry. Existing CL-* rules use only load_type and hattie_phase; newer rules SHOULD populate as many as the rule's framework actually evaluates. Never invent values for fields the rule did not actually test.",
       "fields": {
@@ -353,31 +498,85 @@
         "threshold": "Optional. Numeric threshold the rule compares against."
       }
     },
-
     "report_profiles": {
       "description": "Reporting focus profiles. The agent picks one based on the user's stated focus, or asks the user to pick one if none is given.",
       "profiles": [
-        {"name": "full_audit", "trigger": "User says 'audit the whole course' or gives no focus and confirms full audit.", "frameworks": ["clt", "hattie", "three_domains", "taxonomy_explorer", "experiential", "designer_thinking"], "format": "Toyota A3, grouped by severity, includes 0–100 score."},
-        {"name": "single_module", "trigger": "User scopes to one module.", "frameworks": ["clt", "hattie", "three_domains", "taxonomy_explorer", "experiential", "designer_thinking"], "format": "Flat list of issues, no score, ranked by impact."},
-        {"name": "navigation", "trigger": "User asks about navigation, structure, or module layout.", "frameworks": ["clt_extraneous_only", "hattie_surface_only"], "format": "CL-* rules only; emits cognitive_load_type + hattie_phase."},
-        {"name": "outcomes_assessments_alignment", "trigger": "User asks whether outcomes match assessments.", "frameworks": ["designer_thinking", "three_domains", "taxonomy_explorer"], "format": "Per-outcome table: claimed-level vs. assessed-level; emits design_mode + learning_domain."},
-        {"name": "sequencing", "trigger": "User asks if sequencing is brain-aligned / experience-first.", "frameworks": ["experiential", "hattie"], "format": "Per-module sequence diagnosis; emits sequencing + hattie_phase."},
-        {"name": "domain_coverage", "trigger": "User asks about affective / psychomotor / cognitive coverage.", "frameworks": ["three_domains", "taxonomy_explorer"], "format": "Domain-coverage table per outcome; emits learning_domain (+ taxonomy_source if BYUI)."}
+        {
+          "name": "full_audit",
+          "trigger": "User says 'audit the whole course' or gives no focus and confirms full audit.",
+          "frameworks": [
+            "clt",
+            "hattie",
+            "three_domains",
+            "taxonomy_explorer",
+            "experiential",
+            "designer_thinking"
+          ],
+          "format": "Toyota A3, grouped by severity, includes 0\u2013100 score."
+        },
+        {
+          "name": "single_module",
+          "trigger": "User scopes to one module.",
+          "frameworks": [
+            "clt",
+            "hattie",
+            "three_domains",
+            "taxonomy_explorer",
+            "experiential",
+            "designer_thinking"
+          ],
+          "format": "Flat list of issues, no score, ranked by impact."
+        },
+        {
+          "name": "navigation",
+          "trigger": "User asks about navigation, structure, or module layout.",
+          "frameworks": [
+            "clt_extraneous_only",
+            "hattie_surface_only"
+          ],
+          "format": "CL-* rules only; emits cognitive_load_type + hattie_phase."
+        },
+        {
+          "name": "outcomes_assessments_alignment",
+          "trigger": "User asks whether outcomes match assessments.",
+          "frameworks": [
+            "designer_thinking",
+            "three_domains",
+            "taxonomy_explorer"
+          ],
+          "format": "Per-outcome table: claimed-level vs. assessed-level; emits design_mode + learning_domain."
+        },
+        {
+          "name": "sequencing",
+          "trigger": "User asks if sequencing is brain-aligned / experience-first.",
+          "frameworks": [
+            "experiential",
+            "hattie"
+          ],
+          "format": "Per-module sequence diagnosis; emits sequencing + hattie_phase."
+        },
+        {
+          "name": "domain_coverage",
+          "trigger": "User asks about affective / psychomotor / cognitive coverage.",
+          "frameworks": [
+            "three_domains",
+            "taxonomy_explorer"
+          ],
+          "format": "Domain-coverage table per outcome; emits learning_domain (+ taxonomy_source if BYUI)."
+        }
       ]
     },
-
     "capabilities_summary": {
       "description": "Spoken when the user opens with a generic capability question ('what can you do for me?', 'how do you help?', 'what should I ask?'). Same TLDR is in canvas_course_expert.md so the agent's two reference files don't drift.",
       "tldr": [
-        "Mirror your Canvas course locally — course/ is source of truth; Canvas is sync target.",
+        "Mirror your Canvas course locally \u2014 course/ is source of truth; Canvas is sync target.",
         "Audit against 7 instructional-design frameworks: Cognitive Load, Hattie 3-Phase, Three Domains, BYUI Taxonomy Explorer, Experiential Learning, Designer Thinking, Toyota Gap Analysis.",
-        "Frame every finding as a Toyota A3 gap with root cause and countermeasure — no flat to-do lists.",
-        "Propose before applying — every Canvas write shows a before/after preview and waits for approval.",
-        "Adapt the report to your focus — full audit, single module, or one framework axis."
+        "Frame every finding as a Toyota A3 gap with root cause and countermeasure \u2014 no flat to-do lists.",
+        "Propose before applying \u2014 every Canvas write shows a before/after preview and waits for approval.",
+        "Adapt the report to your focus \u2014 full audit, single module, or one framework axis."
       ],
       "follow_up_prompt": "Try one of: 'Audit the whole course', 'Check Module 3 only', 'Are my outcomes matching my assessments?', 'Is the sequencing brain-aligned?', 'Does the course cover affective domain?'"
     },
-
     "audit_rules": [
       {
         "rule_id": "CL-001",
@@ -476,12 +675,11 @@
         "load_type": "extraneous",
         "hattie_phase": "all",
         "severity": "critical",
-        "condition": "Module is published but contains unpublished items — students will see a broken module flow",
+        "condition": "Module is published but contains unpublished items \u2014 students will see a broken module flow",
         "recommendation": "Either publish all items in the module or move unpublished items to a draft module. Broken navigation links are a top source of student frustration.",
         "canvas_resource": "module_item"
       }
     ],
-
     "canvas_api_endpoints": [
       {
         "key": "list_modules",
@@ -502,18 +700,30 @@
         "endpoint": "courses/{course_id}/modules/{module_id}",
         "method": "PUT",
         "mcp_or_python": "python",
-        "description": "Update module name, position, or published state. Use Python — MCP response returns full module object which is large.",
-        "payload_schema": {"module": {"name": "string", "position": "int", "published": "bool"}},
-        "quirks": "Rename only updates the module display name — if any module items also show the old name via their own title field, those must be updated separately."
+        "description": "Update module name, position, or published state. Use Python \u2014 MCP response returns full module object which is large.",
+        "payload_schema": {
+          "module": {
+            "name": "string",
+            "position": "int",
+            "published": "bool"
+          }
+        },
+        "quirks": "Rename only updates the module display name \u2014 if any module items also show the old name via their own title field, those must be updated separately."
       },
       {
         "key": "update_page",
         "endpoint": "courses/{course_id}/pages/{page_url_slug}",
         "method": "PUT",
         "mcp_or_python": "python",
-        "description": "Update page title or body HTML. Use Python — response returns full page HTML body which is large.",
-        "payload_schema": {"wiki_page": {"title": "string", "body": "string", "published": "bool"}},
-        "quirks": "URL parameter must be the page slug (e.g. 'sprint-3-overview'), NOT the numeric page id. Slug is returned in the 'url' field of the create_page response — store it in .canvas/index.json immediately."
+        "description": "Update page title or body HTML. Use Python \u2014 response returns full page HTML body which is large.",
+        "payload_schema": {
+          "wiki_page": {
+            "title": "string",
+            "body": "string",
+            "published": "bool"
+          }
+        },
+        "quirks": "URL parameter must be the page slug (e.g. 'sprint-3-overview'), NOT the numeric page id. Slug is returned in the 'url' field of the create_page response \u2014 store it in .canvas/index.json immediately."
       },
       {
         "key": "update_assignment",
@@ -521,8 +731,15 @@
         "method": "PUT",
         "mcp_or_python": "python",
         "description": "Update assignment name, description, due date, or points. Use Python.",
-        "payload_schema": {"assignment": {"name": "string", "description": "string", "due_at": "ISO8601", "points_possible": "float"}},
-        "quirks": "Renaming an assignment does NOT rename the corresponding module item title — that must be updated separately via update_module_item."
+        "payload_schema": {
+          "assignment": {
+            "name": "string",
+            "description": "string",
+            "due_at": "ISO8601",
+            "points_possible": "float"
+          }
+        },
+        "quirks": "Renaming an assignment does NOT rename the corresponding module item title \u2014 that must be updated separately via update_module_item."
       },
       {
         "key": "create_page",
@@ -530,8 +747,14 @@
         "method": "POST",
         "mcp_or_python": "python",
         "description": "Create a new wiki page. Use Python. Immediately store the returned 'url' (slug) and 'page_id' in .canvas/index.json.",
-        "payload_schema": {"wiki_page": {"title": "string", "body": "string", "published": "bool"}},
-        "quirks": "Response includes 'url' field (the slug) — this is required for create_module_item when type=Page. Do not use the numeric id for module item insertion."
+        "payload_schema": {
+          "wiki_page": {
+            "title": "string",
+            "body": "string",
+            "published": "bool"
+          }
+        },
+        "quirks": "Response includes 'url' field (the slug) \u2014 this is required for create_module_item when type=Page. Do not use the numeric id for module item insertion."
       },
       {
         "key": "create_module_item",
@@ -539,7 +762,15 @@
         "method": "POST",
         "mcp_or_python": "python",
         "description": "Add a new item to a module. Use Python.",
-        "payload_schema": {"module_item": {"title": "string", "type": "Page|Assignment|Quiz|Discussion|ExternalUrl", "content_id": "int", "page_url": "string", "position": "int"}},
+        "payload_schema": {
+          "module_item": {
+            "title": "string",
+            "type": "Page|Assignment|Quiz|Discussion|ExternalUrl",
+            "content_id": "int",
+            "page_url": "string",
+            "position": "int"
+          }
+        },
         "quirks": "For type=Page: use 'page_url' set to the slug (not 'content_id'). For type=Assignment or Quiz: use 'content_id' set to the numeric id. Mixing these causes 404 or wrong resource linked."
       },
       {
@@ -547,8 +778,14 @@
         "endpoint": "courses/{course_id}/modules/{module_id}/items/{item_id}",
         "method": "PUT",
         "mcp_or_python": "python",
-        "description": "Update a module item's title, position, or published state. Required when renaming an assignment or quiz — the module item title is independent of the resource name.",
-        "payload_schema": {"module_item": {"title": "string", "position": "int", "published": "bool"}}
+        "description": "Update a module item's title, position, or published state. Required when renaming an assignment or quiz \u2014 the module item title is independent of the resource name.",
+        "payload_schema": {
+          "module_item": {
+            "title": "string",
+            "position": "int",
+            "published": "bool"
+          }
+        }
       },
       {
         "key": "create_quiz",
@@ -556,8 +793,14 @@
         "method": "POST",
         "mcp_or_python": "python",
         "description": "Create a classic quiz. Use Python.",
-        "payload_schema": {"quiz": {"title": "string", "quiz_type": "assignment|practice_quiz|graded_survey|survey", "published": "bool"}},
-        "quirks": "Do NOT set points_possible in the initial POST — it is unreliable. After creating the quiz and adding all questions, do a separate PUT to /courses/:id/quizzes/:quiz_id with quiz[points_possible] to set the correct total. Without this second call, the quiz and its linked gradebook assignment both show 0 points."
+        "payload_schema": {
+          "quiz": {
+            "title": "string",
+            "quiz_type": "assignment|practice_quiz|graded_survey|survey",
+            "published": "bool"
+          }
+        },
+        "quirks": "Do NOT set points_possible in the initial POST \u2014 it is unreliable. After creating the quiz and adding all questions, do a separate PUT to /courses/:id/quizzes/:quiz_id with quiz[points_possible] to set the correct total. Without this second call, the quiz and its linked gradebook assignment both show 0 points."
       },
       {
         "key": "update_quiz_points",
@@ -565,7 +808,11 @@
         "method": "PUT",
         "mcp_or_python": "python",
         "description": "Second required call after quiz creation to set points_possible correctly.",
-        "payload_schema": {"quiz": {"points_possible": "float"}},
+        "payload_schema": {
+          "quiz": {
+            "points_possible": "float"
+          }
+        },
         "quirks": "This call must come AFTER all questions are added, not during creation. The linked assignment in the gradebook will reflect the correct total only after this PUT."
       },
       {
@@ -573,36 +820,35 @@
         "endpoint": "courses/{course_id}/pages",
         "method": "GET",
         "mcp_or_python": "mcp",
-        "description": "List all pages in the course — used to detect orphaned pages and build the page slug cache in .canvas/index.json."
+        "description": "List all pages in the course \u2014 used to detect orphaned pages and build the page slug cache in .canvas/index.json."
       },
       {
         "key": "get_course",
         "endpoint": "courses/{course_id}",
         "method": "GET",
         "mcp_or_python": "mcp",
-        "description": "Get course metadata including enrollment counts and term dates. Safe via MCP — response is small."
+        "description": "Get course metadata including enrollment counts and term dates. Safe via MCP \u2014 response is small."
       }
     ],
-
     "persistent_index_schema": {
-      "_notes": "Defines what .canvas/index.json should track per course. This is the schema only — actual data lives in .canvas/index.json alongside the course export. Rationale: canvas_course_expert.json is static agent config shared across all courses; the index is dynamic runtime state specific to one course instance.",
-      "course_id": "integer — Canvas course ID from the course URL",
-      "base_url": "string — Canvas instance URL (e.g. https://byui.instructure.com)",
+      "_notes": "Defines what .canvas/index.json should track per course. This is the schema only \u2014 actual data lives in .canvas/index.json alongside the course export. Rationale: canvas_course_expert.json is static agent config shared across all courses; the index is dynamic runtime state specific to one course instance.",
+      "course_id": "integer \u2014 Canvas course ID from the course URL",
+      "base_url": "string \u2014 Canvas instance URL (e.g. https://byui.instructure.com)",
       "last_audit": "ISO8601 timestamp of most recent parse_course_export + analyze_cognitive_load run",
       "last_audit_score": "integer 0-100 from most recent audit",
       "modules": {
         "_description": "Keyed by module title for human readability",
         "{module_title}": {
-          "canvas_id": "integer — Canvas module ID",
-          "position": "integer — current position in module list",
+          "canvas_id": "integer \u2014 Canvas module ID",
+          "position": "integer \u2014 current position in module list",
           "published": "boolean",
           "item_count": "integer"
         }
       },
       "pages": {
-        "_description": "Keyed by page slug — slug is required for module item insertion",
+        "_description": "Keyed by page slug \u2014 slug is required for module item insertion",
         "{page_slug}": {
-          "canvas_id": "integer — Canvas page ID",
+          "canvas_id": "integer \u2014 Canvas page ID",
           "title": "string",
           "published": "boolean"
         }
@@ -610,7 +856,7 @@
       "assignments": {
         "{assignment_title}": {
           "canvas_id": "integer",
-          "module_item_id": "integer — needed to rename the module item independently",
+          "module_item_id": "integer \u2014 needed to rename the module item independently",
           "points_possible": "float",
           "due_at": "ISO8601 or null"
         }
@@ -619,19 +865,18 @@
         "_description": "Persistent record of every write applied via this agent",
         "{change_id}": {
           "applied_at": "ISO8601 timestamp",
-          "rule_id": "string — CL rule that triggered this change",
-          "resource_type": "string — page|module|assignment|module_item",
-          "canvas_id": "integer — ID of the resource that was created or modified",
-          "local_backup": "string — path to .bak file",
+          "rule_id": "string \u2014 CL rule that triggered this change",
+          "resource_type": "string \u2014 page|module|assignment|module_item",
+          "canvas_id": "integer \u2014 ID of the resource that was created or modified",
+          "local_backup": "string \u2014 path to .bak file",
           "status": "applied|failed|rolled_back"
         }
       }
     },
-
     "byui_standards": [
       {
         "key": "module_structure",
-        "standard": "Standard BYUI module structure: (1) Overview page — outcomes, estimated time, connection to course goals; (2) Content items — readings, videos, or lectures; (3) Teach One Another — peer discussion or collaboration; (4) Prove It — individual assessment demonstrating mastery.",
+        "standard": "Standard BYUI module structure: (1) Overview page \u2014 outcomes, estimated time, connection to course goals; (2) Content items \u2014 readings, videos, or lectures; (3) Teach One Another \u2014 peer discussion or collaboration; (4) Prove It \u2014 individual assessment demonstrating mastery.",
         "source": "BYUI Course Design Standards"
       },
       {
@@ -641,7 +886,7 @@
       },
       {
         "key": "prove_it",
-        "standard": "Every module should end with a 'Prove It' assessment — a task where students demonstrate they have mastered the module outcomes. Can be a quiz, assignment, lab, or project. Should be clearly labeled as the assessment item.",
+        "standard": "Every module should end with a 'Prove It' assessment \u2014 a task where students demonstrate they have mastered the module outcomes. Can be a quiz, assignment, lab, or project. Should be clearly labeled as the assessment item.",
         "source": "BYUI Teach One Another Framework"
       },
       {
@@ -661,7 +906,6 @@
       }
     ]
   },
-
   "dependencies": {
     "_tier": "tier_1_core",
     "packages": [
@@ -675,17 +919,39 @@
       "canvas_course_expert.json",
       "canvas_api_tool.py"
     ],
-    "models": ["claude-opus-4-6"],
-    "apis": ["Canvas REST API (https://byui.instructure.com/api/v1/)"],
-    "data_sources": ["Canvas course export ZIP (IMSCC format)", "teach.byui.edu (public pages)"],
+    "models": [
+      "claude-opus-4-6"
+    ],
+    "apis": [
+      "Canvas REST API (https://byui.instructure.com/api/v1/)"
+    ],
+    "data_sources": [
+      "Canvas course export ZIP (IMSCC format)",
+      "teach.byui.edu (public pages)"
+    ],
     "environment_variables": [
-      {"name": "CANVAS_API_TOKEN", "required": "full mode only", "description": "Canvas API access token from Settings → Approved Integrations"},
-      {"name": "CANVAS_BASE_URL", "required": "full mode only", "description": "Canvas instance URL, e.g. https://byui.instructure.com"},
-      {"name": "CANVAS_COURSE_ID", "required": "full mode only", "description": "Integer course ID visible in the Canvas course URL"},
-      {"name": "ANTHROPIC_API_KEY", "required": true, "description": "Anthropic API key for the LLM agent"}
+      {
+        "name": "CANVAS_API_TOKEN",
+        "required": "full mode only",
+        "description": "Canvas API access token from Settings \u2192 Approved Integrations"
+      },
+      {
+        "name": "CANVAS_BASE_URL",
+        "required": "full mode only",
+        "description": "Canvas instance URL, e.g. https://byui.instructure.com"
+      },
+      {
+        "name": "CANVAS_COURSE_ID",
+        "required": "full mode only",
+        "description": "Integer course ID visible in the Canvas course URL"
+      },
+      {
+        "name": "ANTHROPIC_API_KEY",
+        "required": true,
+        "description": "Anthropic API key for the LLM agent"
+      }
     ]
   },
-
   "validation": {
     "_tier": "tier_1_core",
     "pre_run_checklist": [
@@ -744,19 +1010,18 @@
       "python canvas_api_tool.py --audit /path/to/export.imscc --dry-run"
     ]
   },
-
   "operational_guidance": {
     "_tier": "tier_2_recommended",
     "when_to_use": [
-      "Before a new course goes live — run audit in audit-only mode as a pre-launch checklist",
-      "At the start of each semester — catch drift from BYUI standards caused by mid-semester edits",
-      "When a course has high drop rates or poor student satisfaction — use the cognitive load score as a diagnostic",
-      "After a major course redesign — validate the new structure before publishing"
+      "Before a new course goes live \u2014 run audit in audit-only mode as a pre-launch checklist",
+      "At the start of each semester \u2014 catch drift from BYUI standards caused by mid-semester edits",
+      "When a course has high drop rates or poor student satisfaction \u2014 use the cognitive load score as a diagnostic",
+      "After a major course redesign \u2014 validate the new structure before publishing"
     ],
     "when_not_to_use": [
-      "During an active exam window — never apply bulk changes while a timed assessment is in progress",
-      "When you don't have the course export ZIP — the agent cannot work from Canvas API reads alone (export required for full structural analysis)",
-      "For brand-new course builds — use the BYUI course design template instead; this agent is for auditing existing courses"
+      "During an active exam window \u2014 never apply bulk changes while a timed assessment is in progress",
+      "When you don't have the course export ZIP \u2014 the agent cannot work from Canvas API reads alone (export required for full structural analysis)",
+      "For brand-new course builds \u2014 use the BYUI course design template instead; this agent is for auditing existing courses"
     ],
     "best_practices": [
       {
@@ -765,7 +1030,7 @@
       },
       {
         "practice": "low_temperature_for_tool_agents",
-        "description": "Temperature set to 0.1 for all tool calls. Canvas API errors from wrong resource IDs or malformed payloads are not easily reversible — determinism is required."
+        "description": "Temperature set to 0.1 for all tool calls. Canvas API errors from wrong resource IDs or malformed payloads are not easily reversible \u2014 determinism is required."
       },
       {
         "practice": "lifecycle_hooks",
@@ -777,13 +1042,12 @@
       }
     ]
   },
-
   "error_handling": {
     "_tier": "tier_2_recommended",
     "known_failures": [
       {
         "failure": "canvas_native_zip_format",
-        "cause": "Instructor exported a Canvas-native package instead of IMSCC Common Cartridge — imsmanifest.xml will not be found",
+        "cause": "Instructor exported a Canvas-native package instead of IMSCC Common Cartridge \u2014 imsmanifest.xml will not be found",
         "mitigation": "Detect missing imsmanifest.xml and return format_error with instructions to re-export as Common Cartridge"
       },
       {
@@ -811,7 +1075,7 @@
       {
         "trigger": "canvas_api write fails with 404",
         "action": "halt_and_report",
-        "description": "Log the failed change with resource ID and endpoint. Do not continue applying other changes in the same batch — report to instructor for manual resolution."
+        "description": "Log the failed change with resource ID and endpoint. Do not continue applying other changes in the same batch \u2014 report to instructor for manual resolution."
       }
     ],
     "retry_strategy": {
@@ -820,7 +1084,6 @@
       "timeout_per_attempt": "30s"
     }
   },
-
   "constraints": {
     "_tier": "tier_3_optional",
     "safety_boundaries": {
@@ -850,7 +1113,6 @@
       "human_in_the_loop": "Required before any write operation. Agent presents change_plan and halts. Instructor must explicitly confirm (all/select/none) before API calls proceed."
     }
   },
-
   "cross_references": {
     "_tier": "tier_3_optional",
     "related_agents": [
@@ -861,12 +1123,83 @@
       }
     ],
     "external_dependencies": [
-      {"name": "Canvas REST API", "url": "https://canvas.instructure.com/doc/api/"},
-      {"name": "BYUI Teaching Site", "url": "https://teach.byui.edu"},
-      {"name": "IMS Common Cartridge Spec", "url": "https://www.imsglobal.org/cc/ccv1p0/imscc_profilev1p0.html"}
-    ]
+      {
+        "name": "Canvas REST API",
+        "url": "https://canvas.instructure.com/doc/api/"
+      },
+      {
+        "name": "BYUI Teaching Site",
+        "url": "https://teach.byui.edu"
+      },
+      {
+        "name": "IMS Common Cartridge Spec",
+        "url": "https://www.imsglobal.org/cc/ccv1p0/imscc_profilev1p0.html"
+      }
+    ],
+    "knowledge_files": [
+      {
+        "path": "lib/agents/knowledge/cognitive_load_theory_knowledge.json",
+        "purpose": "Working-memory limits and the three load types (intrinsic / extraneous / germane). Audit lens for module structure and navigation overhead.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/hattie_3phase_knowledge.json",
+        "purpose": "Surface \u2192 Deep \u2192 Transfer learning progression. Audit lens for whether a module supports the right phase of learning.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/three_domains_knowledge.json",
+        "purpose": "Cognitive / affective / psychomotor learning domains (Wilson / Harrow). Audit lens for whether the course covers more than just thinking.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/taxonomy_explorer_knowledge.json",
+        "purpose": "BYUI's institutional verb-classification tool (Simpson 7-level psychomotor). Use when faculty use BYUI's verb-lookup tool.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/experiential_learning_knowledge.json",
+        "purpose": "Brain-aligned sequencing (experience-first). Audit lens for whether a module sequences Experience \u2192 Observation \u2192 Discussion \u2192 Explanation \u2192 Theory or the reverse.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/backwards_design_knowledge.json",
+        "purpose": "Wiggins & McTighe Understanding by Design framework (3 stages). The academic parent of BYUI designer thinking.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/designer_thinking_knowledge.json",
+        "purpose": "BYUI five-stage backward design (Outcome \u2192 Evidence \u2192 Experience \u2192 Content \u2192 Reality Check). Audit lens for teacher-mode vs designer-mode.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/course_design_language_knowledge.json",
+        "purpose": "BYUI institutional view: 6 principles for course coherence (visual grammar, narrative metaphor, dual-framing, structural beats, observable rubrics, alignment traceability).",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/outcomes_quality_knowledge.json",
+        "purpose": "CLO well-formedness criteria (AoL 6-criteria rubric, Bloom's verb tables, hierarchy ILO \u2192 PLO \u2192 CLO \u2192 LLO). Precedes alignment auditing.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/assessments_knowledge.json",
+        "purpose": "Formative vs. summative assessment types, alignment to outcomes, AI-resistant design adjustments. Pairs with backwards_design for Stage 2.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/inverted_blooms_knowledge.json",
+        "purpose": "AI-agency framing for whether assessments produce student-owned evidence (ai_dependent / scaffolded / student_owned).",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/toyota_gap_analysis_knowledge.json",
+        "purpose": "A3 problem-solving + genchi_genbutsu observation discipline. The output-format wrapper for every proposed change.",
+        "runtime_strategy": "read_at_runtime"
+      }
+    ],
+    "_knowledge_files_note": "v3.6 cross_references field. Points at .json companions (runtime consumers parse JSON). Legacy primary_data.knowledge_files retained \u2014 different purpose: that field tells the audit framework selector which framework's .md to load for a given report focus."
   },
-
   "changelog": {
     "_tier": "tier_3_optional",
     "versions": [
@@ -882,7 +1215,9 @@
           "Enrollment check guardrail before any live-course modifications"
         ],
         "breaking_changes": [],
-        "contributors": ["Instructional Design"]
+        "contributors": [
+          "Instructional Design"
+        ]
       }
     ]
   }
