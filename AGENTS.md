@@ -44,8 +44,8 @@ canvas_toolbox/
 ├── examples/              ← reference material (read-only — never auto-synced)
 │   └── setup_notes/       ← example instructor setup notes
 ├── course_src/            ← markdown authoring workspace (gitignored, --build compiles to course/)
-├── make_ai_agents/        ← local clone of upstream tool (gitignored, separate dev tool)
-├── gh_issues_agent/       ← local clone of upstream tool (gitignored, separate dev tool)
+├── make-ai-agents/        ← local clone of upstream tool (gitignored, separate dev tool)
+├── gh-issues-agent/       ← local clone of upstream tool (gitignored, separate dev tool)
 ├── handoff/               ← local clone of upstream tool (gitignored, separate dev tool)
 ├── master/                ← master course working dir (gitignored, multi-course mode)
 ├── s1/, s2/, s3/          ← per-section working dirs (gitignored)
@@ -61,7 +61,7 @@ For full setup and command reference, see [`README.md`](README.md). For agent-en
 
 ## Working Style
 
-This project follows the behavioral discipline defined in `make_ai_agents/knowledge/behavioral_discipline.md` (when the upstream `Make-AI-Agents` subtree is populated locally — see Existing Tooling) or the equivalent discipline loaded via the host tool's skill system.
+This project follows the behavioral discipline defined in `make-ai-agents/knowledge/behavioral_discipline.md` (when the upstream `Make-AI-Agents` clone is populated locally — see Existing Tooling) or the equivalent discipline loaded via the host tool's skill system.
 
 In short, every contributor — human or LLM — operates under these principles: read before claiming, plan before acting on changes, stop on the first defect rather than papering over, find root causes for bugs, document non-trivial changes in a structured form, generate exactly what was asked (no speculative additions), produce mistake-proof outputs, reflect and tell the user about non-obvious learnings, and respect the user's intent without substitution or drift.
 
@@ -89,7 +89,7 @@ _Last updated: 2026-05-06_
 - **Open canvas_toolbox issues**: none. Issue tracker is empty — ready for empirical validation against real courses.
 - **v0.5.0** — Course Design Language as the 8th knowledge framework, with the `byui_course_design/` template-set (11 HTML components + canonical rubric JSON)
 - **v0.4.0 multi-course orchestration** in production — `lib/tools/sync_context.sh` invokes `canvas_sync.py` per context (master/blueprint/s1/s2/...). Validated against a real multi-section course setup.
-- **Make-AI-Agents subtree** at `make_ai_agents/` is gitignored. Populate locally with the subtree-add command in Existing Tooling when needed.
+- **Make-AI-Agents clone** at `make-ai-agents/` is gitignored. Populate locally with the `git clone` command in Existing Tooling when needed.
 - **Roadmap (canvas_toolbox)**: convert `canvas_course_expert` to deployable `.agents/skills/canvas-audit/` (first deployable skill, parameterize for non-BYUI institutions); capture conversion as `lib/agents/deploy_agent.md`; convert `canvas_schedule_auditor` to validate the template; cite `toyota-way-agents` skill from AGENTS.md once it lands upstream and gets subtree'd.
 - **Upstream-tracked work** lives in [`Make-AI-Agents`](https://github.com/chaz-clark/Make-AI-Agents) (separate repo, separate issue tracker). Toyota Way × AI agents skill design + subtree consumer hygiene live there.
 
@@ -151,10 +151,10 @@ For framework theory (CLT / Hattie / etc.), see [`lib/agents/knowledge/README.md
 
 ```bash
 # Make-AI-Agents (template generation skills: make_agent, make_AGENTS, make_gem)
-git clone https://github.com/chaz-clark/Make-AI-Agents.git make_ai_agents
+git clone https://github.com/chaz-clark/Make-AI-Agents.git make-ai-agents
 
-# gh_issues_agent (GitHub issue triage tool)
-git clone https://github.com/chaz-clark/gh_issues_agent.git
+# gh-issues-agent (GitHub issue triage tool)
+git clone https://github.com/chaz-clark/gh_issues_agent.git gh-issues-agent
 
 # handoff (agent-to-agent handoff tool)
 git clone https://github.com/chaz-clark/handoff.git

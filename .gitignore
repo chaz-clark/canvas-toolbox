@@ -21,15 +21,15 @@ CLAUDE.md
 # GitHub issues workflow — local only
 .github_issues/
 
-# gh_issues_agent — local clone of upstream tool used during development.
-# Populate with: git clone https://github.com/chaz-clark/gh_issues_agent.git
-# Update with:   cd gh_issues_agent && git pull origin main
-gh_issues_agent/
+# gh-issues-agent — local clone of upstream tool used during development.
+# Populate with: git clone https://github.com/chaz-clark/gh_issues_agent.git gh-issues-agent
+# Update with:   cd gh-issues-agent && git pull origin main
+gh-issues-agent/
 
-# Make-AI-Agents — local clone of upstream tool used during development.
-# Populate with: git clone https://github.com/chaz-clark/Make-AI-Agents.git make_ai_agents
-# Update with:   cd make_ai_agents && git pull origin main
-make_ai_agents/
+# make-ai-agents — local clone of upstream tool used during development.
+# Populate with: git clone https://github.com/chaz-clark/Make-AI-Agents.git make-ai-agents
+# Update with:   cd make-ai-agents && git pull origin main
+make-ai-agents/
 
 # handoff — local clone of upstream tool used during development.
 # Note: distinct from `handoffs/` (plural) which is local-only handoff scratch.
