@@ -1,8 +1,8 @@
 {
   "_metadata": {
-    "template_version": "3.1",
-    "last_updated": "2026-04-09",
-    "description": "Canvas Content Sync Agent — migrates approved page content from local markdown files into Canvas LMS via the Canvas MCP server (reads) and Python requests (writes). Maintains .canvas/index.json as the durable ID cache.",
+    "template_version": "3.6",
+    "last_updated": "2026-05-13",
+    "description": "Canvas Content Sync Agent \u2014 migrates approved page content from local markdown files into Canvas LMS via the Canvas MCP server (reads) and Python requests (writes). Maintains .canvas/index.json as the durable ID cache.",
     "usage": "See canvas_content_sync.md for narrative guide. All write operations go through canvas_api_tool.py. Canvas MCP server handles read operations during planning phase.",
     "companion_files": {
       "conceptual_guide": "canvas_content_sync.md",
@@ -18,20 +18,49 @@
       "description": "Pushes approved markdown/HTML content to Canvas as pages and module items. Handles two-step page insertion, rename sequences, and index maintenance.",
       "owner": "Chaz Clark, BYU-Idaho",
       "complexity": "standard"
-    }
+    },
+    "_retrofit_note": "v3.1 \u2192 v3.6 \u2014 predates v3.0 behavioral discipline framework; retrofitted per make_agent.md retrofit checklist."
   },
-
   "agent_type": {
     "_tier": "tier_1_core",
     "type": "llm_agent",
     "description": "LLM agent with tool use. Operates in two phases: planning (MCP reads + index lookup) and execution (Python writes via canvas_api_tool.py). Propose-before-execute for open-ended requests; execute-and-report for specific single-step requests."
   },
-
+  "interaction_pattern": "single_write_workflow",
+  "behavioral_discipline": {
+    "interaction_pattern": "single_write_workflow",
+    "applicable_principles": [
+      "P-001",
+      "P-002",
+      "P-003",
+      "P-004",
+      "P-006",
+      "P-007",
+      "P-008",
+      "P-009",
+      "P-010"
+    ],
+    "no_override_principles": [
+      "P-001",
+      "P-003",
+      "P-007",
+      "P-010"
+    ],
+    "override_decisions": [],
+    "_source": "knowledge/behavioral_discipline.md and knowledge/behavioral_discipline.json in make-ai-agents",
+    "_qc_checks_applied": [
+      "BD-QC-001",
+      "BD-QC-002",
+      "BD-QC-003",
+      "BD-QC-005",
+      "BD-QC-006"
+    ]
+  },
   "implementation": {
     "_tier": "tier_1_core",
     "llm_agent": {
       "model": "claude-sonnet-4-6",
-      "system_prompt": "You are the Canvas Content Sync agent for Chaz Clark's BYU-Idaho course repository. Your job is to push approved content from local markdown files into Canvas LMS as pages and module items, and keep .canvas/index.json accurate after every write.\n\nYou have access to:\n- Canvas MCP server (server name: 'canvas'): use for GET/read operations only — list_modules, list_module_items, get_page, get_course\n- canvas_api_tool.py: use for ALL write operations (create_page, update_page, create_module_item, update_module_item, update_assignment, update_quiz_points)\n- .canvas/build_canvas_content.py: use with --strip-reader flag before any Canvas push\n- .canvas/index.json: always check before MCP reads; always update after writes\n\nCRITICAL RULES:\n1. NEVER call any write operation (create, update, PUT, POST) without first proposing the plan and receiving explicit approval from Chaz — UNLESS the request is a complete, specific, single-step instruction.\n2. NEVER use page_id (numeric) as content_id when inserting a Page-type module item. Always use page_url set to the slug from the page creation response.\n3. NEVER update .canvas/index.json before receiving status_code 200 from a Python write call.\n4. NEVER run build_canvas_content.py without --strip-reader for any Canvas push.\n5. NEVER read credentials from .env files. MCP handles auth transparently.\n6. NEVER make a DELETE call without Chaz explicitly using the word 'delete' in the request.\n7. Disable parallel tool use for all write sequences — two-step page insert requires sequential execution.\n8. If MCP is unavailable, fall back to Python requests for reads without blocking.\n\nWorkflow:\n1. Load .canvas/index.json — confirm course_id is present\n2. Identify: what content, what module, what position, what publish state\n3. Build HTML: run build_canvas_content.py --strip-reader\n4. For open-ended requests: propose plan, wait for approval\n5. Execute writes via Python — capture all returned IDs and slugs\n6. Update .canvas/index.json immediately after each successful write\n7. Report: what was created/updated, new index entries, any anomalies",
+      "system_prompt": "You are the Canvas Content Sync agent for Chaz Clark's BYU-Idaho course repository. Your job is to push approved content from local markdown files into Canvas LMS as pages and module items, and keep .canvas/index.json accurate after every write.\n\nYou have access to:\n- Canvas MCP server (server name: 'canvas'): use for GET/read operations only \u2014 list_modules, list_module_items, get_page, get_course\n- canvas_api_tool.py: use for ALL write operations (create_page, update_page, create_module_item, update_module_item, update_assignment, update_quiz_points)\n- .canvas/build_canvas_content.py: use with --strip-reader flag before any Canvas push\n- .canvas/index.json: always check before MCP reads; always update after writes\n\nCRITICAL RULES:\n1. NEVER call any write operation (create, update, PUT, POST) without first proposing the plan and receiving explicit approval from Chaz \u2014 UNLESS the request is a complete, specific, single-step instruction.\n2. NEVER use page_id (numeric) as content_id when inserting a Page-type module item. Always use page_url set to the slug from the page creation response.\n3. NEVER update .canvas/index.json before receiving status_code 200 from a Python write call.\n4. NEVER run build_canvas_content.py without --strip-reader for any Canvas push.\n5. NEVER read credentials from .env files. MCP handles auth transparently.\n6. NEVER make a DELETE call without Chaz explicitly using the word 'delete' in the request.\n7. Disable parallel tool use for all write sequences \u2014 two-step page insert requires sequential execution.\n8. If MCP is unavailable, fall back to Python requests for reads without blocking.\n\nWorkflow:\n1. Load .canvas/index.json \u2014 confirm course_id is present\n2. Identify: what content, what module, what position, what publish state\n3. Build HTML: run build_canvas_content.py --strip-reader\n4. For open-ended requests: propose plan, wait for approval\n5. Execute writes via Python \u2014 capture all returned IDs and slugs\n6. Update .canvas/index.json immediately after each successful write\n7. Report: what was created/updated, new index entries, any anomalies\n\n## Behavioral Discipline\n\nYou operate under a behavioral discipline that produces predictable, trustworthy behavior for end users. The full source is in make-ai-agents/knowledge/behavioral_discipline.md (populated as a local clone in canvas-toolbox). Applicable principles for this agent (interaction_pattern: single_write_workflow):\n\n- P-001 Read Before Claiming: Read the actual source before claiming anything about content, code, or system state. Training-data priors are not a substitute for reading what's in front of you.\n- P-002 Plan Before Acting: For any state-changing task with more than one step, propose the plan and wait for user confirmation before non-reversible action. The plan is a draft \u2014 refine through back-and-forth before committing.\n- P-003 Stop on Defect: First failed test, first failed precondition, first ambiguity that can't be resolved \u2192 stop. Don't paper over. Don't retry blindly. Surface the issue: 'I cannot proceed because X.'\n- P-004 Find the Root Cause: When something doesn't work as expected, walk the chain of causation. Stop when the answer is structural \u2014 that's where the fix lives.\n- P-006 Document the Change: For any non-trivial change, structure the report so a non-technical reviewer can audit it without reading the diff. Use the A3 template (see templates.a3_change_report).\n- P-007 Pull, Don't Push: Generate exactly what was asked. No speculative features. The discipline isn't laziness \u2014 it leaves room for the user to decide what comes next.\n- P-008 Mistake-Proof Outputs: Format outputs consistently across runs so the user can predict what they'll see. Decide once for the agent: JSON for parsed output, Markdown for human-read output, Markdown+JSON code block for both.\n- P-009 Reflect, and Tell the User: At the end of any task that produced a surprise, took longer than expected, or revealed non-obvious behavior, name the lesson in the response ('Worth noting: ...') AND append it to the agent's spec MD External System Lessons section.\n- P-010 Respect the User's Intent: Two failure modes: (a) anti-substitution \u2014 don't override or reinterpret the user's stated goal silently; (b) anti-drift \u2014 in long sessions, every action should still trace to the original goal; surface drift when it happens.\n\nHard rule: before skipping any principle, state in one sentence which principle is being skipped and why. The principles in [P-001, P-003, P-007, P-010] have no override under any circumstances.\n\nThe Key Principles in canvas_content_sync.md operationalize this discipline: Principle 3 (Confirm Before Mutating) is P-003/P-007; Principle 4 (Two-Step Page Insertion Is Not Optional) is P-008 \u2014 keep the page + module item write atomic from the user's perspective.",
       "mcp_servers": [
         {
           "type": "url",
@@ -48,11 +77,10 @@
         "response_format": null,
         "disable_parallel_tool_use": true,
         "stop_sequences": [],
-        "_notes": "Temperature 0.1 — all operations are tool-use and write-phase; determinism required. disable_parallel_tool_use true — two-step page insert is sequential (slug from step 1 required for step 2). max_tokens lower than audit agent — write summaries are compact."
+        "_notes": "Temperature 0.1 \u2014 all operations are tool-use and write-phase; determinism required. disable_parallel_tool_use true \u2014 two-step page insert is sequential (slug from step 1 required for step 2). max_tokens lower than audit agent \u2014 write summaries are compact."
       }
     }
   },
-
   "io_contract": {
     "_tier": "tier_1_core",
     "inputs": [
@@ -110,12 +138,10 @@
     ],
     "side_effects": "Modifies .canvas/index.json. Creates or updates Canvas pages and module items via Python HTTP calls to the Canvas REST API."
   },
-
   "primary_data": {
     "_tier": "tier_1_core",
     "description": "Canvas API endpoint reference for content sync operations. All write endpoints use Python via canvas_api_tool.py. All read endpoints prefer MCP, falling back to Python if MCP is unavailable.",
     "format": "array_of_objects",
-
     "canvas_api_endpoints": [
       {
         "key": "get_course",
@@ -155,13 +181,16 @@
         "description": "Create a new Canvas wiki page. Returns the page canvas_id and slug. IMMEDIATELY store both in .canvas/index.json before making the module item call.",
         "payload_schema": {
           "wiki_page": {
-            "title": "string — human-readable page title",
-            "body": "string — HTML content (produced by build_canvas_content.py --strip-reader)",
+            "title": "string \u2014 human-readable page title",
+            "body": "string \u2014 HTML content (produced by build_canvas_content.py --strip-reader)",
             "published": "boolean"
           }
         },
-        "returns_critical": ["canvas_id (field: 'page_id')", "slug (field: 'url')"],
-        "quirks": "The 'url' field in the response is the slug (e.g., 'sprint-3-overview') — this is what module item insertion requires, NOT the numeric page_id. Store it immediately."
+        "returns_critical": [
+          "canvas_id (field: 'page_id')",
+          "slug (field: 'url')"
+        ],
+        "quirks": "The 'url' field in the response is the slug (e.g., 'sprint-3-overview') \u2014 this is what module item insertion requires, NOT the numeric page_id. Store it immediately."
       },
       {
         "key": "update_page",
@@ -176,7 +205,7 @@
             "published": "boolean"
           }
         },
-        "quirks": "URL path uses slug, not numeric ID. Slug is in .canvas/index.json → pages → {slug}. If the title changes, the slug may also change — capture the new 'url' from the response and update the index key."
+        "quirks": "URL path uses slug, not numeric ID. Slug is in .canvas/index.json \u2192 pages \u2192 {slug}. If the title changes, the slug may also change \u2014 capture the new 'url' from the response and update the index key."
       },
       {
         "key": "create_module_item",
@@ -188,21 +217,23 @@
           "module_item": {
             "title": "string",
             "type": "Page | Assignment | Quiz | Discussion | SubHeader | ExternalUrl",
-            "page_url": "string — ONLY for type=Page; set to slug from create_page response",
-            "content_id": "integer — ONLY for type=Assignment, Quiz, Discussion",
-            "position": "integer — 1-indexed position in module",
+            "page_url": "string \u2014 ONLY for type=Page; set to slug from create_page response",
+            "content_id": "integer \u2014 ONLY for type=Assignment, Quiz, Discussion",
+            "position": "integer \u2014 1-indexed position in module",
             "published": "boolean"
           }
         },
-        "returns_critical": ["module_item_id (field: 'id')"],
-        "quirks": "For type=Page: use page_url (slug), NOT content_id. Using content_id for a page type silently creates a broken or mis-linked item. The API returns 200 either way — there is no loud error."
+        "returns_critical": [
+          "module_item_id (field: 'id')"
+        ],
+        "quirks": "For type=Page: use page_url (slug), NOT content_id. Using content_id for a page type silently creates a broken or mis-linked item. The API returns 200 either way \u2014 there is no loud error."
       },
       {
         "key": "update_module_item",
         "endpoint": "courses/{course_id}/modules/{module_id}/items/{item_id}",
         "method": "PUT",
         "mcp_or_python": "python",
-        "description": "Update a module item's title, position, or published state. REQUIRED as the second call in any rename operation — resource name update does not cascade to module item title.",
+        "description": "Update a module item's title, position, or published state. REQUIRED as the second call in any rename operation \u2014 resource name update does not cascade to module item title.",
         "payload_schema": {
           "module_item": {
             "title": "string",
@@ -217,11 +248,11 @@
         "endpoint": "courses/{course_id}/assignments/{assignment_id}",
         "method": "PUT",
         "mcp_or_python": "python",
-        "description": "Update assignment name, description, due date, or points. Does NOT update module item title — that requires a separate update_module_item call.",
+        "description": "Update assignment name, description, due date, or points. Does NOT update module item title \u2014 that requires a separate update_module_item call.",
         "payload_schema": {
           "assignment": {
             "name": "string",
-            "description": "string — HTML",
+            "description": "string \u2014 HTML",
             "due_at": "ISO8601 string with timezone (e.g. 2026-02-15T23:59:00-07:00)",
             "points_possible": "float"
           }
@@ -233,11 +264,11 @@
         "endpoint": "courses/{course_id}/assignment_groups",
         "method": "POST",
         "mcp_or_python": "python",
-        "description": "Create a weighted assignment group. Body must be FLAT — do not wrap in assignment_group object.",
+        "description": "Create a weighted assignment group. Body must be FLAT \u2014 do not wrap in assignment_group object.",
         "payload_schema": {
-          "name": "string — flat field, NOT nested",
-          "group_weight": "float — flat field, NOT nested",
-          "position": "integer — flat field, NOT nested"
+          "name": "string \u2014 flat field, NOT nested",
+          "group_weight": "float \u2014 flat field, NOT nested",
+          "position": "integer \u2014 flat field, NOT nested"
         },
         "quirks": "Wrapping fields in 'assignment_group: { ... }' causes name and weight to be silently ignored. The group is created with Canvas default values (no name, 0% weight). Always use flat body."
       },
@@ -252,13 +283,11 @@
             "points_possible": "float"
           }
         },
-        "quirks": "Points_possible set in the initial quiz POST is unreliable. Both the quiz and its linked gradebook assignment show 0 until this PUT is made. This is not a bug — it is a required second step."
+        "quirks": "Points_possible set in the initial quiz POST is unreliable. Both the quiz and its linked gradebook assignment show 0 until this PUT is made. This is not a bug \u2014 it is a required second step."
       }
     ],
-
     "write_procedures": {
-      "_description": "Step-by-step sequences for common write operations. Follow exactly — steps are order-dependent.",
-
+      "_description": "Step-by-step sequences for common write operations. Follow exactly \u2014 steps are order-dependent.",
       "create_page_and_insert": {
         "name": "Create new page and insert into module",
         "steps": [
@@ -272,7 +301,10 @@
             "step": 2,
             "action": "Create Canvas page via Python",
             "endpoint": "create_page",
-            "captures": ["canvas_id from response field 'page_id'", "slug from response field 'url'"],
+            "captures": [
+              "canvas_id from response field 'page_id'",
+              "slug from response field 'url'"
+            ],
             "verify": "status_code == 200"
           },
           {
@@ -285,8 +317,10 @@
             "step": 4,
             "action": "Insert module item via Python",
             "endpoint": "create_module_item",
-            "payload_note": "type: 'Page', page_url: <slug from step 2> — NOT content_id",
-            "captures": ["module_item_id from response field 'id'"],
+            "payload_note": "type: 'Page', page_url: <slug from step 2> \u2014 NOT content_id",
+            "captures": [
+              "module_item_id from response field 'id'"
+            ],
             "verify": "status_code == 200"
           },
           {
@@ -297,14 +331,13 @@
           }
         ]
       },
-
       "update_existing_page": {
         "name": "Update body or title of an existing page",
         "steps": [
           {
             "step": 1,
             "action": "Look up slug in index",
-            "source": ".canvas/index.json → pages → {page_title}",
+            "source": ".canvas/index.json \u2192 pages \u2192 {page_title}",
             "fallback": "If not in index: use list_pages (MCP) to find slug, then add to index"
           },
           {
@@ -326,7 +359,6 @@
           }
         ]
       },
-
       "rename_resource": {
         "name": "Rename a page or assignment (two required calls)",
         "steps": [
@@ -354,52 +386,50 @@
         ]
       }
     },
-
     "persistent_index_schema": {
       "_notes": "Schema for .canvas/index.json. Actual data lives in .canvas/index.json alongside the course. This agent updates it after every write. Schema mirrors canvas_course_expert.json with additions for module_item_id tracking.",
-      "course_id": "integer — Canvas course ID from the course URL /courses/XXXXXX",
-      "base_url": "string — Canvas instance URL (e.g. https://byui.instructure.com)",
+      "course_id": "integer \u2014 Canvas course ID from the course URL /courses/XXXXXX",
+      "base_url": "string \u2014 Canvas instance URL (e.g. https://byui.instructure.com)",
       "last_sync": "ISO8601 timestamp of most recent write operation by this agent",
       "modules": {
         "_description": "Keyed by module title string (as shown in Canvas). Match must be exact.",
         "{module_title}": {
-          "canvas_id": "integer — Canvas module ID",
-          "position": "integer — position in module list",
+          "canvas_id": "integer \u2014 Canvas module ID",
+          "position": "integer \u2014 position in module list",
           "published": "boolean"
         }
       },
       "pages": {
-        "_description": "Keyed by slug — slug is the 'url' field from page creation response. Required for module item insertion and update operations.",
+        "_description": "Keyed by slug \u2014 slug is the 'url' field from page creation response. Required for module item insertion and update operations.",
         "{page_slug}": {
-          "canvas_id": "integer — Canvas page ID",
-          "title": "string — human-readable title",
+          "canvas_id": "integer \u2014 Canvas page ID",
+          "title": "string \u2014 human-readable title",
           "published": "boolean",
-          "module_item_id": "integer — Canvas module item ID; required for rename and position updates"
+          "module_item_id": "integer \u2014 Canvas module item ID; required for rename and position updates"
         }
       },
       "assignments": {
         "_description": "Keyed by assignment title",
         "{assignment_title}": {
           "canvas_id": "integer",
-          "module_item_id": "integer — required for independent module item title updates",
+          "module_item_id": "integer \u2014 required for independent module item title updates",
           "points_possible": "float",
           "due_at": "ISO8601 or null"
         }
       },
       "change_ledger": {
-        "_description": "Persistent record of every write applied by this agent. Never delete entries — use status field.",
+        "_description": "Persistent record of every write applied by this agent. Never delete entries \u2014 use status field.",
         "{change_id}": {
           "applied_at": "ISO8601 timestamp",
-          "operation": "string — create_page | update_page | create_module_item | update_module_item | rename",
-          "resource_type": "string — page | assignment | module_item | quiz",
-          "canvas_id": "integer — ID of the resource created or modified",
-          "source_file": "string — relative path to source markdown",
+          "operation": "string \u2014 create_page | update_page | create_module_item | update_module_item | rename",
+          "resource_type": "string \u2014 page | assignment | module_item | quiz",
+          "canvas_id": "integer \u2014 ID of the resource created or modified",
+          "source_file": "string \u2014 relative path to source markdown",
           "status": "applied | failed | rolled_back"
         }
       }
     }
   },
-
   "dependencies": {
     "_tier": "tier_1_core",
     "packages": [
@@ -412,13 +442,21 @@
       ".canvas/build_canvas_content.py",
       ".canvas/template.html"
     ],
-    "models": ["claude-sonnet-4-6"],
-    "apis": ["Canvas REST API (https://byui.instructure.com/api/v1/)"],
-    "mcp_servers": ["DMontgomery40/mcp-canvas-lms (docker-compose.yml)"],
-    "data_sources": [".canvas/index.json (persistent ID cache)", "Source markdown files in the repo"],
-    "_notes": "No CANVAS_API_TOKEN or CANVAS_BASE_URL env vars are read directly — MCP handles auth. Python write calls use credentials surfaced through the MCP environment. requests package is needed for Python fallback write operations via canvas_api_tool.py."
+    "models": [
+      "claude-sonnet-4-6"
+    ],
+    "apis": [
+      "Canvas REST API (https://byui.instructure.com/api/v1/)"
+    ],
+    "mcp_servers": [
+      "DMontgomery40/mcp-canvas-lms (docker-compose.yml)"
+    ],
+    "data_sources": [
+      ".canvas/index.json (persistent ID cache)",
+      "Source markdown files in the repo"
+    ],
+    "_notes": "No CANVAS_API_TOKEN or CANVAS_BASE_URL env vars are read directly \u2014 MCP handles auth. Python write calls use credentials surfaced through the MCP environment. requests package is needed for Python fallback write operations via canvas_api_tool.py."
   },
-
   "constraints": {
     "_tier": "tier_1_core",
     "safety_boundaries": {
@@ -426,7 +464,7 @@
       "guardrails": [
         "No DELETE calls without explicit 'delete' keyword from Chaz",
         "No write to index before status_code 200 confirmed",
-        "No --strip-reader omission — always required for Canvas pushes",
+        "No --strip-reader omission \u2014 always required for Canvas pushes",
         "No credential reads from .env files",
         "No page_id used as content_id in module item insertion"
       ]
@@ -437,14 +475,13 @@
       "always_confirm": "Any operation that would move or unpublish an item currently visible to enrolled students. Any DELETE operation. Any operation on content Chaz has not explicitly named."
     }
   },
-
   "error_handling": {
     "_tier": "tier_1_core",
     "fallbacks": [
       {
         "scenario": "Canvas MCP server unavailable (Docker not running)",
         "detection": "MCP tool call returns protocol error or 'tool not found'",
-        "fallback": "Switch to Python requests GET calls for read operations. .canvas/index.json usually covers most needed IDs — minimize fallback reads. Document MCP unavailability in session summary.",
+        "fallback": "Switch to Python requests GET calls for read operations. .canvas/index.json usually covers most needed IDs \u2014 minimize fallback reads. Document MCP unavailability in session summary.",
         "do_not": "Block the entire session waiting for MCP to become available"
       },
       {
@@ -497,7 +534,6 @@
       }
     ]
   },
-
   "validation": {
     "_tier": "tier_1_core",
     "pre_run_checklist": [
@@ -569,25 +605,30 @@
       }
     ]
   },
-
   "cross_references": {
     "_tier": "tier_1_core",
     "related_agents": [
       {
         "name": "canvas_course_expert",
         "file": "canvas_course_expert.md",
-        "relationship": "Upstream audit agent — identifies what needs to change (cognitive load issues, missing pages, structural gaps). This agent applies those approved changes.",
+        "relationship": "Upstream audit agent \u2014 identifies what needs to change (cognitive load issues, missing pages, structural gaps). This agent applies those approved changes.",
         "handoff": "canvas_course_expert produces a change plan; canvas_content_sync executes it"
       },
       {
         "name": "canvas-sync",
         "file": "canvas-sync.md",
         "relationship": "Predecessor prompt that established the migration workflow conventions. canvas_content_sync formalizes those conventions into the make_agent format.",
-        "note": "canvas-sync.md is the canonical source for .env credential references — this agent intentionally removes that pattern in favor of MCP auth."
+        "note": "canvas-sync.md is the canonical source for .env credential references \u2014 this agent intentionally removes that pattern in favor of MCP auth."
+      }
+    ],
+    "knowledge_files": [
+      {
+        "path": "lib/agents/knowledge/course_design_language_knowledge.json",
+        "purpose": "BYUI institutional 6 principles for course coherence \u2014 structural beats, observable rubrics, alignment traceability. Referenced when content-sync writes pages that should match the course's design language.",
+        "runtime_strategy": "read_at_runtime"
       }
     ]
   },
-
   "changelog": {
     "1.0": {
       "date": "2026-04-09",
