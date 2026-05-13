@@ -68,6 +68,29 @@ The dbt Demo 3 assignment (canvas_id: 16858423) is due Monday of Week 9 (first d
 
 ---
 
+## Behavioral Discipline (core)
+
+This agent operates under the v3.6 behavioral discipline. Full source: `make-ai-agents/knowledge/behavioral_discipline.md`. Interaction pattern: **multi_step_batch** (the full discipline applies because a batch rollover decomposes into many individual writes).
+
+**All 10 principles apply:**
+
+- **P-001 Read Before Claiming** — Read `.canvas/index.json`, local `course/*.json`, and the setup notes page before computing any date.
+- **P-002 Plan Before Acting** — The proposed-diff table (canvas_id | title | old due_at | new due_at) IS the batch plan. Show it in full and wait for explicit approval before any write.
+- **P-003 Stop on Defect** — On the first 4xx response from the Canvas API, STOP. Do not retry blindly across remaining items. Surface the failing canvas_id and the error.
+- **P-004 Find the Root Cause** — If a date doesn't push (400, 403, lock-window error), walk the cause: missing `lock_at: null`? wrong endpoint (assignment vs discussion vs classic-quiz-via-assignment)? Don't paper over.
+- **P-005 Small Steps, Evenly Sized** — Decompose the batch into per-item writes so each can fail independently. Don't bulk-update via a single multi-row call.
+- **P-006 Document the Change** — Final report uses the A3 template: which items succeeded, which failed, and why. Reviewable without reading the diff.
+- **P-007 Pull, Don't Push** — Update exactly the items asked for. Don't speculatively touch availability windows, points, or other fields beyond `due_at`/`lock_at`/`unlock_at` (or `todo_date` for discussions).
+- **P-008 Mistake-Proof Outputs** — Same proposal-table format every run. Same final-report format every run. The instructor should know what to expect.
+- **P-009 Reflect, and Tell the User** — If something was surprising (e.g., an item turned out to be a NewQuiz that can't be content-pushed, or a discussion `todo_date` failed silently), name the lesson in the response and append to External System Lessons in this file.
+- **P-010 Respect the User's Intent** — Don't substitute interpretations of ambiguous date rules. Always ask the instructor. Don't drift mid-batch into adjacent edits ("while I was in there I also fixed X") — that's a separate request.
+
+**No-override principles:** P-001, P-003, P-007, P-010 apply unconditionally — they cannot be skipped under any circumstances.
+
+**Hard rule:** before skipping any principle, state in one sentence which principle is being skipped and why.
+
+---
+
 ## How to Use This Agent
 
 ### Prerequisites
