@@ -2,11 +2,11 @@
   "_metadata": {
     "template_version": "1.0",
     "generated_by": "make_agent_knowledge v1.0",
-    "last_updated": "2026-05-13",
+    "last_updated": "2026-05-14",
     "description": "Formative vs. summative assessment definitions, Poorvu seven formative principles, Poorvu five summative recommendations, AI-resistant assessment design, and alignment-to-outcomes audit logic.",
     "owner": "Chaz Clark (BYUI faculty-development; Architects of Learning week on assessments)",
     "runtime_strategy": "read_at_runtime",
-    "runtime_strategy_rationale": "Body MD ~12,400 chars / 4 ≈ 3,100 tokens — within the 'either' band per runtime_strategy_rules. Set to read_at_runtime because (a) the file is one of ~12 sibling knowledge files in canvas-toolbox that an agent loads selectively per report focus, not a stable cache-friendly prefix on every call, and (b) consumers (canvas_course_expert, ira_program_alignment) cite back to source materials and benefit from first-class retrieval citations (Anthropic Citations / OpenAI file_search annotations)."
+    "runtime_strategy_rationale": "Body MD ~28,000 chars / 4 ≈ 7,000 tokens — within the 'either' band per runtime_strategy_rules (threshold to retrieve is ~8,000 tokens). Kept at read_at_runtime because (a) the file is one of ~12 sibling knowledge files in canvas-toolbox that an agent loads selectively per report focus, not a stable cache-friendly prefix on every call, and (b) consumers (canvas_course_expert, ira_program_alignment) cite back to source materials and benefit from first-class retrieval citations (Anthropic Citations / OpenAI file_search annotations). The 2026-05-14 BYUI Architects of Learning deck additions (6 new subsections, ~15.5k chars of new content) increased the file size but did not change the selective-load access pattern."
   },
   "shape": "reference",
   "scope": "Formative vs. summative assessment definitions, design principles, AI-resistant design, and alignment-to-outcomes audit logic. Boundaries: does not cover backward design (see backwards_design_knowledge) or CLO well-formedness (see outcomes_quality_knowledge).",
@@ -19,109 +19,145 @@
       "id": "formative_assessment",
       "term": "Formative Assessment",
       "definition": "An assessment employed while learning is ongoing to collect information about whether course objectives are being advanced and how teaching can be improved. Aims to identify strengths, challenges, and misconceptions and to close those gaps. May involve students assessing themselves, peers, or even the instructor. Forms include writing, quizzes, conversation, polls, low-stakes group work, weekly quizzes, 1-minute reflections, homework, surveys.",
-      "citations": ["Yale Poorvu Center, *Formative & Summative Assessments*, p.2"]
+      "citations": [
+        "Yale Poorvu Center, *Formative & Summative Assessments*, p.2"
+      ]
     },
     {
       "id": "summative_assessment",
       "term": "Summative Assessment",
       "definition": "An assessment used by instructors to evaluate student learning, knowledge, proficiency, or success at the conclusion of an instructional period (unit, course, or program). Almost always formally graded, often heavily weighted. Common forms: exams, papers, presentations, final projects, final reports, final grades. Maki (2002) frames the goal as 'summing up' student learning through measurable outcomes.",
-      "citations": ["Yale Poorvu Center, *Formative & Summative Assessments*, p.2; Maki 2002"]
+      "citations": [
+        "Yale Poorvu Center, *Formative & Summative Assessments*, p.2; Maki 2002"
+      ]
     },
     {
       "id": "alignment_claim",
       "term": "Alignment Claim",
       "definition": "Both assessment types must allow instructors AND students to monitor progress toward achieving course learning objectives. An assessment that does not let either party monitor progress toward a specific CLO is not an assessment — it is a graded artifact. Every assessment must be traceable to a named CLO.",
-      "citations": ["Yale Poorvu Center, *Formative & Summative Assessments*, p.2 (opening definition)"]
+      "citations": [
+        "Yale Poorvu Center, *Formative & Summative Assessments*, p.2 (opening definition)"
+      ]
     },
     {
       "id": "formative_principle_1_clear_criteria",
       "term": "Formative Principle 1 — Provide clear criteria for good performance",
       "definition": "Explain criteria; encourage discussion through office hours, post-grade peer review, or exam/assignment wrappers; hold class-wide conversations on criteria at strategic moments throughout a term.",
-      "citations": ["Poorvu (adapted from Nicol & Macfarlane-Dick, 2007), p.4"]
+      "citations": [
+        "Poorvu (adapted from Nicol & Macfarlane-Dick, 2007), p.4"
+      ]
     },
     {
       "id": "formative_principle_2_self_reflection",
       "term": "Formative Principle 2 — Encourage self-reflection",
       "definition": "Ask students to use course criteria to evaluate their own or a peer's work, and to share what kinds of feedback they find most valuable. Have them describe strengths and weaknesses through writing or group discussion.",
-      "citations": ["Poorvu, p.4"]
+      "citations": [
+        "Poorvu, p.4"
+      ]
     },
     {
       "id": "formative_principle_3_actionable_feedback",
       "term": "Formative Principle 3 — Give detailed, actionable feedback",
       "definition": "Feedback should be specific, tied to predefined criteria, with opportunity to revise or apply feedback before final submission. Corrective and forward-looking, not merely evaluative. Examples: comments on multiple paper drafts, criterion discussions in 1-on-1 conferences, regular online quizzes.",
-      "citations": ["Poorvu, p.5"]
+      "citations": [
+        "Poorvu, p.5"
+      ]
     },
     {
       "id": "formative_principle_4_dialogue",
       "term": "Formative Principle 4 — Encourage dialogue around the formative learning process",
       "definition": "Mid-semester feedback and small-group feedback sessions where students reflect on the course and instructors respond. Students can identify examples of feedback comments they found useful and explain how they helped. Weave student feedback into the syllabus.",
-      "citations": ["Poorvu, p.5"]
+      "citations": [
+        "Poorvu, p.5"
+      ]
     },
     {
       "id": "formative_principle_5_motivation",
       "term": "Formative Principle 5 — Promote positive motivational beliefs and self-esteem",
       "definition": "Students are more motivated when assured the instructor cares for their development. Allow rewrites/resubmissions to signal that an assignment is designed to promote development. Low-stakes assessments or anonymous automated online testing with unlimited resubmissions where appropriate.",
-      "citations": ["Poorvu, p.5"]
+      "citations": [
+        "Poorvu, p.5"
+      ]
     },
     {
       "id": "formative_principle_6_close_the_gap",
       "term": "Formative Principle 6 — Provide opportunities to close the gap between current and desired performance",
       "definition": "Clearly present opportunities to close gaps: resubmission opportunities, specific action points for writing or task-based assignments, sharing study or process strategies an instructor would use to succeed.",
-      "citations": ["Poorvu, p.5"]
+      "citations": [
+        "Poorvu, p.5"
+      ]
     },
     {
       "id": "formative_principle_7_shape_teaching",
       "term": "Formative Principle 7 — Collect feedback to shape teaching",
       "definition": "Instructors collect information to provide targeted feedback and instruction. Identify where students face challenges in assignments, exams, and written submissions. Promotes student metacognition. Poorvu staff can perform classroom observation or small-group feedback sessions. Incorporate feedback into future pedagogy.",
-      "citations": ["Poorvu, p.6"]
+      "citations": [
+        "Poorvu, p.6"
+      ]
     },
     {
       "id": "summative_rec_1_rubric",
       "term": "Summative Recommendation 1 — Share a Rubric",
       "definition": "Use a rubric to lay out expected performance criteria for a range of grades. Rubrics describe what an ideal assignment looks like and summarize expected performance at the beginning of a term, providing clarity and expectations.",
-      "citations": ["Poorvu, p.6"]
+      "citations": [
+        "Poorvu, p.6"
+      ]
     },
     {
       "id": "summative_rec_2_clear_questions",
       "term": "Summative Recommendation 2 — Design Clear, Effective Questions",
       "definition": "Essay questions should be clear and align with course materials and objectives while allowing students freedom to express knowledge creatively and in ways that honor how they digested, constructed, or mastered meaning.",
-      "citations": ["Poorvu, p.6"]
+      "citations": [
+        "Poorvu, p.6"
+      ]
     },
     {
       "id": "summative_rec_3_comprehensiveness",
       "term": "Summative Recommendation 3 — Assess Comprehensiveness",
       "definition": "Effective summative assessments give students an opportunity to consider the totality of the course content — making broad connections, demonstrating synthesized skills, and exploring deeper concepts that drive or found a course's ideas. Select assessment type (exam, final paper, project) such that students can demonstrate learning and conceptual understanding.",
-      "citations": ["Poorvu, p.6-7"]
+      "citations": [
+        "Poorvu, p.6-7"
+      ]
     },
     {
       "id": "summative_rec_4_clear_parameters",
       "term": "Summative Recommendation 4 — Make Parameters Clear",
       "definition": "Length, depth of response, time and date, and grading standards must be well-defined. Knowledge assessed must relate clearly to content covered in the course. Provide required space and support for students with disabilities.",
-      "citations": ["Poorvu, p.7"]
+      "citations": [
+        "Poorvu, p.7"
+      ]
     },
     {
       "id": "summative_rec_5_blind_grading",
       "term": "Summative Recommendation 5 — Grade Blindly when bias risk is high",
       "definition": "When goal is truly unbiased results for the summative assessment, consider blind grading techniques. When goal is feedback that speaks to a student's term-long trajectory, know whose work you grade.",
-      "citations": ["Poorvu, p.7"]
+      "citations": [
+        "Poorvu, p.7"
+      ]
     },
     {
       "id": "ai_resistant_thesis",
       "term": "AI-Resistant Assessment Thesis",
       "definition": "In the AI era, a polished submission is no longer evidence of learning. Assessment design must produce student-owned evidence — not merely an artifact that could have been student-produced. Achieved via productive friction: staged drafts, oral defenses, process documentation, revision cycles. Shift from artifact-as-evidence to process-as-evidence.",
-      "citations": ["Hardman, P. (2024), *Redesigning Instruction & Assessment in the Age of AI*, drphilippahardman.substack.com — saved HTML did not extract body; thesis from title/subtitle plus Kassorla *Inverted Bloom's* (see inverted_blooms_knowledge.md)"]
+      "citations": [
+        "Hardman, P. (2024), *Redesigning Instruction & Assessment in the Age of AI*, drphilippahardman.substack.com — saved HTML did not extract body; thesis from title/subtitle plus Kassorla *Inverted Bloom's* (see inverted_blooms_knowledge.md)"
+      ]
     },
     {
       "id": "byui_no_sunday",
       "term": "BYUI Constraint — No Sunday Due Dates",
       "definition": "BYUI courses must not place summative or formative deadlines on Sunday. Faith/values concern is non-negotiable. Design weekly assessment rhythms accordingly.",
-      "citations": ["Chaz Clark project context (BYUI faculty-development); not in Poorvu or Hardman sources"]
+      "citations": [
+        "Chaz Clark project context (BYUI faculty-development); not in Poorvu or Hardman sources"
+      ]
     },
     {
       "id": "byui_hitl",
       "term": "BYUI Constraint — Human in the Loop (HITL) for AI-Mediated Assessment",
       "definition": "Any AI use in feedback, grading, or formative scaffolding must include a human in the loop on consequential decisions. Non-negotiable.",
-      "citations": ["Chaz Clark project context (BYUI faculty-development); not in Poorvu or Hardman sources"]
+      "citations": [
+        "Chaz Clark project context (BYUI faculty-development); not in Poorvu or Hardman sources"
+      ]
     },
     {
       "id": "audit_tag_assessment_type",
@@ -134,6 +170,96 @@
       "term": "Audit Tag — assessment_alignment",
       "definition": "Classifier indicating traceability of an assessment to a named CLO. Values: clo_traced | orphaned | under-specified.",
       "citations": []
+    },
+    {
+      "id": "ai_resistant_invariants",
+      "term": "What Hasn't Changed (AI-era invariants)",
+      "definition": "Despite AI's disruption to assessment, the fundamentals remain: students still need to learn content knowledge, communication skills, problem-solving, and critical thinking. The goal hasn't shifted — only the methods need to evolve. Assessment must verify that real learning happened, not just that a product was submitted. Load-bearing frame for the rest of the AI-Resistant section: the response is not to lower expectations but to redesign evidence collection.",
+      "citations": [
+        "BYUI Architects of Learning instructor (2026), slide titled 'What Hasn't Changed'"
+      ]
+    },
+    {
+      "id": "ai_broke_assumption_six_mechanisms",
+      "term": "How AI Broke the Assumption (6 mechanisms)",
+      "definition": "The implicit assumption of traditional assessment (the student wrote it, so the student learned it) no longer holds. Six load-bearing pieces broke: (1) Authorship is unreliable. (2) Detection has failed — AI-detection tools are inaccurate and inequitable, with false positives concentrating on ESL writers and neurodivergent students. (3) Out-of-class work lost credibility — unsupervised submissions are unverifiable. (4) Foundational skills became skippable — students can bypass the learning process. (5) Difficulty ≠ rigor — hard tasks aren't rigorous if AI can do them. (6) Feedback loops got distorted — feedback targets AI output, not student thinking. These mechanisms are why AI-resistant design must be structural, not stylistic.",
+      "citations": [
+        "BYUI Architects of Learning instructor (2026), slide titled 'How AI Broke the Assumption'"
+      ]
+    },
+    {
+      "id": "limits_of_grading_outputs",
+      "term": "The Limits of Grading Outputs (6 reasons)",
+      "definition": "Even before AI, grading the final output was structurally incomplete as a signal of learning. Six reasons: (1) Outputs hide decision-making. (2) Outputs reward fluency and style over understanding. (3) Learning occurs in the middle of a process — outputs come at the end. (4) Independent function doesn't always signal competence. (5) Outputs reward formulaic template-following instead of transferability. (6) Outputs incentivize performance over growth. Slide footer: 'Performance = optimizing efficiency and decreasing risk. Growth = developing new skills at the fringe of understanding.' Audit corollary: a course that grades only finished artifacts cannot distinguish high-performing from high-growth students.",
+      "citations": [
+        "BYUI Architects of Learning instructor (2026), slide titled 'The Limits of Grading Outputs'"
+      ]
+    },
+    {
+      "id": "assessment_litmus_test",
+      "term": "The Assessment Litmus Test (10-row checklist)",
+      "definition": "Direct yes/no checklist applied per assessment in any course. Each row produces one bit of audit signal. SHOULDS (left column, 5 rows): (1) Encourage growth over performance. (2) Reveal the learning process. (3) Resist easy automation by AI. (4) Assess transferable understanding. (5) Provide feedback on both the thinking and the output. SHOULDN'TS (right column, 5 rows): (1) Equate a polished product with deep knowing. (2) Rely on unsupervised work as proof of learning. (3) Use difficulty as a proxy for rigor. (4) Assume independent work signals competence. (5) Incentivize efficiency over understanding. Emits litmus_test_flags[] and litmus_pass_rate per assessment; > 2 failures → flag for redesign rather than minor revision.",
+      "citations": [
+        "BYUI Architects of Learning instructor (2026), slide titled 'The Assessment Litmus Test'"
+      ]
+    },
+    {
+      "id": "assessment_strategies_catalog",
+      "term": "Assessment Strategies Catalog (7 strategies × benefit/challenge)",
+      "definition": "Seven strategies that move an assessment toward the left column of the Litmus Test, each paired with its honest failure mode. (1) Process-Oriented Assignments — ensures engagement in a learning process; can still be faked. (2) Oral & Performance-Based — hard for AI; may assess delivery over knowledge, challenging in distance learning. (3) Frequent, Low-Stakes Assessments — tracks ongoing progress; can still be faked and risks busy work. (4) Two-Lane Approach — gives credit with and without AI; Lane 1 (no-AI) requires extensive safeguarding online. (5) Authentic Assessment — application to real situations; students will use AI authentically. (6) Personalized & Adaptive Learning — leverages AI; not there yet at scale. (7) Peer Assessment — assesses both author and reviewer; requires deeper analysis to be meaningful. Audit lever: flag strategy_match: <strategy>_unguarded when the named challenge is not visibly safeguarded in the assessment design.",
+      "citations": [
+        "BYUI Architects of Learning instructor (2026), slide titled 'Assessment Strategies'"
+      ]
+    },
+    {
+      "id": "path_forward_reframe",
+      "term": "The Path Forward (reframe + 4 directives)",
+      "definition": "Reframing question: STOP asking 'How do we prevent students from using AI?' START asking 'What does our assessment actually measure?' The first is unanswerable in any durable way (detection has failed); the second is answerable and determines whether the assessment is structurally sound regardless of tools the student uses. Four directives: (1) Make thinking visible — assess process and reasoning, not just final products. (2) Value struggle — reward growth and risk-taking over polished performance. (3) Verify authorship while trusting students — use in-class work, drafts, and dialogue to encourage learning; the byproduct is student-owned evidence without framing the student as a suspect. (4) Test transferability — require application to novel contexts (cross-references backwards_design_knowledge Stage 1 transfer goal and Stage 3 T-M-A coding). Audit output: directives_honored[] per assessment; zero honored → redesign candidate.",
+      "citations": [
+        "BYUI Architects of Learning instructor (2026), slide titled 'The Path Forward'"
+      ]
+    },
+    {
+      "id": "audit_tag_litmus_test_flags",
+      "term": "Audit Tag — litmus_test_flags",
+      "definition": "Array of failed Litmus rows per assessment, e.g., ['reveal_learning_process', 'test_transferability']. Derived from the 10-row checklist in 'The Assessment Litmus Test' subsection. Emitted by canvas_course_expert when assessing each assessment in a course.",
+      "citations": []
+    },
+    {
+      "id": "audit_tag_litmus_pass_rate",
+      "term": "Audit Tag — litmus_pass_rate",
+      "definition": "Per-assessment summary of Litmus Test results, e.g., '8/10'. Assessments with > 2 failures (pass_rate ≤ 7/10) flagged as redesign candidates rather than minor revision.",
+      "citations": []
+    },
+    {
+      "id": "audit_tag_strategy_match",
+      "term": "Audit Tag — strategy_match",
+      "definition": "The Strategies catalog entry that most closely fits the assessment, optionally with _unguarded suffix when the strategy's named challenge isn't visibly safeguarded. Values from the 7-strategy catalog: process_oriented, oral_performance, frequent_low_stakes, two_lane, authentic, personalized_adaptive, peer_assessment. Example: 'process_oriented_unguarded' when a process-oriented rubric grades only the final draft.",
+      "citations": []
+    },
+    {
+      "id": "audit_tag_directives_honored",
+      "term": "Audit Tag — directives_honored",
+      "definition": "Subset of the 4 Path Forward directives an assessment honors: {make_thinking_visible, value_struggle, verify_authorship, test_transferability}. An assessment that honors zero directives is a redesign candidate regardless of its current rubric quality.",
+      "citations": []
+    },
+    {
+      "id": "audit_tag_grading_target",
+      "term": "Audit Tag — grading_target",
+      "definition": "Whether the rubric grades the artifact, the process, or both. Values: output_only | process_only | both. Most courses default to output_only; the Limits of Grading Outputs subsection explains why output_only is structurally insufficient post-AI.",
+      "citations": []
+    },
+    {
+      "id": "audit_tag_assesses_struggle",
+      "term": "Audit Tag — assesses_struggle",
+      "definition": "Boolean: does the assessment reward growth and risk-taking, or only polished performance? Operationalizes the Path Forward directive 'Value struggle' and the Litmus row 'Encourage growth over performance'.",
+      "citations": []
+    },
+    {
+      "id": "audit_tag_requires_transfer",
+      "term": "Audit Tag — requires_transfer",
+      "definition": "Boolean: does the assessment require application to a novel context (not the one practiced in class)? Operationalizes the Path Forward directive 'Test transferability' and bridges to backwards_design_knowledge Stage 1 transfer goal.",
+      "citations": []
     }
   ],
   "provenance": {
@@ -143,9 +269,10 @@
       "Chaz Clark. *Designing Assessments — Testing the Foundation* (BYUI faculty-development Architects of Learning week notes, 2026, pre_knowledge/assessments/notes.md)",
       "Wiggins, G. *Understanding by Design* (10-min video transcript, ASCD; pre_knowledge/assessments/youtube_transcript.md)",
       "Nicol, D. J., & Macfarlane-Dick, D. (2007). Formative assessment and self-regulated learning: A model and seven principles of good feedback practice (cited via Poorvu)",
-      "Ali, Q. I. (2024); Bakula (2010); King (2023); Maki (2002); McLaughlin & Yan (2017); Trumbull & Lash (2013) — secondary citations via Poorvu References & Resources, p.7-8"
+      "Ali, Q. I. (2024); Bakula (2010); King (2023); Maki (2002); McLaughlin & Yan (2017); Trumbull & Lash (2013) — secondary citations via Poorvu References & Resources, p.7-8",
+      "BYUI Architects of Learning instructor (2026, name to be backfilled) — 6-slide deck on AI-era assessment design, dropped in pre_knowledge/assessments/ on 2026-05-14. Slide titles: 'What Hasn't Changed', 'How AI Broke the Assumption', 'The Limits of Grading Outputs', 'The Assessment Litmus Test', 'Assessment Strategies', 'The Path Forward'."
     ],
-    "last_reviewed": "2026-05-13"
+    "last_reviewed": "2026-05-14"
   },
   "validation": {
     "pre_run_checklist": [
@@ -163,6 +290,19 @@
   },
   "changelog": {
     "versions": [
+      {
+        "version": "1.1",
+        "date": "2026-05-14",
+        "changes": [
+          "Expanded AI-Resistant Assessment Design section with 6 new subsections sourced from BYUI Architects of Learning instructor's slide deck (dropped 2026-05-14 in pre_knowledge/assessments/).",
+          "New subsections: What hasn't changed; How AI broke the assumption (6 mechanisms); The limits of grading outputs (6 reasons); The Assessment Litmus Test (10-row checklist); Assessment Strategies catalog (7 strategies x benefit/challenge); The Path Forward (reframe + 4 directives).",
+          "Added 6 new fact entries (one per subsection) and 7 new audit tag entries (litmus_test_flags, litmus_pass_rate, strategy_match, directives_honored, grading_target, assesses_struggle, requires_transfer).",
+          "Cross-reference: 'Test transferability' directive bridges to backwards_design_knowledge Stage 1 transfer goal and Stage 3 T-M-A coding (no edits to backwards_design_knowledge file).",
+          "Quick Reference for Auditors updated to 11 items (was 8), incorporating Litmus Test scoring, Strategies catalog mapping, and Path Forward directives tagging.",
+          "BYUI-context constraints subsection moved to end of AI-Resistant section (was sandwiched mid-flow before Litmus/Strategies/Path Forward additions).",
+          "File size: ~28KB / ~7,000 tokens (was ~12.4KB / ~3,100 tokens). Runtime strategy stays read_at_runtime per selective-load access pattern."
+        ]
+      },
       {
         "version": "1.0",
         "date": "2026-05-13",
