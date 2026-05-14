@@ -174,50 +174,56 @@
     {
       "id": "ai_resistant_invariants",
       "term": "What Hasn't Changed (AI-era invariants)",
-      "definition": "Despite AI's disruption to assessment, the fundamentals remain: students still need to learn content knowledge, communication skills, problem-solving, and critical thinking. The goal hasn't shifted — only the methods need to evolve. Assessment must verify that real learning happened, not just that a product was submitted. Load-bearing frame for the rest of the AI-Resistant section: the response is not to lower expectations but to redesign evidence collection.",
+      "definition": "Despite AI's disruption to assessment, the fundamentals remain: students still need to learn content knowledge, communication skills, problem-solving, and critical thinking. The goal hasn't shifted — only the methods need to evolve. Assessment must verify that real learning happened, not just that a product was submitted.",
       "citations": [
         "BYUI Architects of Learning instructor (2026), slide titled 'What Hasn't Changed'"
-      ]
+      ],
+      "_md_elaboration_pointer": "MD subsection 'What hasn't changed' carries the same content + framing on why this is load-bearing."
     },
     {
       "id": "ai_broke_assumption_six_mechanisms",
       "term": "How AI Broke the Assumption (6 mechanisms)",
-      "definition": "The implicit assumption of traditional assessment (the student wrote it, so the student learned it) no longer holds. Six load-bearing pieces broke: (1) Authorship is unreliable. (2) Detection has failed — AI-detection tools are inaccurate and inequitable, with false positives concentrating on ESL writers and neurodivergent students. (3) Out-of-class work lost credibility — unsupervised submissions are unverifiable. (4) Foundational skills became skippable — students can bypass the learning process. (5) Difficulty ≠ rigor — hard tasks aren't rigorous if AI can do them. (6) Feedback loops got distorted — feedback targets AI output, not student thinking. These mechanisms are why AI-resistant design must be structural, not stylistic.",
+      "definition": "Six load-bearing pieces of the implicit traditional-assessment assumption broke: (1) Authorship is unreliable — you can no longer assume the student wrote it. (2) Detection has failed — AI-detection tools are inaccurate and inequitable. (3) Out-of-class work lost credibility — unsupervised work is now unverifiable. (4) Foundational skills became skippable — students can bypass the learning process. (5) Difficulty ≠ rigor — hard tasks aren't rigorous if AI can do them. (6) Feedback loops got distorted — feedback targets AI output, not student thinking.",
       "citations": [
         "BYUI Architects of Learning instructor (2026), slide titled 'How AI Broke the Assumption'"
-      ]
+      ],
+      "_md_elaboration_pointer": "MD subsection 'How AI broke the assumption' adds auditor elaboration per mechanism (e.g., ESL/neurodivergent false-positive detail on #2 — auditor expansion, not on slide)."
     },
     {
       "id": "limits_of_grading_outputs",
       "term": "The Limits of Grading Outputs (6 reasons)",
-      "definition": "Even before AI, grading the final output was structurally incomplete as a signal of learning. Six reasons: (1) Outputs hide decision-making. (2) Outputs reward fluency and style over understanding. (3) Learning occurs in the middle of a process — outputs come at the end. (4) Independent function doesn't always signal competence. (5) Outputs reward formulaic template-following instead of transferability. (6) Outputs incentivize performance over growth. Slide footer: 'Performance = optimizing efficiency and decreasing risk. Growth = developing new skills at the fringe of understanding.' Audit corollary: a course that grades only finished artifacts cannot distinguish high-performing from high-growth students.",
+      "definition": "Six reasons output-only grading is structurally insufficient: (1) Outputs hide decision-making. (2) Outputs reward fluency and style over understanding. (3) Learning occurs in the middle of a process — outputs come at the end. (4) Independent function doesn't always signal competence. (5) Outputs reward formulaic template-following instead of transferability. (6) Outputs incentivize performance over growth. Slide footer: 'Performance = optimizing efficiency and decreasing risk. Growth = developing new skills at the fringe of understanding.'",
       "citations": [
         "BYUI Architects of Learning instructor (2026), slide titled 'The Limits of Grading Outputs'"
-      ]
+      ],
+      "_md_elaboration_pointer": "MD subsection 'The limits of grading outputs' adds auditor per-reason elaborations and an audit corollary."
     },
     {
       "id": "assessment_litmus_test",
       "term": "The Assessment Litmus Test (10-row checklist)",
-      "definition": "Direct yes/no checklist applied per assessment in any course. Each row produces one bit of audit signal. SHOULDS (left column, 5 rows): (1) Encourage growth over performance. (2) Reveal the learning process. (3) Resist easy automation by AI. (4) Assess transferable understanding. (5) Provide feedback on both the thinking and the output. SHOULDN'TS (right column, 5 rows): (1) Equate a polished product with deep knowing. (2) Rely on unsupervised work as proof of learning. (3) Use difficulty as a proxy for rigor. (4) Assume independent work signals competence. (5) Incentivize efficiency over understanding. Emits litmus_test_flags[] and litmus_pass_rate per assessment; > 2 failures → flag for redesign rather than minor revision.",
+      "definition": "A 10-row yes/no checklist applied per assessment. SHOULDS (5 rows): (1) Encourage growth over performance. (2) Reveal the learning process. (3) Resist easy automation by AI. (4) Assess transferable understanding. (5) Provide feedback on both the thinking and the output. SHOULDN'TS (5 rows): (1) Equate a polished product with deep knowing. (2) Rely on unsupervised work as proof of learning. (3) Use difficulty as a proxy for rigor. (4) Assume independent work signals competence. (5) Incentivize efficiency over understanding.",
       "citations": [
         "BYUI Architects of Learning instructor (2026), slide titled 'The Assessment Litmus Test'"
-      ]
+      ],
+      "_md_elaboration_pointer": "MD subsection 'The Assessment Litmus Test' carries the application guidance (litmus_test_flags / litmus_pass_rate / >2 failures → redesign) — see audit_tag_litmus_test_flags and audit_tag_litmus_pass_rate facts."
     },
     {
       "id": "assessment_strategies_catalog",
       "term": "Assessment Strategies Catalog (7 strategies × benefit/challenge)",
-      "definition": "Seven strategies that move an assessment toward the left column of the Litmus Test, each paired with its honest failure mode. (1) Process-Oriented Assignments — ensures engagement in a learning process; can still be faked. (2) Oral & Performance-Based — hard for AI; may assess delivery over knowledge, challenging in distance learning. (3) Frequent, Low-Stakes Assessments — tracks ongoing progress; can still be faked and risks busy work. (4) Two-Lane Approach — gives credit with and without AI; Lane 1 (no-AI) requires extensive safeguarding online. (5) Authentic Assessment — application to real situations; students will use AI authentically. (6) Personalized & Adaptive Learning — leverages AI; not there yet at scale. (7) Peer Assessment — assesses both author and reviewer; requires deeper analysis to be meaningful. Audit lever: flag strategy_match: <strategy>_unguarded when the named challenge is not visibly safeguarded in the assessment design.",
+      "definition": "Seven assessment strategies, each with a stated benefit and an honest challenge: (1) Process-Oriented Assignments — ensures engagement in a learning process; can still be faked, and requires assessing the process which most graders aren't used to. (2) Oral & Performance-Based — hard for AI; may assess delivery over knowledge, especially in distance learning. (3) Frequent, Low-Stakes Assessments — tracks ongoing progress; can still be faked, adds student load, risks busy work. (4) Two-Lane Approach — gives credit for work with and without AI; Lane 1 (no-AI) requires extensive safeguarding online. (5) Authentic Assessment — application to real situations; students will authentically use AI; transferability to online courses varies. (6) Personalized & Adaptive Learning — leverages AI; not there yet at scale; access remains a concern. (7) Peer Assessment — assesses both author and reviewer; reviewer feedback requires deeper analysis to be meaningful.",
       "citations": [
         "BYUI Architects of Learning instructor (2026), slide titled 'Assessment Strategies'"
-      ]
+      ],
+      "_md_elaboration_pointer": "MD subsection 'Assessment Strategies catalog' carries the strategy-to-litmus mapping (provisional) and the strategy_match unguarded-suffix convention — see audit_tag_strategy_match fact."
     },
     {
       "id": "path_forward_reframe",
       "term": "The Path Forward (reframe + 4 directives)",
-      "definition": "Reframing question: STOP asking 'How do we prevent students from using AI?' START asking 'What does our assessment actually measure?' The first is unanswerable in any durable way (detection has failed); the second is answerable and determines whether the assessment is structurally sound regardless of tools the student uses. Four directives: (1) Make thinking visible — assess process and reasoning, not just final products. (2) Value struggle — reward growth and risk-taking over polished performance. (3) Verify authorship while trusting students — use in-class work, drafts, and dialogue to encourage learning; the byproduct is student-owned evidence without framing the student as a suspect. (4) Test transferability — require application to novel contexts (cross-references backwards_design_knowledge Stage 1 transfer goal and Stage 3 T-M-A coding). Audit output: directives_honored[] per assessment; zero honored → redesign candidate.",
+      "definition": "Reframing question: STOP asking 'How do we prevent students from using AI?' — START asking 'What does our assessment actually measure?' Four directives follow: (1) Make thinking visible — assess process and reasoning, not just final products. (2) Value struggle — reward growth and risk-taking over polished performance. (3) Verify authorship while trusting students — use in-class work, drafts, and dialogue to encourage learning. (4) Test transferability — require application to novel contexts.",
       "citations": [
         "BYUI Architects of Learning instructor (2026), slide titled 'The Path Forward'"
-      ]
+      ],
+      "_md_elaboration_pointer": "MD subsection 'The Path Forward' carries the elaboration on why the second question is answerable and the directives_honored audit-tag operationalization — see audit_tag_directives_honored fact."
     },
     {
       "id": "audit_tag_litmus_test_flags",
@@ -290,6 +296,17 @@
   },
   "changelog": {
     "versions": [
+      {
+        "version": "1.2",
+        "date": "2026-05-14",
+        "changes": [
+          "Audit fix (Hansei pass): tightened 6 subsection-summary facts[] to slide-faithful definitions only. Removed auditor elaboration and audit-tag operationalization from citation-bearing facts; that content remains in the MD prose (where it was approved as auditor expansion) and in the corresponding audit_tag_* facts. Resolves the citation overreach finding — facts[] entries now match what the cited BYUI slide actually contains.",
+          "Added _md_elaboration_pointer to each tightened fact pointing readers to the MD subsection where the elaborated form lives.",
+          "Other audit findings addressed in the MD: (a) Strategy-to-Litmus mapping reworked from one-to-one to many-to-many with provisional marker; (b) Litmus dimensionality clarified — note added that 5+5 rows are not all orthogonal axes, several are paired positive/negative framings; (c) Audit Tags Emitted list marked with measurable / interpretive / derived labels.",
+          "No content removed from the MD body — all subsection prose remains as approved during v0.15.0 proposal rounds.",
+          "KNW-QC checks re-run: all 7 pass."
+        ]
+      },
       {
         "version": "1.1",
         "date": "2026-05-14",

@@ -72,6 +72,8 @@ The Hardman article (subtitle: *"the increasingly critical role of instructional
 
 **Note on provenance.** The saved HTML snapshot of the Hardman article (in `pre_knowledge/assessments/`) is a JavaScript-rendered Substack page; the article body did not extract from the saved file. The thesis above is established from the article's stated title, subtitle, and the role it plays in Chaz's *Designing Assessments — Testing the Foundation* week. For specifics beyond the thesis, consult the live URL or the companion file [`inverted_blooms_knowledge.md`](inverted_blooms_knowledge.md), which carries the AI-agency framing in full. The expanded structural treatment in the subsections below (*What hasn't changed*, *How AI broke the assumption*, *The limits of grading outputs*, *The Assessment Litmus Test*, *Assessment Strategies catalog*, *The Path Forward*) is sourced from the BYUI Architects of Learning slide deck dropped in `pre_knowledge/assessments/` on 2026-05-14 (instructor name to be backfilled).
 
+**On reading the subsections.** The prose below interleaves **slide-verbatim content** (the row labels, mechanism names, directive titles, benefit/challenge cells) with **auditor elaboration** (per-row glosses, the strategy-to-litmus mapping, the application notes, the cross-tag pairings, the framing paragraphs that bridge between slides). Slide-verbatim content is what the BYUI instructor authored; auditor elaboration is what we (Chaz + Claude during the 2026-05-14 audit) added on top to make the slides actionable inside `canvas_course_expert`. The canonical citation-bearing definitions live in `assessments_knowledge.json` `facts[]`, which carry only the slide-verbatim content. When you need to cite back to the original, cite the JSON facts (slide-faithful), not the MD prose (which carries elaboration).
+
 ### What hasn't changed
 
 Despite everything AI has disrupted, the fundamentals remain. Students still need to learn:
@@ -132,6 +134,15 @@ A direct yes/no checklist an auditor (or instructor) can apply to any assessment
 | Assess transferable understanding | Assume independent work signals competence |
 | Provide feedback on both the thinking and the output | Incentivize efficiency over understanding |
 
+**On dimensionality.** The 10 rows are not all orthogonal. At least two pairs are positive/negative framings of the same underlying axis:
+
+- *"Encourage growth over performance"* ↔ *"Equate a polished product with deep knowing"* — the **growth-vs-polish** axis
+- *"Reveal the learning process"* ↔ *"Rely on unsupervised work as proof of learning"* — the **process-visibility** axis
+
+When a pair-correlated failure co-occurs (both rows fail together), it indicates **one** axis-level defect, not two independent ones. The `litmus_pass_rate` metric should be interpreted with this in mind: e.g., a `6/10` driven by two correlated pairs (4 rows) plus one independent row is meaningfully different from a `6/10` spread across four independent axes. Auditors may consolidate pair-correlated failures in the final report.
+
+The other rows (rigor-proxy, transferability, feedback-target, etc.) are more nearly independent — but the bound is "more nearly" not "fully." Treat `litmus_pass_rate` as a soft signal, not a precise score.
+
 **How to apply during an audit:**
 
 For each assessment in the course, score the 10 rows (5 shoulds + 5 shouldn'ts) as pass / fail / unclear. The output is a `litmus_test_flags` array of failed rows, plus a per-assessment `litmus_pass_rate` (e.g., `8/10`). An assessment that fails more than 2 rows is structurally weak; flag for redesign rather than minor revision.
@@ -155,16 +166,20 @@ Seven strategies that move an assessment toward the left column of the Litmus Te
 | **Personalized & Adaptive Learning** | Leverages AI to help students learn and potentially assess performance within the experience | We're not there yet, especially at scale or in distance education. Access remains a concern. |
 | **Peer Assessment** | Assesses both the author's work and the reviewer's understanding | May require deeper analysis of the reviewer's feedback to be meaningful. |
 
-**Strategy-to-litmus mapping (audit cross-reference):**
+**Strategy-to-litmus mapping (audit cross-reference, *provisional*):**
 
-| If the assessment fails the Litmus row… | …the strategy most likely to fix it |
-|---|---|
-| Reveal the learning process | Process-Oriented Assignments |
-| Rely on unsupervised work as proof of learning | Oral & Performance-Based |
-| Encourage growth over performance | Frequent, Low-Stakes Assessments |
-| Use difficulty as a proxy for rigor | Two-Lane Approach |
-| Assess transferable understanding | Authentic Assessment |
-| Assume independent work signals competence | Peer Assessment |
+The mapping below is many-to-many, not 1-to-1: most Litmus failures admit multiple plausible strategy fixes, and most strategies address more than one Litmus row. Order within each "Fits" cell is the auditor's best-fit ranking. Marked *provisional* because it has not yet been refined by empirical audit runs against real courses — refine as evidence accumulates.
+
+| If the assessment fails this Litmus row… | …strategies that plausibly fix it (best-fit first) | Notes |
+|---|---|---|
+| Reveal the learning process | Process-Oriented Assignments; Oral & Performance-Based | Direct — both make the process visible |
+| Rely on unsupervised work as proof of learning | Oral & Performance-Based; Peer Assessment | Both move evidence into a supervised or accountable context |
+| Encourage growth over performance | Process-Oriented Assignments; Frequent, Low-Stakes Assessments | Grading the process *and* normalizing iteration both shift incentive away from polish |
+| Use difficulty as a proxy for rigor | Authentic Assessment; Process-Oriented Assignments | Authentic = real-world rigor; process-oriented surfaces what the rigor cost the student |
+| Assess transferable understanding | Authentic Assessment | Direct — novel-context application |
+| Assume independent work signals competence | Peer Assessment; Oral & Performance-Based | Both probe whether the student can defend / explain to another mind |
+
+**Strategies that don't map cleanly to a Litmus failure:** *Two-Lane Approach* is meta — it changes the AI-permission policy across the assessment, not a specific Litmus row. *Personalized & Adaptive Learning* is enabling technology, not a fix to a specific gap; it improves throughput on whichever strategy it composes with.
 
 **Auditor's note:** Every strategy has a known failure mode — that is design honesty, not a reason to avoid the strategy. Flag in the audit when an instructor reaches for a strategy but no safeguard against its named challenge is visible. Example: a "Process-Oriented" rubric that grades only the final draft (with the outline submitted but ungraded) is structurally Process-Oriented in name only — and the agent should surface it as `strategy_match: process_oriented_unguarded`.
 
@@ -225,18 +240,25 @@ Pairs with [`backwards_design_knowledge.md`](backwards_design_knowledge.md) (the
 
 ## Audit Tags Emitted
 
-- `assessment_type` ∈ {`formative`, `summative`, `mixed`, `decorative`} — `decorative` flags an assessment that measures nothing actionable
-- `assessment_alignment` ∈ {`clo_traced`, `orphaned`, `under-specified`}
-- `formative_principles_flags` — list which of the seven principles fail
-- `summative_recommendations_flags` — list which of the five recommendations fail
-- `ai_agency` ∈ {`ai_dependent`, `scaffolded`, `student_owned`} (inherited from `inverted_blooms_knowledge.md`)
-- `litmus_test_flags` — list of failed Litmus rows (e.g., `["reveal_learning_process", "test_transferability"]`); see *The Assessment Litmus Test*
-- `litmus_pass_rate` — e.g., `"8/10"`; per-assessment summary
-- `strategy_match` — the Strategies catalog entry that most closely fits this assessment, with `_unguarded` suffix when the strategy's named challenge isn't safeguarded (e.g., `process_oriented_unguarded`)
-- `directives_honored` — subset of `{make_thinking_visible, value_struggle, verify_authorship, test_transferability}` from *The Path Forward*
-- `grading_target` ∈ {`output_only`, `process_only`, `both`} — whether the rubric grades the artifact, the process, or both
-- `assesses_struggle` — boolean; does the assessment reward growth/risk-taking, or only polished performance?
-- `requires_transfer` — boolean; does the assessment require application to a novel context (not the one practiced in class)?
+Each tag is labeled with its derivation discipline:
+- **[measurable]** — derivable from Canvas data (rubric structure, due dates, grade weighting, name patterns) with low inter-rater variance
+- **[interpretive]** — requires auditor judgment beyond mechanical extraction; two careful auditors may disagree
+- **[derived]** — computed from other tags
+
+Tags marked `[interpretive]` are valid audit signal but should be treated as one auditor's reading, not ground truth. Where multiple auditors run the same course, report inter-rater reliability back to this file so the interpretive bar can be tightened over time.
+
+- `assessment_type` ∈ {`formative`, `summative`, `mixed`, `decorative`} — **[measurable]** mostly; `decorative` is `[interpretive]` (does it produce actionable signal?)
+- `assessment_alignment` ∈ {`clo_traced`, `orphaned`, `under-specified`} — **[measurable]** (does a CLO link exist?)
+- `formative_principles_flags` — list which of the seven principles fail — **[interpretive]** per principle
+- `summative_recommendations_flags` — list which of the five recommendations fail — **[interpretive]** per recommendation
+- `ai_agency` ∈ {`ai_dependent`, `scaffolded`, `student_owned`} (inherited from `inverted_blooms_knowledge.md`) — **[interpretive]**
+- `litmus_test_flags` — list of failed Litmus rows (e.g., `["reveal_learning_process", "test_transferability"]`); see *The Assessment Litmus Test* — **[interpretive]** per row
+- `litmus_pass_rate` — e.g., `"8/10"`; per-assessment summary — **[derived]** from `litmus_test_flags`. Soft signal; see *On dimensionality* note in the Litmus subsection.
+- `strategy_match` — the Strategies catalog entry that most closely fits this assessment, with `_unguarded` suffix when the strategy's named challenge isn't safeguarded (e.g., `process_oriented_unguarded`) — **[interpretive]**; mapping is *provisional* per the Strategies catalog
+- `directives_honored` — subset of `{make_thinking_visible, value_struggle, verify_authorship, test_transferability}` from *The Path Forward* — **[interpretive]**
+- `grading_target` ∈ {`output_only`, `process_only`, `both`} — whether the rubric grades the artifact, the process, or both — **[measurable]** if the rubric has named criteria; **[interpretive]** if criteria are vague
+- `assesses_struggle` — boolean; does the assessment reward growth/risk-taking, or only polished performance? — **[interpretive]**
+- `requires_transfer` — boolean; does the assessment require application to a novel context (not the one practiced in class)? — **[interpretive]** (requires comparing assessment task to in-class examples)
 
 ---
 
