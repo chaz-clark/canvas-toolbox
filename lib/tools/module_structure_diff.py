@@ -5,9 +5,12 @@ READ-ONLY. Compares module prerequisites and completion requirements between
 the Canvas Blueprint course (BLUEPRINT_COURSE_ID) and the master course
 (MASTER_COURSE_ID). Makes only GET requests — never writes to Canvas.
 
-One-off support for the blueprint -> master prereq/completion mirror
-(accepted deviation from AGENTS.md Rule 6: blueprint is treated as
-authoritative for this structural metadata only).
+General-purpose diagnostic: no course-ID hardcoding, no sprint/module-name
+heuristics, works on any blueprint/master pair. It enforces no policy — it
+just reports differences. "Blueprint -> would change master" is only the
+diff's stated reference direction (which side is shown as the target), NOT
+an "accepted deviation from AGENTS.md Rule 6"; the tool writes nothing and
+takes no position on which course should win.
 
 Modules and items are matched across courses by title slug, never by ID
 (AGENTS.md Rule 2 — Canvas IDs are course-specific). Prerequisite module IDs
