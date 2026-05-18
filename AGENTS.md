@@ -74,7 +74,7 @@ For the full principles and override rules, see `knowledge/behavioral_discipline
 - **Confirm scope before any write.** Master, blueprint, and sections are different courses with different IDs. A push scoped wrong replicates to the wrong course.
 - **`request_confirmation()` must return `approved=true` before any Canvas write.** Audit agents enforce this; honor it manually too.
 - **Run `course_quality_check.py` after every push** — surfaces orphaned items, duplicates, and dates outside the course window.
-- **Completion requirements enable the prerequisite chain.** Sequential sprint locks silently fail if any item lacks `must_submit` (assignments, quizzes) or `must_view` (pages, tools, URLs).
+- **Completion requirements enable the prerequisite chain.** Sequential sprint locks silently fail if any item lacks `must_submit` (assignments, quizzes), `must_contribute` (discussions), or `must_view` (pages, tools, URLs). This is the `chain-complete` policy `module_settings_sync.py` applies by default.
 
 ## Active Context
 
@@ -142,6 +142,7 @@ Before generating new sync or audit code, check whether these already do what's 
 | `lib/tools/course_quality_check.py` | Four opt-in audit modes (mode-switching, not combined): structural (default — duplicates, floating items, empty modules, date window), `--files` (orphans + broken refs + duplicates), `--alignment` (Course Outcome → Module Outcome → Rubric Criterion chain breaks), `--validate-dates` (out-of-window, ordering sanity, duplicate due dates per group, label-vs-week/sprint drift) | After every push to any course; `--files`, `--alignment`, and `--validate-dates` on demand |
 | `lib/tools/validate_blueprint_sync.py` | Post-Blueprint-sync validation: section drift, Blueprint field drift (lock_at, allowed_extensions, submission_types), duplicate detection, locked-item prerequisite check. Live API queries, read-only. `--report` writes markdown. | After every Canvas Blueprint sync |
 | `lib/tools/canvas_quiz_questions.py` | Classic quiz question manager (push, list, clear) | Editing quiz questions outside Canvas UI |
+| `lib/tools/module_settings_sync.py` | Sprint-module settings reconciliation (prereq chain, "complete all" mode, per-item completion requirements). `--plan` default / `--apply` confirmation-gated + self-verifying. Two policies: `chain-complete` (default — per the Completion-requirements rule above) and `graded-work-only` (opt-in deviation, needs `BLUEPRINT_COURSE_ID`). | Reconciling sprint-module gating on a master course (#25) |
 | `lib/tools/canvas_api_tool.py` | Audit engine + Canvas write functions | Wrapped by audit agents; rarely invoked directly |
 | `lib/agents/canvas_course_expert` | 8-framework instructional-design audit | Conceptual / pedagogical audit |
 | `lib/agents/canvas_schedule_auditor` | Rule-based date audit (propose-before-execute) | Pre-semester or mid-semester date validation |

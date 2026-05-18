@@ -1,26 +1,37 @@
 """
 module_settings_sync.py
 
-One-off reconciliation of MASTER course (MASTER_COURSE_ID) sprint-module
-SETTINGS only. Never creates, deletes, or edits content — only:
+Reconciliation of MASTER course (MASTER_COURSE_ID) sprint-module SETTINGS
+only. Never creates, deletes, or edits content — only:
   - module prerequisite chain (each sprint requires the prior sprint)
   - module requirement mode ("complete all")
   - per-item completion_requirement
 
-Rule (from instructor, blueprint treated as authoritative for this metadata
-only — accepted one-off deviation from AGENTS.md Rule 6):
-  For each master sprint module, "complete all" must be satisfied by exactly
-  the gradable items (Assignment / classic Quiz) that exist in BOTH master and
-  the blueprint module (title-matched). Every other item (pages, tools,
-  master-only items, blueprint-only items) has its completion requirement
-  REMOVED so the gate is graded work only.
+Two completion-gate policies (--policy):
+
+  chain-complete  (DEFAULT — AGENTS.md "Completion requirements" rule):
+    Every gateable item gets a chain-safe completion requirement by type:
+    Assignment/Quiz -> must_submit, Discussion -> must_contribute,
+    Page/ExternalTool/ExternalUrl -> must_view. SubHeaders and unknown
+    types are left untouched (never strips a requirement). Does not need
+    the blueprint; operates on the target course only.
+
+  graded-work-only  (OPT-IN — accepted deviation from the AGENTS.md rule;
+    originally an ITM-327 instructor request):
+    "complete all" is satisfied by exactly the gradable items
+    (Assignment / classic Quiz) that exist in BOTH master and the
+    blueprint module (title-matched). Every other item (pages, tools,
+    master-only, blueprint-only) has its completion requirement REMOVED
+    so the gate is graded work only. Requires BLUEPRINT_COURSE_ID and
+    runs the self-assessment rename-discovery step.
 
 Matching is by title slug across courses, never by ID (AGENTS.md Rule 2).
 Module/item writes are form-encoded (AGENTS.md External System Lessons).
 
 Usage:
-    uv run python tools/module_settings_sync.py            # --plan (read-only, default)
-    uv run python tools/module_settings_sync.py --apply     # write to master (confirmation-gated)
+    uv run python tools/module_settings_sync.py                          # --plan, chain-complete (default)
+    uv run python tools/module_settings_sync.py --policy graded-work-only
+    uv run python tools/module_settings_sync.py --apply                  # write (confirmation-gated)
 """
 
 import argparse
@@ -50,14 +61,33 @@ BLUEPRINT_COURSE_ID = os.environ.get("BLUEPRINT_COURSE_ID", "")
 
 GRADABLE_TYPES = {"Assignment", "Quiz"}
 
+# chain-complete policy: item type -> chain-safe completion requirement.
+# Faithful to the AGENTS.md "Completion requirements" rule (must_submit for
+# assignments/quizzes, must_view for pages/tools/URLs) + discussions ->
+# must_contribute. Types absent from this map (e.g. SubHeader) are left
+# untouched — chain-complete never strips a requirement.
+CHAIN_COMPLETE_REQ = {
+    "Assignment": "must_submit",
+    "Quiz": "must_submit",
+    "Discussion": "must_contribute",
+    "Page": "must_view",
+    "ExternalTool": "must_view",
+    "ExternalUrl": "must_view",
+}
 
-def _check_env():
-    missing = [n for n, v in (
+
+def _check_env(policy: str):
+    required = [
         ("CANVAS_BASE_URL", CANVAS_BASE_URL and CANVAS_BASE_URL != "https://"),
         ("CANVAS_API_TOKEN", CANVAS_API_TOKEN),
         ("MASTER_COURSE_ID", MASTER_COURSE_ID),
-        ("BLUEPRINT_COURSE_ID", BLUEPRINT_COURSE_ID),
-    ) if not v]
+    ]
+    # BLUEPRINT_COURSE_ID is only needed by graded-work-only (it title-matches
+    # against the blueprint roster + runs rename-discovery). chain-complete
+    # operates on the target course alone.
+    if policy == "graded-work-only":
+        required.append(("BLUEPRINT_COURSE_ID", BLUEPRINT_COURSE_ID))
+    missing = [n for n, v in required if not v]
     if missing:
         print(f"ERROR: Missing env vars: {', '.join(missing)}")
         sys.exit(1)
@@ -191,27 +221,32 @@ def apply_renames(renames: list) -> int:
     return failed
 
 
-def build_plan():
-    bp_mods = fetch_modules(BLUEPRINT_COURSE_ID)
+def build_plan(policy: str):
     ms_mods = fetch_modules(MASTER_COURSE_ID)
 
-    # Renamed self-assessments: reflect the new title in-memory so the item
-    # plan shows post-rename state (they title-match -> keep must_submit).
-    renames = discover_renames(ms_mods, bp_mods)
-    rename_by_item = {r["item_id"]: r["to"] for r in renames}
-    for m in ms_mods:
-        for it in m["_items"]:
-            if it["id"] in rename_by_item:
-                it["title"] = rename_by_item[it["id"]]
-
-    # Blueprint roster: module-slug -> set of gradable item title-slugs.
-    bp_roster = {
-        _slug(m["name"]): {
-            _slug(it.get("title", ""))
-            for it in m["_items"] if it.get("type") in GRADABLE_TYPES
+    if policy == "graded-work-only":
+        bp_mods = fetch_modules(BLUEPRINT_COURSE_ID)
+        # Renamed self-assessments: reflect the new title in-memory so the
+        # item plan shows post-rename state (they title-match -> keep
+        # must_submit).
+        renames = discover_renames(ms_mods, bp_mods)
+        rename_by_item = {r["item_id"]: r["to"] for r in renames}
+        for m in ms_mods:
+            for it in m["_items"]:
+                if it["id"] in rename_by_item:
+                    it["title"] = rename_by_item[it["id"]]
+        # Blueprint roster: module-slug -> set of gradable item title-slugs.
+        bp_roster = {
+            _slug(m["name"]): {
+                _slug(it.get("title", ""))
+                for it in m["_items"] if it.get("type") in GRADABLE_TYPES
+            }
+            for m in bp_mods
         }
-        for m in bp_mods
-    }
+    else:  # chain-complete — no blueprint, no renames
+        bp_mods = []
+        renames = []
+        bp_roster = {}
 
     sprint_mods = sorted(
         (m for m in ms_mods if _is_sprint(m["name"])),
@@ -234,16 +269,25 @@ def build_plan():
 
         item_actions = []
         for it in m["_items"]:
-            tslug = _slug(it.get("title", ""))
             itype = it.get("type", "")
-            in_bp = roster is not None and tslug in roster
-            want = "must_submit" if (itype in GRADABLE_TYPES and in_bp) else None
+            if itype == "SubHeader":
+                continue  # SubHeaders cannot hold a completion requirement
+            if policy == "graded-work-only":
+                tslug = _slug(it.get("title", ""))
+                in_bp = roster is not None and tslug in roster
+                want = ("must_submit"
+                        if (itype in GRADABLE_TYPES and in_bp) else None)
+            else:  # chain-complete
+                if itype not in CHAIN_COMPLETE_REQ:
+                    continue  # unknown type — leave as-is, never strip
+                want = CHAIN_COMPLETE_REQ[itype]
             cur = _req_type(it)
             if cur != want:
+                action = (f"SET {want}" if want else "REMOVE requirement")
                 item_actions.append({
                     "item_id": it["id"], "title": it.get("title", ""),
                     "type": itype, "cur": cur, "want": want,
-                    "action": "SET must_submit" if want else "REMOVE requirement",
+                    "action": action,
                 })
 
         plan.append({
@@ -251,17 +295,26 @@ def build_plan():
             "prereq": prereq_change, "req_count": req_count_change,
             "items": item_actions,
         })
-    return {"plan": plan, "renames": renames,
+    return {"plan": plan, "renames": renames, "policy": policy,
             "ms_mods": ms_mods, "bp_mods": bp_mods}
 
 
 def print_plan(result):
     plan, renames = result["plan"], result["renames"]
-    report_chain(result["bp_mods"], "BLUEPRINT")
+    policy = result.get("policy", "graded-work-only")
+    if result["bp_mods"]:
+        report_chain(result["bp_mods"], "BLUEPRINT")
     report_chain(result["ms_mods"], "MASTER")
     print("\n" + "=" * 72)
-    print(f"PLAN — MASTER {MASTER_COURSE_ID}, sprint modules, settings only\n"
-          + "=" * 72)
+    print(f"PLAN — MASTER {MASTER_COURSE_ID}, sprint modules, settings only")
+    print(f"POLICY: {policy}", end="")
+    if policy == "chain-complete":
+        print("  (default; AGENTS.md Completion-requirements rule. "
+              "For the prior behavior pass --policy graded-work-only)")
+    else:
+        print("  (opt-in; accepted deviation from the AGENTS.md "
+              "Completion-requirements rule — see module docstring)")
+    print("=" * 72)
     total = len(renames)
     if renames:
         print("\nRENAME (master assignment -> exact blueprint title):")
@@ -271,7 +324,7 @@ def print_plan(result):
         m = p["module"]
         changed, cur, want, prior_name = p["prereq"]
         print(f"\n[{m['name']}]  (master module id {m['id']})")
-        if not p["roster_found"]:
+        if policy == "graded-work-only" and not p["roster_found"]:
             print("  ! no blueprint module matched this title — all item "
                   "requirements would be REMOVED. Review carefully.")
         if changed:
@@ -306,7 +359,7 @@ def apply_plan(result):
         failed += apply_renames(result["renames"])
         # Re-fetch: renamed items now title-match, so they drop out of the
         # removal plan and correctly keep must_submit.
-        result = build_plan()
+        result = build_plan(result["policy"])
 
     for p in result["plan"]:
         m = p["module"]
@@ -345,10 +398,10 @@ def apply_plan(result):
     print(f"Applied {applied}, failed {failed}. Re-verifying...")
 
     # Verify by rebuilding the plan — zero remaining changes == success.
-    verify = build_plan()
+    verify = build_plan(result["policy"])
     remaining = print_plan(verify)
     if remaining == 0 and failed == 0:
-        print("VERIFIED: master sprint-module settings now match the rule.")
+        print("VERIFIED: master sprint-module settings now match the policy.")
     else:
         print("INCOMPLETE: re-run --plan and inspect the remaining items above.")
 
@@ -357,10 +410,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true",
                     help="write changes to MASTER (default is read-only plan)")
+    ap.add_argument("--policy", choices=["chain-complete", "graded-work-only"],
+                    default="chain-complete",
+                    help="completion-gate policy (default: chain-complete, "
+                         "AGENTS.md Completion-requirements rule). "
+                         "graded-work-only is the opt-in ITM-327 deviation.")
     args = ap.parse_args()
-    _check_env()
+    _check_env(args.policy)
 
-    result = build_plan()
+    result = build_plan(args.policy)
     total = print_plan(result)
 
     if not args.apply:
@@ -371,7 +429,7 @@ def main():
         return
 
     print(f"\n--apply will WRITE the above to MASTER course {MASTER_COURSE_ID} "
-          f"(live). Content is NOT touched — settings only.")
+          f"(live), policy={args.policy}. Content is NOT touched — settings only.")
     try:
         confirm = input('Type "APPLY" to proceed: ').strip()
     except (EOFError, KeyboardInterrupt):
