@@ -52,6 +52,8 @@ from typing import Optional
 
 import requests
 
+from canvas_pages import page_in_module, upsert_page
+
 # Load .env from repo root
 try:
     from dotenv import load_dotenv
@@ -631,18 +633,27 @@ def cmd_push():
                     continue
                 print(f"  [Page] NEW {master_fp}")
                 body = master_path.read_text(encoding="utf-8")
-                r = requests.post(
-                    f"{CANVAS_BASE_URL}/api/v1/courses/{bp_id}/pages",
-                    headers=_headers(),
-                    json={"wiki_page": {"title": title, "body": body,
-                                        "published": master_meta.get("published", True)}},
-                    timeout=20,
+                published = master_meta.get("published", True)
+                # Idempotent upsert (issue #26): reuse an existing same-title
+                # blueprint page instead of POSTing a duplicate every run.
+                page_url, action = upsert_page(
+                    CANVAS_BASE_URL, _headers(), bp_id, title, body, published
                 )
-                if r.status_code >= 400:
-                    print(f"    FAILED create: {r.text[:150]}")
+                if action == "ambiguous":
+                    print(f"    SKIP: >1 blueprint page already titled '{title}' — "
+                          f"manual review (corrupted state; see #23/#26)")
+                    skipped += 1
+                    continue
+                if action.startswith("error"):
+                    print(f"    FAILED upsert: {action[6:]}")
                     failed += 1
                     continue
-                page_url = r.json().get("url")
+                # Module-item guard (#26): don't re-link a page already in the module.
+                if page_in_module(CANVAS_BASE_URL, _headers(), bp_id, bp_mod_id, page_url):
+                    print(f"    {action.upper()} → {page_url} (already in module; not re-added)")
+                    pushed += 1
+                    pushed_files.append(master_fp)
+                    continue
                 r2 = requests.post(
                     f"{CANVAS_BASE_URL}/api/v1/courses/{bp_id}/modules/{bp_mod_id}/items",
                     headers=_headers(),
@@ -650,11 +661,11 @@ def cmd_push():
                     timeout=20,
                 )
                 if r2.status_code < 400:
-                    print(f"    CREATED → {page_url}")
+                    print(f"    {action.upper()} → {page_url} (linked to module)")
                     pushed += 1
                     pushed_files.append(master_fp)
                 else:
-                    print(f"    Created page but failed to add to module: {r2.text[:100]}")
+                    print(f"    {action} page but failed to add to module: {r2.text[:100]}")
                     pushed += 1
                     pushed_files.append(master_fp)
             else:

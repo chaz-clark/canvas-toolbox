@@ -126,6 +126,8 @@ Canvas API has multiple non-obvious behaviors discovered through use. Each is a 
 | NewQuiz / ExternalTool items can't be content-pushed via REST | Module shell syncs but item body is empty in target | Sync scripts skip and warn; manage these in Canvas UI |
 | `GET /courses/:id/rubrics` requires teacher token | Returns 403 with student token | Workaround: `GET /courses/:id/assignments/:id?include[]=rubric` works for student tokens too |
 | Empty modules are a sync artifact | When all items in a module are NewQuiz / ExternalTool, the module shell syncs but lands empty | Sync scripts warn before; quality check flags after |
+| Canvas auto-suffixes a Page URL on title collision | `POST /courses/:id/pages` with a title that already exists silently creates a second page at `…-2`/`-4`/`-5`; repeated non-idempotent pushes duplicate the same page across master/blueprint/sections | Never POST a Page without a title-existence check. Use `lib/tools/canvas_pages.upsert_page()` (GET-by-title → reuse+PUT / create / >1→manual review) and `page_in_module()` to guard the module-item link (#26) |
+| Clearing a module-item completion requirement needs the whole object blanked | `data={"module_item[completion_requirement][type]": ""}` returns `400 Invalid completion requirement type` | Form-encode the whole object blank: `data={"module_item[completion_requirement]": ""}`. Setting still uses `data={"module_item[completion_requirement][type]": "must_submit"}` (#25) |
 
 ## Existing Tooling
 
@@ -135,7 +137,7 @@ Before generating new sync or audit code, check whether these already do what's 
 |---|---|---|
 | `lib/tools/canvas_sync.py` | Single-course mirror (pull, status, push, build, upload). Plus opt-in: `--pull-files` / `--find-file <q>` / `--pull-file <q>` for working with referenced Canvas Files | All single-course sync work |
 | `lib/tools/sync_context.sh <context>` | Multi-course wrapper — invokes `canvas_sync.py` for master / blueprint / s1 / s2 / ... | Anytime more than one course is in this repo |
-| `lib/tools/blueprint_sync.py` | Master → Blueprint sync (one-way overwrite, content + dates + completion requirements) | Online programs using Canvas Blueprint |
+| `lib/tools/blueprint_sync.py` | Master → Blueprint sync (one-way overwrite: course settings, homepage, syllabus, and Page/Assignment/Discussion/Quiz content + published state + dates). Page creation is idempotent (title-upsert, #26). Does **not** sync module structure, item order, or module completion requirements. | Online programs using Canvas Blueprint |
 | `lib/tools/course_mirror.py` | Source → Master one-off mirror | Manually replicating between two courses |
 | `lib/tools/course_quality_check.py` | Four opt-in audit modes (mode-switching, not combined): structural (default — duplicates, floating items, empty modules, date window), `--files` (orphans + broken refs + duplicates), `--alignment` (Course Outcome → Module Outcome → Rubric Criterion chain breaks), `--validate-dates` (out-of-window, ordering sanity, duplicate due dates per group, label-vs-week/sprint drift) | After every push to any course; `--files`, `--alignment`, and `--validate-dates` on demand |
 | `lib/tools/validate_blueprint_sync.py` | Post-Blueprint-sync validation: section drift, Blueprint field drift (lock_at, allowed_extensions, submission_types), duplicate detection, locked-item prerequisite check. Live API queries, read-only. `--report` writes markdown. | After every Canvas Blueprint sync |

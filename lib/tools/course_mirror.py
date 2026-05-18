@@ -27,6 +27,8 @@ from pathlib import Path
 
 import requests
 
+from canvas_pages import page_in_module, upsert_page
+
 try:
     from dotenv import load_dotenv
     _env = Path(__file__).parent.parent / ".env"
@@ -406,20 +408,35 @@ def cmd_push():
                     continue
                 print(f"  [Page] NEW {local_fp}")
                 body = local_path.read_text(encoding="utf-8")
-                r = requests.post(f"{BASE}/api/v1/courses/{target}/pages", headers=_h(),
-                                  json={"wiki_page": {"title": title, "body": body,
-                                                      "published": local_meta.get("published", True)}},
-                                  timeout=20)
-                if r.status_code >= 400:
-                    print(f"    FAILED create: {r.text[:150]}")
+                published = local_meta.get("published", True)
+                # Idempotent upsert (issue #26): reuse an existing same-title
+                # target page instead of POSTing a duplicate every run.
+                page_url, action = upsert_page(
+                    BASE, _h(), target, title, body, published
+                )
+                if action == "ambiguous":
+                    print(f"    SKIP: >1 target page already titled '{title}' — "
+                          f"manual review (corrupted state; see #23/#26)")
+                    skipped += 1
+                    continue
+                if action.startswith("error"):
+                    print(f"    FAILED upsert: {action[6:]}")
                     failed += 1
                     continue
-                page_url = r.json().get("url")
+                # Module-item guard (#26): don't re-link a page already in the module.
+                if page_in_module(BASE, _h(), target, tgt_mod_id, page_url):
+                    print(f"    {action.upper()} → {page_url} (already in module; not re-added)")
+                    pushed += 1
+                    pushed_files.append(local_fp)
+                    continue
                 r2 = requests.post(f"{BASE}/api/v1/courses/{target}/modules/{tgt_mod_id}/items",
                                    headers=_h(),
                                    json={"module_item": {"type": "Page", "page_url": page_url, "position": 1}},
                                    timeout=20)
-                print(f"    CREATED → {page_url}")
+                if r2.status_code < 400:
+                    print(f"    {action.upper()} → {page_url} (linked to module)")
+                else:
+                    print(f"    {action} page but failed to add to module: {r2.text[:100]}")
                 pushed += 1
                 pushed_files.append(local_fp)
             else:
