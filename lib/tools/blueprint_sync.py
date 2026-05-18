@@ -53,6 +53,7 @@ from typing import Optional
 import requests
 
 from canvas_pages import page_in_module, upsert_page
+from __toolbox_version__ import __version__
 
 # Load .env from repo root
 try:
@@ -940,6 +941,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Sync master Canvas course → Blueprint course (one-way overwrite)"
     )
+    parser.add_argument("--version", action="version",
+                        version=f"canvas-toolbox {__version__}")
     parser.add_argument("--pull", action="store_true",
                         help="Full init: pull blueprint into blueprint_course/ + build ID mapping")
     parser.add_argument("--push", action="store_true",

@@ -42,6 +42,8 @@ from pathlib import Path
 
 import requests
 
+from __toolbox_version__ import __version__
+
 try:
     from dotenv import load_dotenv
     _env_path = Path(__file__).parent.parent / ".env"
@@ -408,6 +410,8 @@ def apply_plan(result):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--version", action="version",
+                    version=f"canvas-toolbox {__version__}")
     ap.add_argument("--apply", action="store_true",
                     help="write changes to MASTER (default is read-only plan)")
     ap.add_argument("--policy", choices=["chain-complete", "graded-work-only"],

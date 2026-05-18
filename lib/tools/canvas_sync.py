@@ -53,6 +53,8 @@ from typing import Optional
 
 import requests
 
+from __toolbox_version__ import __version__
+
 # Load .env from repo root if python-dotenv is available (optional dependency)
 try:
     from dotenv import load_dotenv
@@ -1790,6 +1792,8 @@ File upload workflow:
 Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
         """
     )
+    parser.add_argument("--version", action="version",
+                        version=f"canvas-toolbox {__version__}")
     parser.add_argument("--init", action="store_true", help="Pull full course into course/ (same as --pull with no path)")
     parser.add_argument("--status", action="store_true", help="Show changed files")
     parser.add_argument("--push", nargs="?", const="", metavar="MODULE", help="Push changed files to Canvas")

@@ -28,6 +28,7 @@ from pathlib import Path
 import requests
 
 from canvas_pages import page_in_module, upsert_page
+from __toolbox_version__ import __version__
 
 try:
     from dotenv import load_dotenv
@@ -614,6 +615,7 @@ def cmd_push():
 
 def main():
     parser = argparse.ArgumentParser(description="One-off: mirror course/ → MASTER_COURSE_ID")
+    parser.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     parser.add_argument("--pull", action="store_true", help="Map MASTER_COURSE_ID item IDs")
     parser.add_argument("--push", action="store_true", help="Push course/ content → MASTER_COURSE_ID")
     parser.add_argument("--status", action="store_true", help="Show coverage")

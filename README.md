@@ -436,6 +436,15 @@ cd canvas_toolbox && git pull origin main && cd ..
 
 Only files under `canvas_toolbox/lib/`, `canvas_toolbox/scaffold/`, and `canvas_toolbox/examples/` change on a pull. Your `course/`, `.env`, and everything at your repo root are untouched.
 
+**Check which version you're on** (any primary sync tool reports it):
+
+```bash
+uv run python canvas_toolbox/lib/tools/canvas_sync.py --version
+# → canvas-toolbox 0.16.0
+```
+
+If that's behind the latest [release tag](https://github.com/chaz-clark/canvas-toolbox/tags), run the `git pull` above. **Never patch a vendored tool copy in place** — local edits diverge silently from upstream and miss every later fix. The `v0.x` tags are the canonical line (an older `v1.x` tag series exists in history and is not maintained).
+
 ## Canvas API gotchas
 
 - **Module prerequisites** — use form-encoded `data={"module[prerequisite_module_ids][]": id}`, not JSON. JSON returns 200 but silently does nothing.
