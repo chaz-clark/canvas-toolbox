@@ -179,3 +179,5 @@ If you add a new framework reference here, follow the existing pattern:
 4. The audit tag the agent should emit.
 5. Quick Reference for Auditors — a numbered checklist.
 6. Add a one-paragraph entry to this README.
+
+**Versioning convention:** a knowledge file's JSON `changelog` starts at `0.x` while it is built-but-unvalidated, and is promoted to `1.0` only after it has been successfully exercised against a real course (the build → test → update loop). A `0.x` file is intentionally **not** added to "The files" catalog above until it reaches `1.0` — an untested file should not read as authoritative or be advertised as a routing target.
