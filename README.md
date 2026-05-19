@@ -440,7 +440,7 @@ Only files under `canvas_toolbox/lib/`, `canvas_toolbox/scaffold/`, and `canvas_
 
 ```bash
 uv run python canvas_toolbox/lib/tools/canvas_sync.py --version
-# → canvas-toolbox 0.16.0
+# → canvas-toolbox 0.17.0
 ```
 
 If that's behind the latest [release tag](https://github.com/chaz-clark/canvas-toolbox/tags), run the `git pull` above. **Never patch a vendored tool copy in place** — local edits diverge silently from upstream and miss every later fix. The `v0.x` tags are the canonical line (an older `v1.x` tag series exists in history and is not maintained).
