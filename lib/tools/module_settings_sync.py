@@ -1,11 +1,18 @@
 """
 module_settings_sync.py
 
-Reconciliation of MASTER course (MASTER_COURSE_ID) sprint-module SETTINGS
-only. Never creates, deletes, or edits content — only:
-  - module prerequisite chain (each sprint requires the prior sprint)
+Reconciliation of a target course's prefix-matched module SETTINGS only.
+Never creates, deletes, or edits content — only:
+  - module prerequisite chain (each matched module requires the prior one)
   - module requirement mode ("complete all")
   - per-item completion_requirement
+
+Target / scope (all default to the prior ITM-327 behavior if omitted):
+  --target <course_id>     course to plan/write (default: MASTER_COURSE_ID env)
+  --module-prefix <str>    slug prefix selecting modules (default: "sprint-")
+  --rename-match <str>     enable self-assessment rename-discovery, matching
+                           item titles containing <str> (default: OFF — no
+                           rename-discovery unless this is given)
 
 Two completion-gate policies (--policy):
 
@@ -23,7 +30,7 @@ Two completion-gate policies (--policy):
     blueprint module (title-matched). Every other item (pages, tools,
     master-only, blueprint-only) has its completion requirement REMOVED
     so the gate is graded work only. Requires BLUEPRINT_COURSE_ID and
-    runs the self-assessment rename-discovery step.
+    runs rename-discovery (only when --rename-match is given).
 
 Matching is by title slug across courses, never by ID (AGENTS.md Rule 2).
 Module/item writes are form-encoded (AGENTS.md External System Lessons).
@@ -32,6 +39,8 @@ Usage:
     uv run python tools/module_settings_sync.py                          # --plan, chain-complete (default)
     uv run python tools/module_settings_sync.py --policy graded-work-only
     uv run python tools/module_settings_sync.py --apply                  # write (confirmation-gated)
+    # Reproduce the original ITM-327 behavior exactly:
+    uv run python tools/module_settings_sync.py --policy graded-work-only --rename-match "performance review"
 """
 
 import argparse
@@ -78,11 +87,11 @@ CHAIN_COMPLETE_REQ = {
 }
 
 
-def _check_env(policy: str):
+def _check_env(policy: str, target: str):
     required = [
         ("CANVAS_BASE_URL", CANVAS_BASE_URL and CANVAS_BASE_URL != "https://"),
         ("CANVAS_API_TOKEN", CANVAS_API_TOKEN),
-        ("MASTER_COURSE_ID", MASTER_COURSE_ID),
+        ("target course id (--target or MASTER_COURSE_ID env)", target),
     ]
     # BLUEPRINT_COURSE_ID is only needed by graded-work-only (it title-matches
     # against the blueprint roster + runs rename-discovery). chain-complete
@@ -139,8 +148,8 @@ def _req_type(item: dict):
     return cr.get("type") if cr else None
 
 
-def _is_sprint(name: str) -> bool:
-    return _slug(name).startswith("sprint-")
+def _is_target_module(name: str, prefix: str) -> bool:
+    return _slug(name).startswith(prefix)
 
 
 def fetch_modules(course_id: str) -> list:
@@ -153,29 +162,32 @@ def fetch_modules(course_id: str) -> list:
     return mods
 
 
-def report_chain(mods: list, label: str):
-    """Print each course's sprint-module prerequisite chain by name."""
+def report_chain(mods: list, label: str, prefix: str):
+    """Print each course's matched-module prerequisite chain by name."""
     id_to_name = {m["id"]: m["name"] for m in mods}
-    sprints = sorted((m for m in mods if _is_sprint(m["name"])),
+    sprints = sorted((m for m in mods if _is_target_module(m["name"], prefix)),
                      key=lambda m: m.get("position", 0))
-    print(f"\n{label} sprint prerequisite chain:")
+    print(f"\n{label} module prerequisite chain (prefix '{prefix}'):")
     for m in sprints:
         prereqs = [id_to_name.get(p, f"<id {p}>")
                    for p in (m.get("prerequisite_module_ids") or [])]
         print(f"  {m['name']}  <-  {prereqs or 'NONE'}")
 
 
-def discover_renames(ms_mods: list, bp_mods: list) -> list:
+def discover_renames(ms_mods: list, bp_mods: list, prefix: str,
+                      rename_match: str) -> list:
     """
-    Locate the renamed self-assessments the instructor flagged: master
-    Assignment items titled '... Performance Review' that do NOT title-match
-    their blueprint sprint module. Returns rename instructions to the EXACT
-    blueprint title (fetched, never transcribed).
+    Locate target-course Assignment items whose title contains rename_match
+    (case-insensitive) that do NOT title-match their blueprint module, and
+    that have exactly one blueprint counterpart also matching rename_match.
+    Returns rename instructions to the EXACT blueprint title (fetched, never
+    transcribed). Caller only invokes this when rename_match is non-empty.
     """
+    needle = rename_match.lower()
     bp_by_slug = {_slug(m["name"]): m for m in bp_mods}
     renames = []
     for m in ms_mods:
-        if not _is_sprint(m["name"]):
+        if not _is_target_module(m["name"], prefix):
             continue
         bp_mod = bp_by_slug.get(_slug(m["name"]))
         if not bp_mod:
@@ -183,11 +195,11 @@ def discover_renames(ms_mods: list, bp_mods: list) -> list:
         bp_slugs = {_slug(it.get("title", "")) for it in bp_mod["_items"]}
         bp_self = [it for it in bp_mod["_items"]
                    if it.get("type") == "Assignment"
-                   and "performance review" in it.get("title", "").lower()]
+                   and needle in it.get("title", "").lower()]
         for it in m["_items"]:
             t = it.get("title", "")
             if (it.get("type") == "Assignment"
-                    and "performance review" in t.lower()
+                    and needle in t.lower()
                     and _slug(t) not in bp_slugs and len(bp_self) == 1):
                 renames.append({
                     "module": m["name"],
@@ -200,8 +212,8 @@ def discover_renames(ms_mods: list, bp_mods: list) -> list:
     return renames
 
 
-def apply_renames(renames: list) -> int:
-    cid = MASTER_COURSE_ID
+def apply_renames(renames: list, target: str) -> int:
+    cid = target
     failed = 0
     for r in renames:
         ok = True
@@ -223,15 +235,17 @@ def apply_renames(renames: list) -> int:
     return failed
 
 
-def build_plan(policy: str):
-    ms_mods = fetch_modules(MASTER_COURSE_ID)
+def build_plan(policy: str, target: str, prefix: str, rename_match: str):
+    ms_mods = fetch_modules(target)
 
     if policy == "graded-work-only":
         bp_mods = fetch_modules(BLUEPRINT_COURSE_ID)
         # Renamed self-assessments: reflect the new title in-memory so the
         # item plan shows post-rename state (they title-match -> keep
-        # must_submit).
-        renames = discover_renames(ms_mods, bp_mods)
+        # must_submit). Rename-discovery is opt-in: only when --rename-match
+        # is given (default OFF — no ITM-327 assumption on a generic course).
+        renames = (discover_renames(ms_mods, bp_mods, prefix, rename_match)
+                   if rename_match else [])
         rename_by_item = {r["item_id"]: r["to"] for r in renames}
         for m in ms_mods:
             for it in m["_items"]:
@@ -251,7 +265,7 @@ def build_plan(policy: str):
         bp_roster = {}
 
     sprint_mods = sorted(
-        (m for m in ms_mods if _is_sprint(m["name"])),
+        (m for m in ms_mods if _is_target_module(m["name"], prefix)),
         key=lambda m: m.get("position", 0),
     )
 
@@ -298,17 +312,23 @@ def build_plan(policy: str):
             "items": item_actions,
         })
     return {"plan": plan, "renames": renames, "policy": policy,
+            "target": target, "prefix": prefix, "rename_match": rename_match,
             "ms_mods": ms_mods, "bp_mods": bp_mods}
 
 
 def print_plan(result):
     plan, renames = result["plan"], result["renames"]
     policy = result.get("policy", "graded-work-only")
+    target = result["target"]
+    prefix = result["prefix"]
+    rename_match = result["rename_match"]
     if result["bp_mods"]:
-        report_chain(result["bp_mods"], "BLUEPRINT")
-    report_chain(result["ms_mods"], "MASTER")
+        report_chain(result["bp_mods"], "BLUEPRINT", prefix)
+    report_chain(result["ms_mods"], "TARGET", prefix)
     print("\n" + "=" * 72)
-    print(f"PLAN — MASTER {MASTER_COURSE_ID}, sprint modules, settings only")
+    print(f"PLAN — target course {target}, settings only")
+    print(f"SCOPE: module-prefix='{prefix}'  rename-match="
+          + (f"'{rename_match}'" if rename_match else "OFF"))
     print(f"POLICY: {policy}", end="")
     if policy == "chain-complete":
         print("  (default; AGENTS.md Completion-requirements rule. "
@@ -348,20 +368,21 @@ def print_plan(result):
         else:
             print("  item requirements already correct")
     print("\n" + "=" * 72)
-    print(f"{total} change(s) planned across {len(plan)} sprint modules.")
+    print(f"{total} change(s) planned across {len(plan)} matched modules.")
     return total
 
 
 def apply_plan(result):
-    cid = MASTER_COURSE_ID
+    cid = result["target"]
     applied, failed = 0, 0
 
     if result["renames"]:
-        print("Renaming master assignments to match blueprint titles...")
-        failed += apply_renames(result["renames"])
+        print("Renaming target assignments to match blueprint titles...")
+        failed += apply_renames(result["renames"], cid)
         # Re-fetch: renamed items now title-match, so they drop out of the
         # removal plan and correctly keep must_submit.
-        result = build_plan(result["policy"])
+        result = build_plan(result["policy"], result["target"],
+                            result["prefix"], result["rename_match"])
 
     for p in result["plan"]:
         m = p["module"]
@@ -400,10 +421,11 @@ def apply_plan(result):
     print(f"Applied {applied}, failed {failed}. Re-verifying...")
 
     # Verify by rebuilding the plan — zero remaining changes == success.
-    verify = build_plan(result["policy"])
+    verify = build_plan(result["policy"], result["target"],
+                        result["prefix"], result["rename_match"])
     remaining = print_plan(verify)
     if remaining == 0 and failed == 0:
-        print("VERIFIED: master sprint-module settings now match the policy.")
+        print("VERIFIED: target module settings now match the policy.")
     else:
         print("INCOMPLETE: re-run --plan and inspect the remaining items above.")
 
@@ -413,16 +435,27 @@ def main():
     ap.add_argument("--version", action="version",
                     version=f"canvas-toolbox {__version__}")
     ap.add_argument("--apply", action="store_true",
-                    help="write changes to MASTER (default is read-only plan)")
+                    help="write changes to the target (default is read-only plan)")
     ap.add_argument("--policy", choices=["chain-complete", "graded-work-only"],
                     default="chain-complete",
                     help="completion-gate policy (default: chain-complete, "
                          "AGENTS.md Completion-requirements rule). "
                          "graded-work-only is the opt-in ITM-327 deviation.")
+    ap.add_argument("--target", default="",
+                    help="course id to plan/write (default: MASTER_COURSE_ID env)")
+    ap.add_argument("--module-prefix", default="sprint-",
+                    help="slug prefix selecting modules (default: 'sprint-')")
+    ap.add_argument("--rename-match", default="",
+                    help="enable self-assessment rename-discovery, matching item "
+                         "titles containing this substring (default: OFF). "
+                         "graded-work-only only.")
     args = ap.parse_args()
-    _check_env(args.policy)
 
-    result = build_plan(args.policy)
+    target = args.target or MASTER_COURSE_ID
+    _check_env(args.policy, target)
+
+    result = build_plan(args.policy, target, args.module_prefix,
+                        args.rename_match)
     total = print_plan(result)
 
     if not args.apply:
@@ -432,8 +465,10 @@ def main():
         print("\nNothing to apply.")
         return
 
-    print(f"\n--apply will WRITE the above to MASTER course {MASTER_COURSE_ID} "
-          f"(live), policy={args.policy}. Content is NOT touched — settings only.")
+    rm_disp = f"'{args.rename_match}'" if args.rename_match else "OFF"
+    print(f"\n--apply will WRITE the above to course {target} "
+          f"(live), policy={args.policy}, module-prefix='{args.module_prefix}', "
+          f"rename-match={rm_disp}. Content is NOT touched — settings only.")
     try:
         confirm = input('Type "APPLY" to proceed: ').strip()
     except (EOFError, KeyboardInterrupt):
