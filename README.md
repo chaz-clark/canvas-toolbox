@@ -343,6 +343,14 @@ Checks for:
 
 Add `--report` to save findings to `blueprint_sync_validation.md`.
 
+That tool sees **what state diverged**. To see **why items got skipped** by Canvas during the sync (e.g., `content`/`deleted` exceptions on locally-edited items — easily missed because Canvas still reports the migration as `completed`), also run:
+
+```bash
+uv run python canvas_toolbox/lib/tools/blueprint_exception_report.py
+```
+
+Per section it emits a PASS / WARN / FAIL verdict (FAIL on `content`/`deleted` — lock the listed items in the blueprint and re-sync to fix; WARN on `points`/`state`/`settings`; PASS on `due_dates`/`availability_dates`). Add `--suggest-locks` to get a ready-to-run lock+resync script, or `--report` to save findings to `blueprint_exception_report.md`.
+
 Requires `BLUEPRINT_COURSE_ID` and at least one `S1_COURSE_ID` in your `.env`.
 
 If you only have one course, ignore this section entirely — `canvas_sync.py` is all you need.
@@ -440,7 +448,7 @@ Only files under `canvas_toolbox/lib/`, `canvas_toolbox/scaffold/`, and `canvas_
 
 ```bash
 uv run python canvas_toolbox/lib/tools/canvas_sync.py --version
-# → canvas-toolbox 0.17.0
+# → canvas-toolbox 0.18.0
 ```
 
 If that's behind the latest [release tag](https://github.com/chaz-clark/canvas-toolbox/tags), run the `git pull` above. **Never patch a vendored tool copy in place** — local edits diverge silently from upstream and miss every later fix. The `v0.x` tags are the canonical line (an older `v1.x` tag series exists in history and is not maintained).
