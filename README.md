@@ -351,6 +351,14 @@ uv run python canvas_toolbox/lib/tools/blueprint_exception_report.py
 
 Per section it emits a PASS / WARN / FAIL verdict (FAIL on `content`/`deleted` — lock the listed items in the blueprint and re-sync to fix; WARN on `points`/`state`/`settings`; PASS on `due_dates`/`availability_dates`). Add `--suggest-locks` to get a ready-to-run lock+resync script, or `--report` to save findings to `blueprint_exception_report.md`.
 
+And to catch the Page-level corruption Canvas's UI sync can leave behind that the migration log doesn't surface — `-N` slug orphans, and silent body reversions — also run:
+
+```bash
+uv run python canvas_toolbox/lib/tools/blueprint_orphan_pages.py
+```
+
+Read-only audit (#29 Phase 1). Two detectors: orphan `-N` slugs (Canvas creates these when re-syncing into a section that previously deleted its copy — module items keep pointing at stale content while canonical content lives at an unreachable `-N` slug); and silent body reversions (a section page body that has no provenance in the blueprint's revision history — observed deterministically and **directly contradicts Canvas's published behavior**, so the tool prints an operator warning when this fires).
+
 Requires `BLUEPRINT_COURSE_ID` and at least one `S1_COURSE_ID` in your `.env`.
 
 If you only have one course, ignore this section entirely — `canvas_sync.py` is all you need.
@@ -396,6 +404,8 @@ Module naming: `Sprint X: Topic (WXX–WXX)` or `Week X: Topic`.
 **Quality check shows "published not in module"** — the item exists in the course but was never added to a module. Students can't navigate to it. Add it via Canvas UI or contact your instructional designer.
 
 **Tool refuses to write — "REFUSING WRITE to … enrolled / blueprint child"** — startup safety guard (#27). Your `.env` is pointing the write target at a course with enrolled students or one that's a Blueprint child — almost always a stale or hand-edited `.env`. **Sections belong in `S#_COURSE_ID` (`S1_COURSE_ID`, `S2_COURSE_ID`, …), not `CANVAS_COURSE_ID`.** Fix the `.env` and re-run. If you genuinely intend the write (rare, e.g., explicit one-off into a live section after considered review), add `--allow-enrolled` to bypass.
+
+**Students see stale page content after a Blueprint sync, even though the migration says "completed"** — Canvas may have created a `-N` slug orphan (the canonical content went to a new `slug-2`/`-N` page that's not in any module, while the module item keeps pointing at the old slug with stale content). Run `blueprint_orphan_pages.py` to detect; cleanup is a manual unlock → PUT canonical body onto the unsuffixed slug → DELETE the `-N` page → re-lock (Phase 2 `--apply` automation is deferred per #29). If the tool also fires Detector B (silent body reversion), heed the printed operator warning — Canvas's lock-state-only sync path has been observed to cause this; don't re-run that sync.
 
 ---
 
@@ -450,7 +460,7 @@ Only files under `canvas_toolbox/lib/`, `canvas_toolbox/scaffold/`, and `canvas_
 
 ```bash
 uv run python canvas_toolbox/lib/tools/canvas_sync.py --version
-# → canvas-toolbox 0.19.0
+# → canvas-toolbox 0.20.0
 ```
 
 If that's behind the latest [release tag](https://github.com/chaz-clark/canvas-toolbox/tags), run the `git pull` above. **Never patch a vendored tool copy in place** — local edits diverge silently from upstream and miss every later fix. The `v0.x` tags are the canonical line (an older `v1.x` tag series exists in history and is not maintained).
