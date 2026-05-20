@@ -29,6 +29,7 @@ import requests
 
 from canvas_pages import page_in_module, upsert_page
 from __toolbox_version__ import __version__
+from canvas_course_guard import enforce as _course_guard
 
 try:
     from dotenv import load_dotenv
@@ -619,7 +620,20 @@ def main():
     parser.add_argument("--pull", action="store_true", help="Map MASTER_COURSE_ID item IDs")
     parser.add_argument("--push", action="store_true", help="Push course/ content → MASTER_COURSE_ID")
     parser.add_argument("--status", action="store_true", help="Show coverage")
+    parser.add_argument("--allow-enrolled", action="store_true",
+                        help="bypass the startup safety guard (#27)")
     args = parser.parse_args()
+
+    # Startup safety guard (#27): source (CANVAS_COURSE_ID) is read on every
+    # mode; target (MASTER_COURSE_ID) is the write target on --push.
+    if args.push or args.pull or args.status:
+        _course_guard(BASE, _h(), SOURCE_ID, "read",
+                      allow_override=args.allow_enrolled,
+                      label="source (CANVAS_COURSE_ID)")
+    if args.push:
+        _course_guard(BASE, _h(), TARGET_ID, "write",
+                      allow_override=args.allow_enrolled,
+                      label="target (MASTER_COURSE_ID)")
 
     if args.pull:
         cmd_pull()

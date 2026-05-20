@@ -54,6 +54,7 @@ from typing import Optional
 import requests
 
 from __toolbox_version__ import __version__
+from canvas_course_guard import enforce as _course_guard
 
 # Load .env from repo root if python-dotenv is available (optional dependency)
 try:
@@ -1817,11 +1818,22 @@ Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
                         help="Skip individual files larger than this (e.g. 100mb, 1gb)")
     parser.add_argument("--max-total-size", metavar="SIZE",
                         help="Abort --pull-files if total scanned size exceeds this")
+    parser.add_argument("--allow-enrolled", action="store_true",
+                        help="bypass the startup safety guard (allow writes to a "
+                             "course flagged as enrolled or a Blueprint child)")
 
     args = parser.parse_args()
 
     if args.quiet:
         globals()["QUIET"] = True
+
+    # Startup safety guard (#27) — never block --build (local-only, no Canvas call).
+    if not args.build:
+        _write_mode = bool(args.push is not None) or bool(args.upload)
+        _course_guard(CANVAS_BASE_URL, _headers(), CANVAS_COURSE_ID,
+                      "write" if _write_mode else "read",
+                      allow_override=args.allow_enrolled,
+                      label="CANVAS_COURSE_ID")
 
     if args.init or args.pull == "":
         cmd_init()

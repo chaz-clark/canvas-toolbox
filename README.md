@@ -395,6 +395,8 @@ Module naming: `Sprint X: Topic (WXX–WXX)` or `Week X: Topic`.
 
 **Quality check shows "published not in module"** — the item exists in the course but was never added to a module. Students can't navigate to it. Add it via Canvas UI or contact your instructional designer.
 
+**Tool refuses to write — "REFUSING WRITE to … enrolled / blueprint child"** — startup safety guard (#27). Your `.env` is pointing the write target at a course with enrolled students or one that's a Blueprint child — almost always a stale or hand-edited `.env`. **Sections belong in `S#_COURSE_ID` (`S1_COURSE_ID`, `S2_COURSE_ID`, …), not `CANVAS_COURSE_ID`.** Fix the `.env` and re-run. If you genuinely intend the write (rare, e.g., explicit one-off into a live section after considered review), add `--allow-enrolled` to bypass.
+
 ---
 
 # Technical reference
@@ -448,7 +450,7 @@ Only files under `canvas_toolbox/lib/`, `canvas_toolbox/scaffold/`, and `canvas_
 
 ```bash
 uv run python canvas_toolbox/lib/tools/canvas_sync.py --version
-# → canvas-toolbox 0.18.0
+# → canvas-toolbox 0.19.0
 ```
 
 If that's behind the latest [release tag](https://github.com/chaz-clark/canvas-toolbox/tags), run the `git pull` above. **Never patch a vendored tool copy in place** — local edits diverge silently from upstream and miss every later fix. The `v0.x` tags are the canonical line (an older `v1.x` tag series exists in history and is not maintained).

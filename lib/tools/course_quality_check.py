@@ -36,6 +36,8 @@ from pathlib import Path
 
 import requests
 
+from canvas_course_guard import enforce as _course_guard
+
 try:
     from dotenv import load_dotenv
     _env = Path(__file__).parent.parent / ".env"
@@ -1385,6 +1387,12 @@ def main():
     if not targets:
         print("ERROR: No course IDs configured.")
         sys.exit(1)
+
+    # Startup safety guard (#27): advisory only — course_quality_check is
+    # read-only, so the guard warns but never blocks.
+    for cid, label in targets:
+        _course_guard(CANVAS_BASE_URL, _h(), cid, "read",
+                      allow_override=False, label=label)
 
     REPORT_DIR.mkdir(exist_ok=True)
 

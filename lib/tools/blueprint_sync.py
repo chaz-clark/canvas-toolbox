@@ -54,6 +54,7 @@ import requests
 
 from canvas_pages import page_in_module, upsert_page
 from __toolbox_version__ import __version__
+from canvas_course_guard import enforce as _course_guard
 
 # Load .env from repo root
 try:
@@ -949,7 +950,20 @@ def main():
                         help="Sync master content + dates → blueprint (full overwrite)")
     parser.add_argument("--status", action="store_true",
                         help="Show mapping coverage and what would be synced")
+    parser.add_argument("--allow-enrolled", action="store_true",
+                        help="bypass the startup safety guard (#27)")
     args = parser.parse_args()
+
+    # Startup safety guard (#27): source = MASTER_COURSE_ID (read on every
+    # mode), target = BLUEPRINT_COURSE_ID (write on --push).
+    if args.pull or args.push or args.status:
+        _course_guard(CANVAS_BASE_URL, _headers(), MASTER_COURSE_ID, "read",
+                      allow_override=args.allow_enrolled,
+                      label="source (MASTER_COURSE_ID)")
+    if args.push:
+        _course_guard(CANVAS_BASE_URL, _headers(), BLUEPRINT_COURSE_ID, "write",
+                      allow_override=args.allow_enrolled,
+                      label="target (BLUEPRINT_COURSE_ID)")
 
     if args.pull:
         cmd_pull()
