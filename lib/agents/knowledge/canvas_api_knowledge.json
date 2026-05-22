@@ -1,0 +1,264 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "make_agent_knowledge v1.0",
+    "knowledge_id": "canvas_api_knowledge",
+    "last_updated": "2026-05-21",
+    "description": "Canvas API — Documented Surface. Strict source scope: Canvas-authored documentation only (canvas.instructure.com/doc/api/ + instructure/canvas-lms YARD docstrings). Mental models (3-resource rubric pattern, 2-step module item, classic quiz 2-IDs, NewQuiz LTI gap, course/account scope), universal patterns (pagination, parameter encoding, permission scopes, include[], HTTP verbs/codes), per-resource endpoint pointers. Paired with canvas_api_lessons_learned.md (empirical findings — separate file under strict source separation).",
+    "owner": "Chaz Clark (canvas-toolbox)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Body ~15KB / 4 ≈ 3,750 tokens — within the 'either' band per runtime_strategy_rules. Set to read_at_runtime per named_override_patterns.selective_load: consuming agents load 2-4 of ~16 knowledge files per audit task. Selective-load defeats embed-cache benefits.",
+    "version_state": "v0.1 untested — per canvas-toolbox 0.x convention, not promoted to 1.0 until verified against a real Canvas course operation. Not yet wired into consuming agents' cross_references.knowledge_files[]."
+  },
+  "shape": "reference",
+  "scope": "Canvas's REST API surface as Canvas documents it. Mental models, universal patterns, per-resource endpoint pointers — all sourced from Instructure's own published documentation (rendered docs site + open-source canvas-lms YARD comments). Empirical findings live in the paired file canvas_api_lessons_learned.md. Out of scope: project conventions, canvas-toolbox tool patterns, GraphQL, LTI launch internals.",
+  "consumed_by": [
+    "canvas_course_expert.md",
+    "canvas_schedule_auditor.md",
+    "canvas_semester_setup.md",
+    "canvas_blueprint_sync.md",
+    "canvas_content_sync.md",
+    "canvas_new_course_setup.md"
+  ],
+  "facts": [
+    {
+      "id": "d1_rubrics_three_resources",
+      "term": "D1 — Rubrics are three resources (Canvas data model)",
+      "definition": "Canvas's API docs model Rubric (template — criteria[], points_possible, free_form_criterion_comments, criterion_use_range), RubricAssociation (the join — use_for_grading, hide_score_total on the association, purpose grading|bookmark, bookmarked, association_type Assignment|Course|Account), and RubricAssessment (single scoring event — assessment_type grading|peer_review|provisional_grade, per-criterion points + comments, score, artifact_id, artifact_type) as three distinct REST resources. use_for_grading lives on the JOIN, not on the rubric template.",
+      "citations": [
+        "canvas.instructure.com/doc/api/rubrics.html",
+        "canvas.instructure.com/doc/api/rubric_associations.html",
+        "canvas.instructure.com/doc/api/rubric_assessments.html"
+      ]
+    },
+    {
+      "id": "d2_module_items_reference_content",
+      "term": "D2 — Module Items reference content; they are not the content",
+      "definition": "Canvas's Modules API documents Module Items as navigation entries that reference content stored in other resources. A Module Item carries type (Page | Assignment | Quiz | Discussion | ExternalTool | ExternalUrl | SubHeader), content_id (the canvas_id of the referenced resource), and its own module_item_id. Creating the content and creating the module item that references it are two separate API calls per Canvas's docs.",
+      "citations": [
+        "canvas.instructure.com/doc/api/modules.html"
+      ]
+    },
+    {
+      "id": "d3_classic_quiz_two_ids",
+      "term": "D3 — Classic Quizzes have two canonical IDs",
+      "definition": "GET /api/v1/courses/:course_id/quizzes/:id returns the quiz with quiz_id (quiz-engine view). GET /api/v1/courses/:course_id/assignments/:id with submission_types: ['online_quiz'] returns the same quiz with assignment_id (gradebook view). Canvas's docs document quiz_id is used for quiz-engine operations and assignment_id for gradebook operations including due dates. The two IDs are linked but distinct.",
+      "citations": [
+        "canvas.instructure.com/doc/api/quizzes.html",
+        "canvas.instructure.com/doc/api/assignments.html"
+      ]
+    },
+    {
+      "id": "d4_new_quizzes_lti",
+      "term": "D4 — New Quizzes are LTI-based, not REST",
+      "definition": "Per Canvas's documentation, New Quizzes is delivered as an LTI 1.3 tool, not as REST resources. Canvas Quizzes Next / New Quizzes documentation explicitly states content for New Quizzes is managed in the New Quizzes UI (LTI launch), not via the Quizzes REST API. Same for arbitrary ExternalTool items — the LTI launch surface is the integration point, not REST.",
+      "citations": [
+        "canvas.instructure.com/doc/api/new_quizzes.html (or equivalent LTI integration page)"
+      ]
+    },
+    {
+      "id": "d5_date_field_semantics",
+      "term": "D5 — Date field semantics differ by resource",
+      "definition": "Canvas's API docs document distinct date semantics across resources. Assignments and Classic Quizzes: due_at, lock_at, unlock_at (assignment override model). Discussions: todo_date (separate field on PUT /discussion_topics/:id). Conflating the two is incorrect per Canvas's data model.",
+      "citations": [
+        "canvas.instructure.com/doc/api/assignments.html",
+        "canvas.instructure.com/doc/api/quizzes.html",
+        "canvas.instructure.com/doc/api/discussion_topics.html"
+      ]
+    },
+    {
+      "id": "d6_course_vs_account_scope",
+      "term": "D6 — Course context vs. Account context",
+      "definition": "Many resources (Rubrics, Outcomes, OutcomeGroups, Files) can be created at either course scope (/api/v1/courses/:course_id/...) or account scope (/api/v1/accounts/:account_id/...). Canvas's docs note the permission model differs: course-scoped operations require course-level capabilities; account-scoped require account-admin capabilities.",
+      "citations": [
+        "canvas.instructure.com/doc/api/rubrics.html",
+        "canvas.instructure.com/doc/api/outcomes.html",
+        "canvas.instructure.com/doc/api/files.html"
+      ]
+    },
+    {
+      "id": "u1_pagination_link_header",
+      "term": "U1 — Pagination via Link header",
+      "definition": "Canvas's pagination documentation states all paginated responses return a Link header with relations current, next, prev, first, last. Consumers should follow rel='next' until absent. per_page query parameter controls page size (default low; max 100 per Canvas's docs, varies by endpoint).",
+      "citations": [
+        "canvas.instructure.com/doc/api/file.pagination.html"
+      ]
+    },
+    {
+      "id": "u2_parameter_encoding",
+      "term": "U2 — Parameter encoding: form-encoded or JSON",
+      "definition": "Canvas's docs state requests can be made with either application/x-www-form-urlencoded or application/json payloads. The docs use the form-encoded notation module[name]=value to express nested parameters. Both are documented as accepted. (Empirical caveats on this universal statement live in canvas_api_lessons_learned.md.)",
+      "citations": [
+        "canvas.instructure.com/doc/api/ (general parameter encoding notes across endpoint docs)"
+      ]
+    },
+    {
+      "id": "u3_role_based_permissions",
+      "term": "U3 — Permission scopes are role-based",
+      "definition": "Canvas's API authorization documentation describes a role-based permission model. Operations require named capabilities (e.g., manage_rubrics, manage_assignments, read_course_content). Student tokens carry read_course_content for enrolled courses; teacher tokens carry manage_* capabilities for course-level writes; admin tokens carry account-level capabilities. Example: GET /courses/:id/rubrics requires manage_rubrics — returns 403 for student tokens per Canvas's permission model.",
+      "citations": [
+        "canvas.instructure.com/doc/api/file.oauth.html",
+        "canvas.instructure.com/doc/api/rubrics.html (permission notes)"
+      ]
+    },
+    {
+      "id": "u4_include_parameter",
+      "term": "U4 — Include parameter for embedded resources",
+      "definition": "Canvas's docs document the include[] query parameter on many endpoints — request additional embedded resources in the response. Example: GET /api/v1/courses/:id/assignments?include[]=rubric returns each assignment with its associated rubric criteria inline. Documented include values vary per endpoint and are listed in each endpoint's docs.",
+      "citations": [
+        "canvas.instructure.com/doc/api/assignments.html",
+        "canvas.instructure.com/doc/api/modules.html"
+      ]
+    },
+    {
+      "id": "u5_http_verbs",
+      "term": "U5 — Standard HTTP verbs",
+      "definition": "Canvas's docs map HTTP verbs to operations consistently: GET — read (list or single); POST — create; PUT — update (full replacement on most resources); PATCH — partial update (supported on some resources); DELETE — delete. Per Canvas's docs, POST to a create endpoint with an existing-resource identifier in the path is implementation-defined per resource; some controllers redirect POST to PUT internally.",
+      "citations": [
+        "canvas.instructure.com/doc/api/ (across endpoint docs)"
+      ]
+    },
+    {
+      "id": "u6_http_status_codes",
+      "term": "U6 — Standard HTTP status codes",
+      "definition": "Canvas's API documentation maps HTTP codes consistently: 200 success; 201 created; 204 success with empty body (DELETE); 400 validation error (response body carries errors[]); 401 authentication failure; 403 authorization failure (token lacks capability); 404 not found; 422 semantic validation error; 5xx Canvas-side error.",
+      "citations": [
+        "canvas.instructure.com/doc/api/ (across endpoint docs)"
+      ]
+    },
+    {
+      "id": "resource_pointer_rubrics",
+      "term": "Resource Pointer — Rubrics, RubricAssociations, RubricAssessments",
+      "definition": "Docs: /doc/api/rubrics.html, /doc/api/rubric_associations.html, /doc/api/rubric_assessments.html. API path roots: /courses/:id/rubrics, /courses/:id/rubric_associations, /courses/:id/rubric_associations/:rid/rubric_assessments. Survey: pre_knowledge/rubrics/canvas_rubrics_api_survey.md.",
+      "citations": [
+        "canvas.instructure.com/doc/api/rubrics.html"
+      ]
+    },
+    {
+      "id": "resource_pointer_pages",
+      "term": "Resource Pointer — Pages",
+      "definition": "Docs: /doc/api/pages.html. API path root: /courses/:id/pages. Survey: pre_knowledge/canvas_api/pages_api_survey.md.",
+      "citations": [
+        "canvas.instructure.com/doc/api/pages.html"
+      ]
+    },
+    {
+      "id": "resource_pointer_modules",
+      "term": "Resource Pointer — Modules + Module Items",
+      "definition": "Docs: /doc/api/modules.html. API path roots: /courses/:id/modules, /courses/:id/modules/:mid/items. Survey: TBD.",
+      "citations": [
+        "canvas.instructure.com/doc/api/modules.html"
+      ]
+    },
+    {
+      "id": "resource_pointer_assignments",
+      "term": "Resource Pointer — Assignments",
+      "definition": "Docs: /doc/api/assignments.html. API path root: /courses/:id/assignments. Survey: TBD.",
+      "citations": [
+        "canvas.instructure.com/doc/api/assignments.html"
+      ]
+    },
+    {
+      "id": "resource_pointer_quizzes",
+      "term": "Resource Pointer — Classic Quizzes",
+      "definition": "Docs: /doc/api/quizzes.html, /doc/api/quiz_questions.html. API path roots: /courses/:id/quizzes, /courses/:id/quizzes/:qid/questions. Survey: TBD.",
+      "citations": [
+        "canvas.instructure.com/doc/api/quizzes.html"
+      ]
+    },
+    {
+      "id": "resource_pointer_discussions",
+      "term": "Resource Pointer — Discussion Topics",
+      "definition": "Docs: /doc/api/discussion_topics.html. API path root: /courses/:id/discussion_topics. Survey: TBD.",
+      "citations": [
+        "canvas.instructure.com/doc/api/discussion_topics.html"
+      ]
+    },
+    {
+      "id": "resource_pointer_outcomes",
+      "term": "Resource Pointer — Outcomes + OutcomeGroups",
+      "definition": "Docs: /doc/api/outcomes.html, /doc/api/outcome_groups.html. API path roots: /courses/:id/outcomes, /courses/:id/root_outcome_group, /courses/:id/outcome_groups. Survey: TBD.",
+      "citations": [
+        "canvas.instructure.com/doc/api/outcomes.html"
+      ]
+    },
+    {
+      "id": "resource_pointer_files",
+      "term": "Resource Pointer — Files",
+      "definition": "Docs: /doc/api/files.html. API path root: /courses/:id/files (also /folders/:id/files). Survey: TBD (canvas_sync.py --pull-files exercises this surface).",
+      "citations": [
+        "canvas.instructure.com/doc/api/files.html"
+      ]
+    },
+    {
+      "id": "resource_pointer_blueprint",
+      "term": "Resource Pointer — Blueprint Courses",
+      "definition": "Docs: /doc/api/blueprint_courses.html. API path roots: /courses/:bp/blueprint_templates/default, /courses/:bp/blueprint_templates/default/migrations, /courses/:section/blueprint_subscriptions. Survey: TBD.",
+      "citations": [
+        "canvas.instructure.com/doc/api/blueprint_courses.html"
+      ]
+    },
+    {
+      "id": "resource_pointer_courses",
+      "term": "Resource Pointer — Courses",
+      "definition": "Docs: /doc/api/courses.html. API path root: /courses/:id. include[] values: total_students, syllabus_body, term, course_progress, sections, storage_quota_used_mb, total_scores, current_grading_period_scores, account, subaccount, observed_users, course_image, banner_image, concluded.",
+      "citations": [
+        "canvas.instructure.com/doc/api/courses.html"
+      ]
+    },
+    {
+      "id": "resource_pointer_submissions",
+      "term": "Resource Pointer — Submissions",
+      "definition": "Docs: /doc/api/submissions.html. API path root: /courses/:id/assignments/:aid/submissions. Includes rubric_assessment when requested.",
+      "citations": [
+        "canvas.instructure.com/doc/api/submissions.html"
+      ]
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "Canvas LMS REST API canonical documentation — https://canvas.instructure.com/doc/api/ (Instructure's published reference docs site).",
+      "instructure/canvas-lms — https://github.com/instructure/canvas-lms (open-source repo; YARD docstrings in app/controllers/*_controller.rb are Instructure's API documentation as code, canonical when the docs site is unreachable).",
+      "Canvas LMS Pagination documentation — https://canvas.instructure.com/doc/api/file.pagination.html",
+      "Canvas LMS OAuth / Authorization documentation — https://canvas.instructure.com/doc/api/file.oauth.html"
+    ],
+    "last_reviewed": "2026-05-21"
+  },
+  "validation": {
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "Each entry in consumed_by[] resolves to an existing agent spec (6 canvas_*.md agents verified present)"
+    ],
+    "post_run_checklist": [
+      "knowledge/canvas_api_knowledge.md exists",
+      "knowledge/canvas_api_knowledge.json exists with shape=reference and facts[] non-empty",
+      "_metadata.runtime_strategy is set (read_at_runtime via selective_load override)",
+      "consumed_by[] is non-empty",
+      "provenance.sources[] is non-empty (strict Canvas-authored only)",
+      "MD body has more than 100 bytes past section headers (well exceeded)",
+      "No empirical findings or canvas-toolbox tool references in facts[] or provenance (strict source-scope discipline)"
+    ],
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "0.1",
+        "date": "2026-05-21",
+        "changes": [
+          "Initial authoring per make_agent_knowledge v1.0 contract. Reference shape (lookup of Canvas-documented mental models, universal patterns, per-resource pointers).",
+          "Strict source-scope: only Instructure-authored documentation (canvas.instructure.com/doc/api/ + instructure/canvas-lms YARD docs). No empirical findings; no canvas-toolbox tool references; no third-party sources.",
+          "23 facts[] entries: 6 mental models (D1-D6), 6 universal patterns (U1-U6), 11 per-resource pointers.",
+          "Paired with canvas_api_lessons_learned.md (empirical companion, separate file).",
+          "Runtime strategy set to read_at_runtime via selective_load override (either band).",
+          "Version state: v0.1 untested per canvas-toolbox 0.x convention.",
+          "Not yet wired into consuming agents' cross_references.knowledge_files[] — downstream step per P-007."
+        ],
+        "breaking_changes": [],
+        "contributors": [
+          "Chaz Clark"
+        ]
+      }
+    ]
+  }
+}

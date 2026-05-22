@@ -1196,9 +1196,24 @@
         "path": "lib/agents/knowledge/toyota_gap_analysis_knowledge.json",
         "purpose": "A3 problem-solving + genchi_genbutsu observation discipline. The output-format wrapper for every proposed change.",
         "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/rubrics_knowledge.json",
+        "purpose": "Rubric quality framework. 4-criterion backbone meta-rubric (Criteria Alignment / Rating Levels / Process-Oriented / Points & Weights) + 4 typologies (analytic / holistic / single-point / developmental) + AAC&U VALUE + Walvoord PTA + BYUI Assessment Services anchors + single-point/developmental exemption rules. Audit lens for the rubric layer of the CLO \u2192 module outcome \u2192 rubric criterion chain. v0.x untested \u2014 wire is conditional on ITM327_master validation findings.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/canvas_api_knowledge.json",
+        "purpose": "Canvas-documented REST surface: mental models (3-resource rubric pattern; 2-step module item; classic-quiz 2-IDs; NewQuiz LTI gap; course vs account scope), universal patterns (pagination Link header, parameter encoding, permission scopes, include[], HTTP verbs/codes), per-resource endpoint pointers. Strict source discipline: Canvas-authored docs only. Paired with canvas_api_lessons_learned for the empirical companion. v0.x untested.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/canvas_api_lessons_learned.json",
+        "purpose": "Canvas API empirical companion: 16 lessons (L1-L16) of behaviors Canvas does NOT document or documents incorrectly (form-encoded module writes, date trio, late_policy 403, quiz points drift, NewQuiz REST gap, rubric student-token workaround, Blueprint silent skips, stale .env amplification, -N slug orphans, lock-state-only body reversion, page title-collision auto-suffix, completion requirement clear quirk) + 7 cross-cutting defense patterns (P-LL1..P-LL7) + audit indicator catalog. Always read alongside canvas_api_knowledge \u2014 they're a paired-read contract. v0.x untested.",
+        "runtime_strategy": "read_at_runtime"
       }
     ],
-    "_knowledge_files_note": "v3.6 cross_references field. Points at .json companions (runtime consumers parse JSON). Legacy primary_data.knowledge_files retained \u2014 different purpose: that field tells the audit framework selector which framework's .md to load for a given report focus."
+    "_knowledge_files_note": "v3.6 cross_references field. Points at .json companions (runtime consumers parse JSON). Legacy primary_data.knowledge_files retained \u2014 different purpose: that field tells the audit framework selector which framework's .md to load for a given report focus. Final 3 entries (rubrics_knowledge, canvas_api_knowledge, canvas_api_lessons_learned) added 2026-05-21 \u2014 v0.x untested; promotion to v1.0 + knowledge/README.md catalog gated on ITM327_master live-course findings."
   },
   "changelog": {
     "_tier": "tier_3_optional",
