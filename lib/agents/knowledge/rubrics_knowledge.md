@@ -286,18 +286,23 @@ For each rubric encountered during a Canvas audit:
 
 ## Audit Tags
 
-**Primary tag:** `rubric_quality` ∈ {`meets_criteria`, `partial`, `needs_revision`, `absent`}
+**Primary tag:** `rubric_quality` ∈ {`meets_criteria`, `meets_criteria_unverified`, `partial`, `needs_revision`, `absent`}
 
 - `absent` — no rubric attached to a graded assignment.
-- `needs_revision` — rubric attached but at least one backbone criterion at Beginning (1) level.
-- `partial` — rubric attached, all backbone criteria at Developing (2) or above, but at least one below Proficient (3).
-- `meets_criteria` — all four backbone criteria at Proficient (3) or above.
+- `needs_revision` — at least three of the machine-checkable criteria (C2/C3/C4) fail.
+- `partial` — one or two of C2/C3/C4 below Proficient.
+- `meets_criteria` — C2/C3/C4 all at Proficient or above.
+- `meets_criteria_unverified` — C2/C3/C4 pass, but Criterion 1 (alignment) could not be assessed (no fetchable CLOs).
+
+**Criterion 1 (Criteria Alignment = validity) is evidence-based and does NOT drive the verdict.** Per the BYUI validity framing and the backbone language ("criteria align with outcomes and are appropriate components of the construct"), alignment is the *foundational* dimension — but it is a **human judgment**, not a lexical string-match. An automated tool cannot reliably determine whether a criterion "traces to a CLO and is an appropriate component of the construct" (a conceptually-aligned criterion like "Thesis" can lexically mismatch an "argument" outcome). So the auditor **surfaces alignment data + recommendations for human review** rather than asserting a pass/fail. The verdict is driven by C2/C3/C4 — the dimensions text analysis *can* check reliably. (Sandbox-validated 2026-05-22: folding lexical C1 into the verdict flagged ~every rubric and made the tool useless; treating C1 as a review signal restored a sensible distribution.)
 
 **Companion tags:**
 - `rubric_typology` ∈ {`analytic`, `holistic`, `single_point`, `developmental`, `unknown`}
-- `rubric_criteria_flags` — list of backbone criteria failing: `criteria_alignment`, `rating_levels`, `process_oriented`, `points_and_weights`
+- `rubric_criteria_flags` — list of the machine-checkable criteria failing: `rating_levels`, `process_oriented`, `points_and_weights` (Criterion 1 is **not** an auto-flag — see above).
+- `alignment` — `{status ∈ {likely_aligned, review_recommended, unverified}, per_criterion[], recommendations[]}`. The validity data + actionable recommendations for human review (the foremost verification step).
+- `validity_review` — boolean; true when `alignment.status = review_recommended` (a human should verify criteria trace to CLOs). The data-informed successor to a binary `validity_flag`: alignment=validity is paramount but human-judged.
+- `criterion_unverified` ⊆ {`criteria_alignment`} — alignment couldn't be assessed (no CLOs fetchable).
 - `rubric_use_for_grading` ∈ {`true`, `false`, `n/a`} — Canvas's `use_for_grading` field; `false` is a soft flag.
-- `validity_flag` — boolean; true when Criterion 1 fails (BYUI vocabulary).
 - `reliability_flag` — boolean; true when Criterion 2 fails (BYUI vocabulary).
 
 **Single-point exemption rule:** when `rubric_typology = single_point`, suppress the `rating_levels` flag (Criterion 2) — single-point intentionally has no levels-per-criterion. Evaluate the Concerns/Advanced columns under Criterion 2 instead.

@@ -136,7 +136,7 @@
     {
       "id": "rubric_quality_tag",
       "term": "rubric_quality Audit Tag",
-      "definition": "Primary tag value enum: absent (no rubric attached to graded assignment) | needs_revision (rubric attached, at least one backbone criterion at Beginning level) | partial (rubric attached, all backbone criteria at Developing or above, at least one below Proficient) | meets_criteria (all four backbone criteria at Proficient or above). Companion tags: rubric_typology ∈ {analytic, holistic, single_point, developmental, unknown}; rubric_criteria_flags = list of backbone criteria failing (criteria_alignment, rating_levels, process_oriented, points_and_weights); rubric_use_for_grading ∈ {true, false, n/a}; validity_flag (boolean — true when Criterion 1 fails); reliability_flag (boolean — true when Criterion 2 fails). Exemption rules: when rubric_typology=single_point suppress rating_levels flag; when rubric_typology=developmental default Criterion 3 to Proficient or above.",
+      "definition": "Primary tag value enum: absent | needs_revision (3 of the machine-checkable criteria C2/C3/C4 fail) | partial (1-2 of C2/C3/C4 fail) | meets_criteria (C2/C3/C4 all pass) | meets_criteria_unverified (C2/C3/C4 pass but alignment unassessable — no CLOs). Criterion 1 (Criteria Alignment = validity) does NOT drive the verdict: per the BYUI validity framing it is paramount but a HUMAN judgment, not a lexical string-match an automated tool can make reliably (sandbox-validated 2026-05-22: folding lexical C1 into the verdict flagged ~every rubric). C1 instead surfaces an 'alignment' object {status ∈ likely_aligned|review_recommended|unverified, per_criterion[], recommendations[]} + a validity_review boolean (the foremost human-verification item; the data-informed successor to a binary validity_flag). Companion tags: rubric_typology ∈ {analytic, holistic, single_point, developmental, unknown}; rubric_criteria_flags = machine-checkable criteria failing (rating_levels, process_oriented, points_and_weights — NOT criteria_alignment); criterion_unverified ⊆ {criteria_alignment}; rubric_use_for_grading ∈ {true, false, n/a}; reliability_flag (boolean — true when Criterion 2 fails). Exemption rules: rubric_typology=single_point suppresses rating_levels flag; rubric_typology=developmental defaults Criterion 3 to passing.",
       "citations": [
         "This knowledge file's Audit Tags section"
       ]
@@ -222,6 +222,21 @@
   },
   "changelog": {
     "versions": [
+      {
+        "version": "0.3",
+        "date": "2026-05-22",
+        "changes": [
+          "Sandbox-validated (sandbox_rubric_fixtures.py, CANVAS_SANDBOX_ID): Stage 4 coverage 9/9; Stage 5 confirmed criterion_use_range round-trips (C4), single_point C2 exemption, weak->needs_revision.",
+          "Criterion 1 (alignment = validity) reframed as evidence-based per BYUI validity framing: paramount but a HUMAN judgment, NOT a lexical auto-flag. C1 now surfaces an 'alignment' object (status + per_criterion overlap data + recommendations) + a validity_review boolean; it does NOT drive the verdict. Verdict driven by C2/C3/C4. (Folding lexical C1 into the verdict flagged ~every sandbox rubric and made the tool useless.)",
+          "rubric_quality enum gains meets_criteria_unverified. rubric_criteria_flags no longer includes criteria_alignment. validity_flag -> validity_review.",
+          "C2 hedge-word over-fire fixed (bare 'mostly' tripped on 'Mostly description'); C3 over-fire fixed (flagged every rubric lacking process-vocabulary); C1 endpoint fixed (outcome_group_links, was matching syllabus boilerplate) + light stemming + conservative syllabus fallback.",
+          "Still v0.x — 1.0 promotion gated on broader real-course confidence."
+        ],
+        "breaking_changes": [],
+        "contributors": [
+          "Chaz Clark"
+        ]
+      },
       {
         "version": "0.2",
         "date": "2026-05-20",

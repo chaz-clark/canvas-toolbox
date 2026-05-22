@@ -20,26 +20,33 @@ positives. Treat output as a starting point for instructor review, NOT an
 authoritative judgment. Mirror of the discipline in
 `course_quality_check.py --alignment` (heuristic, flag for review).
 
+Criterion 1 (Criteria Alignment = validity) is treated as evidence-based per
+rubrics_knowledge.md: it is the FOUNDATIONAL dimension but a human JUDGMENT
+("do criteria trace to CLOs and cover the construct?"), which lexical
+token-overlap cannot reliably make. So C1 does NOT drive the verdict — it
+surfaces alignment DATA + a review signal. The verdict is driven by C2/C3/C4,
+the dimensions text-matching can check reliably.
+
 Tags emitted per rubric (per rubrics_knowledge.md):
   rubric_quality       ∈ {meets_criteria | meets_criteria_unverified |
                           partial | needs_revision | absent}
-  rubric_criteria_flags ⊆ {criteria_alignment, rating_levels,
-                           process_oriented, points_and_weights}
-  criterion_unverified ⊆ {criteria_alignment}  (a check that could NOT run —
-                          NOT a failure; currently only Criterion 1 when CLOs
-                          are unfetchable)
+  rubric_criteria_flags ⊆ {rating_levels, process_oriented, points_and_weights}
+                          (C2/C3/C4 only — Criterion 1 is NOT an auto-flag)
+  alignment            {status: likely_aligned | review_recommended | unverified,
+                          per_criterion: [{criterion, overlap_count, shared_terms,
+                          best_outcome}]}  — the validity DATA for human review
+  validity_review      boolean (true when alignment.status=review_recommended —
+                          the FOREMOST human-verification item; NOT a verdict-driver)
+  criterion_unverified ⊆ {criteria_alignment}  (alignment couldn't be assessed —
+                          no CLOs fetchable)
   rubric_typology      ∈ {analytic | holistic | single_point | developmental | unknown}
-  validity_flag        boolean (true ONLY when Criterion 1 explicitly fails —
-                          NOT when unverified — BYUI vocabulary)
   reliability_flag     boolean (true when Criterion 2 fails — BYUI vocabulary)
 
-Verdict mapping:
+Verdict mapping (driven by C2/C3/C4 only):
   0 flags + 0 unverified  → meets_criteria
-  0 flags + ≥1 unverified → meets_criteria_unverified (passed every check that
-                            could run; Criterion 1 skipped for lack of CLOs —
-                            exits 0, not flagged as a finding)
+  0 flags + ≥1 unverified → meets_criteria_unverified (CLOs unfetchable; C2/C3/C4 pass)
   1-2 flags               → partial
-  3+ flags                → needs_revision
+  3 flags                 → needs_revision (all of C2/C3/C4 fail)
 
 Exemption rules from rubrics_knowledge.md:
   - rubric_typology=single_point → suppress rating_levels flag (Criterion 2)
@@ -188,7 +195,13 @@ _SUBJECTIVE_TERMS = [
     r"\bsatisfactory\b", r"\bunsatisfactory\b",
     r"\bshows good\b", r"\bshows strong\b", r"\bshows understanding\b",
     r"\bdemonstrates good\b", r"\bdemonstrates strong\b",
-    r"\bmostly\b", r"\bsomewhat\b", r"\bpartially\b",
+    # Hedge words are subjective only when modifying an evaluative judgment
+    # ("mostly correct") — NOT when describing content ("mostly description").
+    # Require an evaluative companion within ~2 words (sandbox finding 2026-05-22:
+    # bare "mostly" tripped on "Mostly description").
+    r"\b(?:mostly|somewhat|partially|fairly)\s+(?:\w+\s+){0,2}"
+    r"(?:correct|complete|accurate|thorough|good|strong|weak|effective|clear|"
+    r"appropriate|adequate|sufficient|incomplete|developed|present|right|wrong)\b",
     r"\bminor errors?\b", r"\bfew errors?\b", r"\bseveral errors?\b", r"\bmany errors?\b",
     r"\b(very|quite|rather)\s+(good|strong|weak|poor|clear)\b",
     r"\beffort\b",  # "shows effort" is the canonical subjective
@@ -285,54 +298,122 @@ def classify_typology(rubric: list[dict]) -> str:
     return "analytic"
 
 
-def score_criterion_1_alignment(
+def assess_criterion_1_alignment(
     rubric: list[dict], course_outcomes: list[str],
-) -> tuple[bool | None, list[str]]:
-    """Criterion 1 — do rubric criteria trace to CLOs?
+) -> dict:
+    """Criterion 1 — Criteria Alignment (= validity, per BYUI / rubrics_knowledge).
 
-    Heuristic: tokenize each criterion's description + long_description;
-    tokenize each course outcome. A criterion 'aligns' if it shares >= 2
-    non-stopword tokens with at least one outcome.
+    EVIDENCE-BASED TREATMENT (rubrics_knowledge.md): Criterion 1 is the
+    *foundational* dimension — "the rubric measures what it is intended to
+    measure" (validity). But the knowledge defines it as a JUDGMENT — "do the
+    criteria trace to a stated CLO and are they appropriate components of the
+    construct?" — which lexical token-overlap CANNOT reliably make (sandbox
+    2026-05-22: well-formed "Thesis"/"Evidence" criteria genuinely align with an
+    "argument/research/evidence" outcome, but the strings differ so a token test
+    false-orphans them). So this function does NOT assert pass/fail. It surfaces
+    the alignment DATA for human judgment and returns a status:
 
-    Returns a THREE-state status:
-      True  — all criteria match at least one CLO (heuristic pass)
-      False — at least one orphan criterion (heuristic fail)
-      None  — course outcomes could not be fetched; Criterion 1 is UNVERIFIED
-              (NOT a failure — the caller routes None into criterion_unverified,
-              never into rubric_criteria_flags, and does not raise validity_flag)
+      "unverified"           — no course outcomes fetchable (can't assess)
+      "review_recommended"   — outcomes exist; at least one criterion shows weak
+                               lexical overlap → human should verify alignment
+      "likely_aligned"       — every criterion shows strong (>=2 token) overlap
+                               with some outcome (positive confirmation only)
+
+    The caller does NOT fold this into rubric_criteria_flags or the verdict —
+    validity is paramount but human-judged; the tool informs, it does not decide.
     """
     if not course_outcomes:
-        return None, ["course outcomes not available — Criterion 1 UNVERIFIED "
-                      "(not a failure; CLOs unfetchable via Outcomes API + "
-                      "syllabus extraction)"]
+        return {
+            "status": "unverified",
+            "per_criterion": [],
+            "notes": ["no course outcomes fetchable (Outcomes API + syllabus) — "
+                      "alignment to CLOs cannot be assessed; verify manually"],
+            "recommendations": [
+                "Confirm the course has defined learning outcomes (Canvas "
+                "Outcomes, or stated in the syllabus). Without CLOs, no rubric "
+                "criterion can be validated for alignment — define outcomes first, "
+                "then ensure each rubric criterion traces to one.",
+            ],
+        }
 
-    notes: list[str] = []
     stop = {"the", "a", "an", "of", "to", "in", "on", "for", "and", "or",
             "is", "are", "with", "by", "from", "as", "at", "that", "this",
-            "be", "will", "have", "has", "their", "its", "it", "they"}
+            "be", "will", "have", "has", "their", "its", "it", "they",
+            "student", "students", "able", "course", "learner", "learners"}
+
+    def _stem(t: str) -> str:
+        # Crude suffix stripping so word-form differences don't miss matches
+        # (e.g. explains/explain/explaining, claims/claim) — sandbox finding.
+        for suf in ("ing", "ed", "es", "s"):
+            if t.endswith(suf) and len(t) - len(suf) >= 3:
+                return t[: -len(suf)]
+        return t
 
     def tokens(s: str) -> set[str]:
-        return {t for t in re.findall(r"[a-z]+", s.lower()) if len(t) >= 4 and t not in stop}
+        return {_stem(t) for t in re.findall(r"[a-z]+", s.lower())
+                if len(t) >= 4 and t not in stop}
 
-    outcome_tokens = [tokens(o) for o in course_outcomes]
-    orphan_criteria: list[str] = []
+    outcome_tok = [(o, tokens(o)) for o in course_outcomes]
+    per_criterion: list[dict] = []
+    weak = 0
     for c in rubric:
+        cname = c.get("description") or "<unnamed>"
         ctoks = tokens(_criterion_text(c))
-        if not ctoks:
-            orphan_criteria.append(c.get("description") or "<unnamed>")
-            continue
-        if not any(len(ctoks & o) >= 2 for o in outcome_tokens):
-            orphan_criteria.append(c.get("description") or "<unnamed>")
+        best_count, best_outcome, best_shared = 0, None, set()
+        for otext, otoks in outcome_tok:
+            shared = ctoks & otoks
+            if len(shared) > best_count:
+                best_count, best_outcome, best_shared = len(shared), otext, shared
+        if best_count < 2:
+            weak += 1
+        per_criterion.append({
+            "criterion": cname,
+            "overlap_count": best_count,
+            "shared_terms": sorted(best_shared),
+            "best_outcome": (best_outcome or "")[:80],
+        })
 
-    if orphan_criteria:
-        notes.append(
-            f"{len(orphan_criteria)} of {len(rubric)} criteria do not "
-            f"match any CLO (heuristic token overlap): "
-            + ", ".join(repr(c) for c in orphan_criteria[:3])
-            + (" …" if len(orphan_criteria) > 3 else "")
-        )
-        return False, notes
-    return True, [f"all {len(rubric)} criteria match at least one CLO (heuristic)"]
+    status = "review_recommended" if weak > 0 else "likely_aligned"
+    recommendations: list[str] = []
+    if weak:
+        notes = [
+            f"{weak} of {len(rubric)} criteria show weak lexical overlap (<2 shared "
+            "terms) with any CLO — VERIFY ALIGNMENT MANUALLY. Lexical overlap is a "
+            "weak proxy for the validity judgment; conceptually-aligned criteria can "
+            "score low (e.g. 'thesis' vs 'argument'). Data for your review, not an "
+            "automated pass/fail."
+        ]
+        for pc in per_criterion:
+            if pc["overlap_count"] < 2:
+                closest = pc["best_outcome"] or "(none found)"
+                recommendations.append(
+                    f"Verify criterion '{pc['criterion']}' targets a course outcome. "
+                    f"Closest CLO by wording: {closest!r}. If it maps there, consider "
+                    f"rewording the criterion toward that outcome's language; if it "
+                    f"maps to a different outcome, confirm that outcome is covered; if "
+                    f"no outcome fits, the criterion may be measuring something the "
+                    f"CLOs don't name (a validity gap)."
+                )
+        # Coverage hint: outcomes with no strong criterion match
+        matched = {pc["best_outcome"] for pc in per_criterion if pc["overlap_count"] >= 2}
+        uncovered = [o[:80] for o, _ in outcome_tok if o[:80] not in matched]
+        if uncovered:
+            recommendations.append(
+                f"{len(uncovered)} course outcome(s) have no strongly-matching rubric "
+                f"criterion — consider whether the rubric should cover them, e.g. "
+                f"{uncovered[0]!r}."
+            )
+    else:
+        notes = [
+            f"all {len(rubric)} criteria show strong (>=2 term) lexical overlap with "
+            "a CLO — likely aligned (still your call; lexical match is only a proxy)."
+        ]
+    return {
+        "status": status,
+        "per_criterion": per_criterion,
+        "notes": notes,
+        "recommendations": recommendations,
+    }
 
 
 def score_criterion_2_rating_levels(rubric: list[dict]) -> tuple[bool, list[str]]:
@@ -478,12 +559,13 @@ def score_rubric(
             "rubric_quality": "absent",
             "rubric_criteria_flags": [],
             "criterion_unverified": [],
-            "validity_flag": False,
+            "validity_review": False,
             "reliability_flag": False,
+            "alignment": {"status": "absent", "per_criterion": [], "notes": []},
             "per_criterion": {},
         }
 
-    c1_pass, c1_notes = score_criterion_1_alignment(rubric, course_outcomes)
+    c1 = assess_criterion_1_alignment(rubric, course_outcomes)
 
     # Single-point exemption: suppress Criterion 2 flag
     if typology == "single_point":
@@ -507,19 +589,22 @@ def score_rubric(
 
     c4_pass, c4_notes = score_criterion_4_points_weights(rubric)
 
-    # c1_pass is THREE-state (True / False / None). c2/c3/c4 are two-state.
-    # None means "unverified" — routes to criterion_unverified, NOT to flags,
-    # and does NOT raise validity_flag (you can't fail a check you didn't run).
+    # EVIDENCE-BASED VERDICT (rubrics_knowledge.md): Criterion 1 (alignment =
+    # validity) is paramount but a HUMAN judgment — a lexical tool can't decide
+    # it, so it does NOT drive the verdict. It surfaces alignment data + a
+    # validity_review signal (the foremost human-verification item). The verdict
+    # is driven by C2/C3/C4 — the dimensions text-matching CAN check reliably.
     flags: list[str] = []
     unverified: list[str] = []
-    if c1_pass is None:
+    if c1["status"] == "unverified":
         unverified.append("criteria_alignment")
-    elif c1_pass is False:
-        flags.append("criteria_alignment")
+    validity_review = (c1["status"] == "review_recommended")
     if not c2_pass: flags.append("rating_levels")
     if not c3_pass: flags.append("process_oriented")
     if not c4_pass: flags.append("points_and_weights")
 
+    # Verdict from C2/C3/C4 (max 3 flags). Alignment/validity is reported
+    # separately as a review signal, never as an auto-fail.
     if not flags and not unverified:
         verdict = "meets_criteria"
     elif not flags and unverified:
@@ -533,10 +618,13 @@ def score_rubric(
         "rubric_quality": verdict,
         "rubric_criteria_flags": flags,
         "criterion_unverified": unverified,
-        "validity_flag": (c1_pass is False),  # BYUI vocab — only when EXPLICITLY failed
+        # validity_review: alignment (=validity) needs human verification. NOT a
+        # verdict-driver — the tool informs, the human decides (rubrics_knowledge:
+        # Criterion 1 is a validity judgment, not a string-match).
+        "validity_review": validity_review,
         "reliability_flag": (not c2_pass),    # BYUI vocabulary
+        "alignment": c1,                       # status + per-criterion overlap data
         "per_criterion": {
-            "criteria_alignment":  {"pass": c1_pass, "notes": c1_notes},
             "rating_levels":       {"pass": c2_pass, "notes": c2_notes},
             "process_oriented":    {"pass": c3_pass, "notes": c3_notes},
             "points_and_weights":  {"pass": c4_pass, "notes": c4_notes},
@@ -549,9 +637,6 @@ def score_rubric(
 # course_quality_check.py --alignment but lighter)
 # ---------------------------------------------------------------------------
 
-_OUTCOME_LINE_RE = re.compile(r"(?:•|<li>|-|\d+\.|\*)\s*(.{20,400})", re.IGNORECASE)
-
-
 def fetch_course_outcomes(course_id: str) -> list[str]:
     """Best-effort: try the Outcomes endpoint first; fall back to extracting
     bullet-list lines from the syllabus body. Empty list if neither yields
@@ -559,28 +644,40 @@ def fetch_course_outcomes(course_id: str) -> list[str]:
     """
     out: list[str] = []
 
-    # Try Outcomes endpoint
-    outcomes = _get(f"/courses/{course_id}/outcomes")
-    if isinstance(outcomes, list):
-        for o in outcomes:
-            txt = (o.get("title") or "") + "  " + (o.get("description") or "")
+    # Real Outcomes API: outcome_group_links with full style returns every
+    # linked outcome's title + description across the course's outcome groups.
+    # (The earlier /courses/:id/outcomes path is NOT a valid endpoint — it
+    # errored and silently fell through to syllabus boilerplate. Sandbox
+    # finding 2026-05-22.)
+    links = _get(f"/courses/{course_id}/outcome_group_links",
+                 {"outcome_style": "full"})
+    if isinstance(links, list):
+        for ln in links:
+            o = ln.get("outcome") or {}
+            txt = ((o.get("title") or "") + "  " + (o.get("description") or "")).strip()
             txt = re.sub(r"<[^>]+>", " ", txt).strip()
-            if len(txt) >= 20:
+            if len(txt) >= 12:
                 out.append(txt)
 
     if out:
         return out
 
-    # Fall back to syllabus extraction
+    # Conservative syllabus fallback: ONLY lines carrying a clear
+    # learning-outcome marker. Prevents syllabus boilerplate (accommodation
+    # statements, institutional notices) from being mistaken for outcomes —
+    # which produced false criteria_alignment flags on every rubric (sandbox
+    # finding 2026-05-22).
     course = _get(f"/courses/{course_id}", {"include[]": "syllabus_body"})
     if isinstance(course, dict):
         syll = course.get("syllabus_body") or ""
-        # Strip HTML tags
         plain = re.sub(r"<[^>]+>", "\n", syll)
+        marker = re.compile(
+            r"\b(students?\s+will|learners?\s+will|you\s+will\s+be\s+able|"
+            r"able\s+to|by\s+the\s+end\s+of|upon\s+completion)\b", re.IGNORECASE)
         for line in plain.splitlines():
-            m = _OUTCOME_LINE_RE.search(line.strip())
-            if m:
-                out.append(m.group(1).strip())
+            line = line.strip()
+            if len(line) >= 20 and marker.search(line):
+                out.append(line)
 
     return out
 
@@ -658,14 +755,31 @@ def _render(
             lines.append(f"      assignment_id={f['assignment_id']}  "
                          f"typology={f['typology']}  criteria={f['criteria_count']}")
             if v["rubric_criteria_flags"]:
-                lines.append(f"      flags: {', '.join(v['rubric_criteria_flags'])}")
-            if v.get("criterion_unverified"):
-                lines.append(f"      unverified (could not run): {', '.join(v['criterion_unverified'])}")
-            if v["validity_flag"]:
-                lines.append("      validity_flag: TRUE (Criterion 1 failed — BYUI vocabulary)")
+                lines.append(f"      flags (C2/C3/C4): {', '.join(v['rubric_criteria_flags'])}")
             if v["reliability_flag"]:
                 lines.append("      reliability_flag: TRUE (Criterion 2 failed — BYUI vocabulary)")
+            # Alignment / validity (Criterion 1) — the FOREMOST human-review item.
+            # Surfaced as data, never an auto-fail (rubrics_knowledge: validity is
+            # paramount but a human judgment).
+            algn = v.get("alignment", {})
+            status = algn.get("status")
+            if status == "review_recommended":
+                lines.append("      ⚑ VALIDITY REVIEW (Criterion 1 = alignment): verify "
+                             "these criteria trace to your course outcomes —")
+            elif status == "likely_aligned":
+                lines.append("      ✓ alignment (Criterion 1): criteria show lexical "
+                             "overlap with CLOs — likely aligned (your call)")
+            elif status == "unverified":
+                lines.append("      ⚑ alignment (Criterion 1): UNVERIFIED — no course "
+                             "outcomes fetchable; verify manually")
+            for rec in algn.get("recommendations", []):
+                lines.append(f"        → {rec}")
             if detailed:
+                for pc in algn.get("per_criterion", []):
+                    mark = "·" if pc["overlap_count"] >= 2 else "?"
+                    shared = ", ".join(pc["shared_terms"]) or "none"
+                    lines.append(f"        {mark} '{pc['criterion']}' ↔ {pc['overlap_count']} "
+                                 f"shared [{shared}]  best CLO: {pc['best_outcome']!r}")
                 for crit, result in v["per_criterion"].items():
                     sym = "✓" if result["pass"] else "✗"
                     lines.append(f"      {sym} Criterion {crit}:")
