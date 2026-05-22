@@ -62,7 +62,12 @@ from __toolbox_version__ import __version__
 load_dotenv()
 
 CANVAS_API_TOKEN    = os.environ.get("CANVAS_API_TOKEN", "")
-CANVAS_BASE_URL     = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
+# Normalize the base URL: the .env convention is scheme-less; requests needs a
+# scheme. Matches canvas_sync.py (see ITM327 2026-05-21 scheme bug).
+_raw_url = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
+if _raw_url and not _raw_url.startswith("http"):
+    _raw_url = "https://" + _raw_url
+CANVAS_BASE_URL     = _raw_url
 BLUEPRINT_COURSE_ID = os.environ.get("BLUEPRINT_COURSE_ID", "")
 
 # Exception conflicting-change type → severity (agreed #28 split)

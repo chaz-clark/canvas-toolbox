@@ -15,8 +15,10 @@ Classifications per assignment:
   - decorative_rubric   — rubric attached BUT use_rubric_for_grading=false
                           (canvas_api_lessons_learned.md L9 audit indicator)
   - non_gradable        — no rubric AND points_possible == 0 (informational)
-  - newquiz_externaltool — submission_types == ['external_tool']; rubric
-                          managed in Canvas UI not REST (L8)
+  - lti_external_tool   — submission_types == ['external_tool']; LTI-backed
+                          (NewQuiz OR any other external tool — indistinguishable
+                          via submission_types); content managed in Canvas UI
+                          not REST (L8)
   - non_submittable     — submission_types ∈ {[], ['none'], ['on_paper']}
                           (rubric optional; surfaced for review)
   - has_rubric          — assignment carries a graded rubric (no gap)
@@ -77,7 +79,12 @@ from __toolbox_version__ import __version__
 load_dotenv()
 
 CANVAS_API_TOKEN = os.environ.get("CANVAS_API_TOKEN", "")
-CANVAS_BASE_URL  = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
+# Normalize the base URL: the .env convention is scheme-less (e.g.
+# "byui.instructure.com"), but requests needs a scheme. Match canvas_sync.py.
+_raw_url = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
+if _raw_url and not _raw_url.startswith("http"):
+    _raw_url = "https://" + _raw_url
+CANVAS_BASE_URL  = _raw_url
 
 _TIMEOUT = 30
 
@@ -193,7 +200,10 @@ HAS_RUBRIC          = "has_rubric"
 DECORATIVE_RUBRIC   = "decorative_rubric"
 MISSING_RUBRIC      = "missing_rubric"
 NON_GRADABLE        = "non_gradable"
-NEWQUIZ_EXTERNAL    = "newquiz_externaltool"
+LTI_EXTERNAL_TOOL   = "lti_external_tool"   # was newquiz_externaltool — renamed:
+                                            # submission_types can't distinguish a
+                                            # NewQuiz from any other LTI tool, so the
+                                            # old name overclaimed (ITM327 4d).
 NON_SUBMITTABLE     = "non_submittable"
 
 _NON_SUBMITTABLE_SETS = ({"none"}, {"on_paper"}, set())
@@ -204,11 +214,17 @@ def classify(assignment: dict) -> str:
     rubric = assignment.get("rubric") or []
     has_criteria = isinstance(rubric, list) and len(rubric) > 0
 
-    points = assignment.get("points_possible")
-    try:
-        points = float(points) if points is not None else 0.0
-    except (TypeError, ValueError):
-        points = 0.0
+    # Distinguish "explicitly worth 0 points" (genuinely non-gradable, no rubric
+    # expected) from "points_possible is None" (points simply not set — some
+    # grading models derive the grade elsewhere). A None-points submittable
+    # assignment with no rubric is still a real GAP, not a non-gradable item.
+    raw_points = assignment.get("points_possible")
+    explicit_zero = False
+    if raw_points is not None:
+        try:
+            explicit_zero = float(raw_points) <= 0
+        except (TypeError, ValueError):
+            explicit_zero = False
 
     sub_types = assignment.get("submission_types") or []
     sub_set = set(sub_types)
@@ -225,17 +241,19 @@ def classify(assignment: dict) -> str:
 
     # No rubric attached.
     if sub_set == {"external_tool"}:
-        # NewQuiz / arbitrary ExternalTool — L8: rubric managed in Canvas UI
-        # not via REST. Flag as a separate category.
-        return NEWQUIZ_EXTERNAL
+        # LTI-backed (NewQuiz OR any other external tool — submission_types
+        # can't tell them apart). L8: content managed in Canvas UI, not REST.
+        return LTI_EXTERNAL_TOOL
 
     if sub_set in _NON_SUBMITTABLE_SETS:
         # 'none', 'on_paper', or empty — rubric is optional / instructor-choice
         return NON_SUBMITTABLE
 
-    if points <= 0:
+    if explicit_zero:
+        # Worth exactly 0 points — no rubric expected.
         return NON_GRADABLE
 
+    # Submittable, has points (or points unset) and no rubric → real gap.
     return MISSING_RUBRIC
 
 
@@ -252,7 +270,7 @@ def _summary_lines(buckets: dict[str, list[dict]]) -> list[str]:
         f"  has_rubric          : {len(buckets[HAS_RUBRIC]):4d}  ✅ rubric attached and graded",
         f"  decorative_rubric   : {len(buckets[DECORATIVE_RUBRIC]):4d}  ⚠️  rubric attached but use_rubric_for_grading=false (L9 indicator)",
         f"  missing_rubric      : {len(buckets[MISSING_RUBRIC]):4d}  🔴 graded assignment with no rubric (the gap)",
-        f"  newquiz_externaltool: {len(buckets[NEWQUIZ_EXTERNAL]):4d}  📝 LTI-managed — rubric (if any) is in Canvas UI (L8)",
+        f"  lti_external_tool   : {len(buckets[LTI_EXTERNAL_TOOL]):4d}  📝 LTI-backed (NewQuiz or other tool); rubric not REST-auditable (L8)",
         f"  non_submittable     : {len(buckets[NON_SUBMITTABLE]):4d}  📝 no submission required (rubric optional)",
         f"  non_gradable        : {len(buckets[NON_GRADABLE]):4d}  📝 zero-point assignment (no rubric expected)",
     ]
@@ -320,8 +338,8 @@ def _render(
         buckets[DECORATIVE_RUBRIC], mod_idx, detailed,
     ))
     lines.extend(_bucket_lines(
-        "📝 newquiz_externaltool — LTI-managed (rubric, if any, lives in Canvas UI)",
-        buckets[NEWQUIZ_EXTERNAL], mod_idx, detailed,
+        "📝 lti_external_tool — LTI-backed (NewQuiz or other tool); rubric not REST-auditable",
+        buckets[LTI_EXTERNAL_TOOL], mod_idx, detailed,
     ))
     lines.extend(_bucket_lines(
         "📝 non_submittable — no submission required (rubric optional)",
@@ -367,7 +385,7 @@ def _render_json(
             HAS_RUBRIC:        len(buckets[HAS_RUBRIC]),
             DECORATIVE_RUBRIC: len(buckets[DECORATIVE_RUBRIC]),
             MISSING_RUBRIC:    len(buckets[MISSING_RUBRIC]),
-            NEWQUIZ_EXTERNAL:  len(buckets[NEWQUIZ_EXTERNAL]),
+            LTI_EXTERNAL_TOOL: len(buckets[LTI_EXTERNAL_TOOL]),
             NON_SUBMITTABLE:   len(buckets[NON_SUBMITTABLE]),
             NON_GRADABLE:      len(buckets[NON_GRADABLE]),
         },
@@ -468,7 +486,7 @@ def main() -> None:
     # Classify
     buckets: dict[str, list[dict]] = {
         HAS_RUBRIC: [], DECORATIVE_RUBRIC: [], MISSING_RUBRIC: [],
-        NEWQUIZ_EXTERNAL: [], NON_SUBMITTABLE: [], NON_GRADABLE: [],
+        LTI_EXTERNAL_TOOL: [], NON_SUBMITTABLE: [], NON_GRADABLE: [],
     }
     for a in assignments:
         buckets[classify(a)].append(a)

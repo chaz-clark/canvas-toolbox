@@ -101,7 +101,12 @@ from __toolbox_version__ import __version__
 load_dotenv()
 
 CANVAS_API_TOKEN = os.environ.get("CANVAS_API_TOKEN", "")
-CANVAS_BASE_URL  = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
+# Normalize the base URL: the .env convention is scheme-less (e.g.
+# "byui.instructure.com"), but requests needs a scheme. Match canvas_sync.py.
+_raw_url = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
+if _raw_url and not _raw_url.startswith("http"):
+    _raw_url = "https://" + _raw_url
+CANVAS_BASE_URL  = _raw_url
 
 _TIMEOUT = 30
 
@@ -379,20 +384,23 @@ def score_criterion_3_process_oriented(rubric: list[dict]) -> tuple[bool, list[s
         if _OUTPUT_ONLY_RE.search(text):
             output_only_hits += 1
 
-    if process_hits == 0 and output_only_hits > 0:
+    # Only flag when the rubric ACTIVELY signals output-only focus
+    # (submission/format/accountability language) with no process-oriented
+    # criteria to counterbalance. A rubric that merely doesn't use
+    # process-vocabulary is NOT flagged — most well-formed analytic rubrics
+    # don't, and flagging them all is noise.
+    # Sandbox finding 2026-05-22: the prior "flag if zero process words" rule
+    # fired on EVERY fixture, including the well-formed one — a near-useless
+    # always-on signal. Tightened to require positive output-only evidence.
+    if output_only_hits > 0 and process_hits == 0:
         return False, [
             f"{output_only_hits} of {len(rubric)} criteria signal output-only "
-            "scoring; 0 signal process. Backbone Criterion 3 likely fails."
-        ]
-    if process_hits == 0:
-        return False, [
-            "no process-positive language detected in any criterion. "
-            "Backbone Criterion 3 likely fails (heuristic — may be a "
-            "legitimate output-only assessment)."
+            "scoring (submission/format/accountability language) with no "
+            "process-oriented criteria to counterbalance — backbone Criterion 3."
         ]
     return True, [
-        f"{process_hits} of {len(rubric)} criteria contain process-positive "
-        "language (heuristic — reflection, draft, reasoning, etc.)"
+        "no output-only-dominant pattern "
+        f"(process_hits={process_hits}, output_only_hits={output_only_hits})"
     ]
 
 
@@ -806,10 +814,26 @@ def main() -> None:
     if not findings:
         if args.emit_json:
             empty_payload = _render_json(course_id, course_name, [], len(outcomes), ts)
-            print(json.dumps(empty_payload, indent=2, ensure_ascii=False))
+            body = json.dumps(empty_payload, indent=2, ensure_ascii=False)
+            print(body)
+            if args.report:
+                _write_report(Path(args.report), body)
         else:
-            print(f"\nNo rubric-carrying assignments found in {course_name} ({course_id}).")
-            print("Run rubric_coverage_audit.py to see coverage gaps.")
+            stub = [
+                "# Rubric Quality Audit",
+                "",
+                f"Course:  {course_name} ({course_id})",
+                f"Run at:  {ts}",
+                "",
+                "No rubric-carrying assignments found — nothing to score.",
+                "Run rubric_coverage_audit.py to see coverage gaps.",
+            ]
+            body = "\n".join(stub)
+            print("\n" + body)
+            # Always write the report file when --report is given, even in the
+            # empty case, so automated pipelines always get an artifact.
+            if args.report:
+                _write_report(Path(args.report), body)
         sys.exit(0)
 
     if args.emit_json:
