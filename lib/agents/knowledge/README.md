@@ -18,6 +18,7 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 | Whether the module sequence is brain-aligned (experience before explanation) | [`experiential_learning_knowledge.md`](experiential_learning_knowledge.md) |
 | Whether the course was designed backward from outcomes (vs. assembled forward from content) | [`backwards_design_knowledge.md`](backwards_design_knowledge.md) *(Wiggins/McTighe UbD — academic framing)* or [`designer_thinking_knowledge.md`](designer_thinking_knowledge.md) *(BYUI five-stage descendant)* |
 | Whether the course's learning outcomes are well-formed (precedes alignment) | [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md) |
+| Whether a rubric is well-formed (4-criterion backbone, typology, alignment-to-CLOs) | [`rubrics_knowledge.md`](rubrics_knowledge.md) |
 | Whether a specific assessment is the right type (formative vs. summative) and AI-resistant | [`assessments_knowledge.md`](assessments_knowledge.md) |
 | Whether assessments accept AI-generated work as a substitute for learning | [`inverted_blooms_knowledge.md`](inverted_blooms_knowledge.md) |
 | Whether a BYUI course is a coherent artifact (visual grammar, rubrics, alignment) | [`course_design_language_knowledge.md`](course_design_language_knowledge.md) |
@@ -122,6 +123,16 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 **When to use:** When auditing whether a course's CLOs are well-formed before checking alignment. Precedes `designer_thinking_knowledge.md` in the audit order — you can't meaningfully check backward design if the outcomes themselves are broken.
 **Audit tag:** `clo_quality` ∈ {`meets_criteria`, `partial`, `needs_revision`} + `clo_criteria_flags` listing which of the 6 AoL criteria fail.
 **Pairs with:** `designer_thinking_knowledge.md` (backward design from outcomes), `taxonomy_explorer_knowledge.md` (BYUI verb tool), `three_domains_knowledge.md` (domain coverage and rigor spread).
+
+---
+
+### [`rubrics_knowledge.md`](rubrics_knowledge.md)
+
+**Sources:** *Rubric for Evaluating a Rubric* backbone meta-rubric; AAC&U VALUE rubrics; Walvoord & Anderson (Primary Trait Analysis); Czajka et al. (2021, developmental/feedback rubrics); Cult of Pedagogy (rubric typology, single-point); Brown Sheridan Center; Northeastern CATLR; BYU-Idaho Assessment Services. Paired with `canvas_rubrics_api_survey.md`.
+**Core idea:** Where `outcomes_quality` checks the *outcome*, this checks the *rubric* that scores against it. A 4-criterion backbone meta-rubric — **Criteria Alignment** (= validity), **Rating Levels** (= reliability), **Process-Oriented Assessment**, **Points & Weights** — plus four typologies (analytic / holistic / single-point / developmental) with their exemption rules. Criterion 1 (alignment = validity) is paramount but a *human* judgment, so the auditor surfaces alignment data + recommendations rather than auto-asserting it; the verdict is driven by the machine-checkable criteria (C2/C3/C4).
+**When to use:** Auditing whether a rubric is well-formed (Stage 5 of the rubric workstream), after `rubric_coverage_audit.py` finds which assignments have rubrics. The rubric end of the CLO → Module Outcome → Rubric Criterion alignment chain.
+**Audit tag:** `rubric_quality` ∈ {`meets_criteria`, `meets_criteria_unverified`, `partial`, `needs_revision`, `absent`} + `rubric_criteria_flags` (C2/C3/C4) + `validity_review` + `alignment` data + `rubric_typology`.
+**Consumed by:** `rubric_quality_audit.py` (the scoring engine), `canvas_course_expert.md`. **Pairs with:** `outcomes_quality_knowledge.md` (the outcome end of the chain), `canvas_api_knowledge.md` / `canvas_api_lessons_learned.md` (the API surface the audit runs on).
 
 ---
 

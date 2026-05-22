@@ -8,7 +8,7 @@
     "owner": "Chaz Clark (canvas-toolbox course-design audit framework)",
     "runtime_strategy": "read_at_runtime",
     "runtime_strategy_rationale": "Body MD ~20,500 chars / 4 ≈ 5,125 tokens — within the 'either' band per runtime_strategy_rules. Set to read_at_runtime per named_override_patterns.selective_load: canvas_course_expert loads 2-3 of ~14 knowledge files per audit task. Selective-load defeats embed-cache benefits.",
-    "version_state": "v0.2 untested — Stage 3 revisit added Canvas API-grounded facts. Per canvas-toolbox 0.x convention, not promoted to 1.0 until a successful audit against a real Canvas course rubric. Not yet wired into canvas_course_expert.json cross_references.knowledge_files[]."
+    "version_state": "v1.0 — promoted 2026-05-22. Validated against real Canvas rubrics: ITM327 production (Stage 4 coverage) + CANVAS_SANDBOX_ID ground-truth fixture matrix (Stage 4 9/9; Stage 5 backbone criteria, typologies, exemptions, criterion_use_range round-trip, evidence-based Criterion-1/validity treatment all exercised). Wired into canvas_course_expert.json cross_references.knowledge_files[]. Catalogued in knowledge/README.md."
   },
   "shape": "reference",
   "scope": "Reference for auditing rubrics in Canvas courses. Covers (a) the 4-criterion meta-rubric for evaluating any rubric's well-formedness, (b) the four rubric typologies — analytic, holistic, single-point, developmental — and when each is fit-for-purpose, (c) institutional and Canvas-specific audit indicators, and (d) the rubric_quality audit-tag enum. Out of scope: how to write a rubric from scratch (consuming agent's redesign playbook) and how to pull rubrics from Canvas (upcoming canvas_rubrics_api_survey + downstream tooling).",
@@ -222,6 +222,18 @@
   },
   "changelog": {
     "versions": [
+      {
+        "version": "1.0",
+        "date": "2026-05-22",
+        "changes": [
+          "Promoted to v1.0. Validated against real Canvas rubrics two ways: ITM327 production course (Stage 4 coverage on a real 48-assignment course) + a ground-truth fixture matrix in CANVAS_SANDBOX_ID (sandbox_rubric_fixtures.py): Stage 4 coverage 9/9, Stage 5 backbone criteria + typologies + single-point/developmental exemptions + criterion_use_range round-trip + the evidence-based Criterion-1/validity treatment all exercised.",
+          "Wired into canvas_course_expert.json cross_references.knowledge_files[]; catalogued in knowledge/README.md."
+        ],
+        "breaking_changes": [],
+        "contributors": [
+          "Chaz Clark"
+        ]
+      },
       {
         "version": "0.3",
         "date": "2026-05-22",

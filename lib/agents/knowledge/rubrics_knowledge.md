@@ -25,7 +25,7 @@
 
 _Last updated: 2026-05-20_
 
-> **Version note:** v0.1, untested. Per the canvas-toolbox `0.x` convention, this knowledge file is not yet promoted to `1.0`; promotion requires a successful audit against a real Canvas course rubric. Not yet wired into `canvas_course_expert.json`'s `cross_references.knowledge_files[]` — that is the next step.
+> **Version note:** v1.0 — promoted 2026-05-22. Validated against real Canvas rubrics two ways: ITM327 production course (Stage 4 coverage on a real 48-assignment course) + a ground-truth fixture matrix in `CANVAS_SANDBOX_ID` (`sandbox_rubric_fixtures.py` — Stage 4 coverage 9/9; Stage 5 the 4-criterion backbone, typologies, single-point/developmental exemptions, `criterion_use_range` round-trip, and the evidence-based Criterion-1/validity treatment all exercised). Wired into `canvas_course_expert.json`'s `cross_references.knowledge_files[]`. Catalogued in [`knowledge/README.md`](README.md).
 
 ---
 
