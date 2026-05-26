@@ -183,7 +183,18 @@ From here, edit any file locally and push changes back to Canvas.
 
 Questions the audit tools can answer. All of them are read-only — they report findings but never change anything in your course. Run them as often as you like.
 
-**Not sure where to start?** Run the first one below.
+**Not sure where to start?** Run the one-command health check below — it runs the rubric, syllabus, and outcome audits together and gives you one summary.
+
+## "Give me a full health check" (start here)
+
+**Ask your agent:** *"Run a full course health audit"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/course_audit.py
+```
+
+Runs the four read-only audits — rubric coverage, rubric quality, syllabus completeness, and outcome quality — and composes one report: an overall verdict (**HEALTHY / REVIEW / NEEDS ATTENTION**) plus a single "top things to fix" list. Run the individual audits below when you want the full detail on one area.
 
 ## "Are there items students can't find?"
 
