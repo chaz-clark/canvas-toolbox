@@ -1214,7 +1214,7 @@
       },
       {
         "path": "lib/agents/knowledge/syllabus_knowledge.json",
-        "purpose": "Syllabus completeness reference: the 9 required syllabus sections (BYU-Idaho template anchor; institution-neutral except Learning Model/Vision) + a first-class generative-AI-policy requirement gate (Stoplight + AI Assessment Scale frameworks) + advisory signals (bloat, outcomes-stated, Learning-Model). The audit lens for whether a syllabus contains what students need; the announcement layer of the CLO -> assessment -> rubric alignment chain. Consumed by syllabus_audit.py. v0.x untested \u2014 sandbox-validated only; wire conditional on a real-course run.",
+        "purpose": "Syllabus completeness reference: the 9 required syllabus sections (BYU-Idaho template anchor; institution-neutral except Learning Model/Vision) + a first-class generative-AI-policy requirement gate (Stoplight + AI Assessment Scale frameworks) + advisory signals (bloat, outcomes-stated, Learning-Model). The audit lens for whether a syllabus contains what students need; the announcement layer of the CLO -> assessment -> rubric alignment chain. Consumed by syllabus_audit.py. v1.0 \u2014 validated read-only against real courses (ITM327 + shared outcomes parser across m119/ds250/ds460), 2026-05-26.",
         "runtime_strategy": "read_at_runtime"
       }
     ],

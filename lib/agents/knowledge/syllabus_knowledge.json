@@ -3,7 +3,7 @@
     "template_version": "1.0",
     "generated_by": "make_agent_knowledge v1.0 (greenfield, BYUI L&T harvest)",
     "knowledge_id": "syllabus_knowledge",
-    "last_updated": "2026-05-22",
+    "last_updated": "2026-05-26",
     "description": "Syllabus completeness reference — the 9 required syllabus sections (BYU-Idaho template anchor; institution-neutral except Learning Model/Vision) + a first-class generative-AI-policy requirement gate (Stoplight + AI Assessment Scale frameworks) + advisory signals. The announcement layer of the CLO → assessment → rubric chain.",
     "owner": "Chaz Clark (BYUI course-design audit framework)",
     "runtime_strategy": "read_at_runtime",
@@ -85,11 +85,18 @@
       "consumed_by[] is non-empty",
       "provenance.sources[] is non-empty (reference shape)"
     ],
-    "real_course_validation": "PENDING. Sandbox-validated only: 16/16 logic checks on synthetic syllabi; live read against CANVAS_SANDBOX_ID (145706) returned 5/9 sections on a real 293-word syllabus_body; exit codes (0/1/2) + --json confirmed 2026-05-22. NOT yet exercised against a real non-sandbox course — hence v0.x; promote to v1.0 after a real syllabus-bearing course run.",
+    "real_course_validation": "DONE (2026-05-26). Exercised read-only against real non-sandbox courses: syllabus_audit run on ITM327 (402262) — correctly reported the 9-item Learning Outcomes section present; the shared outcomes parser it relies on was validated across ITM327/m119/ds250/ds460 (9/6/5/0 outcomes, no false positives). Plus the original sandbox checks (16/16 logic; live CANVAS_SANDBOX_ID read). Promoted to v1.0.",
     "test_cases": []
   },
   "changelog": {
     "versions": [
+      {
+        "version": "1.0",
+        "date": "2026-05-26",
+        "changes": [
+          "Promoted v0.1 → v1.0: validated read-only against real non-sandbox courses (ITM327 402262 + the shared outcomes parser across m119/ds250/ds460). Removed the 'help us test' caveat from knowledge/README.md and the v0.x-untested note from canvas_course_expert.json cross_references."
+        ]
+      },
       {
         "version": "0.1",
         "date": "2026-05-22",

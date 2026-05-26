@@ -79,4 +79,4 @@ is *announced* to students.
 (the outcomes named in the syllabus), `rubrics_knowledge.md` (the assessment/rubric end),
 `canvas_api_knowledge.md` / `canvas_api_lessons_learned.md` (the API surface).
 
-_Last updated: 2026-05-22_
+_Last updated: 2026-05-26 (promoted to v1.0 — validated read-only against real courses)_
