@@ -14,7 +14,8 @@
   "consumed_by": [
     "canvas_course_expert.md",
     "canvas_new_course_setup.md",
-    "ira_program_alignment.md"
+    "ira_program_alignment.md",
+    "clo_quality_audit.py"
   ],
   "facts": [
     {

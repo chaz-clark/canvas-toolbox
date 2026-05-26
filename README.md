@@ -284,6 +284,17 @@ uv run python canvas_toolbox/lib/tools/rubric_quality_audit.py
 
 Scores each rubric against a four-part backbone (clear criteria, distinct rating levels, process-oriented language, sensible points/weights) and surfaces an outcome-alignment review for you to confirm. Heuristic — treat results as a starting point for review.
 
+## "Are my learning outcomes well-written?"
+
+**Ask your agent:** *"Audit my course learning outcomes"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/clo_quality_audit.py
+```
+
+Finds your course outcomes (Canvas Outcomes, or the syllabus's Learning Outcomes section) and checks each against the standard quality criteria: is it **measurable** (an observable verb, not "understand"/"appreciate"), is it **single-barreled** (one goal, not "design *and* evaluate"), is the set the right **scope** (3–8 outcomes), and do they spread across **Bloom's levels** (not all recall). Flags are conservative review prompts; relevance and recency are left for your judgment. Run it before the rubric audits — a rubric aligned to a broken outcome is meaningless.
+
 ---
 
 # Syncing your course
