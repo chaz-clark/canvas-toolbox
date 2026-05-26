@@ -1,52 +1,92 @@
 {
   "_metadata": {
-    "title": "Syllabus Completeness — Auditor's Reference",
-    "version": "0.1",
-    "status": "v0.x untested — sandbox-validated only; promote to 1.0 after a real (non-sandbox) course run",
-    "last_updated": "2026-05-22"
+    "template_version": "1.0",
+    "generated_by": "make_agent_knowledge v1.0 (greenfield, BYUI L&T harvest)",
+    "knowledge_id": "syllabus_knowledge",
+    "last_updated": "2026-05-22",
+    "description": "Syllabus completeness reference — the 9 required syllabus sections (BYU-Idaho template anchor; institution-neutral except Learning Model/Vision) + a first-class generative-AI-policy requirement gate (Stoplight + AI Assessment Scale frameworks) + advisory signals. The announcement layer of the CLO → assessment → rubric chain.",
+    "owner": "Chaz Clark (BYUI course-design audit framework)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Body MD ~4,500 chars / 4 ≈ 1,125 tokens — within the 'embed' band per runtime_strategy_rules. Override to read_at_runtime per named_override_patterns.selective_load: canvas_course_expert loads 2-3 of ~12+ knowledge files per audit task, not all. Selective-load defeats embed-cache benefits even for small files (matches the other knowledge files' strategy)."
   },
   "shape": "reference",
-  "scope": "Whether a course syllabus is COMPLETE — contains the sections students need. A completeness check, not a prose-quality judgment. Tone/clarity/'is each outcome assessed' are human judgments surfaced as advisory data, never pass/fail.",
+  "scope": "Whether a course syllabus is COMPLETE — contains the sections students need. A completeness check, not a prose-quality judgment. Tone/clarity/'is each outcome assessed' are human judgments surfaced as advisory data, never pass/fail. Boundaries: outcome well-formedness lives in outcomes_quality_knowledge; the rubric/assessment end lives in rubrics_knowledge; the API surface lives in canvas_api_knowledge / canvas_api_lessons_learned.",
   "consumed_by": [
-    "syllabus_audit.py (detection engine; reads syllabus_body via GET /courses/:id?include[]=syllabus_body)",
-    "canvas_course_expert (syllabus completeness lens)"
+    "syllabus_audit.py",
+    "canvas_course_expert.md"
   ],
-  "facts": {
-    "required_sections": [
-      {"n": 1, "section": "Instructor Contact Information", "contains": "name, office, office hours, email, phone", "neutral": true},
-      {"n": 2, "section": "Overview", "contains": "course description, credits, outcomes, vision", "neutral": true, "note": "Vision is BYUI-flavored"},
-      {"n": 3, "section": "Requirements", "contains": "prerequisites, materials/texts, technology, AI policy", "neutral": true},
-      {"n": 4, "section": "Structure", "contains": "Learning Model, key assessments", "neutral": false, "note": "Learning Model is BYUI-specific"},
-      {"n": 5, "section": "Expectations", "contains": "feedback, workload", "neutral": true},
-      {"n": 6, "section": "Grading", "contains": "grading scale, late-work policy", "neutral": true},
-      {"n": 7, "section": "Students with Disabilities", "contains": "accommodation / accessibility statement", "neutral": true},
-      {"n": 8, "section": "University Policies", "contains": "academic honesty/integrity, Title IX", "neutral": true},
-      {"n": 9, "section": "Disclaimers", "contains": "subject-to-change / right-to-revise", "neutral": true}
-    ],
-    "ai_policy_gate": {
-      "requirement": "Per BYU-Idaho AI hub, every course syllabus MUST include a statement about generative AI use. Treated as a required gate that can drive an 'incomplete' verdict on its own.",
-      "frameworks": {
-        "Stoplight": "RED (disallow) / YELLOW (limited use) / GREEN (active application)",
-        "AI Assessment Scale": "No AI -> AI for Ideas -> AI for Feedback -> AI for Content -> AI-Led"
-      },
-      "provenance": "Five free-text option statements (No AI / No AI Content Creation / Cite / Open / Case-by-Case) trace to James Helfrich; Stoplight framework is the BYU-I AI Task Force's. Detection-vs-declaration evidence: AI detectors are unreliable, so a clear operationalized policy beats policing (pre_knowledge byui_ai_agency.md)."
+  "facts": [
+    {
+      "id": "required_sections",
+      "term": "9 Required Syllabus Sections (BYU-Idaho template anchor)",
+      "definition": "(1) Instructor Contact Information (name, office, office hours, email, phone); (2) Overview (course description, credits, outcomes, vision — Vision is BYUI-flavored); (3) Requirements (prerequisites, materials/texts, technology, AI policy); (4) Structure (Learning Model [BYUI-specific], key assessments); (5) Expectations (feedback, workload); (6) Grading (grading scale, late-work policy); (7) Students with Disabilities (accommodation/accessibility statement); (8) University Policies (academic honesty/integrity, Title IX); (9) Disclaimers (subject-to-change / right-to-revise). Institution-neutral except Learning Model and Vision, which are BYUI-specific and flagged as such.",
+      "citations": [
+        "BYU-Idaho Campus Curriculum Development syllabus template (pre_knowledge/byui_learning_teaching/byui_syllabus_guidance.md)"
+      ]
     },
-    "advisory_signals": [
-      "syllabus bloat (pitfall #1) — very high word count is a flag, not a failure",
-      "vague expectations (pitfall #2) / dry-contractual tone (pitfall #3) — human judgments, out of deterministic scope",
-      "outcomes stated — present in syllabus text (deeper mapped+assessed check is outcomes_quality territory)",
-      "Learning-Model introduced — BYUI-specific"
-    ],
-    "detection_caveat": "Section detection is keyword-heuristic on stripped syllabus HTML. 'Not detected' means REVIEW, not proven-absent (same evidence-based posture as rubric_quality_audit.py Criterion 1). The audit surfaces data for a human decision; it does not certify deficiency."
-  },
-  "provenance": [
-    "BYU-Idaho Campus Curriculum Development syllabus template (9 required sections) — pre_knowledge/byui_learning_teaching/byui_syllabus_guidance.md",
-    "BYU-Idaho AI hub 'AI in the Syllabus' (byui.edu/ai/academics/ai-in-the-syllabus) — pre_knowledge/byui_learning_teaching/byui_ai_hub.md",
-    "General higher-ed syllabus practice (instructor contact, outcomes, materials, grading, accessibility, academic integrity)"
+    {
+      "id": "ai_policy_gate",
+      "term": "AI Policy — Required Gate",
+      "definition": "Per BYU-Idaho's AI hub, every course syllabus MUST include a statement about generative AI use. The audit treats AI-policy presence as a first-class required gate that can drive an 'incomplete' verdict on its own — distinct from the section checklist because it is an explicit institutional requirement, not a nice-to-have.",
+      "citations": [
+        "BYU-Idaho AI hub, 'AI in the Syllabus' (byui.edu/ai/academics/ai-in-the-syllabus; pre_knowledge/byui_learning_teaching/byui_ai_hub.md)"
+      ]
+    },
+    {
+      "id": "ai_policy_frameworks",
+      "term": "AI Policy Frameworks (Stoplight / AI Assessment Scale)",
+      "definition": "Two named frameworks a syllabus may use (detection of which is advisory): Stoplight Framework — RED (disallow) / YELLOW (limited use) / GREEN (active application); AI Assessment Scale — No AI → AI for Ideas → AI for Feedback → AI for Content → AI-Led. The five free-text option statements (No AI / No AI Content Creation / Cite / Open / Case-by-Case) trace to James Helfrich; the Stoplight framework is the BYU-I AI Task Force's. Evidence base: AI detectors are unreliable, so a clear operationalized policy beats policing.",
+      "citations": [
+        "byui.edu/ai; pre_knowledge/byui_learning_teaching/byui_ai_agency.md (detection-vs-declaration)"
+      ]
+    },
+    {
+      "id": "advisory_signals",
+      "term": "Advisory Signals (data only — never drive the verdict)",
+      "definition": "Syllabus bloat (pitfall #1) — very high word count is a flag, not a failure; vague expectations (pitfall #2) and dry/contractual tone (pitfall #3) — human judgments, out of deterministic scope; outcomes stated — present in syllabus text (deeper mapped+assessed check is outcomes_quality territory); Learning-Model introduced — BYUI-specific.",
+      "citations": [
+        "pre_knowledge/byui_learning_teaching/byui_syllabus_guidance.md (3 pitfalls)"
+      ]
+    },
+    {
+      "id": "detection_caveat",
+      "term": "Detection Caveat (evidence-based stance)",
+      "definition": "Section detection is keyword-heuristic on the stripped syllabus HTML. 'Not detected' means REVIEW, not proven-absent — the same evidence-based posture rubric_quality_audit.py takes on Criterion 1. The audit surfaces data for a human decision; it does not certify a syllabus as deficient.",
+      "citations": [
+        "rubrics_knowledge.md (Criterion 1 evidence-based stance)"
+      ]
+    },
+    {
+      "id": "syllabus_audit_tag",
+      "term": "Audit Tag",
+      "definition": "verdict ∈ {complete, incomplete, no_syllabus} + per-section detected[] flags + ai_policy gate (present + detected framework) + advisory signals (bloat / outcomes-stated / learning-model). Emitted by syllabus_audit.py; reads syllabus_body via GET /courses/:id?include[]=syllabus_body.",
+      "citations": [
+        "lib/tools/syllabus_audit.py"
+      ]
+    }
   ],
+  "provenance": {
+    "sources": [
+      "BYU-Idaho Campus Curriculum Development syllabus template (9 required sections) — pre_knowledge/byui_learning_teaching/byui_syllabus_guidance.md",
+      "BYU-Idaho AI hub 'AI in the Syllabus' (byui.edu/ai/academics/ai-in-the-syllabus) — pre_knowledge/byui_learning_teaching/byui_ai_hub.md",
+      "General higher-ed syllabus practice (instructor contact, outcomes, materials, grading, accessibility, academic integrity)"
+    ],
+    "last_reviewed": "2026-05-22"
+  },
   "validation": {
-    "status": "sandbox-validated only",
-    "evidence": "16/16 logic checks on synthetic syllabi; live read against CANVAS_SANDBOX_ID (145706) returned 5/9 sections on a real 293-word syllabus_body; exit codes (0/1/2) + --json confirmed 2026-05-22. NOT yet exercised against a real non-sandbox course — hence v0.1 and not yet in knowledge/README.md catalog."
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "Each entry in consumed_by[] resolves to an existing tool/agent"
+    ],
+    "post_run_checklist": [
+      "knowledge/syllabus_knowledge.md exists",
+      "knowledge/syllabus_knowledge.json exists with shape=reference and facts[] present",
+      "_metadata.runtime_strategy is set",
+      "consumed_by[] is non-empty",
+      "provenance.sources[] is non-empty (reference shape)"
+    ],
+    "real_course_validation": "PENDING. Sandbox-validated only: 16/16 logic checks on synthetic syllabi; live read against CANVAS_SANDBOX_ID (145706) returned 5/9 sections on a real 293-word syllabus_body; exit codes (0/1/2) + --json confirmed 2026-05-22. NOT yet exercised against a real non-sandbox course — hence v0.x; promote to v1.0 after a real syllabus-bearing course run.",
+    "test_cases": []
   },
   "changelog": {
     "versions": [
@@ -54,7 +94,15 @@
         "version": "0.1",
         "date": "2026-05-22",
         "changes": [
-          "Created from the BYUI Learning & Teaching harvest (syllabus template + byui.edu/ai). Grounds syllabus_audit.py. Institution-neutral checklist with BYUI as the anchor profile; BYUI-specific items (Learning Model, Vision) flagged. Wired into canvas_course_expert.json with a v0.x-untested caveat. Held out of knowledge/README.md catalog per the v0.x->v1.0 convention (promote after a real-course run)."
+          "Created from the BYUI Learning & Teaching harvest (syllabus template + byui.edu/ai). Grounds syllabus_audit.py. Institution-neutral checklist with BYUI as the anchor profile; BYUI-specific items (Learning Model, Vision) flagged.",
+          "Wired into canvas_course_expert.json cross_references with a v0.x-untested caveat. Cataloged in knowledge/README.md flagged v0.1 'help us test' (deliberate exception to the v1.0-only catalog convention). Promotes to v1.0 after a real (non-sandbox) syllabus-bearing course run."
+        ]
+      },
+      {
+        "version": "0.1.1",
+        "date": "2026-05-26",
+        "changes": [
+          "QC-audit fix: brought the JSON onto the house schema used by the other 16 knowledge files — facts converted from an object to a facts[] array (KNW-QC-003), provenance to {sources:[], last_reviewed}, _metadata gained runtime_strategy + runtime_strategy_rationale (KNW-QC-004) + template_version/generated_by/knowledge_id/owner. No substantive content change."
         ]
       }
     ]

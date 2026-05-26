@@ -6,6 +6,8 @@ Used by: `canvas_course_expert.md` (audit framework), `canvas_course_expert.json
 
 Companion: [`hattie_3phase_knowledge.md`](hattie_3phase_knowledge.md) — Hattie sequences learning (Surface → Deep → Transfer); CLT addresses the working-memory mechanics that determine whether any phase can succeed.
 
+_Last updated: 2026-05-13_
+
 ---
 
 ## The Memory Model

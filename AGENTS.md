@@ -80,7 +80,9 @@ For the full principles and override rules, see `knowledge/behavioral_discipline
 
 ## Active Context
 
-_Last updated: 2026-05-22_
+_Last updated: 2026-05-26_
+
+- **Knowledge-base QC audit (2026-05-26) — done, came back clean.** Audited all 17 `knowledge/*.md`+`.json` pairs against the `make_agent_knowledge` KNW-QC standard + distilled-vs-pasted + bloat + cross-file redundancy. **Result: the two-layer architecture holds — no file is raw paste**; distillation discipline is real and consistent (the two largest, `assessments` 4.3k words and `rubrics` 4.3k words, are the most carefully structured, with explicit verbatim-vs-gloss labeling). Universal `read_at_runtime` is a documented `selective_load` choice, not a defect. **5 small fixes applied:** `syllabus_knowledge.json` brought onto the house schema (facts object → `facts[]` array per KNW-QC-003; provenance → `{sources:[]}`; added `runtime_strategy`); MD header spines completed on `designer_thinking` / `cognitive_load_theory` / `toyota_gap_analysis`; `three_domains` dangling `blooms_taxonomy_knowledge.md` refs resolved (point to `taxonomy_explorer` + `outcomes_quality` until the dedicated file exists). **Residual forward item:** `blooms_taxonomy_knowledge.md` is referenced as "forthcoming" by `three_domains` but not yet built — verb lists currently live in `taxonomy_explorer_knowledge.md` + `outcomes_quality_knowledge.md`; create the dedicated file only if a tool needs a single Bloom verb-reference home.
 
 **Versioning:** the `v0.x` semver line is canonical (matches `git describe` and `lib/tools/__toolbox_version__.py`). A separate `v1.x` git tag series exists in history; it is not part of the `v0.x` line and is not maintained — treat `v0.x` as canonical going forward. Downstream repos that vendor `lib/tools/` check drift with any primary sync tool's `--version` flag and re-sync via `cd canvas_toolbox && git pull` (never patch vendored copies in place).
 

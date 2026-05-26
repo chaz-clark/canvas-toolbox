@@ -78,3 +78,5 @@ is *announced* to students.
 `GET /courses/:id?include[]=syllabus_body`). **Pairs with:** `outcomes_quality_knowledge.md`
 (the outcomes named in the syllabus), `rubrics_knowledge.md` (the assessment/rubric end),
 `canvas_api_knowledge.md` / `canvas_api_lessons_learned.md` (the API surface).
+
+_Last updated: 2026-05-22_

@@ -3,6 +3,8 @@
 Source: Toyota Production System / A3 Problem Solving methodology.
 Applied to: Canvas course design audits by `canvas_course_expert.md`.
 
+_Last updated: 2026-05-13_
+
 ---
 
 ## Why Gap Analysis for Course Design

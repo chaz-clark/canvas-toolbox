@@ -4,6 +4,11 @@ A framing for course design that shifts the instructor from *teacher thinking* (
 
 > If students can't do anything new, it doesn't matter how clear your teaching was.
 
+Source: BYUI faculty-development "Architects of Learning" (backward-design framing; Wiggins & McTighe UbD lineage — see [`backwards_design_knowledge.md`](backwards_design_knowledge.md)).
+Used by: `canvas_course_expert.md` / `.json`, `canvas_new_course_setup.md`, `ira_program_alignment.md`.
+
+_Last updated: 2026-05-13_
+
 ---
 
 ## The Backward Design Framework
