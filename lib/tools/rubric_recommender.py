@@ -69,6 +69,7 @@ from dotenv import load_dotenv
 import canvas_course_guard as guard
 from rubric_coverage_audit import classify, MISSING_RUBRIC
 from rubric_quality_audit import fetch_course_outcomes
+from bloom_verbs import BLOOM_LEVELS, BLOOM_RANK, _VERB_TO_LEVEL, _BLOOM_RE, detect_bloom
 from __toolbox_version__ import __version__
 
 load_dotenv()
@@ -83,50 +84,10 @@ _TIMEOUT = 30
 
 
 # ---------------------------------------------------------------------------
-# Bloom's taxonomy (revised, Anderson & Krathwohl) — from outcomes_quality /
-# taxonomy_explorer knowledge. Lowest → highest cognitive level.
+# Bloom's taxonomy — imported from the shared bloom_verbs.py (the single home;
+# migrated from an inline copy 2026-05-26, #3 DRY cleanup). BLOOM_LEVELS /
+# BLOOM_RANK / _VERB_TO_LEVEL / _BLOOM_RE / detect_bloom come from there.
 # ---------------------------------------------------------------------------
-
-BLOOM_LEVELS = ["remember", "understand", "apply", "analyze", "evaluate", "create"]
-BLOOM_RANK = {name: i + 1 for i, name in enumerate(BLOOM_LEVELS)}
-
-BLOOM_VERBS = {
-    "remember":   ["define", "list", "name", "recall", "identify", "label", "state",
-                   "recognize", "repeat", "memorize", "match", "arrange"],
-    "understand": ["explain", "describe", "summarize", "classify", "discuss",
-                   "interpret", "paraphrase", "restate", "report", "review", "translate"],
-    "apply":      ["apply", "use", "demonstrate", "solve", "implement", "execute",
-                   "calculate", "practice", "illustrate", "operate", "schedule"],
-    "analyze":    ["analyze", "compare", "contrast", "differentiate", "examine",
-                   "categorize", "distinguish", "investigate", "diagram", "experiment"],
-    "evaluate":   ["evaluate", "assess", "critique", "judge", "justify", "defend",
-                   "argue", "appraise", "recommend", "rate", "determine"],
-    "create":     ["create", "design", "develop", "compose", "construct", "formulate",
-                   "produce", "generate", "devise", "plan", "synthesize", "write"],
-}
-_VERB_TO_LEVEL = {v: lvl for lvl, vs in BLOOM_VERBS.items() for v in vs}
-# Match the longest/highest-signal verbs; word-boundary scan.
-_BLOOM_RE = re.compile(r"\b(" + "|".join(sorted(_VERB_TO_LEVEL, key=len, reverse=True)) + r")\w*\b",
-                       re.IGNORECASE)
-
-
-def detect_bloom(text: str) -> tuple[str | None, int]:
-    """Highest Bloom level whose verb appears in `text`. Returns (level, rank)
-    or (None, 0) if no Bloom verb found."""
-    best = (None, 0)
-    plain = re.sub(r"<[^>]+>", " ", text or "")
-    for m in _BLOOM_RE.finditer(plain):
-        # map the matched token back to a base verb by prefix
-        tok = m.group(1).lower()
-        lvl = _VERB_TO_LEVEL.get(tok)
-        if lvl is None:
-            # token may be a conjugation (e.g. "analyzes") — strip to base
-            for base in (tok[:-1], tok[:-2], tok[:-3]):
-                if base in _VERB_TO_LEVEL:
-                    lvl = _VERB_TO_LEVEL[base]; break
-        if lvl and BLOOM_RANK[lvl] > best[1]:
-            best = (lvl, BLOOM_RANK[lvl])
-    return best
 
 
 # ---------------------------------------------------------------------------
