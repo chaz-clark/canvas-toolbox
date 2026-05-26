@@ -141,7 +141,7 @@ def _is_double_barreled(text: str) -> bool:
     clause), and 'programming constructs' (a verb-word used as a NOUN — the noun
     never sits right after 'and <verb>')."""
     t = _STEM_STRIP.sub("", _plain(text)).strip().lower().lstrip("•-–*0123456789.): ")
-    clause = re.split(r"[.;]", t, 1)[0]
+    clause = re.split(r"[.;]", t, maxsplit=1)[0]
     # Collect verbs in GOAL position: the leading verb + any verb sitting directly
     # after a conjunction (and/or/comma) that is NOT inside a means/relative clause.
     # A noun like "programming constructs" never sits right after "and <word>", and
@@ -228,14 +228,18 @@ def audit_clos(clos: list[str]) -> dict:
         rigor_note = (f"spread across {len(levels_present)} Bloom levels "
                       f"(top: {max((s['bloom_level'] for s in scored if s['bloom_level']), key=lambda l: BLOOM_RANK[l], default='n/a')})")
 
-    # Course verdict
+    # Course verdict (#34). needs_revision is driven ONLY by per-CLO failures —
+    # an outcome that is unmeasurable / double-barreled. The course-level signals
+    # (scope count, rigor spread) are ADVISORY review prompts, never a red on their
+    # own: a course where every CLO passes but has 9 outcomes is "review the count",
+    # not "revise". This matches the evidence-based stance of the rest of the suite.
     n_needs = sum(1 for s in scored if s["verdict"] == "needs_revision")
     n_partial = sum(1 for s in scored if s["verdict"] == "partial")
     if n == 0:
         verdict = "unverified"
-    elif "scope" in course_flags or n_needs > 0 or (n_partial + n_needs) > n / 2:
+    elif n_needs > 0 or (n_partial + n_needs) > n / 2:
         verdict = "needs_revision"
-    elif n_partial > 0 or course_flags:
+    elif n_partial > 0 or course_flags:   # per-CLO partials OR advisory scope/rigor → review
         verdict = "partial"
     else:
         verdict = "meets_criteria"

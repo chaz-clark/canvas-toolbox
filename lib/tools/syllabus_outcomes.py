@@ -146,7 +146,7 @@ def _collect_after(anchor) -> list[str]:
     for line in text_lines:
         if _STEM_RE.search(line):
             continue
-        first = re.split(r"[\s,:]", line, 1)[0].lower().strip("•-–*0123456789.) ")
+        first = re.split(r"[\s,:]", line, maxsplit=1)[0].lower().strip("•-–*0123456789.) ")
         if first in _OBSERVABLE_VERBS and len(line) >= _MIN_ITEM_LEN:
             out.append(line)
         if len(out) >= _MAX_ITEMS:

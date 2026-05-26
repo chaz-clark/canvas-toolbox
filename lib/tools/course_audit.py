@@ -183,9 +183,13 @@ def _render(course_id: str, course_name: str, rows: list[dict], combined: int, t
     else:
         lines += ["", "No findings across the four audits — course looks healthy."]
     if detailed:
+        # Layout-agnostic hint (#35): derive the path from how this tool was actually
+        # invoked (relative to cwd), so it copy-pastes correctly whether the repo is a
+        # standalone clone (lib/tools/...) or vendored as a subtree (canvas_toolbox/lib/tools/...).
+        rel = os.path.relpath(_TOOLS_DIR / "syllabus_audit.py")
         lines += ["", "─" * 62,
                   "Run any specialist directly for full detail, e.g.:",
-                  f"  uv run python canvas_toolbox/lib/tools/syllabus_audit.py --course-id {course_id} --detailed"]
+                  f"  uv run python {rel} --course-id {course_id} --detailed"]
     return lines
 
 
