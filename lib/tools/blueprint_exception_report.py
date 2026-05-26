@@ -161,6 +161,41 @@ def get_subscription_id(section_id: str) -> int | None:
     return subs[0].get("id")
 
 
+def get_blueprint_associated_ids(bp_id: str) -> set[str]:
+    """Course IDs the blueprint itself lists as associated — the authoritative
+    topology (issue #33). Empty set on error (the cross-check then can't upgrade
+    a 'not associated' to 'unreadable', which is the safe direction)."""
+    rows = _get(f"/courses/{bp_id}/blueprint_templates/default/associated_courses") or []
+    if not isinstance(rows, list):
+        return set()
+    return {str(r.get("id")) for r in rows if isinstance(r, dict) and r.get("id")}
+
+
+def classify_subscription(section_id: str, associated_ids: set[str]) -> tuple[str, int | None]:
+    """Distinguish the three real states (issue #33): a 403/empty subscription
+    read does NOT mean 'not associated'. Returns (state, sub_id):
+      - 'ok'             — subscription read; sub_id present
+      - 'unreadable'     — associated per the blueprint, but the per-course read
+                           failed (e.g. 403 token-scope) or came back empty
+      - 'not_associated' — absent from the blueprint's associated_courses
+    """
+    url = f"{CANVAS_BASE_URL}/api/v1/courses/{section_id}/blueprint_subscriptions"
+    associated = str(section_id) in associated_ids
+    try:
+        resp = requests.get(url, headers=_headers(), params={"per_page": 100}, timeout=30)
+    except Exception:
+        return ("unreadable" if associated else "not_associated", None)
+    if resp.status_code < 400:
+        try:
+            subs = resp.json()
+        except Exception:
+            subs = []
+        if isinstance(subs, list) and subs:
+            return ("ok", subs[0].get("id"))
+    # 4xx (e.g. 403) or 200-but-empty: associated → unreadable; else not associated.
+    return ("unreadable" if associated else "not_associated", None)
+
+
 def get_migration_details(section_id: str, sub_id: int, mig_id: int) -> list[dict]:
     """List of item records on the subscriber side for this migration.
     Each item carries `exceptions[].conflicting_changes` (list of type strings)."""
@@ -326,15 +361,30 @@ def main() -> None:
     body_lines: list[str] = []
     lock_lines: list[str] = []
     overall = "PASS"
+    # Authoritative association topology from the blueprint side (#33) — lets us
+    # tell "not associated" from "associated but subscription unreadable (403)".
+    associated_ids = get_blueprint_associated_ids(BLUEPRINT_COURSE_ID)
     for label, sid in sections.items():
-        sub = get_subscription_id(sid)
-        if not sub:
+        state, sub = classify_subscription(sid, associated_ids)
+        if state == "not_associated":
             block = [
-                f"## ⚪ {label.upper()} (course {sid}) — NO SUBSCRIPTION",
-                "  Not Blueprint-associated to the blueprint above; skipped.",
+                f"## ⚪ {label.upper()} (course {sid}) — NOT ASSOCIATED",
+                "  Absent from the blueprint's associated_courses list; skipped.",
             ]
             print("\n" + "\n".join(block))
             body_lines.extend(["", *block])
+            continue
+        if state == "unreadable":
+            block = [
+                f"## ⚠️  {label.upper()} (course {sid}) — SUBSCRIPTION UNREADABLE",
+                "  Associated to the blueprint, but its subscription couldn't be read "
+                "(HTTP 403 — token scope?). NOT detached; this section was skipped "
+                "because the exception data is unavailable, not because it left the blueprint.",
+            ]
+            print("\n" + "\n".join(block))
+            body_lines.extend(["", *block])
+            if SEVERITY_RANK["WARN"] > SEVERITY_RANK[overall]:
+                overall = "WARN"
             continue
 
         details = get_migration_details(sid, sub, mig_id)
