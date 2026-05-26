@@ -1,0 +1,62 @@
+{
+  "_metadata": {
+    "title": "Syllabus Completeness — Auditor's Reference",
+    "version": "0.1",
+    "status": "v0.x untested — sandbox-validated only; promote to 1.0 after a real (non-sandbox) course run",
+    "last_updated": "2026-05-22"
+  },
+  "shape": "reference",
+  "scope": "Whether a course syllabus is COMPLETE — contains the sections students need. A completeness check, not a prose-quality judgment. Tone/clarity/'is each outcome assessed' are human judgments surfaced as advisory data, never pass/fail.",
+  "consumed_by": [
+    "syllabus_audit.py (detection engine; reads syllabus_body via GET /courses/:id?include[]=syllabus_body)",
+    "canvas_course_expert (syllabus completeness lens)"
+  ],
+  "facts": {
+    "required_sections": [
+      {"n": 1, "section": "Instructor Contact Information", "contains": "name, office, office hours, email, phone", "neutral": true},
+      {"n": 2, "section": "Overview", "contains": "course description, credits, outcomes, vision", "neutral": true, "note": "Vision is BYUI-flavored"},
+      {"n": 3, "section": "Requirements", "contains": "prerequisites, materials/texts, technology, AI policy", "neutral": true},
+      {"n": 4, "section": "Structure", "contains": "Learning Model, key assessments", "neutral": false, "note": "Learning Model is BYUI-specific"},
+      {"n": 5, "section": "Expectations", "contains": "feedback, workload", "neutral": true},
+      {"n": 6, "section": "Grading", "contains": "grading scale, late-work policy", "neutral": true},
+      {"n": 7, "section": "Students with Disabilities", "contains": "accommodation / accessibility statement", "neutral": true},
+      {"n": 8, "section": "University Policies", "contains": "academic honesty/integrity, Title IX", "neutral": true},
+      {"n": 9, "section": "Disclaimers", "contains": "subject-to-change / right-to-revise", "neutral": true}
+    ],
+    "ai_policy_gate": {
+      "requirement": "Per BYU-Idaho AI hub, every course syllabus MUST include a statement about generative AI use. Treated as a required gate that can drive an 'incomplete' verdict on its own.",
+      "frameworks": {
+        "Stoplight": "RED (disallow) / YELLOW (limited use) / GREEN (active application)",
+        "AI Assessment Scale": "No AI -> AI for Ideas -> AI for Feedback -> AI for Content -> AI-Led"
+      },
+      "provenance": "Five free-text option statements (No AI / No AI Content Creation / Cite / Open / Case-by-Case) trace to James Helfrich; Stoplight framework is the BYU-I AI Task Force's. Detection-vs-declaration evidence: AI detectors are unreliable, so a clear operationalized policy beats policing (pre_knowledge byui_ai_agency.md)."
+    },
+    "advisory_signals": [
+      "syllabus bloat (pitfall #1) — very high word count is a flag, not a failure",
+      "vague expectations (pitfall #2) / dry-contractual tone (pitfall #3) — human judgments, out of deterministic scope",
+      "outcomes stated — present in syllabus text (deeper mapped+assessed check is outcomes_quality territory)",
+      "Learning-Model introduced — BYUI-specific"
+    ],
+    "detection_caveat": "Section detection is keyword-heuristic on stripped syllabus HTML. 'Not detected' means REVIEW, not proven-absent (same evidence-based posture as rubric_quality_audit.py Criterion 1). The audit surfaces data for a human decision; it does not certify deficiency."
+  },
+  "provenance": [
+    "BYU-Idaho Campus Curriculum Development syllabus template (9 required sections) — pre_knowledge/byui_learning_teaching/byui_syllabus_guidance.md",
+    "BYU-Idaho AI hub 'AI in the Syllabus' (byui.edu/ai/academics/ai-in-the-syllabus) — pre_knowledge/byui_learning_teaching/byui_ai_hub.md",
+    "General higher-ed syllabus practice (instructor contact, outcomes, materials, grading, accessibility, academic integrity)"
+  ],
+  "validation": {
+    "status": "sandbox-validated only",
+    "evidence": "16/16 logic checks on synthetic syllabi; live read against CANVAS_SANDBOX_ID (145706) returned 5/9 sections on a real 293-word syllabus_body; exit codes (0/1/2) + --json confirmed 2026-05-22. NOT yet exercised against a real non-sandbox course — hence v0.1 and not yet in knowledge/README.md catalog."
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "0.1",
+        "date": "2026-05-22",
+        "changes": [
+          "Created from the BYUI Learning & Teaching harvest (syllabus template + byui.edu/ai). Grounds syllabus_audit.py. Institution-neutral checklist with BYUI as the anchor profile; BYUI-specific items (Learning Model, Vision) flagged. Wired into canvas_course_expert.json with a v0.x-untested caveat. Held out of knowledge/README.md catalog per the v0.x->v1.0 convention (promote after a real-course run)."
+        ]
+      }
+    ]
+  }
+}

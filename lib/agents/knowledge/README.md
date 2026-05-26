@@ -156,6 +156,17 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 
 ---
 
+### [`syllabus_knowledge.md`](syllabus_knowledge.md)
+
+**Sources:** BYU-Idaho Campus Curriculum Development syllabus template (9 required sections); BYU-Idaho AI hub *AI in the Syllabus* (`byui.edu/ai` — a generative-AI policy is required); general higher-ed syllabus practice.
+**Core idea:** Whether a syllabus is *complete* — contains the sections students need (instructor contact, overview/outcomes, requirements, structure, expectations, grading, disability/accessibility, university policies, disclaimers) plus a now-required generative-AI policy. A completeness check, not a prose-quality judgment; the announcement layer of the CLO → assessment → rubric chain. Institution-neutral checklist with the BYUI template as the anchor profile (Learning Model / Vision flagged BYUI-specific).
+**When to use:** Pre-semester syllabus completeness check, before or alongside the rubric/CLO audits.
+**Audit tag:** `verdict` ∈ {`complete`, `incomplete`, `no_syllabus`} + per-section `detected` flags + `ai_policy` gate (+ detected framework) + advisory signals (bloat / outcomes-stated / learning-model).
+**Status:** ⚠️ **v0.1 — sandbox-validated only.** Cataloged here to invite real-course testing; promotes to v1.0 once exercised against a real (non-sandbox) syllabus-bearing course (per the versioning convention below — this entry is a deliberate "help us test" exception).
+**Consumed by:** `syllabus_audit.py` (the detection engine; reads `syllabus_body`), `canvas_course_expert`. **Pairs with:** `outcomes_quality_knowledge.md` (the outcomes named in the syllabus), `rubrics_knowledge.md` (the assessment/rubric end), `canvas_api_knowledge.md` / `canvas_api_lessons_learned.md` (the API surface).
+
+---
+
 ## Tag stack — full audit output
 
 A well-formed audit issue carries up to nine tag dimensions so the reader can route it cleanly:

@@ -181,7 +181,7 @@ From here, edit any file locally and push changes back to Canvas.
 
 # Auditing your course
 
-Four questions the audit tools can answer. All of them are read-only — they report findings but never change anything in your course. Run them as often as you like.
+Questions the audit tools can answer. All of them are read-only — they report findings but never change anything in your course. Run them as often as you like.
 
 **Not sure where to start?** Run the first one below.
 
@@ -248,6 +248,41 @@ Cross-references everything linked from your course content against what's actua
 - Likely duplicates — same filename, different IDs
 
 Read-only — nothing is deleted automatically.
+
+## "Is my syllabus complete?"
+
+**Ask your agent:** *"Audit my syllabus for completeness"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/syllabus_audit.py
+```
+
+Reads your course's syllabus page and checks for the sections a student needs — instructor contact, overview/outcomes, requirements, structure, expectations, grading, a disability/accessibility statement, university policies, disclaimers — plus a **generative-AI policy** (now expected on every syllabus). Reports `complete` / `incomplete` and lists what to add. Advisory extras (not counted against you): word-count/bloat, whether outcomes are stated, whether the learning model is introduced.
+
+> Note: this uses keyword-matching on your Canvas *syllabus body*, so "not detected" means *review*, not proven-missing. If your syllabus lives on a linked Page or uploaded file, the tool can't see it there.
+
+## "Which assignments are missing rubrics?"
+
+**Ask your agent:** *"Check which assignments are missing rubrics"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/rubric_coverage_audit.py
+```
+
+Classifies every assignment as having a rubric, missing one (the gap), or carrying a decorative rubric (attached but not used for grading). Exits with an error code when gaps are found — safe as a pre-semester check.
+
+## "Are my rubrics well-built?"
+
+**Ask your agent:** *"Audit the quality of my rubrics"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/rubric_quality_audit.py
+```
+
+Scores each rubric against a four-part backbone (clear criteria, distinct rating levels, process-oriented language, sensible points/weights) and surfaces an outcome-alignment review for you to confirm. Heuristic — treat results as a starting point for review.
 
 ---
 

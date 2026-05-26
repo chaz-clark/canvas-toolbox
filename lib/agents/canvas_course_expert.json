@@ -1211,9 +1211,14 @@
         "path": "lib/agents/knowledge/canvas_api_lessons_learned.json",
         "purpose": "Canvas API empirical companion: 16 lessons (L1-L16) of behaviors Canvas does NOT document or documents incorrectly (form-encoded module writes, date trio, late_policy 403, quiz points drift, NewQuiz REST gap, rubric student-token workaround, Blueprint silent skips, stale .env amplification, -N slug orphans, lock-state-only body reversion, page title-collision auto-suffix, completion requirement clear quirk) + 7 cross-cutting defense patterns (P-LL1..P-LL7) + audit indicator catalog. Always read alongside canvas_api_knowledge \u2014 they're a paired-read contract. v0.x untested.",
         "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/syllabus_knowledge.json",
+        "purpose": "Syllabus completeness reference: the 9 required syllabus sections (BYU-Idaho template anchor; institution-neutral except Learning Model/Vision) + a first-class generative-AI-policy requirement gate (Stoplight + AI Assessment Scale frameworks) + advisory signals (bloat, outcomes-stated, Learning-Model). The audit lens for whether a syllabus contains what students need; the announcement layer of the CLO -> assessment -> rubric alignment chain. Consumed by syllabus_audit.py. v0.x untested \u2014 sandbox-validated only; wire conditional on a real-course run.",
+        "runtime_strategy": "read_at_runtime"
       }
     ],
-    "_knowledge_files_note": "v3.6 cross_references field. Points at .json companions (runtime consumers parse JSON). Legacy primary_data.knowledge_files retained \u2014 different purpose: that field tells the audit framework selector which framework's .md to load for a given report focus. Final 3 entries (rubrics_knowledge, canvas_api_knowledge, canvas_api_lessons_learned) added 2026-05-21 \u2014 v0.x untested; promotion to v1.0 + knowledge/README.md catalog gated on ITM327_master live-course findings."
+    "_knowledge_files_note": "v3.6 cross_references field. Points at .json companions (runtime consumers parse JSON). Legacy primary_data.knowledge_files retained \u2014 different purpose: that field tells the audit framework selector which framework's .md to load for a given report focus. Entries rubrics_knowledge/canvas_api_knowledge/canvas_api_lessons_learned added 2026-05-21, syllabus_knowledge added 2026-05-22 \u2014 v0.x untested; promotion to v1.0 + knowledge/README.md catalog gated on real-course findings (ITM327_master for the rubric/API set; a real syllabus-bearing course for syllabus_knowledge)."
   },
   "changelog": {
     "_tier": "tier_3_optional",
