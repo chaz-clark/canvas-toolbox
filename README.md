@@ -306,6 +306,17 @@ uv run python canvas_toolbox/lib/tools/clo_quality_audit.py
 
 Finds your course outcomes (Canvas Outcomes, or the syllabus's Learning Outcomes section) and checks each against the standard quality criteria: is it **measurable** (an observable verb, not "understand"/"appreciate"), is it **single-barreled** (one goal, not "design *and* evaluate"), is the set the right **scope** (3–8 outcomes), and do they spread across **Bloom's levels** (not all recall). Flags are conservative review prompts; relevance and recency are left for your judgment. Run it before the rubric audits — a rubric aligned to a broken outcome is meaningless.
 
+## "Is the workload reasonable and well-spread?"
+
+**Ask your agent:** *"Audit my course workload distribution"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/workload_audit.py
+```
+
+Buckets your gradable assignments by due-date week and flags **crunch weeks** (one week carrying far more than the term average), front- or back-loading, and work with no due date. Add `--credits 3` for a rough over/under-assignment sanity note. It reports `balanced` / `uneven` / `sparse` / `unscheduled`. (Honest limit: it measures *distribution* from due dates — it can't see reading *hours* inside linked files, so it doesn't compute a precise time budget.)
+
 ---
 
 # Syncing your course

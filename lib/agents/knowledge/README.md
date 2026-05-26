@@ -167,6 +167,28 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 
 ---
 
+### [`workload_calibration_knowledge.md`](workload_calibration_knowledge.md)
+
+**Sources:** Carnegie credit-hour norm (~3 hrs total work per credit/week); ~250 wpm academic reading rate; Wake Forest Course Workload Estimator (Barre & Esarey).
+**Core idea:** The *aggregate* workload budget — how much gradable work a course asks and (most reliably) how it's *distributed* across the term. Clustering/crunch weeks are a defect even when the total is fine. Honest scope: distribution/density is computable from due dates; reading *hours* aren't (readings are links/files), so volume is a rough sanity note only. Complements `cognitive_load` (per-task) with the aggregate view.
+**When to use:** Pre-semester, to catch crunch weeks and over/under-assignment.
+**Audit tag:** `workload` ∈ {`balanced`, `uneven`, `sparse`, `unscheduled`} + flags (uneven_distribution / front_loaded / back_loaded / mostly_unscheduled / low_volume / high_volume).
+**Status:** ⚠️ **v0.1** — real-course-validated (ITM327 uneven; sandbox/ds250 balanced) but the thresholds are fresh; calibration may refine.
+**Consumed by:** `workload_audit.py`, `canvas_course_expert`. **Pairs with:** `cognitive_load_theory_knowledge.md` (per-task load), `syllabus_knowledge.md` (the schedule).
+
+---
+
+### [`structured_teaching_knowledge.md`](structured_teaching_knowledge.md)
+
+**Sources:** Sathy & Hogan (2022), *Inclusive Teaching*; Walton & Cohen (belonging uncertainty); Felten & Lambert (2020), *Relationship-Rich Education*.
+**Core idea:** *Structure is an equity lever* — clear specs, scaffolding, defined roles, and predictable cadence help all students and disproportionately the underserved (they reduce the hidden "unwritten rules" tax). This is the reasoning frame that gives the toolkit's existing structural findings their "so what / who it hurts most" layer; belonging uncertainty is the mechanism. Reasoning enrichment, not a new audit. Non-demographic — reasons about course design, never labels students.
+**When to use:** When interpreting a structural gap — name the equity stake, frame fixes as "more structure, for everyone."
+**Audit tag:** none (reasoning enrichment, consumed via fact lookup).
+**Status:** ✅ **v1.0** (reasoning enrichment; no calibration risk).
+**Consumed by:** `canvas_course_expert`. **Pairs with:** `cognitive_load_theory_knowledge.md`, `hattie_3phase_knowledge.md`, `course_design_language_knowledge.md`.
+
+---
+
 ## Tag stack — full audit output
 
 A well-formed audit issue carries up to nine tag dimensions so the reader can route it cleanly:

@@ -1,0 +1,66 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "make_agent_knowledge v1.0 (greenfield, PTC deep-dive new-topic)",
+    "knowledge_id": "structured_teaching_knowledge",
+    "last_updated": "2026-05-26",
+    "description": "Structured teaching as an equity lever — the reasoning frame for WHY the toolkit's existing structural findings (clear specs, scaffolding, defined roles, predictable cadence) matter, and matter most for underserved students. Belonging/mindset as the mechanism. Reasoning enrichment, not a new audit.",
+    "owner": "Chaz Clark (BYUI course-design audit framework)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Body MD ~3,400 chars / 4 ≈ 850 tokens — 'embed' band, but read_at_runtime per the selective_load pattern shared by the other knowledge files (canvas_course_expert loads a few per task)."
+  },
+  "shape": "reference",
+  "scope": "WHY course structure matters and matters most for the underserved — the equity interpretation layer over structural findings the toolkit already detects. A reasoning frame, not a new audit. Boundaries: detection of structure lives in cognitive_load + hattie + syllabus + course_quality_check; this supplies the 'so what / who it hurts' reading. Non-demographic: reasons about course design, never labels individual students.",
+  "consumed_by": [
+    "canvas_course_expert.md"
+  ],
+  "facts": [
+    {
+      "id": "core_claim",
+      "term": "Structure as an Equity Lever",
+      "definition": "Adding structure (explicit instructions, scaffolded multi-step tasks, defined group roles, worked examples, predictable routines, captions/glossaries) raises outcomes for ALL students and disproportionately for the underserved — it reduces the hidden 'figure out the unwritten rules' tax that falls hardest on first-gen/underprepared/marginalized students. Works for most without harming those who don't need it. Low structure quietly advantages students who already know the game.",
+      "citations": ["Sathy & Hogan (2022), Inclusive Teaching"]
+    },
+    {
+      "id": "reasoning_not_audit",
+      "term": "Why It's a Reasoning Frame, Not a New Audit",
+      "definition": "The toolkit already DETECTS the structural conditions (syllabus_audit/course_quality_check for clear specs; cognitive_load for scaffolding/chunking; hattie Surface for cadence/overview; hattie Deep for group-role + individual accountability). This knowledge supplies the equity INTERPRETATION: an under-structured course isn't just hard to navigate, it's inequitable because the cost is unevenly distributed. It's the 'who it hurts most, and why' layer over existing findings.",
+      "citations": ["Sathy & Hogan (2022)"]
+    },
+    {
+      "id": "belonging_mechanism",
+      "term": "Belonging & Academic Mindset (the mechanism)",
+      "definition": "Why structure helps the underserved more: belonging uncertainty (Walton & Cohen) — students unsure they belong read ambiguity as evidence they don't. Clear structure, transparent expectations, and relationship-rich contact (Felten & Lambert) reduce that uncertainty, freeing working memory for learning rather than threat-monitoring. Structure is a belonging signal as much as a navigation aid.",
+      "citations": ["Walton & Cohen (2007/2011) belonging uncertainty", "Felten & Lambert (2020) Relationship-Rich Education"]
+    },
+    {
+      "id": "how_to_apply",
+      "term": "How the Agent Applies It",
+      "definition": "When a structural gap is found, name the EQUITY stake ('vague specs tax the students least able to absorb it'), not just the navigation cost. Frame structure recommendations as adds that help everyone ('more structure, applied to all'), not remediation for a subgroup. Stay evidence-based and non-demographic — reason about course design, never label individual students.",
+      "citations": ["this knowledge file's application section"]
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "Sathy, V., & Hogan, K. A. (2022). Inclusive Teaching: Strategies for Promoting Equity in the College Classroom. West Virginia University Press.",
+      "Walton, G. M., & Cohen, G. L. (2007/2011). Belonging uncertainty / social-belonging intervention research.",
+      "Felten, P., & Lambert, L. M. (2020). Relationship-Rich Education. Johns Hopkins University Press."
+    ],
+    "last_reviewed": "2026-05-26"
+  },
+  "validation": {
+    "status": "v1.0 reasoning enrichment from the PTC deep-dive (Ch 9). Public sources only (Sathy & Hogan, Walton & Cohen, Felten & Lambert) — never the internal PTC manuscript. No tool to validate; wired into canvas_course_expert as an interpretation layer over existing structural findings.",
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "1.0",
+        "date": "2026-05-26",
+        "changes": [
+          "Created from the PTC full-book deep-dive (new-topic #2, Ch 9 inclusive/structured-teaching thread). Reasoning enrichment over existing structural findings; public sources only. Wired into canvas_course_expert cross_references + knowledge/README catalog."
+        ]
+      }
+    ]
+  }
+}

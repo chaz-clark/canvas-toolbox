@@ -1216,9 +1216,19 @@
         "path": "lib/agents/knowledge/syllabus_knowledge.json",
         "purpose": "Syllabus completeness reference: the 9 required syllabus sections (BYU-Idaho template anchor; institution-neutral except Learning Model/Vision) + a first-class generative-AI-policy requirement gate (Stoplight + AI Assessment Scale frameworks) + advisory signals (bloat, outcomes-stated, Learning-Model). The audit lens for whether a syllabus contains what students need; the announcement layer of the CLO -> assessment -> rubric alignment chain. Consumed by syllabus_audit.py. v1.0 \u2014 validated read-only against real courses (ITM327 + shared outcomes parser across m119/ds250/ds460), 2026-05-26.",
         "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/workload_calibration_knowledge.json",
+        "purpose": "Aggregate student-workload calibration: the Carnegie credit-hour norm + reading-rate math, and the distribution-vs-volume split. The lens for whether a course's gradable work is sanely DISTRIBUTED across the term (clustering/crunch weeks are the reliable signal) and roughly right in VOLUME. Complements cognitive_load (per-task load) with the aggregate budget view. Consumed by workload_audit.py. v0.1 \u2014 validated read-only on real courses (ITM327 uneven; sandbox/ds250 balanced), 2026-05-26.",
+        "runtime_strategy": "read_at_runtime"
+      },
+      {
+        "path": "lib/agents/knowledge/structured_teaching_knowledge.json",
+        "purpose": "Structured teaching as an equity lever (Sathy & Hogan; Walton & Cohen belonging): the reasoning frame for WHY existing structural findings (clear specs, scaffolding, defined roles, predictable cadence) matter and matter most for the underserved. A reasoning enrichment layered over cognitive_load/hattie/syllabus findings, not a new audit. Non-demographic: reasons about course design, never labels students.",
+        "runtime_strategy": "read_at_runtime"
       }
     ],
-    "_knowledge_files_note": "v3.6 cross_references field. Points at .json companions (runtime consumers parse JSON). Legacy primary_data.knowledge_files retained \u2014 different purpose: that field tells the audit framework selector which framework's .md to load for a given report focus. Entries rubrics_knowledge/canvas_api_knowledge/canvas_api_lessons_learned added 2026-05-21, syllabus_knowledge added 2026-05-22 \u2014 v0.x untested; promotion to v1.0 + knowledge/README.md catalog gated on real-course findings (ITM327_master for the rubric/API set; a real syllabus-bearing course for syllabus_knowledge)."
+    "_knowledge_files_note": "v3.6 cross_references field. Points at .json companions (runtime consumers parse JSON). Legacy primary_data.knowledge_files retained \u2014 different purpose: that field tells the audit framework selector which framework's .md to load for a given report focus. Entries rubrics_knowledge/canvas_api_knowledge/canvas_api_lessons_learned added 2026-05-21, syllabus_knowledge added 2026-05-22 (now v1.0), workload_calibration + structured_teaching added 2026-05-26 (PTC deep-dive new topics). NOT wired here: content_representation_knowledge \u2014 built 2026-05-26 but deliberately ORPHANED (consumed only by its own experimental tool) pending a use case."
   },
   "changelog": {
     "_tier": "tier_3_optional",
