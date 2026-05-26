@@ -158,11 +158,30 @@ def get_page_with_body(course_id: str, slug: str) -> dict | None:
 
 def get_page_revision_hashes(course_id: str, slug: str) -> set[str]:
     """Hashes of every body in this page's revision history.
-    Empty set on error (defensive — we never block on revision fetch failure)."""
+
+    The revisions LIST endpoint does NOT include `body` (it returns only
+    edited_by / latest / revision_id / updated_at), so each revision's body
+    must be fetched individually via the per-revision detail endpoint with
+    `summary=false` (issue #32 — the LIST-only version always returned an
+    empty set, which made Detector B mislabel every drift as a reversion).
+    This is N+1 requests per divergent page, so it is only called on the
+    divergence path. Empty set on error (defensive — never block on a
+    revision fetch failure)."""
     revs = _get(f"/courses/{course_id}/pages/{slug}/revisions") or []
     hashes: set[str] = set()
     for r in revs:
-        body = r.get("body") if isinstance(r, dict) else None
+        if not isinstance(r, dict):
+            continue
+        body = r.get("body")  # absent on the LIST endpoint; present if Canvas ever adds it
+        if body is None:
+            rid = r.get("revision_id")
+            if rid is None:
+                continue
+            full = _get(
+                f"/courses/{course_id}/pages/{slug}/revisions/{rid}",
+                {"summary": "false"},
+            )
+            body = full.get("body") if isinstance(full, dict) else None
         if body is not None:
             hashes.add(_hash(body))
     return hashes
@@ -272,6 +291,18 @@ def detect_body_reversions(
         sec_page = get_page_with_body(section_id, slug)
         if not sec_page:
             continue  # missing in section is drift (validate_blueprint_sync's beat)
+        # Lock-status gate (issue #32 Bug 2). A "reversion" verdict is only
+        # meaningful for a Blueprint-content-LOCKED page — there the section
+        # body is supposed to track the blueprint, so losing that content is
+        # the reversion signal (the 2026-05-20 W01 incident was content-locked).
+        # On an UNLOCKED page the section legitimately owns its content and
+        # divergence is expected (every course has a section-specific homepage),
+        # so don't flag it.
+        restrictions = sec_page.get("blueprint_item_restrictions") or {}
+        content_locked = (bool(sec_page.get("restricted_by_master_course"))
+                          and bool(restrictions.get("content")))
+        if not content_locked:
+            continue
         bp_full = get_page_with_body(bp_id, slug)
         if not bp_full:
             continue
