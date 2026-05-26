@@ -95,6 +95,7 @@ from dotenv import load_dotenv
 
 import canvas_course_guard as guard
 from __toolbox_version__ import __version__
+from syllabus_outcomes import detect_outcomes_section
 
 load_dotenv()
 
@@ -234,9 +235,9 @@ _AI_FRAMEWORK_SIGNALS: list[tuple[str, list[str]]] = [
                               "ai-led", "ai led", "assessment scale"]),
 ]
 
-# Outcomes / Learning-Model signals (advisory data).
-_OUTCOMES_PATTERNS = ["learning outcome", "course outcome", "student learning outcome",
-                      "course objective", "learning objective"]
+# Outcomes presence is detected DOM-aware via the shared syllabus_outcomes
+# parser (issue #31 — one parser, all tools agree). Learning-Model is a simple
+# keyword signal (BYUI-specific advisory).
 _LEARNING_MODEL_PATTERNS = ["learning model", "prepare, teach", "teach one another",
                             "ponder and prove", "byu-i learning model",
                             "byui learning model", "prepare-teach"]
@@ -269,12 +270,14 @@ def detect_ai_policy(text: str) -> dict:
     return {"present": present, "frameworks": frameworks}
 
 
-def detect_advisory(text: str) -> dict:
+def detect_advisory(text: str, body: str) -> dict:
     wc = word_count(text)
     return {
         "word_count": wc,
         "bloat": wc > _BLOAT_WORDS,
-        "outcomes_present": _any(text, _OUTCOMES_PATTERNS),
+        # DOM-aware, shared with rubric_quality_audit / rubric_recommender (#31):
+        # detects the outcomes SECTION (heading/stem), not a bare keyword hit.
+        "outcomes_present": detect_outcomes_section(body) is not None,
         "learning_model_present": _any(text, _LEARNING_MODEL_PATTERNS),
     }
 
@@ -476,7 +479,7 @@ def main() -> None:
     body_words = word_count(text)
     sections = detect_sections(text)
     ai_policy = detect_ai_policy(text)
-    advisory = detect_advisory(text)
+    advisory = detect_advisory(text, body)
     verdict, missing = compute_verdict(sections, ai_policy, body_words)
 
     if args.emit_json:

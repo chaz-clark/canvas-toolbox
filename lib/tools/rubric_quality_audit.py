@@ -104,6 +104,7 @@ from dotenv import load_dotenv
 
 import canvas_course_guard as guard
 from __toolbox_version__ import __version__
+from syllabus_outcomes import extract_outcomes
 
 load_dotenv()
 
@@ -662,22 +663,14 @@ def fetch_course_outcomes(course_id: str) -> list[str]:
     if out:
         return out
 
-    # Conservative syllabus fallback: ONLY lines carrying a clear
-    # learning-outcome marker. Prevents syllabus boilerplate (accommodation
-    # statements, institutional notices) from being mistaken for outcomes —
-    # which produced false criteria_alignment flags on every rubric (sandbox
-    # finding 2026-05-22).
+    # Structural syllabus fallback: the shared DOM-aware parser locates the
+    # Learning Outcomes section and returns its list ITEMS (issue #30/#31).
+    # The previous per-line marker regex captured the section stem + unrelated
+    # deadline lines and missed every real verb-first CLO; extract_outcomes
+    # treats the stem/heading as a delimiter, never as an outcome.
     course = _get(f"/courses/{course_id}", {"include[]": "syllabus_body"})
     if isinstance(course, dict):
-        syll = course.get("syllabus_body") or ""
-        plain = re.sub(r"<[^>]+>", "\n", syll)
-        marker = re.compile(
-            r"\b(students?\s+will|learners?\s+will|you\s+will\s+be\s+able|"
-            r"able\s+to|by\s+the\s+end\s+of|upon\s+completion)\b", re.IGNORECASE)
-        for line in plain.splitlines():
-            line = line.strip()
-            if len(line) >= 20 and marker.search(line):
-                out.append(line)
+        out.extend(extract_outcomes(course.get("syllabus_body") or ""))
 
     return out
 

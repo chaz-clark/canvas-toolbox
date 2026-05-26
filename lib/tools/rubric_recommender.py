@@ -437,6 +437,11 @@ def main() -> None:
                          "Default is plan-only.")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Bypass the safety guard on --apply (sandbox should be safe)")
+    ap.add_argument("--allow-generic", action="store_true",
+                    help="Proceed even when NO course outcomes can be established "
+                         "(emits generic, NON-outcome-aligned scaffolds). Off by "
+                         "default: the recommender refuses rather than emit "
+                         "anti-aligned rubrics (#31 CLO-discovery gate).")
     args = ap.parse_args()
 
     if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://" or not CANVAS_API_TOKEN:
@@ -460,6 +465,24 @@ def main() -> None:
         print(f"\nNo assignments returned for {course_id} ('{course_name}').", file=sys.stderr)
         sys.exit(2)
     outcomes = fetch_course_outcomes(course_id)
+
+    # CLO-discovery gate (#31): criteria are derived FROM the course's outcomes,
+    # so with no outcomes established every emitted rubric is unaligned by
+    # construction. Refuse rather than emit confidently-wrong (anti-aligned)
+    # rubrics. --allow-generic overrides for the case where generic scaffolds
+    # are knowingly wanted.
+    if not outcomes and not args.allow_generic:
+        print(f"\n🔴 Could not establish course outcomes for {course_id} "
+              f"('{course_name}').", file=sys.stderr)
+        print("   No Canvas Outcomes, and no Learning Outcomes section found in the "
+              "syllabus. Rubric criteria can't be aligned to outcomes that don't "
+              "exist — refusing to emit anti-aligned rubrics.", file=sys.stderr)
+        print("   Fix: define Canvas Outcomes, or add a Learning Outcomes section to "
+              "the syllabus (run syllabus_audit.py to check), then re-run.",
+              file=sys.stderr)
+        print("   Override: --allow-generic emits generic scaffolds anyway "
+              "(NOT outcome-aligned).", file=sys.stderr)
+        sys.exit(2)
 
     # Target set: missing-rubric assignments (optionally one).
     targets = [a for a in assignments if classify(a) == MISSING_RUBRIC]
