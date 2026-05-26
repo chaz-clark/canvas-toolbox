@@ -6,7 +6,7 @@ Used by: `canvas_course_expert.md` (audit framework), `canvas_course_expert.json
 
 Companion: [`hattie_3phase_knowledge.md`](hattie_3phase_knowledge.md) — Hattie sequences learning (Surface → Deep → Transfer); CLT addresses the working-memory mechanics that determine whether any phase can succeed.
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-26 (added expert-blind-spot corollary + the Deslauriers "feeling of learning" gap — PTC gap-audit, both public citations)_
 
 ---
 
@@ -32,6 +32,8 @@ The bottleneck is working memory. Course design either respects its limits or ov
 
 A well-developed schema, no matter how complex, counts as **one chunk** in working memory. This is why experts can hold and manipulate ideas a novice cannot — the expert's schema compresses what the novice must process piece by piece.
 
+**The expert blind spot (corollary).** Because the expert's schema compresses the material into a single chunk, the expert often can no longer *see* the novice's specific stuck-point — the "curse of knowledge." A near-peer who recently struggled with the concept is frequently better at unsticking a novice. This is the working-memory mechanism behind why peer instruction outperforms expert explanation (see [`hattie_3phase_knowledge.md`](hattie_3phase_knowledge.md) "Teach One Another → Deep").
+
 **Implications for course design:**
 - Activate prior knowledge before introducing new material — students need a schema to attach new content to.
 - Target instruction at the **gap between what learners know and what we need them to learn** (the "problem space").
@@ -50,6 +52,8 @@ A well-developed schema, no matter how complex, counts as **one chunk** in worki
 **Cognitive overload** = intrinsic + extraneous + germane > working memory capacity. Even capable learners fail when the total exceeds the limit.
 
 **Priority for designers:** Reduce extraneous first. Intrinsic is fixed by the subject. Germane is what you want — you cannot afford to crowd it out with extraneous noise.
+
+**The "feeling of learning" gap (Deslauriers et al., 2019, *PNAS*).** Germane work *feels* harder and less effective to students even when it produces more learning — in active-learning sections students learned more but rated their own learning *lower* than peers in a polished lecture. A brief up-front explanation of *why* the harder activity works measurably closes that perception gap. **Audit implication:** "students found it hard / disliked it" is NOT evidence that a germane-load activity is defective — the discomfort is the schema-building work.
 
 ---
 

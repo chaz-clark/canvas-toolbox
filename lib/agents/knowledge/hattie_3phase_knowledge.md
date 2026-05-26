@@ -4,6 +4,8 @@ Source: Hattie, J. (2009). *Visible Learning*. Routledge.
 Used by: `canvas_course_expert.md` (audit framework), `canvas_course_expert.json` (hattie_phase field on each audit rule)
 Companion: [`cognitive_load_theory_knowledge.md`](cognitive_load_theory_knowledge.md) — Hattie sequences learning across phases; CLT addresses the working-memory mechanics within each phase.
 
+_Last updated: 2026-05-26 (added Deep-phase group-work quality sub-check — PTC gap-audit)_
+
 ---
 
 ## The Three Phases
@@ -57,6 +59,8 @@ Students connect ideas, find patterns, and build understanding — the "why" and
 - Peer review or collaborative tasks
 - Reflection prompts tied to content
 
+> **Group/peer-task *quality* caveat.** A peer or group task supports Deep learning only if it is *designed* for it — poorly designed group work backfires. Treat "a group task exists" as a green flag only when both hold: (a) **individual accountability** (each student's own contribution is assessable, defusing freeloader anxiety), and (b) **interdependent roles** (the task genuinely requires collaboration, not parallel solo work stapled into "modular silos"). The reason peer construction works at all is the *expert blind spot* — a near-peer who recently struggled often unsticks a novice better than the expert (see [`cognitive_load_theory_knowledge.md`](cognitive_load_theory_knowledge.md) schemas).
+
 ### Canvas indicators of a Deep gap
 
 | Signal | What it means |
@@ -64,6 +68,7 @@ Students connect ideas, find patterns, and build understanding — the "why" and
 | Module has only quizzes and readings | No mechanism for students to construct meaning |
 | All assessments are multiple-choice | Recall is tested, not understanding |
 | No discussion or peer interaction | Students process individually only — no social construction of knowledge |
+| Group project with no individual accountability or interdependent roles | Freeloader anxiety + "modular silos"; collaboration is nominal, no co-construction |
 | Overview page exists but states no outcomes | Students can't connect new content to goals they understand |
 
 ### Cognitive load connection

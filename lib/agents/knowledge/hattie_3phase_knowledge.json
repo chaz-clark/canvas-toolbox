@@ -3,7 +3,7 @@
     "template_version": "1.0",
     "generated_by": "make_agent_knowledge v1.0 (retrofit mode)",
     "knowledge_id": "hattie_3phase_knowledge",
-    "last_updated": "2026-05-13",
+    "last_updated": "2026-05-26",
     "description": "Hattie's 3-Phase Learning Model — Surface → Deep → Transfer. Canvas audit indicators per phase, hattie_phase audit-tag values, BYUI module-element mapping.",
     "owner": "Chaz Clark (BYUI course-design audit framework)",
     "runtime_strategy": "read_at_runtime",

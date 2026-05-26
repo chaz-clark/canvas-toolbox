@@ -3,7 +3,7 @@
     "template_version": "1.0",
     "generated_by": "make_agent_knowledge v1.0 (retrofit mode)",
     "knowledge_id": "cognitive_load_theory_knowledge",
-    "last_updated": "2026-05-13",
+    "last_updated": "2026-05-26",
     "description": "Cognitive Load Theory — memory model, three load types (intrinsic/extraneous/germane), dual-channel theory, problem space, Canvas audit indicators for load-type tagging.",
     "owner": "Chaz Clark (BYUI course-design audit framework)",
     "runtime_strategy": "read_at_runtime",
