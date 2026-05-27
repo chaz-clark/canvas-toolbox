@@ -206,11 +206,21 @@ data = {"quiz[due_at]": new_due, "quiz[lock_at]": None, "quiz[unlock_at]": None}
 
 **Provenance:** `module_settings_sync.py` (#25).
 
+### L17 — Blueprint `asset_type` vocabulary differs between two endpoints
+
+**What Canvas does:** The same conceptual asset is named in **two different vocabularies** depending on the Blueprint endpoint. `unsynced_changes` (pre-sync) returns **lowercase snake_case** (`wiki_page`, `assignment`, `assignment_group`, `quizzes::quiz`); `migration-details` (post-sync, the `ChangeRecord.asset_type`) returns **Rails CamelCase class names** (`WikiPage`, `Assignment`, `Quizzes::Quiz`, `DiscussionTopic`, `ContextExternalTool`). Neither set matches the other, and a lookup table built for one silently misses on the other.
+
+**Why it matters:** A map keyed for migration-details (CamelCase) returns `None` for every `unsynced_changes` value, and vice-versa — a silent miss, not an error. (#37: `blueprint_presync_check --suggest-locks` punted every lock to "do it in the UI" because it reused #28's CamelCase `ASSET_TYPE_MAP` against snake_case `unsynced_changes` values.) Conveniently, the **`unsynced_changes` snake_case values are already the `restrict_item` `content_type` values** (`wiki_page`→`wiki_page`, `assignment`→`assignment`), so no translation is needed there — only `quizzes::quiz`→`quiz` and `context_external_tool`→`external_tool` need normalizing.
+
+**How the toolkit handles it:** `blueprint_presync_check.py` keeps its own snake_case `_LOCKABLE_CONTENT_TYPE` map (passthrough + the two qualified-name normalizations) instead of importing #28's CamelCase map; `blueprint_exception_report.py` keeps its CamelCase `ASSET_TYPE_MAP` for migration-details. Two endpoints, two maps — don't share one.
+
+**Provenance:** `blueprint_presync_check.py` (#36/#37), `blueprint_exception_report.py` (#28).
+
 ---
 
 ## Cross-Cutting Patterns
 
-These are the toolkit conventions that bake defenses against the 16 lessons into every new tool.
+These are the toolkit conventions that bake defenses against the 17 lessons into every new tool.
 
 ### P-LL1 — Form-encoded for nested writes (defends L1, L2, L16)
 

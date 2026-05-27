@@ -162,6 +162,15 @@
       ]
     },
     {
+      "id": "l17_blueprint_asset_type_vocab_mismatch",
+      "term": "L17 — Blueprint asset_type vocabulary differs between two endpoints",
+      "definition": "The same asset is named differently per Blueprint endpoint. unsynced_changes (pre-sync) returns lowercase snake_case (wiki_page, assignment, assignment_group, quizzes::quiz); migration-details (post-sync ChangeRecord.asset_type) returns Rails CamelCase class names (WikiPage, Assignment, Quizzes::Quiz, DiscussionTopic, ContextExternalTool). A lookup table built for one silently misses (returns None, not an error) on the other (#37: presync --suggest-locks punted every lock to UI by reusing #28's CamelCase map on snake_case values). Convenient: the unsynced_changes snake_case values ARE already the restrict_item content_type values (wiki_page->wiki_page), so no translation there — only quizzes::quiz->quiz and context_external_tool->external_tool need normalizing. Defense: two endpoints, two maps — blueprint_presync_check keeps a snake_case _LOCKABLE_CONTENT_TYPE; blueprint_exception_report keeps the CamelCase ASSET_TYPE_MAP; don't share one.",
+      "citations": [
+        "blueprint_presync_check.py (#36/#37)",
+        "blueprint_exception_report.py (#28)"
+      ]
+    },
+    {
       "id": "p_ll1_form_encoded_default",
       "term": "P-LL1 — Form-encoded for nested writes (defends L1, L2, L16)",
       "definition": "Default to application/x-www-form-urlencoded for any write using the nested parent[child] parameter shape. JSON works for flat objects; for nested, form-encoded is safer. Canvas docs say either works; empirically several endpoints accept-but-no-op on JSON.",

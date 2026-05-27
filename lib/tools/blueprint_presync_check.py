@@ -58,7 +58,24 @@ from dotenv import load_dotenv
 import canvas_course_guard as guard
 from __toolbox_version__ import __version__
 from blueprint_orphan_pages import get_page_revision_hashes, _hash, get_page_with_body
-from blueprint_exception_report import ASSET_TYPE_MAP, _format_lock_curl
+from blueprint_exception_report import _format_lock_curl
+
+# Two Canvas endpoints use DIFFERENT asset_type vocabularies (#37):
+#   migration-details (post-sync, #28) → Rails CamelCase: WikiPage, Assignment, Quizzes::Quiz, ...
+#   unsynced_changes  (pre-sync, #36)  → lowercase snake_case: wiki_page, assignment, ...
+# So #28's CamelCase ASSET_TYPE_MAP does NOT fit here. The unsynced_changes snake_case
+# asset_type IS already the restrict_item content_type — pass it through, normalizing the
+# two qualified variants. Anything not here isn't a lockable content asset (e.g. assignment_group).
+_LOCKABLE_CONTENT_TYPE: dict[str, str] = {
+    "wiki_page": "wiki_page",
+    "assignment": "assignment",
+    "quiz": "quiz",
+    "quizzes::quiz": "quiz",
+    "discussion_topic": "discussion_topic",
+    "attachment": "attachment",
+    "external_tool": "external_tool",
+    "context_external_tool": "external_tool",
+}
 
 load_dotenv()
 
@@ -203,7 +220,7 @@ _GLYPH = {"ready": "✅", "at_risk": "🔴", "review": "⚠️", "nothing_pendin
 def _lock_lines(bp_id: str, recs: list[dict]) -> list[str]:
     out: list[str] = []
     for r in recs:
-        ct = ASSET_TYPE_MAP.get(r["asset_type"])
+        ct = _LOCKABLE_CONTENT_TYPE.get((r["asset_type"] or "").lower())
         if ct:
             out.append(f"# lock '{r['asset_name']}' ({r['asset_type']} {r['asset_id']})")
             out.append(_format_lock_curl(bp_id, ct, r["asset_id"]))

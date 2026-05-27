@@ -1209,7 +1209,7 @@
       },
       {
         "path": "lib/agents/knowledge/canvas_api_lessons_learned.json",
-        "purpose": "Canvas API empirical companion: 16 lessons (L1-L16) of behaviors Canvas does NOT document or documents incorrectly (form-encoded module writes, date trio, late_policy 403, quiz points drift, NewQuiz REST gap, rubric student-token workaround, Blueprint silent skips, stale .env amplification, -N slug orphans, lock-state-only body reversion, page title-collision auto-suffix, completion requirement clear quirk) + 7 cross-cutting defense patterns (P-LL1..P-LL7) + audit indicator catalog. Always read alongside canvas_api_knowledge \u2014 they're a paired-read contract. v0.x untested.",
+        "purpose": "Canvas API empirical companion: 17 lessons (L1-L17) of behaviors Canvas does NOT document or documents incorrectly (form-encoded module writes, date trio, late_policy 403, quiz points drift, NewQuiz REST gap, rubric student-token workaround, Blueprint silent skips, stale .env amplification, -N slug orphans, lock-state-only body reversion, page title-collision auto-suffix, completion requirement clear quirk, blueprint asset_type vocab mismatch by endpoint) + 7 cross-cutting defense patterns (P-LL1..P-LL7) + audit indicator catalog. Always read alongside canvas_api_knowledge \u2014 they're a paired-read contract. v0.x untested.",
         "runtime_strategy": "read_at_runtime"
       },
       {
