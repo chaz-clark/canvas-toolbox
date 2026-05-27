@@ -392,6 +392,18 @@ uv run python canvas_toolbox/lib/tools/blueprint_sync.py --push    # sync master
 
 Then let Canvas run its built-in Blueprint sync to push changes to sections.
 
+## Before a Blueprint sync (avoid silent skips)
+
+Canvas silently **skips** blueprint items that are unlocked *and* have been locally edited in a section — you don't find out until after a wasted sync. Run this first to catch them:
+
+**Ask your agent:** *"Check my blueprint is ready to sync"*
+
+```bash
+uv run python canvas_toolbox/lib/tools/blueprint_presync_check.py --bp <blueprint_course_id> --suggest-locks
+```
+
+It looks at your pending changes and predicts which will be skipped. For **pages** it's precise (it can tell a locally-edited section copy from one that's merely out of date); for **assignments/quizzes** it flags that it can't verify those pre-sync (no revision history) and suggests locking to be safe. `--suggest-locks` prints a lock script to run *before* you sync — so you sync once instead of twice. Read-only.
+
 ## Validating after a Blueprint sync
 
 After Canvas finishes syncing to sections, run this to confirm it landed correctly:
