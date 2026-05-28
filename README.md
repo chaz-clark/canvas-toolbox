@@ -21,13 +21,54 @@ Full knowledge base and agent framework references: [`lib/agents/knowledge/READM
 
 # Getting started
 
-Choose the path that fits your situation:
+Three small choices before the toolkit is yours:
+
+1. **Pick an IDE** — the app where you'll open files and talk to your AI assistant.
+2. **Pick an AI assistant** — use whichever AI subscription you already have, so you don't pay twice. (If you don't have one, there's a generous free path.)
+3. **Get the toolkit running** — your AI agent walks you through it (recommended), or do the steps yourself.
+
+You don't have to be a developer. The agent handles the technical bits; you just answer its questions.
 
 ---
 
-## Option A — Start here: your agent sets it up
+## Step 1 — Pick your IDE
 
-Create a new empty folder on your computer, open it in Antigravity, Claude Code, Cursor, or any AI coding tool, then give the agent this prompt:
+An **IDE** ("integrated development environment") is the app you'll work in. Pick one, download it, and install it like any other application.
+
+| If you… | Use | Free? | Download |
+|---|---|---|---|
+| **have no strong preference** *(the safe default)* | **Visual Studio Code** — the standard, with the largest selection of AI assistant extensions | yes | [code.visualstudio.com](https://code.visualstudio.com/) |
+| **want the AI to drive** *(and want a generous free option built in)* | **Antigravity IDE** — Google's agent-first IDE; Gemini AI is built in, no separate extension needed | yes (public preview, full Gemini 3 Pro, no usage limits announced) | [antigravityide.org](https://antigravityide.org/) |
+| **teach data science** *(R, Python, Quarto)* | **Positron** — Posit's data-science IDE, with a built-in AI assistant called *Positron Assistant* | yes | [positron.posit.co/download](https://positron.posit.co/download.html) |
+
+> ⚠️ **About Antigravity IDE:** it has Gemini built in and is **locked to Gemini** — you cannot plug a ChatGPT, Claude, or Copilot subscription into it. Pick Antigravity if you're happy using Gemini (free now, paid tiers available). If you have a ChatGPT, Claude, or Copilot subscription you want to use, pick **Visual Studio Code** here and the matching extension in Step 2.
+
+---
+
+## Step 2 — Pick your AI assistant
+
+Use the subscription you **already have** so you don't pay twice. In your IDE, open the **Extensions panel** (the icon that looks like four squares on the side bar), search by the name below, click **Install**, then **sign in** when it prompts you.
+
+| You already have… | Install this | Sign in with | Link |
+|---|---|---|---|
+| **ChatGPT** *(Plus / Pro / Business / Edu / Enterprise)* | **Codex – OpenAI's coding agent** | your ChatGPT account | [Marketplace listing](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt) |
+| **Claude** *(Pro / Team / Max)* | **Claude Code** *(official Anthropic extension)* | your Claude account | [Marketplace listing](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code) |
+| **GitHub Copilot** | **GitHub Copilot** + **GitHub Copilot Chat** | your GitHub account | [Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) · [Copilot Chat](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) |
+| **None of those** | Use **Antigravity IDE** instead of VS Code (from Step 1) — it's free, no extension to install, Gemini is built in | a Google account | [antigravityide.org](https://antigravityide.org/) |
+
+> 💡 **A common mix-up:** GitHub Copilot is a *separate* Microsoft/GitHub subscription — it does **not** connect to a ChatGPT account, even though they're both AI tools. If you have ChatGPT Plus, install **Codex** (first row); if you have Copilot, install **Copilot** (third row). Each is tied to its own account.
+
+> 📓 **Positron users:** Positron has a built-in **Positron Assistant** — you don't need to install an extension for AI help. Skip Step 2 and go to Step 3.
+
+---
+
+## Step 3 — Get the toolkit running
+
+Now that you have an IDE and an AI assistant ready, pick the path that fits your comfort level. Most people use Option A.
+
+### Option A — Start here: your agent sets it up
+
+Create a new empty folder on your computer, open it in the IDE you set up in Steps 1 and 2, then give your AI assistant this prompt:
 
 *"Help me set up Canvas Toolbox for my Canvas course. The toolkit is at https://github.com/chaz-clark/canvas-toolbox — please clone it, install dependencies, and walk me through connecting it to my course."*
 
@@ -86,7 +127,7 @@ This mirrors the entire course — modules, pages, assignments, quizzes, discuss
 
 ---
 
-## Option B — Manual setup
+### Option B — Manual setup
 
 Use this if you prefer to run each step yourself, or if your AI tool doesn't run terminal commands. Install git and uv first using the same steps in Option A's checklist above, then continue here.
 
@@ -155,7 +196,7 @@ This copies your entire Canvas course — all modules, pages, assignments, quizz
 
 ---
 
-## Option C — A colleague is setting it up for you
+### Option C — A colleague is setting it up for you
 
 You just need to gather three pieces of information and hand them over:
 
