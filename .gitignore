@@ -28,7 +28,7 @@ gh-issues-agent/
 # make-ai-agents — local clone of upstream tool used during development.
 # Populate with: git clone https://github.com/chaz-clark/Make-AI-Agents.git make-ai-agents
 # Update with:   cd make-ai-agents && git pull origin main
-make-ai-agents/
+Make-AI-Agents/
 
 # handoff — local clone of upstream tool used during development.
 # Note: distinct from `handoffs/` (plural) which is local-only handoff scratch.
