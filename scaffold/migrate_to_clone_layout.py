@@ -28,6 +28,7 @@ set up `uv` for canvas-toolbox.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -42,6 +43,41 @@ from pathlib import Path
 CANONICAL_NAME = "canvas-toolbox"  # hyphen — fleet-canonical (ds250 + itm327
                                    # explicitly renamed from underscore to this).
 CANVAS_TOOLBOX_URL = "https://github.com/chaz-clark/canvas-toolbox.git"
+TOOL_NAME = "migrate_to_clone_layout"
+
+
+def _read_toolkit_version() -> str:
+    """Read __version__ from lib/tools/__toolbox_version__.py if this script is
+    running from inside a canvas-toolbox checkout; fallback to 'unknown'."""
+    try:
+        vf = Path(__file__).resolve().parent.parent / "lib" / "tools" / "__toolbox_version__.py"
+        for line in vf.read_text().splitlines():
+            if line.startswith("__version__"):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return "unknown"
+
+
+TOOL_VERSION = _read_toolkit_version()
+
+# --json mode: suppresses informational stdout so only the JSON response lands
+# on stdout. Set by main() from args.emit_json.
+_EMIT_JSON = False
+
+
+def _say(msg: str = "") -> None:
+    """Informational print — silenced in --json mode so callers get clean JSON."""
+    if not _EMIT_JSON:
+        print(msg)
+
+
+def _state_letter(state_str: str | None) -> str | None:
+    """Extract the leading 'A'/'B'/.../'E' from a STATE_X constant string."""
+    if not state_str:
+        return None
+    head = state_str.split(" ", 1)[0]
+    return head if head in {"A", "B", "C", "D", "E"} else None
 
 SISTER_REPOS: list[tuple[str, str]] = [
     ("handoff",          "https://github.com/chaz-clark/handoff.git"),
@@ -115,8 +151,8 @@ def preflight(repo_root: Path) -> list[str]:
         warns.append(
             f"working tree is dirty ({len(dirty)} paths) — commit/stash first to avoid mixing this migration with other work."
         )
-    if Path.cwd().name == CANONICAL_NAME and (Path.cwd() / "lib" / "tools").exists():
-        warns.append("you appear to be inside canvas-toolbox itself — run from the CONSUMER repo's root.")
+    if repo_root.name == CANONICAL_NAME and (repo_root / "lib" / "tools").exists():
+        warns.append("repo_root appears to be canvas-toolbox itself — run against a CONSUMER repo's root.")
     return warns
 
 
@@ -306,11 +342,11 @@ def postflight(repo_root: Path) -> None:
     """Final report — state recheck + pyproject reference detect-and-report."""
     state, folder, info = detect_state(repo_root)
     if state == STATE_C and folder is not None:
-        print(f"  ✅ canvas-toolbox now at '{folder.relative_to(repo_root)}/' — clone + gitignored.")
+        _say(f"  ✅ canvas-toolbox now at '{folder.relative_to(repo_root)}/' — clone + gitignored.")
     else:
-        print(f"  ⚠️  Postflight state: {state}")
+        _say(f"  ⚠️  Postflight state: {state}")
         for k, v in info.items():
-            print(f"     {k}: {v}")
+            _say(f"     {k}: {v}")
 
     pp = repo_root / "pyproject.toml"
     if pp.exists():
@@ -320,15 +356,24 @@ def postflight(repo_root: Path) -> None:
                    or f"= {{ path = \"{name}" in content
                    or f"= {{ path = '{name}" in content]
         if flagged:
-            print(f"  ⚠️  pyproject.toml references vendored path(s): {flagged}.")
-            print("     Review manually — this script does not auto-edit pyproject.toml.")
+            _say(f"  ⚠️  pyproject.toml references vendored path(s): {flagged}.")
+            _say("     Review manually — this script does not auto-edit pyproject.toml.")
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _emit_response_and_exit(response: dict, code: int) -> None:
+    """If --json, dump the response to stdout; then exit with `code`."""
+    if _EMIT_JSON:
+        print(json.dumps(response, indent=2, ensure_ascii=False))
+    sys.exit(code)
+
+
 def main() -> None:
+    global _EMIT_JSON
+
     ap = argparse.ArgumentParser(
         description="Consumer-side: migrate a vendored-subtree canvas-toolbox to a "
                     "gitignored clone + scaffold the convention folders. "
@@ -344,46 +389,84 @@ def main() -> None:
                     help=f"canvas-toolbox clone URL (default: {CANVAS_TOOLBOX_URL}).")
     ap.add_argument("--repo-root", type=Path, default=Path("."),
                     help="Consumer repo root. Default: current directory.")
+    ap.add_argument("--json", action="store_true", dest="emit_json",
+                    help="Emit a machine-readable JSON response on stdout instead of "
+                         "human text. Designed for callers like repo-steward. Always "
+                         "produces JSON regardless of state; exit codes mirror the "
+                         "human-mode codes (0=ok/C, 1=ambiguous/E, 2=preflight-fatal "
+                         "or apply-aborted).")
     args = ap.parse_args()
 
+    _EMIT_JSON = args.emit_json
     repo_root = args.repo_root.resolve()
 
-    print(f"Consumer repo:   {repo_root}")
-    print(f"Mode:            {'APPLY' if args.apply else 'DRY-RUN (no changes will be made)'}")
-    print(f"Canonical name:  '{CANONICAL_NAME}/' (hyphen — fleet-canonical)")
-    print(f"Upstream URL:    {args.upstream_url}")
-    print()
+    # JSON response, populated incrementally; emitted at every exit when --json.
+    response: dict = {
+        "tool": TOOL_NAME,
+        "tool_version": TOOL_VERSION,
+        "run_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "repo_root": str(repo_root),
+        "mode": "apply" if args.apply else "dry-run",
+        "state": None,             # "A".."E" once detected; None if preflight FATAL
+        "state_label": None,
+        "vendored_at": None,
+        "needs_apply": False,      # true iff state in {A, B, D} (auto-applyable)
+        "warnings": [],
+        "plan_step_count": 0,
+        "error": None,
+    }
+
+    # --json + --scaffold-folders=prompt + --apply is incoherent (we'd block on
+    # input()). Auto-downgrade to "none" so non-interactive callers get a clean run.
+    if args.emit_json and args.scaffold_folders == "prompt":
+        args.scaffold_folders = "none"
+
+    _say(f"Consumer repo:   {repo_root}")
+    _say(f"Mode:            {'APPLY' if args.apply else 'DRY-RUN (no changes will be made)'}")
+    _say(f"Canonical name:  '{CANONICAL_NAME}/' (hyphen — fleet-canonical)")
+    _say(f"Upstream URL:    {args.upstream_url}")
+    _say()
 
     # 1. Preflight
     warns = preflight(repo_root)
     fatal = [w for w in warns if w.startswith("FATAL")]
-    for w in fatal:
-        print(f"❌ {w}")
+    response["warnings"] = [w for w in warns if not w.startswith("FATAL")]
     if fatal:
-        sys.exit(2)
+        for w in fatal:
+            _say(f"❌ {w}")
+        response["error"] = fatal[0]
+        _emit_response_and_exit(response, 2)
     for w in warns:
-        print(f"⚠️  {w}")
+        _say(f"⚠️  {w}")
     if warns and args.apply:
-        print("\nRefusing --apply while warnings are unresolved. Address them, then re-run.")
-        sys.exit(2)
+        msg = "Refusing --apply while warnings are unresolved. Address them, then re-run."
+        _say(f"\n{msg}")
+        response["error"] = msg
+        _emit_response_and_exit(response, 2)
     if warns:
-        print()
+        _say()
 
     # 2. State detection
     state, folder, info = detect_state(repo_root)
-    print(f"State detected:  {state}")
+    response["state"] = _state_letter(state)
+    response["state_label"] = state
+    response["vendored_at"] = (str(folder.relative_to(repo_root))
+                               if folder and folder.is_relative_to(repo_root) else None)
+    response["needs_apply"] = response["state"] in {"A", "B", "D"}
+
+    _say(f"State detected:  {state}")
     if folder:
-        print(f"Vendored at:     '{folder.relative_to(repo_root)}/'")
+        _say(f"Vendored at:     '{folder.relative_to(repo_root)}/'")
     for k, v in info.items():
-        print(f"  {k}: {v}")
-    print()
+        _say(f"  {k}: {v}")
+    _say()
 
     if state == STATE_C:
-        print("✅ Already on the new layout. Nothing to do.")
-        sys.exit(0)
+        _say("✅ Already on the new layout. Nothing to do.")
+        _emit_response_and_exit(response, 0)
     if state == STATE_E:
-        print("🛑 Halting — manual review needed (see info above). No safe automated migration.")
-        sys.exit(1)
+        _say("🛑 Halting — manual review needed (see info above). No safe automated migration.")
+        _emit_response_and_exit(response, 1)
 
     # 3. Determine which sister repos to clone
     sisters_to_clone: list[str] = []
@@ -402,44 +485,57 @@ def main() -> None:
         else:
             # dry-run: list what would be prompted for
             if available_sisters:
-                print("Sister repos that would be PROMPTED in --apply mode:")
+                _say("Sister repos that would be PROMPTED in --apply mode:")
                 for n, _ in available_sisters:
-                    print(f"  - {n}/")
-                print()
+                    _say(f"  - {n}/")
+                _say()
 
     # 4. Build the plan
     steps = build_plan(state, folder, repo_root, sisters_to_clone, args.upstream_url)
+    response["plan_step_count"] = len(steps)
     if not steps:
-        print("✅ No steps needed.")
-        sys.exit(0)
+        _say("✅ No steps needed.")
+        _emit_response_and_exit(response, 0)
 
-    print("Plan:")
+    _say("Plan:")
     for i, (desc, _cmd) in enumerate(steps, 1):
-        print(f"  {i}. {desc}")
-    print()
+        _say(f"  {i}. {desc}")
+    _say()
 
     if not args.apply:
-        print("(Dry-run — no changes made. Re-run with --apply to execute.)")
-        sys.exit(0)
+        _say("(Dry-run — no changes made. Re-run with --apply to execute.)")
+        _emit_response_and_exit(response, 0)
 
     # 5. Execute
-    print("Executing:")
+    _say("Executing:")
     for i, (desc, cmd) in enumerate(steps, 1):
-        print(f"  {i}. {desc} …")
+        _say(f"  {i}. {desc} …")
         if not apply_step(desc, cmd, repo_root):
-            print(f"\n🛑 Aborted at step {i}. Repo may be in a partial state — `git status` to inspect.")
-            sys.exit(2)
-    print()
+            err = f"Aborted at step {i}. Repo may be in a partial state — `git status` to inspect."
+            _say(f"\n🛑 {err}")
+            response["error"] = err
+            _emit_response_and_exit(response, 2)
+    _say()
 
     # 6. Postflight
-    print("Verifying …")
+    _say("Verifying …")
     postflight(repo_root)
 
-    print()
-    print("Next steps:")
-    print(f"  1. Set up .env (start from canvas-toolbox/scaffold/gitignore + add CANVAS_API_TOKEN/BASE_URL/COURSE_ID/SANDBOX_ID).")
-    print("  2. cd canvas-toolbox && uv sync && cd ..")
-    print("  3. Use your AI agent with the prompt in canvas-toolbox/README.md → Step 3 → Option A.")
+    # Re-detect after apply so the JSON response reflects the new state.
+    final_state, final_folder, _info = detect_state(repo_root)
+    response["state"] = _state_letter(final_state)
+    response["state_label"] = final_state
+    response["vendored_at"] = (str(final_folder.relative_to(repo_root))
+                               if final_folder and final_folder.is_relative_to(repo_root) else None)
+    response["needs_apply"] = response["state"] in {"A", "B", "D"}
+
+    _say()
+    _say("Next steps:")
+    _say(f"  1. Set up .env (start from canvas-toolbox/scaffold/gitignore + add CANVAS_API_TOKEN/BASE_URL/COURSE_ID/SANDBOX_ID).")
+    _say("  2. cd canvas-toolbox && uv sync && cd ..")
+    _say("  3. Use your AI agent with the prompt in canvas-toolbox/README.md → Step 3 → Option A.")
+
+    _emit_response_and_exit(response, 0)
 
 
 if __name__ == "__main__":
