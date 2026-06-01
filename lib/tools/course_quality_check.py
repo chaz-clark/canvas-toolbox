@@ -970,7 +970,8 @@ def _write_md_report(reports: list[dict], labels: dict, path: Path):
         cid = r["course_id"]
         label = labels.get(cid, f"Course {cid}")
         w = r["course_window"]
-        window = f"{w['start_at'][:10]} → {w['end_at'][:10]}" if w["start_at"] else "NOT SET"
+        window = (f"{w['start_at'][:10]} → {w['end_at'][:10]}"
+                  if w.get("start_at") and w.get("end_at") else "NOT SET")
         af = r["summary"]["auto_fixable"]
         mr = r["summary"]["manual_review"]
         status = "✅ Clean" if r["summary"]["total_issues"] == 0 else ("⚠️ Issues" if af == 0 else "🔴 Action needed")
@@ -985,7 +986,8 @@ def _write_md_report(reports: list[dict], labels: dict, path: Path):
         mr = r["manual_review"]
 
         lines += [f"---", f"## {label}", ""]
-        window = f"{w['start_at'][:10]} → {w['end_at'][:10]}" if w["start_at"] else "NOT SET"
+        window = (f"{w['start_at'][:10]} → {w['end_at'][:10]}"
+                  if w.get("start_at") and w.get("end_at") else "NOT SET")
         lines += [f"**Course window:** {window}", ""]
 
         if not af and not mr:
