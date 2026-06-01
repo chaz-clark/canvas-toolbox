@@ -214,6 +214,18 @@ CANVAS_COURSE_ID=123456
 
 They'll handle the rest.
 
+### Already have an older canvas-toolbox setup? Migrate it.
+
+If you already have a Canvas course repo with an *older* canvas-toolbox layout — vendored as a git subtree (committed into your repo's history), or in a folder that your parent repo still tracks — there's a one-command migration:
+
+```bash
+python3 canvas-toolbox/scaffold/migrate_to_clone_layout.py
+```
+
+This is a **dry-run by default** — it inspects your repo, tells you what state it's in (already correct / half-converted / subtree-vendored / missing), and prints the exact plan it would run. Re-run with `--apply` to actually execute. It backs up your existing canvas-toolbox content to `/tmp/` before changing anything (in case you had local patches), converts the layout to a gitignored clone, and offers to scaffold the convention sister-repo folders (`handoff/`, `Make-AI-Agents/`, `gh-issues-agent/`) — prompts you per-sister by default.
+
+Safe to run on a setup that's already correct — it'll report *"Already on the new layout. Nothing to do."* and exit.
+
 ---
 
 From here, edit any file locally and push changes back to Canvas.
