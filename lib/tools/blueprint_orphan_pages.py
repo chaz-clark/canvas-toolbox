@@ -92,6 +92,7 @@ if _raw_url and not _raw_url.startswith("http"):
     _raw_url = "https://" + _raw_url
 CANVAS_BASE_URL     = _raw_url
 BLUEPRINT_COURSE_ID = os.environ.get("BLUEPRINT_COURSE_ID", "")
+MASTER_COURSE_ID    = os.environ.get("MASTER_COURSE_ID", "")
 
 # A slug "ends with -N" or "-N-N" (Canvas's documented suffix patterns).
 _N_SUFFIX_RE = re.compile(r"-\d+(?:-\d+)*$")
@@ -330,6 +331,272 @@ def detect_body_reversions(
 
 
 # ---------------------------------------------------------------------------
+# Phase 2 — multi-suffix detection + executor (#40)
+# ---------------------------------------------------------------------------
+#
+# Phase 1 (above) is read-only and emits "ambiguous" findings for the
+# multi-suffix case (2+ `-N` siblings + 1 unsuffixed, often all linked). DS250's
+# 2026-06-02 production run validated a content-aware cleanup for that case;
+# Phase 2 generalizes that script. See:
+#   - issue #40
+#   - ds250-onln-master/tools/fix_overview_dupes.py (reference impl)
+#   - handoffs/HANDOFF_ds250-onln-master-blueprint-orphan-phase2-review.md
+#   - lib/tools/_orphan_phase2.py (planner — pure function, unit-tested)
+
+
+def detect_multi_suffix_cleanable(
+    master_id: str, target_id: str,
+    target_pages: list[dict], target_linked_slugs: set[str],
+    master_canonical_bodies: dict[str, str],
+) -> list[dict]:
+    """Phase 2 detection — runs against either Blueprint or Section.
+
+    Emits `multi_suffix_cleanable` findings when:
+      - same-title group has exactly 1 unsuffixed slug AND >= 1 suffixed slugs
+      - Master has a canonical body for the title (titles without one are
+        skipped — the W12 Teaching Notes pattern)
+
+    The `unsuffixed_stale` sub-flag is True when the kept (unsuffixed) page's
+    body differs from Master's canonical body. That sub-flag is exactly the
+    #41 data-loss surface — the planner surfaces it distinctly so an operator
+    can verify before apply.
+
+    Distinct from Phase 1's `orphan_match`: Phase 1 requires the strict 5-point
+    fingerprint (one suffixed orphan unlinked + canonical fingerprint match).
+    Phase 2 is the looser case where multiple suffixed siblings exist and
+    Phase 1 would call it `ambiguous`. Both can co-occur; the planner accepts
+    either kind.
+    """
+    findings: list[dict] = []
+    by_title: dict[str, list[dict]] = defaultdict(list)
+    for p in target_pages:
+        by_title[p.get("title") or ""].append(p)
+
+    for title, pages in by_title.items():
+        if not title or len(pages) < 2:
+            continue
+        if title not in master_canonical_bodies:
+            # No Master canonical → skip. Instructor-only / non-blueprint-canonical
+            # pages have no auto-fix candidate.
+            continue
+
+        suffixed = [p for p in pages if _N_SUFFIX_RE.search(p.get("url") or "")]
+        unsuffixed = [p for p in pages
+                      if not _N_SUFFIX_RE.search(p.get("url") or "")]
+        if len(unsuffixed) != 1 or len(suffixed) < 1:
+            # Phase 1's `ambiguous` covers 0 or >1 unsuffixed. Phase 2 won't
+            # touch those — they need human review.
+            continue
+
+        keep_slug = unsuffixed[0]["url"]
+        keep_full = get_page_with_body(target_id, keep_slug)
+        if not keep_full:
+            continue
+        keep_hash = _hash(keep_full.get("body"))
+        master_hash = _hash(master_canonical_bodies[title])
+        unsuffixed_stale = (keep_hash != master_hash)
+
+        findings.append({
+            "kind": "multi_suffix_cleanable",
+            "title": title,
+            "section_id": target_id,
+            "canonical_slug": keep_slug,
+            "suffixed_slugs": [p["url"] for p in suffixed],
+            "unsuffixed_stale": unsuffixed_stale,
+            "keep_hash": keep_hash,
+            "master_hash": master_hash,
+            "all_slugs_linked": all(p["url"] in target_linked_slugs for p in pages),
+        })
+    return findings
+
+
+def fetch_master_canonical_bodies(
+    master_id: str, titles_of_interest: set[str] | None = None,
+) -> dict[str, str]:
+    """Build a title -> body dict from Master. If `titles_of_interest` is set,
+    only fetch bodies for those titles (saves N+1 GETs across an 80-page Master).
+    """
+    out: dict[str, str] = {}
+    if not master_id:
+        return out
+    master_pages = list_pages(master_id)
+    for p in master_pages:
+        t = p.get("title") or ""
+        if not t:
+            continue
+        if titles_of_interest is not None and t not in titles_of_interest:
+            continue
+        full = get_page_with_body(master_id, p["url"])
+        if full is None:
+            continue
+        # If Master has duplicates of a title (shouldn't, but guard), the last
+        # one wins. That's a deliberate "trust Master to be clean" assumption
+        # per #40 — Master is the canonical source.
+        out[t] = full.get("body") or ""
+    return out
+
+
+def get_module_items_by_slug(
+    course_id: str,
+) -> dict[str, list[tuple[str, str, int]]]:
+    """slug -> list of (module_id, item_id, position) for Page-type items."""
+    mods = _get(f"/courses/{course_id}/modules", {"include[]": "items"}) or []
+    out: dict[str, list[tuple[str, str, int]]] = defaultdict(list)
+    for m in mods:
+        for it in m.get("items") or []:
+            if it.get("type") != "Page":
+                continue
+            slug = it.get("page_url")
+            if not slug:
+                continue
+            out[slug].append((m["id"], it["id"], it.get("position", 999)))
+    return dict(out)
+
+
+def apply_plan(
+    plan: list, target_id: str, master_id: str,
+    dry_run: bool, allow_enrolled: bool,
+) -> dict:
+    """Execute (or simulate) a Phase 2 plan against a single target course.
+
+    Constraints (non-negotiable per #40):
+      - Master is never modified — refuses to write if target_id == master_id.
+      - `canvas_course_guard.enforce()` runs first; --allow-enrolled is required
+        for courses with student enrollments (L12).
+      - Per-op try/except. On 403/400 with "locked" in the response, the item
+        is skipped+reported (NOT inline-unlocked — that dance is parked, see
+        handoffs/parkinglot.md `blueprint_orphan_pages.py inline-unlock dance`).
+      - Fault-tolerant: never half-corrupts. Each mutation is independently safe.
+
+    Returns a report dict with counts + failure list.
+    """
+    if str(target_id) == str(master_id):
+        raise RuntimeError(
+            f"Refusing to apply against Master ({master_id}). Master is "
+            f"the canonical source and must never be modified."
+        )
+
+    # Guard. Runs even on dry_run so the operator sees the verdict.
+    try:
+        from canvas_course_guard import enforce as _course_guard
+        _course_guard(
+            CANVAS_BASE_URL, _headers(), str(target_id),
+            mode="write" if not dry_run else "read",
+            allow_override=allow_enrolled,
+            label=f"target course",
+        )
+    except SystemExit:
+        # Guard refused. Propagate so the caller stops before any further work.
+        raise
+
+    counts = {
+        "overwrite": 0,
+        "delete_module_item": 0,
+        "delete_page": 0,
+        "cross_course_link_warning": 0,
+        "skipped_locked": 0,
+        "http_failure": 0,
+    }
+    failures: list[dict] = []
+
+    for step in plan:
+        if step.kind == "CrossCourseLinkWarning":
+            counts["cross_course_link_warning"] += 1
+            print(f"    ⚠ cross-course-link warning on {step.slug!r}: "
+                  f"{step.cross_course_link_count} ref(s) to "
+                  f"/courses/{step.cross_course_master_id}/… in canonical body. "
+                  f"Sample: {step.cross_course_link_samples[:1]}")
+            continue
+
+        if step.kind == "OverwriteBody":
+            label = f"PUT body {step.target_id}/pages/{step.slug}"
+            if dry_run:
+                counts["overwrite"] += 1
+                print(f"    [dry-run] {label}  (overwrite with Master canonical)")
+                continue
+            try:
+                r = requests.put(
+                    f"{CANVAS_BASE_URL}/api/v1/courses/{step.target_id}/pages/{step.slug}",
+                    headers=_headers(),
+                    json={"wiki_page": {"body": step.body}},
+                    timeout=30,
+                )
+                if r.status_code in (400, 403):
+                    counts["skipped_locked"] += 1
+                    failures.append({"step": label, "status": r.status_code,
+                                     "note": "LOCKED (skip+report; unlock dance parked)"})
+                    print(f"    ✗ LOCKED (needs unlock pass): {label}")
+                    continue
+                r.raise_for_status()
+                counts["overwrite"] += 1
+                print(f"    ✓ {label}")
+            except requests.HTTPError as e:
+                counts["http_failure"] += 1
+                failures.append({"step": label, "status": e.response.status_code})
+                print(f"    ✗ HTTP {e.response.status_code}: {label}")
+
+        elif step.kind == "DeleteModuleItem":
+            label = (f"DELETE module-item {step.target_id}/modules/"
+                     f"{step.module_id}/items/{step.item_id}")
+            if dry_run:
+                counts["delete_module_item"] += 1
+                print(f"    [dry-run] {label}  ({step.note})")
+                continue
+            try:
+                r = requests.delete(
+                    f"{CANVAS_BASE_URL}/api/v1/courses/{step.target_id}/modules/"
+                    f"{step.module_id}/items/{step.item_id}",
+                    headers=_headers(), timeout=20,
+                )
+                if r.status_code in (400, 403):
+                    counts["skipped_locked"] += 1
+                    failures.append({"step": label, "status": r.status_code,
+                                     "note": "LOCKED (skip+report)"})
+                    print(f"    ✗ LOCKED: {label}")
+                    continue
+                if r.status_code == 404:
+                    print(f"    ⚬ already gone: {label}")
+                    continue
+                r.raise_for_status()
+                counts["delete_module_item"] += 1
+                print(f"    ✓ {label}")
+            except requests.HTTPError as e:
+                counts["http_failure"] += 1
+                failures.append({"step": label, "status": e.response.status_code})
+                print(f"    ✗ HTTP {e.response.status_code}: {label}")
+
+        elif step.kind == "DeletePage":
+            label = f"DELETE page {step.target_id}/pages/{step.slug}"
+            if dry_run:
+                counts["delete_page"] += 1
+                print(f"    [dry-run] {label}  ({step.note})")
+                continue
+            try:
+                r = requests.delete(
+                    f"{CANVAS_BASE_URL}/api/v1/courses/{step.target_id}/pages/{step.slug}",
+                    headers=_headers(), timeout=20,
+                )
+                if r.status_code in (400, 403):
+                    counts["skipped_locked"] += 1
+                    failures.append({"step": label, "status": r.status_code,
+                                     "note": "LOCKED (skip+report)"})
+                    print(f"    ✗ LOCKED: {label}")
+                    continue
+                if r.status_code == 404:
+                    print(f"    ⚬ already gone: {label}")
+                    continue
+                r.raise_for_status()
+                counts["delete_page"] += 1
+                print(f"    ✓ {label}")
+            except requests.HTTPError as e:
+                counts["http_failure"] += 1
+                failures.append({"step": label, "status": e.response.status_code})
+                print(f"    ✗ HTTP {e.response.status_code}: {label}")
+
+    return {"counts": counts, "failures": failures}
+
+
+# ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
 
@@ -406,15 +673,144 @@ def _write_report(path: Path, body: str) -> None:
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _run_phase2_apply(args, sections: dict, scope_regex) -> None:
+    """Phase 2 cleanup dispatch (#40). Targets: Blueprint + each section.
+    Master is queried for canonical bodies but never modified.
+
+    Apply order (per the DS250 design-review handoff): Blueprint first (canary
+    — non-enrolled), then sections (enrolled, --allow-enrolled required).
+    """
+    from _orphan_phase2 import build_apply_plan, summarize_plan
+
+    dry_run = not args.apply_write
+    print("=" * 62)
+    mode_label = "DRY-RUN" if dry_run else "APPLY (writes enabled)"
+    print(f"Phase 2 — content-aware multi-suffix cleanup ({mode_label})")
+    print(f"  Master (canonical, NEVER modified): {MASTER_COURSE_ID}")
+    print(f"  Blueprint: {BLUEPRINT_COURSE_ID}")
+    print(f"  Sections:  {', '.join(f'{lbl} ({cid})' for lbl, cid in sections.items())}")
+    if scope_regex:
+        print(f"  Scope filter: {scope_regex.pattern}")
+    print("=" * 62)
+
+    # Build the canonical-body cache once across the run. First pass: detect
+    # what titles we care about by running Phase 2 detection against each
+    # target with an empty canonical_bodies (which makes it skip all titles).
+    # Second pass: fetch only the bodies for titles that actually have
+    # multi-suffix groups somewhere in the fleet. Saves ~80 GETs on Master.
+    pre_titles: set[str] = set()
+    target_pages_cache: dict[str, list[dict]] = {}
+    target_linked_cache: dict[str, set[str]] = {}
+    targets = [("Blueprint", BLUEPRINT_COURSE_ID)] + list(sections.items())
+    for label, tid in targets:
+        pages = list_pages(tid)
+        linked = get_module_linked_slugs(tid)
+        target_pages_cache[tid] = pages
+        target_linked_cache[tid] = linked
+        # Identify multi-suffix candidate titles (don't need Master canonical
+        # at this stage — just the structural signal).
+        by_title: dict[str, list[dict]] = defaultdict(list)
+        for p in pages:
+            by_title[p.get("title") or ""].append(p)
+        for title, group in by_title.items():
+            if not title or len(group) < 2:
+                continue
+            suff = [p for p in group if _N_SUFFIX_RE.search(p.get("url") or "")]
+            unsuff = [p for p in group
+                       if not _N_SUFFIX_RE.search(p.get("url") or "")]
+            if len(unsuff) == 1 and len(suff) >= 1:
+                pre_titles.add(title)
+
+    if not pre_titles:
+        print("\n✓ No multi-suffix orphan groups detected across the fleet. "
+              "Nothing to plan. Phase 2 is a no-op (idempotent).")
+        return
+
+    print(f"\nDetected {len(pre_titles)} candidate title(s) across the fleet. "
+          f"Fetching Master canonicals...")
+    canonical_bodies = fetch_master_canonical_bodies(
+        MASTER_COURSE_ID, titles_of_interest=pre_titles,
+    )
+    print(f"  Master has canonical bodies for {len(canonical_bodies)} / "
+          f"{len(pre_titles)} title(s). Skipping {len(pre_titles) - len(canonical_bodies)} "
+          f"title(s) with no Master canonical (e.g. instructor-only pages).")
+
+    # Per-target detection + planning + apply.
+    combined = {"overwrite": 0, "delete_module_item": 0, "delete_page": 0,
+                "cross_course_link_warning": 0}
+    all_failures: list[dict] = []
+
+    for label, tid in targets:
+        print(f"\n--- {label} ({tid}) ---")
+        findings = detect_multi_suffix_cleanable(
+            MASTER_COURSE_ID, tid,
+            target_pages_cache[tid], target_linked_cache[tid],
+            canonical_bodies,
+        )
+        if not findings:
+            print(f"  ✓ No multi-suffix cleanable groups in {label}.")
+            continue
+        items_by_slug = get_module_items_by_slug(tid)
+        plan = build_apply_plan(
+            tid, MASTER_COURSE_ID, findings,
+            canonical_bodies, items_by_slug,
+            scope_regex=scope_regex,
+        )
+        if not plan:
+            print(f"  ✓ Detection found findings but all were filtered by "
+                  f"scope_regex or no-Master-canonical rule.")
+            continue
+        per_target = summarize_plan(plan)
+        print(f"  Plan: overwrite={per_target['overwrite']} pages, "
+              f"delete {per_target['delete_module_item']} module-items, "
+              f"delete {per_target['delete_page']} pages, "
+              f"{per_target['cross_course_link_warning']} cross-course-link warning(s).")
+        report = apply_plan(plan, tid, MASTER_COURSE_ID,
+                            dry_run=dry_run, allow_enrolled=args.allow_enrolled)
+        for k in combined:
+            combined[k] += report["counts"].get(k, 0)
+        all_failures.extend(report["failures"])
+
+    print("\n" + "=" * 62)
+    print("COMBINED TOTALS")
+    print(f"  overwrite={combined['overwrite']} pages, "
+          f"delete {combined['delete_module_item']} module-items, "
+          f"delete {combined['delete_page']} pages")
+    print(f"  cross-course-link warnings: {combined['cross_course_link_warning']}")
+    if all_failures:
+        print(f"\n⚠ {len(all_failures)} operation(s) failed or were skipped:")
+        for f in all_failures[:20]:
+            print(f"   [{f['status']}] {f['step']}"
+                  + (f"   ({f.get('note')})" if f.get('note') else ""))
+    print(f"\nMaster ({MASTER_COURSE_ID}) untouched."
+          + ("  (dry-run — re-run with --apply --apply-write)" if dry_run else ""))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(
         description="Post-sync Page-level integrity audit: `-N` slug orphans "
-                    "and silent body reversions (#29 Phase 1, read-only)"
+                    "and silent body reversions (#29 Phase 1, read-only) + "
+                    "content-aware cleanup of multi-suffix orphans (#40 Phase 2)"
     )
     ap.add_argument("--version", action="version",
                     version=f"canvas-toolbox {__version__}")
     ap.add_argument("--report", action="store_true",
                     help="write findings to blueprint_orphan_pages.md")
+    ap.add_argument("--apply", action="store_true",
+                    help="Phase 2 cleanup of multi-suffix orphans. Default: "
+                         "dry-run. Pair with --apply-write to actually mutate "
+                         "Canvas (otherwise --apply just plans + prints).")
+    ap.add_argument("--apply-write", action="store_true",
+                    help="Required with --apply to actually mutate Canvas. "
+                         "Without this, --apply is a dry-run.")
+    ap.add_argument("--allow-enrolled", action="store_true",
+                    help="Override canvas_course_guard's enrollment block (L12). "
+                         "Required when targeting a course with student "
+                         "enrollments — most live sections.")
+    ap.add_argument("--scope-titles", metavar="REGEX",
+                    help="Limit Phase 2 cleanup to pages whose title matches "
+                         "this regex (case-insensitive). Default: any title "
+                         "Phase 2 detection surfaces that has a Master canonical.")
     args = ap.parse_args()
 
     # env check
@@ -428,12 +824,27 @@ def main() -> None:
     sections = _discover_sections()
     if not sections:
         missing.append("S1_COURSE_ID (at least one section required)")
+    if args.apply and not MASTER_COURSE_ID:
+        missing.append("MASTER_COURSE_ID (required for --apply — canonical body source)")
     if missing:
         print("ERROR: Missing required configuration:")
         for m in missing:
             print(f"  {m}")
         print("\nSet these in your .env file.")
         sys.exit(2)
+
+    # ----------------------------------------------------------------------
+    # Phase 2 path — content-aware cleanup of multi-suffix orphans (#40).
+    # Switches modes entirely: skips Phase 1 detection output. Default is
+    # dry-run; --apply-write required to actually mutate Canvas.
+    # ----------------------------------------------------------------------
+    if args.apply:
+        _run_phase2_apply(
+            args, sections,
+            scope_regex=re.compile(args.scope_titles, re.IGNORECASE)
+            if args.scope_titles else None,
+        )
+        return
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     section_list = ", ".join(f"{lbl} ({cid})" for lbl, cid in sections.items())
