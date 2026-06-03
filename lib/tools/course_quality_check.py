@@ -83,6 +83,85 @@ def _parse_dt(s: str):
         return None
 
 
+# Issue #41 — orphan-slug detection. The L13 orphan pattern is specifically:
+#   parent_slug present in dup set  AND  same dup set contains parent_slug + "-N"
+# A naive "ends in -<digit>" check would over-fire on legitimate week-suffixed
+# slugs like `sprint-1-...-w01-w02`. The parent-slug-in-set test filters those
+# out — there's no `sprint-1-...-w01` sibling to anchor on.
+_ORPHAN_SLUG_SUFFIX_RE = re.compile(r"-(\d+)$")
+
+
+def _classify_orphan_slug_dup(course_id: str, dups: list) -> dict | None:
+    """Detect the L13 orphan-slug pattern in a same-title module-item dup set
+    and pull each Page's body to report whether the copies hold identical or
+    diverging content.
+
+    Returns None if this is NOT an orphan-slug case. Otherwise returns a dict:
+        {"slugs": [...], "bodies_match": bool, "stale_parent": bool,
+         "body_summary": {slug: short_hash_or_marker, ...}}
+    The caller routes orphan-slug findings to `manual_review` rather than
+    auto-deleting, since `--fix`'s lowest-position heuristic can keep stale
+    copies and delete canonical ones (issue #41).
+    """
+    page_dups = [d for d in dups if d.get("type") == "Page" and d.get("page_url")]
+    if len(page_dups) < 2:
+        return None
+
+    slugs = {d["page_url"] for d in page_dups}
+    parent_slug = None
+    for slug in slugs:
+        m = _ORPHAN_SLUG_SUFFIX_RE.search(slug)
+        if m and slug[:m.start()] in slugs:
+            parent_slug = slug[:m.start()]
+            break
+    if parent_slug is None:
+        return None
+
+    # Pull each page body and hash a short prefix so we can compare without
+    # putting the full HTML in the report. A hash collision on short prefix is
+    # acceptable here — the user always re-reads in Canvas before acting.
+    import hashlib
+    body_summary = {}
+    parent_hash = None
+    for slug in sorted(slugs):
+        try:
+            r = requests.get(
+                f"{CANVAS_BASE_URL}/api/v1/courses/{course_id}/pages/{slug}",
+                headers=_h(), timeout=20,
+            )
+            if r.status_code >= 400:
+                body_summary[slug] = f"ERR:{r.status_code}"
+                continue
+            body = (r.json() or {}).get("body") or ""
+            h = hashlib.sha256(body.encode("utf-8")).hexdigest()[:10]
+            body_summary[slug] = h
+            if slug == parent_slug:
+                parent_hash = h
+        except Exception as exc:
+            body_summary[slug] = f"ERR:{type(exc).__name__}"
+
+    distinct = {h for h in body_summary.values() if not h.startswith("ERR:")}
+    bodies_match = len(distinct) <= 1
+    # stale_parent: parent slug body hash differs from at least one suffixed copy
+    stale_parent = False
+    if parent_hash:
+        suffixed_hashes = {
+            h for slug, h in body_summary.items()
+            if slug != parent_slug and not h.startswith("ERR:")
+        }
+        # Parent is stale if every suffixed copy disagrees with it
+        if suffixed_hashes and parent_hash not in suffixed_hashes:
+            stale_parent = True
+
+    return {
+        "slugs": sorted(slugs),
+        "parent_slug": parent_slug,
+        "bodies_match": bodies_match,
+        "stale_parent": stale_parent,
+        "body_summary": body_summary,
+    }
+
+
 def _get_course_window(course_id: str) -> tuple:
     """Return (start_at, end_at) as datetime objects."""
     idx_path = Path(".canvas/index.json")
@@ -298,6 +377,44 @@ def _audit_course(course_id: str) -> dict:
 
         for title, dups in title_map.items():
             if len(dups) > 1 and title:
+                # Issue #41 — orphan-slug pattern (L13): when same-title Page
+                # dups include parent_slug AND parent_slug+"-N", the lowest-
+                # position-keep heuristic can keep stale copies and delete
+                # canonical ones. Route those to manual_review with a content
+                # comparison instead of auto-deleting.
+                orphan_info = _classify_orphan_slug_dup(course_id, dups)
+                if orphan_info is not None:
+                    severity = "URGENT" if orphan_info["stale_parent"] else "review"
+                    content_note = (
+                        "bodies match across all copies"
+                        if orphan_info["bodies_match"]
+                        else "BODIES DIFFER — content not identical across copies"
+                    )
+                    if orphan_info["stale_parent"]:
+                        content_note += (
+                            f" — parent slug '{orphan_info['parent_slug']}' "
+                            f"is STALE vs. its suffixed copies (--fix would have "
+                            f"deleted the canonical copies)"
+                        )
+                    manual_review.append({
+                        "type": "orphan_slug_duplicate",
+                        "module": mod["name"],
+                        "title": title,
+                        "parent_slug": orphan_info["parent_slug"],
+                        "slugs": orphan_info["slugs"],
+                        "bodies_match": orphan_info["bodies_match"],
+                        "stale_parent": orphan_info["stale_parent"],
+                        "body_summary": orphan_info["body_summary"],
+                        "severity": severity,
+                        "action": "Run blueprint_orphan_pages.py for content-aware cleanup (see #40 Phase 2).",
+                        "note": (
+                            f"[{severity}] Orphan-slug dup in '{mod['name']}': "
+                            f"'{title}' — slugs {orphan_info['slugs']} share parent "
+                            f"'{orphan_info['parent_slug']}'; {content_note}. "
+                            f"--fix CANNOT safely resolve this (issue #41, L13)."
+                        ),
+                    })
+                    continue  # do NOT add to auto_fixable
                 # Keep lowest position (first in module), remove rest
                 dups_sorted = sorted(dups, key=lambda x: x.get("position", 999))
                 for dup in dups_sorted[1:]:
@@ -1039,6 +1156,8 @@ def _write_md_report(reports: list[dict], labels: dict, path: Path):
                 "published_not_in_module": "Published Content Not Linked in Any Module",
                 "duplicate_assignment":    "Duplicate Assignments (Blueprint-lock conflict — manual resolution required)",
                 "duplicate_quiz":          "Duplicate Quizzes (Blueprint-lock conflict — manual resolution required)",
+                "orphan_slug_duplicate":   "Orphan-Slug Page Duplicates (#41 — needs blueprint_orphan_pages.py content-aware cleanup)",
+                "stale_link_metadata":     "Stale data-api-endpoint / data-api-returntype Metadata (#42 — href no longer matches enrichment target)",
             }
             for t, items in by_type.items():
                 lines.append(f"**{type_labels.get(t, t)}**")
@@ -1049,6 +1168,129 @@ def _write_md_report(reports: list[dict], labels: dict, path: Path):
                         lines.append(f"  - Action: {action}")
                 lines.append("")
 
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _audit_link_metadata(course_id: str, label: str = "") -> dict:
+    """Opt-in audit (#42). Read-only. Walks all description-bearing content
+    in the course — Pages, Assignments, Quizzes, Discussion Topics — and
+    flags `<a>` tags whose `data-api-endpoint` no longer points at the
+    link's current `href` target.
+
+    Canvas auto-injects `data-api-endpoint` / `data-api-returntype` on
+    Canvas-internal links inside descriptions. When the `href` is later
+    swapped (to a different Canvas resource or an external URL), Canvas does
+    NOT update or strip those attributes. The link clicks correctly, but
+    hovercards, preview-fetchers, and audit tools reading `data-api-endpoint`
+    misreport where the link points.
+
+    Each finding identifies one anchor tag and lists the actual `href` vs.
+    the stale `data-api-endpoint`. Does not modify anything — surfacing
+    findings is the contract. Pair with the shared writer-side normalizer
+    (see `_link_metadata.strip_stale_link_metadata`) to prevent recurrence.
+    """
+    from _link_metadata import find_stale_link_metadata
+
+    base = CANVAS_BASE_URL
+    findings = []
+
+    pages_list = _get_all(f"{base}/api/v1/courses/{course_id}/pages")
+    for p in pages_list:
+        slug = p.get("url") or p.get("page_url")
+        if not slug:
+            continue
+        try:
+            r = requests.get(
+                f"{base}/api/v1/courses/{course_id}/pages/{slug}",
+                headers=_h(), timeout=20,
+            )
+            if r.status_code >= 400:
+                continue
+            body = (r.json() or {}).get("body") or ""
+        except Exception:
+            continue
+        for f in find_stale_link_metadata(body):
+            findings.append({
+                "container_type": "Page",
+                "container_id": slug,
+                "container_title": p.get("title", ""),
+                "href": f["href"],
+                "data_api_endpoint": f["data_api_endpoint"],
+                "data_api_returntype": f["data_api_returntype"],
+            })
+
+    for endpoint, ctype, body_field in (
+        ("assignments", "Assignment", "description"),
+        ("quizzes", "Quiz", "description"),
+        ("discussion_topics", "Discussion", "message"),
+    ):
+        items = _get_all(f"{base}/api/v1/courses/{course_id}/{endpoint}")
+        for it in items:
+            body = it.get(body_field) or ""
+            for f in find_stale_link_metadata(body):
+                findings.append({
+                    "container_type": ctype,
+                    "container_id": it.get("id"),
+                    "container_title": it.get("name") or it.get("title") or "",
+                    "href": f["href"],
+                    "data_api_endpoint": f["data_api_endpoint"],
+                    "data_api_returntype": f["data_api_returntype"],
+                })
+
+    return {
+        "course_id": course_id,
+        "label": label,
+        "findings_count": len(findings),
+        "findings": findings,
+    }
+
+
+def _print_link_metadata_report(report: dict, label: str = "") -> None:
+    """Print a concise console summary of stale-link-metadata findings."""
+    print(f"\n  Stale link-metadata audit — {label or report.get('course_id')}")
+    print(f"  ─────────────────────────────────────────────────")
+    n = report["findings_count"]
+    if n == 0:
+        print("  ✓ No stale data-api-endpoint / data-api-returntype attributes found.")
+        return
+    print(f"  ⚠ {n} stale anchor{'s' if n != 1 else ''} found:")
+    by_container = defaultdict(list)
+    for f in report["findings"]:
+        by_container[(f["container_type"], f["container_title"], f["container_id"])].append(f)
+    for (ctype, title, cid), fs in list(by_container.items())[:20]:
+        print(f"  • {ctype} '{title}' ({cid}) — {len(fs)} stale anchor(s)")
+        for f in fs[:3]:
+            print(f"      href → {f['href'][:70]}")
+            print(f"      stale data-api-endpoint → {f['data_api_endpoint'][:70]}")
+
+
+def _write_link_metadata_md_report(reports: list, labels_by_id: dict, path: Path) -> None:
+    """Markdown report writer mirroring _write_files_md_report shape."""
+    lines = [
+        "# Canvas — Stale Link Metadata Audit",
+        "",
+        "_Read-only audit. Lists `<a>` tags whose `data-api-endpoint` no longer matches their `href` target (issue #42)._",
+        "",
+    ]
+    for r in reports:
+        label = labels_by_id.get(r["course_id"], r["course_id"])
+        lines.append(f"## {label} ({r['course_id']}) — {r['findings_count']} stale anchor(s)")
+        lines.append("")
+        if not r["findings"]:
+            lines.append("_No stale anchors found._")
+            lines.append("")
+            continue
+        by_container = defaultdict(list)
+        for f in r["findings"]:
+            by_container[(f["container_type"], f["container_title"], f["container_id"])].append(f)
+        for (ctype, title, cid), fs in by_container.items():
+            lines.append(f"### {ctype} — {title} ({cid})")
+            for f in fs:
+                lines.append(f"- `href` → {f['href']}")
+                lines.append(f"  - stale `data-api-endpoint` → {f['data_api_endpoint']}")
+                if f["data_api_returntype"]:
+                    lines.append(f"  - stale `data-api-returntype` → {f['data_api_returntype']}")
+            lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -1363,6 +1605,10 @@ def main():
                         help="Date validation: out-of-window, timestamp ordering, "
                              "duplicate due dates per group, label-vs-week/sprint drift. "
                              "Read-only — issue #20")
+    parser.add_argument("--link-metadata", action="store_true",
+                        help="Stale link-metadata audit: <a> tags whose "
+                             "data-api-endpoint no longer points at the link's "
+                             "current href target. Opt-in, read-only — issue #42")
     args = parser.parse_args()
 
     if not CANVAS_API_TOKEN or not CANVAS_BASE_URL:
@@ -1434,6 +1680,26 @@ def main():
         md_path = Path("quality_report.md")
         _write_alignment_md_report(align_reports, labels_by_id, md_path)
         print(f"\n  Alignment audit → {md_path} + .canvas/alignment_audit_*.json")
+        sys.exit(0)
+
+    # Link-metadata audit (issue #42) — opt-in, read-only. Switches modes
+    # entirely. Does NOT run alongside the default audit; pair with the
+    # writer-side normalizer (when shipped) to prevent recurrence.
+    if args.link_metadata:
+        lm_reports = []
+        labels_by_id: dict = {}
+        for course_id, label in targets:
+            print(f"  Auditing link metadata for {label}...")
+            r = _audit_link_metadata(course_id, label=label)
+            _print_link_metadata_report(r, label)
+            lm_reports.append(r)
+            labels_by_id[course_id] = label
+            audit_path = REPORT_DIR / f"link_metadata_audit_{course_id}.json"
+            audit_path.parent.mkdir(parents=True, exist_ok=True)
+            audit_path.write_text(json.dumps(r, indent=2, default=str))
+        md_path = Path("link_metadata_report.md")
+        _write_link_metadata_md_report(lm_reports, labels_by_id, md_path)
+        print(f"\n  Link-metadata audit → {md_path} + .canvas/link_metadata_audit_*.json")
         sys.exit(0)
 
     # Files audit (issue #17) — separate, read-only audit. Doesn't run alongside the

@@ -1,6 +1,6 @@
 # Canvas API — Lessons Learned (Empirical Companion)
 
-> Reference. The 16 Canvas REST API behaviors the canvas-toolbox discovered through production use — behaviors Canvas does NOT document, documents incorrectly, or where the documented behavior diverges from observed behavior. Each lesson cost real time before becoming a lesson. Paired with [`canvas_api_knowledge.md`](canvas_api_knowledge.md) (the Canvas-documented-only half).
+> Reference. The 18 Canvas REST API behaviors the canvas-toolbox discovered through production use — behaviors Canvas does NOT document, documents incorrectly, or where the documented behavior diverges from observed behavior. Each lesson cost real time before becoming a lesson. Paired with [`canvas_api_knowledge.md`](canvas_api_knowledge.md) (the Canvas-documented-only half).
 
 **Sources** (canvas-toolbox empirical only):
 - GitHub issues that captured each finding: #25 (vendored-tool drift + module_settings_sync de-hardcoding + clear-quirk), #26 (Page idempotent upsert), #27 (startup safety guard), #28 (Blueprint exception report), #29 (Page-level integrity audit).
@@ -12,11 +12,11 @@
 
 **Companions:** [`canvas_api_knowledge.md`](canvas_api_knowledge.md) (the Canvas-docs companion — always read both together), [`canvas_rubrics_api_survey.md`](../pre_knowledge/rubrics/canvas_rubrics_api_survey.md) (rubric-specific gotchas in the wider survey form), [`pages_api_survey.md`](../pre_knowledge/canvas_api/pages_api_survey.md) (page-specific gotchas in survey form), [`rubrics_knowledge.md`](rubrics_knowledge.md), [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md).
 
-**Scope**: Behaviors Canvas exhibits that are NOT in Canvas's own documentation, OR that contradict it. Covers (a) the 16 footguns the toolkit has hit and defended against, (b) the audit indicators that surface these footguns in real courses, (c) the tool-author checklist that bakes the defenses into new code. Out of scope: documented Canvas behavior (lives in [`canvas_api_knowledge.md`](canvas_api_knowledge.md)).
+**Scope**: Behaviors Canvas exhibits that are NOT in Canvas's own documentation, OR that contradict it. Covers (a) the 18 footguns the toolkit has hit and defended against, (b) the audit indicators that surface these footguns in real courses, (c) the tool-author checklist that bakes the defenses into new code. Out of scope: documented Canvas behavior (lives in [`canvas_api_knowledge.md`](canvas_api_knowledge.md)).
 
 **Provenance**: Each fact in the JSON companion's `facts[]` cites the issue / commit / incident where the lesson was discovered, and the in-repo tool that now defends against it. No facts here have a Canvas-authored citation — by design, this file documents what Canvas does NOT document.
 
-_Last updated: 2026-05-21_
+_Last updated: 2026-06-01_
 
 > **Version note:** v0.1, untested as a knowledge file (though every individual lesson IS exercised against production via the defending tools). Per the canvas-toolbox `0.x` convention, this file is not catalogued in [`knowledge/README.md`](README.md) until promoted to v1.0. Not yet wired into consuming agents' `cross_references.knowledge_files[]`.
 
@@ -215,6 +215,21 @@ data = {"quiz[due_at]": new_due, "quiz[lock_at]": None, "quiz[unlock_at]": None}
 **How the toolkit handles it:** `blueprint_presync_check.py` keeps its own snake_case `_LOCKABLE_CONTENT_TYPE` map (passthrough + the two qualified-name normalizations) instead of importing #28's CamelCase map; `blueprint_exception_report.py` keeps its CamelCase `ASSET_TYPE_MAP` for migration-details. Two endpoints, two maps — don't share one.
 
 **Provenance:** `blueprint_presync_check.py` (#36/#37), `blueprint_exception_report.py` (#28).
+
+### L18 — Canvas does NOT update / strip `data-api-*` enrichment when an `<a href>` is later swapped
+
+**What Canvas does:** When a user (or the API) inserts a link to a Canvas-internal resource into a Page/Assignment/Quiz/Discussion description, Canvas auto-injects `data-api-endpoint="…/api/v1/courses/{id}/{type}/{id}"` and `data-api-returntype="Page|Assignment|Quiz|Discussion|…"` attributes on the `<a>` tag. If the `href` is later swapped (to a different Canvas resource OR to an external URL like `video.byui.edu/media/t/…`), Canvas leaves the original `data-api-*` attributes in place — they do **not** track the new `href`.
+
+**Why it matters:** The link **clicks** correctly (browsers follow `href`, not `data-api-*`), so the bug is invisible at first glance. But:
+- Canvas's hovercard/preview UI uses `data-api-endpoint` — it will try to fetch and render the **old** target (e.g. preview a discussion when the link now points at a Kaltura video).
+- Audit tools reading `data-api-endpoint` (vs `href`) misreport where a link points — false positives for "still references the old thing" even when the visible link is correct.
+- Description hashes / diffs become noisy — the metadata residue makes "is this content current?" hard to answer.
+
+**Provenance incident (#42):** ITM 327 Lab 1/2 walkthrough `href` swap (2026-06-03). The cleanup was a second PUT that regex-stripped the orphan `data-api-endpoint` + `data-api-returntype` attributes. Same residue propagated through Blueprint sync to two live sections before cleanup.
+
+**How the toolkit handles it:** Shared stdlib helper `lib/tools/_link_metadata.py` — `strip_stale_link_metadata(html) → (normalized_html, count)`. Idempotent. Detection rule: parse `href` and `data-api-endpoint` into canonical `(course_id, resource_path)` form; if they disagree (different resource, different course, or `href` is external) → strip both `data-api-*` attributes. Matching pairs are left untouched. Read-only companion `find_stale_link_metadata(html) → [findings]` powers an opt-in `course_quality_check.py --link-metadata` audit. Writer-side wire-in (auto-normalize on every PUT through `blueprint_sync.py` / `course_mirror.py`) is the planned follow-up after the opt-in audit validates the detector on real fleet data.
+
+**Provenance:** `_link_metadata.py` + `course_quality_check.py --link-metadata` (#42). Companion `lib/tests/test_link_metadata.py` covers the matching-pair / stale / external-href / idempotency / multi-anchor cases.
 
 ---
 

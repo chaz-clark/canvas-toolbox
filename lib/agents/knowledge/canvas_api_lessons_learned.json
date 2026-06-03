@@ -3,8 +3,8 @@
     "template_version": "1.0",
     "generated_by": "make_agent_knowledge v1.0",
     "knowledge_id": "canvas_api_lessons_learned",
-    "last_updated": "2026-05-21",
-    "description": "Canvas API — Lessons Learned (Empirical Companion). 16 behaviors the canvas-toolbox discovered through production use that Canvas does NOT document or documents incorrectly. Each lesson cites the issue/commit/incident where it was discovered and the defending tool that handles it. Paired with canvas_api_knowledge.md (Canvas-docs-only — strict source separation).",
+    "last_updated": "2026-06-01",
+    "description": "Canvas API — Lessons Learned (Empirical Companion). 18 behaviors the canvas-toolbox discovered through production use that Canvas does NOT document or documents incorrectly. Each lesson cites the issue/commit/incident where it was discovered and the defending tool that handles it. Paired with canvas_api_knowledge.md (Canvas-docs-only — strict source separation).",
     "owner": "Chaz Clark (canvas-toolbox empirical institutional memory)",
     "runtime_strategy": "read_at_runtime",
     "runtime_strategy_rationale": "Body ~21KB / 4 ≈ 5,250 tokens — within the 'either' band per runtime_strategy_rules. Set to read_at_runtime per named_override_patterns.selective_load: consuming agents load 2-4 of ~16 knowledge files per audit task. Selective-load defeats embed-cache benefits.",
@@ -168,6 +168,15 @@
       "citations": [
         "blueprint_presync_check.py (#36/#37)",
         "blueprint_exception_report.py (#28)"
+      ]
+    },
+    {
+      "id": "l18_stale_data_api_endpoint_after_href_swap",
+      "term": "L18 — Canvas does NOT update or strip data-api-* enrichment when an <a href> is later swapped",
+      "definition": "When a Canvas-internal link is inserted into a Page/Assignment/Quiz/Discussion description, Canvas auto-injects data-api-endpoint=\"/api/v1/courses/{id}/{type}/{id}\" and data-api-returntype=\"Page|Assignment|Quiz|Discussion|…\" on the <a> tag. If the href is later swapped (to a different Canvas resource OR to an external URL like video.byui.edu/media/t/…), Canvas leaves the original data-api-* attributes in place — they do NOT track the new href. The link clicks correctly (browsers follow href, not data-api-*), so the bug is invisible at first glance; but Canvas's hovercard/preview UI uses data-api-endpoint and will try to fetch the old target, audit tools reading data-api-endpoint vs href misreport where the link points (false-positive 'still references the old thing'), and description hashes/diffs become noisy. Defense: shared helper lib/tools/_link_metadata.py — strip_stale_link_metadata(html) → (normalized_html, count). Idempotent. Parses href + data-api-endpoint into canonical (course_id, resource_path) form; if they disagree (different resource, different course, or href external) → strip both data-api-* attributes; matching pairs left untouched. Companion find_stale_link_metadata(html) → [findings] powers opt-in course_quality_check.py --link-metadata audit. Writer-side wire-in (auto-normalize on every PUT through blueprint_sync.py / course_mirror.py) is the planned follow-up after the opt-in audit validates on fleet data.",
+      "citations": [
+        "_link_metadata.py + course_quality_check.py --link-metadata (#42)",
+        "ITM 327 Lab 1/2 walkthrough href swap (2026-06-03)"
       ]
     },
     {
