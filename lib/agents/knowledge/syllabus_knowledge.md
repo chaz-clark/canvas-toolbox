@@ -135,4 +135,64 @@ The rubric distinguishes:
 
 A keyword detector can score 0 vs ≥1 reliably (found or not). It **cannot reliably distinguish 1 from 2** — that's a human-judgment call about clarity. The audit surfaces "present once" as a *possibly-thin* signal (advisory), but doesn't auto-assign 1 vs 2. The final score is reported as **N/26 detected** with a per-item table the operator can refine to true 0/1/2 by hand.
 
-_Last updated: 2026-06-08 (v0.2 — 25-item rubric integration, link-presence detection, BYU-I canonical sources)_
+---
+
+## Faculty Guide 3.3.1 (canonical BYU-I policy — operator-supplied 2026-06-08)
+
+The BYU-I Faculty Guide §3.3.1 *Syllabus* is the authoritative institutional policy on syllabus requirements. Lives on `webmailbyui.sharepoint.com/sites/Policies/SitePages/3.3 Duties and Opportunities.aspx` (SharePoint, auth-required — couldn't WebFetch; transcribed below from operator-supplied text 2026-06-08):
+
+> **3.3.1 Syllabus**
+>
+> Faculty members are required to publish a syllabus for each class they teach. The most important function of the syllabus is to help **create a vision for students**. It is the first chance teachers have to help students see *why* the things they will learn in the course matter. As important as other functions of the syllabus are, they should not overshadow this primary purpose of the syllabus as **a persuasive document that motivates students to learn**.
+>
+> In addition, each syllabus should contain:
+> - a course description
+> - the anticipated outcomes (which may be established on the department level)
+> - a list of materials the students need to purchase
+> - grading and attendance policies
+> - the final examination schedule
+> - information on how and when to contact the instructor
+> - an invitation for students with special educational needs to identify themselves in a timely manner
+>
+> Additionally, a class calendar should either be incorporated into or attached to the syllabus (see 3.3.14 Grades and 3.3.16 Academic Honesty).
+>
+> Each semester, faculty members keep a record of past syllabi for accreditation and grading disputes. Faculty members should submit paper or electronic copies of electronic syllabi to the Department Chair each semester for long-term storage and access (see 3.3.15 Records Retention).
+
+### What 3.3.1 adds beyond the 25-item rubric
+
+The Syllabus Completeness Rubric (faculty-distributed PDF, transcribed at `templates/syllabus_completeness_rubric.md`) is the *scoring framework*; 3.3.1 is the *policy*. The two largely overlap but 3.3.1 surfaces two things not as explicit in the rubric:
+
+1. **"Persuasive document that motivates students to learn" / "create a vision for students"** — this is the *primary purpose* of the syllabus per BYU-I policy, ahead of every checklist item. The audit's tone-quality signals are out of scope for deterministic detection, but this framing belongs in the operator-facing audit output as advisory context: a complete-but-bureaucratic syllabus may still fail this primary test, which is a *human judgment* the audit does not make.
+2. **"Final examination schedule"** specifically (not just "Exams present"). The current rubric item *Exams (if applicable)* covers presence; the 3.3.1 requirement is for an actual **schedule**. Audit-side: could add a sub-detection for date/time language near exam mentions in a future enhancement; for now this is a manual-review item the rubric covers under *Exams*.
+3. **Class calendar** must be either incorporated or attached. The current rubric covers this under *Main Course Assignments* (topics, reading assignments, descriptions). Operators using canvas-toolbox can additionally generate the calendar artifact via `lib/tools/course_map_build.py` (v0.30.0+), which produces the per-week schedule the syllabus can attach.
+
+### Cross-walk: 3.3.1 required elements → 25-item rubric
+
+| 3.3.1 requirement | Rubric item(s) that cover it | Gap? |
+|---|---|---|
+| Course description | Course Description / catalog alignment | ✅ |
+| Anticipated outcomes | Course Outcomes / catalog alignment | ✅ |
+| Materials to purchase | Materials | ✅ |
+| Grading policy | Weighting + Grading scale | ✅ |
+| Attendance policy | Attendance | ✅ |
+| **Final examination schedule** | Exams (if applicable) | ⚠ *covers presence, not schedule explicitly* |
+| **Instructor contact** | (umbrella 9-section audit catches this; **NOT in the 25-item rubric**) | ⚠ *rubric gap — umbrella covers* |
+| Invitation for special educational needs | Accommodations for Students with Disabilities | ✅ |
+| Class calendar | Main Course Assignments (topics covered) | ⚠ *implicit — could be explicit* |
+| Records retention (process, not content) | (not a syllabus-content check) | n/a |
+
+### Implication for the audit
+
+Two minor enhancements worth tracking (parking-lot-grade, not blocking):
+
+1. **Add "Instructor contact" as a 26th rubric item** — would close the gap between the rubric and FG 3.3.1. The umbrella audit already detects it, so the data is available; just needs to be surfaced as a per-item score in `--rubric` mode.
+2. **Add a "Vision / motivation" advisory signal** — heuristic detection of *why-the-course-matters* language (verbs like *prepare you to*, *equip*, *empower*, *will help you*). Not pass/fail (per the existing evidence-based stance); just a data signal to remind operators the rubric scores *what's present*, not *whether it motivates*.
+
+Both would be backward-compatible additions to `lib/tools/syllabus_audit.py`. Filed for the next syllabus-audit iteration.
+
+### Source attribution
+
+- **Operator-supplied verbatim text:** Chaz, 2026-06-08 (after the canvas-toolbox v0.31.0 commit identified the SharePoint URL as auth-gated). The verbatim block above is the authoritative source for what this knowledge file's policy claims rest on.
+- **SharePoint URL** (for re-verification by authorized users): `webmailbyui.sharepoint.com/sites/Policies/SitePages/3.3 Duties and Opportunities.aspx`.
+
+_Last updated: 2026-06-08 (v0.2.1 — Faculty Guide 3.3.1 verbatim block + cross-walk to 25-item rubric)_
