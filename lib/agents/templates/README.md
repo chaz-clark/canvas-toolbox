@@ -12,7 +12,9 @@ This also positions cleanly for the future deployable-skill direction: when a kn
 
 ## Layout convention
 
-One subdirectory per template-set, named after the framework or domain it serves:
+Two valid layouts depending on size:
+
+**(a) Subdirectory per template-set** — for multi-file sets (multiple HTML components, JSON shapes, etc.):
 
 ```
 agents/templates/
@@ -24,11 +26,21 @@ agents/templates/
     └── ...
 ```
 
-A template-set's `README.md` should document:
+**(b) Flat file** — for single-template sets where a subdirectory would be ceremony:
+
+```
+agents/templates/
+├── README.md                          ← this file
+└── <template_name>.md                 ← e.g., course_map_blank.md
+```
+
+A template-set's `README.md` (subdirectory layout) should document:
 
 - What framework or knowledge file the templates support
 - Each template's purpose, inputs (placeholder variables), and where it gets injected
 - Naming conventions used inside the template-set
+
+For flat single-file templates, the file's own front-matter / opening paragraphs serve the same purpose, and the entry below in "Currently active template-sets" documents it.
 
 ## Naming
 
@@ -57,3 +69,4 @@ Don't inline the template body in the knowledge file. The reference is the contr
 | Set | Used by | Contents |
 |---|---|---|
 | [`byui_course_design/`](byui_course_design/) | [`agents/knowledge/course_design_language_knowledge.md`](../knowledge/course_design_language_knowledge.md) | 11 HTML component templates (banner wrapper, Core Questions callout, section header, Purpose+Outcome pair, red Readings card, tan Architect's Lens card, Weekly Schedule table, assignment Purpose+Overview, Instructions+Parts, Submission Criteria, Architect's Reflection closing card) + 1 canonical 3-level rubric JSON shape |
+| [`course_map_blank.md`](course_map_blank.md) | [`agents/knowledge/learned/2026-06-05_course-map-from-canvas-pass-1-lessons.md`](../knowledge/learned/2026-06-05_course-map-from-canvas-pass-1-lessons.md) | Blank Markdown template for the *Architects of Learning* "Course Map & Schedule" assignment artifact. University-agnostic — works for any institution's AoL-style course-design submission. 6 sections covering Course Outcomes & Assessment Strategy (1.1-1.4), optional Assessment Design Deep-Dive (1.5), At-a-Glance (2), Per-Module Details (3), Semester Schedule (4), Pacing Reflection (5), Appendix (6). Validated against two filled exemplars (Data Warehousing online pilot + Construction Mgmt campus). Generator script at `/tmp/build_course_map_v11.py` (promotion to `lib/tools/` pending). |
