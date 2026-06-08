@@ -13,6 +13,7 @@ Built at BYU-Idaho, designed for all instructors. Works with any Canvas institut
 - **Validate your dates** — check that due dates are in the right window, in the right order, and not accidentally duplicated
 - **Check your outcome chain** — see whether your course outcomes actually connect to what you're grading
 - **Find unused files** — surface files sitting in Canvas that nothing links to
+- **Build a Course Map & Schedule** — generate an Architects-of-Learning–style course map (CLOs, per-module outcomes, 14-week schedule, pacing analysis) from your Canvas course
 - **Roll out a new semester** — sync your master course to a Blueprint and let Canvas handle section distribution
 
 Full knowledge base and agent framework references: [`lib/agents/knowledge/README.md`](lib/agents/knowledge/README.md)
@@ -369,6 +370,24 @@ uv run python canvas_toolbox/lib/tools/workload_audit.py
 ```
 
 Buckets your gradable assignments by due-date week and flags **crunch weeks** (one week carrying far more than the term average), front- or back-loading, and work with no due date. Add `--credits 3` for a rough over/under-assignment sanity note. It reports `balanced` / `uneven` / `sparse` / `unscheduled`. (Honest limit: it measures *distribution* from due dates — it can't see reading *hours* inside linked files, so it doesn't compute a precise time budget.)
+
+## "Build me a Course Map & Schedule for my course"
+
+**Ask your agent:** *"Build me a Course Map and Schedule for my course"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/course_map_build.py
+```
+
+Generates an Architects-of-Learning–style **Course Map & Schedule** Markdown artifact (sections: CLOs from syllabus, Architect's Analysis, Key Assessments with heuristic Type / CLO / Domain·Level, Assessment Strategy, optional Assessment Design Deep-Dive, 14-week At-a-Glance, per-module Details with CLO Coverage Matrix + MLO extraction + Bloom Scaffolding Ladder, Semester Schedule with auto-detected class cadence + Prepare/In-Class/Assignment classification, Pacing Reflection with heavy-week ranking, Gap Report). Prose sections (Architect's Analysis, Pacing Reflection, AI Opportunities/Vulnerabilities, Lesson Topics) are write-in by design — the tool produces structure + data; you bring the editorial voice.
+
+Common variants:
+- `--emit-blank --output-md template.md` — emit just the blank template (university-agnostic)
+- `--course 415320 --output-md /tmp/my_map.md` — pull a specific course instead of `MASTER_COURSE_ID`
+- `--class-days "Mon,Wed"` — override auto-detected meeting days (or set `CLASS_DAYS` env var)
+
+The committed template lives at [`lib/agents/templates/course_map_blank.md`](lib/agents/templates/course_map_blank.md). Pass 1 patterns + 19 lessons captured at [`lib/agents/knowledge/learned/2026-06-05_course-map-from-canvas-pass-1-lessons.md`](lib/agents/knowledge/learned/2026-06-05_course-map-from-canvas-pass-1-lessons.md).
 
 ---
 
