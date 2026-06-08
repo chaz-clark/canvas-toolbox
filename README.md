@@ -14,6 +14,7 @@ Built at BYU-Idaho, designed for all instructors. Works with any Canvas institut
 - **Check your outcome chain** — see whether your course outcomes actually connect to what you're grading
 - **Find unused files** — surface files sitting in Canvas that nothing links to
 - **Build a Course Map & Schedule** — generate an Architects-of-Learning–style course map (CLOs, per-module outcomes, 14-week schedule, pacing analysis) from your Canvas course
+- **Score your syllabus against the BYU-I Completeness Rubric** — 25 specific items with link-presence detection for required policy links (Grievance / FERPA / Honor Code / Policy Library)
 - **Roll out a new semester** — sync your master course to a Blueprint and let Canvas handle section distribution
 
 Full knowledge base and agent framework references: [`lib/agents/knowledge/README.md`](lib/agents/knowledge/README.md)
@@ -313,6 +314,19 @@ Cross-references everything linked from your course content against what's actua
 - Likely duplicates — same filename, different IDs
 
 Read-only — nothing is deleted automatically.
+
+## "Score my syllabus against the BYU-I Completeness Rubric"
+
+**Ask your agent:** *"Score my syllabus against the BYU-I Syllabus Completeness Rubric"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/syllabus_audit.py --rubric
+```
+
+Scores your syllabus against **25 specific items** across 11 categories (the BYU-I Syllabus Completeness Rubric: 0 = missing / 1 = thin / 2 = complete). Includes link-presence detection for required policy links (Student Grievance, CES Honor Code, Academic Honesty, FERPA, Policy Library — a keyword mention without an `<a href=>` scores lower than one with the link). Outputs a per-item table, category groupings, and a total signal score. Use `--rubric --detailed` to also print the 9-section umbrella audit.
+
+The rubric template + canonical BYU-I syllabus template are at [`lib/agents/templates/syllabus_completeness_rubric.md`](lib/agents/templates/syllabus_completeness_rubric.md) and [`lib/agents/templates/byui_syllabus_template.md`](lib/agents/templates/byui_syllabus_template.md).
 
 ## "Is my syllabus complete?"
 

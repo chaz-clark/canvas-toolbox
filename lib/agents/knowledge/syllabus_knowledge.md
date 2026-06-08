@@ -79,4 +79,60 @@ is *announced* to students.
 (the outcomes named in the syllabus), `rubrics_knowledge.md` (the assessment/rubric end),
 `canvas_api_knowledge.md` / `canvas_api_lessons_learned.md` (the API surface).
 
-_Last updated: 2026-05-26 (promoted to v1.0 — validated read-only against real courses)_
+---
+
+## v0.2 (2026-06-08) — granular 25-item rubric integration
+
+The BYU-I Academic Office distributes a **Syllabus Completeness Rubric** (faculty-authored 2026) that scores syllabi against **25 specific items** across 11 categories, using a 0/1/2 (missing / thin-uneven / complete) scale. This is *more granular than the 9-section umbrella* and adds checks the original audit missed.
+
+**Why it matters:** the 9-section umbrella catches missing categories but not missing specific items within them. The rubric distinguishes "University Policies present" (umbrella) from "Link to FERPA page present" (specific). Real faculty submissions get scored at this granularity.
+
+### What the rubric adds (over the original 9-section check)
+
+| Category | New specific items | Why distinct |
+|---|---|---|
+| **Course Information** | Title / Code / Credits / Semester-year / Prerequisites (5 items) | Originally lumped under "Overview". Faculty often miss Credits + specific Semester. |
+| **Course Description** | "matches what is in the catalog" | Adds a catalog-alignment check (vs just "description present") |
+| **Course Outcomes** | "match what is in the catalog" | Same — alignment, not just presence |
+| **Grading and Assessments** | Weighting + Grading Scale + Exams + Projects (4 items) | Originally one umbrella; each is a distinct decision faculty must communicate |
+| **Expectations** | Attendance policy (separate from workload) | Workload tells you HOW MUCH; attendance tells you WHAT COUNTS AS PRESENT |
+| **AI Usage** | Policy + "right to modify" clause + tips for success | The "right to modify" + "tips for success" are new asks beyond just AI-policy presence |
+| **Additional Information** | Link to a page with additional info | New umbrella for course-specific addendum |
+| **University Statements & Policies** | Personal Challenges / Disabilities / Sexual Harassment / Student Grievance link / CES Honor Code link / Academic Honesty link / FERPA link / Policy Library link / Copyright disclaimer (9 items) | Original lumped these. Specific LINK presence (vs keyword mention) is what the rubric scores. |
+
+**Total: 25 scored items.** See [`lib/agents/templates/syllabus_completeness_rubric.md`](../templates/syllabus_completeness_rubric.md) for the full rubric template + scoring scale.
+
+### Canonical sources
+
+| Source | URL | Use |
+|---|---|---|
+| **BYU-I Syllabus Template** | `byui.instructure.com/courses/405800/pages/syllabus-template` (Canvas API accessible with auth) | Verbatim section headings + verbatim University Statements text. Transcribed to [`lib/agents/templates/byui_syllabus_template.md`](../templates/byui_syllabus_template.md). |
+| **Syllabus Completeness Rubric** | Faculty-distributed PDF (2026) | The 25-item rubric — transcribed to [`lib/agents/templates/syllabus_completeness_rubric.md`](../templates/syllabus_completeness_rubric.md). |
+| **Dean of Students — Syllabus Statements** | https://www.byui.edu/dean-of-students/syllabus-statements | Three required statement texts (Personal Challenges, Accommodations, Sexual Harassment). |
+| **AI in the Syllabus** | https://www.byui.edu/ai/academics/ai-in-the-syllabus | Required-gate definition + Stoplight framework + AI Assessment Scale + AI Statement Wizards. |
+| **Faculty Guide 3.3 Duties and Opportunities** | `webmailbyui.sharepoint.com/sites/Policies/SitePages/3.3 Duties and Opportunities.aspx` | Auth-required; faculty-side context for syllabus expectations. Not WebFetch-able. |
+
+### Link-presence detection (new in audit)
+
+Five `Other Policies` items are scored on **link presence** (not just keyword mention):
+
+| Item | Detected by |
+|---|---|
+| Student Grievance link | `byui.edu/student-records/grievance` URL OR "student grievance" + href anchor |
+| CES Honor Code link | `churchofjesuschrist.org` or `byui.edu` + "honor code" + href |
+| Academic Honesty link | `byui.edu/student-honor-office/academic-integrity` OR "academic honesty" + href |
+| FERPA link | `byui.edu/student-records/ferpa-rights` OR "ferpa" + href |
+| Policy Library link | `byui.edu/policies` URL OR "policy library" + href |
+
+**Reasoning:** the rubric specifies *link* (not just "policy mentioned"). A syllabus that says "see the FERPA page" without linking it scores 1 (thin); one that includes the URL scores 2 (complete).
+
+### Honest limit: 0 vs 1 vs 2 with a keyword detector
+
+The rubric distinguishes:
+- **0** = missing entirely
+- **1** = present but thin / uneven
+- **2** = complete and clear
+
+A keyword detector can score 0 vs ≥1 reliably (found or not). It **cannot reliably distinguish 1 from 2** — that's a human-judgment call about clarity. The audit surfaces "present once" as a *possibly-thin* signal (advisory), but doesn't auto-assign 1 vs 2. The final score is reported as **N/26 detected** with a per-item table the operator can refine to true 0/1/2 by hand.
+
+_Last updated: 2026-06-08 (v0.2 — 25-item rubric integration, link-presence detection, BYU-I canonical sources)_

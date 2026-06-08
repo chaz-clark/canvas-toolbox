@@ -15,4 +15,4 @@ If the printed version is behind the upstream tag, re-sync with
 `cd canvas_toolbox && git pull` — never patch the vendored copy in place.
 """
 
-__version__ = "0.30.0"
+__version__ = "0.31.0"

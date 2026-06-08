@@ -263,6 +263,260 @@ def detect_sections(text: str) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# 25-item Syllabus Completeness Rubric (v0.31 — knowledge file v0.2)
+# ---------------------------------------------------------------------------
+# Source: BYU-I Academic Office Syllabus Completeness Rubric (2026), transcribed
+# at lib/agents/templates/syllabus_completeness_rubric.md.
+#
+# Each item has detection patterns. Some items ALSO check link-presence
+# (`url_patterns`) — a syllabus that says "see the FERPA page" without a link
+# scores lower than one that includes the URL.
+#
+# Honest limit: detection scores 0 vs ≥1 reliably. The rubric's 1-vs-2
+# distinction ("thin/uneven" vs "complete and clear") is a human-judgment
+# call this audit does NOT auto-assign — operator scores final 0/1/2.
+
+RUBRIC_ITEMS: list[dict] = [
+    # Course Information (5)
+    {"cat": "Course Information", "key": "title",
+     "label": "Course Title is present",
+     "patterns": ["course title", "course:"]},
+    {"cat": "Course Information", "key": "code",
+     "label": "Course Code is present",
+     "patterns": [r"\b[a-z]{2,4}\s*\d{3}\b", "course code", "course id"]},
+    {"cat": "Course Information", "key": "credits",
+     "label": "Course Credits is present",
+     "patterns": [r"\b\d+\s*credit", "credit hour", "credits:", r"credits\s*=\s*\d"]},
+    {"cat": "Course Information", "key": "semester_year",
+     "label": "Specific semester/year (if on-campus) is present",
+     "patterns": [r"(spring|summer|fall|winter)\s+20\d\d", "semester:", "term:"]},
+    {"cat": "Course Information", "key": "prerequisites",
+     "label": "Prerequisites is present or none are noted",
+     "patterns": ["prerequisit", "prereq", "no prerequisite"]},
+    # Course Description (1)
+    {"cat": "Course Description", "key": "description",
+     "label": "Course description matches what is in the catalog",
+     "patterns": ["course description", "catalog description", "description:"]},
+    # Course Outcomes (1)
+    {"cat": "Course Outcomes", "key": "outcomes",
+     "label": "Course Outcomes match what is in the catalog",
+     "patterns": ["learning outcome", "course outcome", "by the end of",
+                  "course objective"]},
+    # Materials (1)
+    {"cat": "Materials", "key": "materials",
+     "label": "Required/recommended textbooks, software, or equipment are identified",
+     "patterns": ["textbook", "required materials", "required reading", "software",
+                  "equipment", "isbn"]},
+    # Grading and Assessments (4)
+    {"cat": "Grading and Assessments", "key": "weighting",
+     "label": "Weighting of assignments is present (if applicable)",
+     "patterns": ["weighting", "% of grade", "percent of grade", "grade breakdown",
+                  "points toward", "weight:"]},
+    {"cat": "Grading and Assessments", "key": "grading_scale",
+     "label": "Grading scale is present (if applicable)",
+     "patterns": ["grading scale", "grade scale", "letter grade", r"a\s*=\s*9",
+                  "grade thresh"]},
+    {"cat": "Grading and Assessments", "key": "exams",
+     "label": "Exams is present (if applicable)",
+     "patterns": ["exam", "midterm", "final exam"]},
+    {"cat": "Grading and Assessments", "key": "projects",
+     "label": "Projects is present (if applicable)",
+     "patterns": ["project", "capstone", "presentation"]},
+    # Main Course Assignments (1)
+    {"cat": "Main Course Assignments", "key": "main_assignments",
+     "label": "Topics covered, major experiences, or how-students-will-achieve descriptions are present",
+     "patterns": ["topics covered", "main assignment", "major assignment",
+                  "course experience", "how students will", "reading assignment"]},
+    # Expectations (2)
+    {"cat": "Expectations", "key": "workload",
+     "label": "Workload is clarified",
+     "patterns": ["workload", "hours per week", "expect to spend", "time commitment",
+                  "estimated time"]},
+    {"cat": "Expectations", "key": "attendance",
+     "label": "Attendance policy is present",
+     "patterns": ["attendance", "absent", "absence policy"]},
+    # AI Usage (1 — but composite: policy + right-to-modify + tips)
+    {"cat": "AI Usage", "key": "ai_usage",
+     "label": "AI policy + 'right to modify' clause + tips for success",
+     "patterns": ["ai policy", "ai tool", "ai use", "generative ai",
+                  "artificial intelligence", "use of ai"]},
+    # Additional Information (1)
+    {"cat": "Additional Information", "key": "addl_info",
+     "label": "Link to a page with additional information is present, if applicable",
+     "patterns": ["additional information", "addendum", "additional resource",
+                  "more information"]},
+    # University Statements & Policies (9)
+    {"cat": "University Statements & Policies", "key": "personal_challenges",
+     "label": "Personal Challenges statement is present",
+     "patterns": ["personal challenges", "dean of students office",
+                  "988 hotline", "9-8-8", "counseling center",
+                  "if you experience a crisis"]},
+    {"cat": "University Statements & Policies", "key": "disabilities",
+     "label": "Accommodations for Students with Disabilities statement is present",
+     "patterns": ["accommodations", "accessibility services", "qualified persons with disabilities",
+                  "disability"]},
+    {"cat": "University Statements & Policies", "key": "sexual_harassment",
+     "label": "Sexual Harassment statement is present",
+     "patterns": ["sexual harassment", "title ix coordinator", "titleix@byui.edu",
+                  "title ix"]},
+    {"cat": "University Statements & Policies", "key": "grievance_link",
+     "label": "Link to Student Grievance page is present",
+     "patterns": ["student grievance", "grievance"],
+     "url_patterns": ["byui.edu/student-records/grievance", "grievance"]},
+    {"cat": "University Statements & Policies", "key": "honor_code_link",
+     "label": "Link to CES Honor Code page is present",
+     "patterns": ["ces honor code", "honor code", "church education system"],
+     "url_patterns": ["churchofjesuschrist.org", "byui.edu/honor"]},
+    {"cat": "University Statements & Policies", "key": "academic_honesty_link",
+     "label": "Link to Academic Honesty page is present",
+     "patterns": ["academic honesty", "academic integrity"],
+     "url_patterns": ["byui.edu/student-honor-office/academic-integrity",
+                       "byui.edu/academic"]},
+    {"cat": "University Statements & Policies", "key": "ferpa_link",
+     "label": "Link to FERPA page is present",
+     "patterns": ["ferpa", "family educational rights"],
+     "url_patterns": ["byui.edu/student-records/ferpa", "ferpa"]},
+    {"cat": "University Statements & Policies", "key": "policy_library_link",
+     "label": "Link to Policy Library is present",
+     "patterns": ["policy library", "byu-idaho policy library"],
+     "url_patterns": ["byui.edu/policies", "policies"]},
+    {"cat": "University Statements & Policies", "key": "copyright",
+     "label": "Copyright disclaimer is present",
+     "patterns": ["copyright", "title 17", "u.s. copyright law",
+                  "byui.edu/copyright"]},
+]
+
+
+def _has_link(raw_html: str, url_patterns: list[str]) -> bool:
+    """Check whether the raw HTML contains an <a href=...> matching any URL pattern."""
+    if not raw_html or not url_patterns:
+        return False
+    # Find all href values
+    hrefs = re.findall(r'href\s*=\s*["\']([^"\']+)["\']', raw_html, re.IGNORECASE)
+    if not hrefs:
+        return False
+    for href in hrefs:
+        href_l = href.lower()
+        for pat in url_patterns:
+            if pat.lower() in href_l:
+                return True
+    return False
+
+
+def detect_rubric_items(text: str, raw_html: str) -> list[dict]:
+    """Score each of the 25 rubric items.
+
+    For each item:
+      - `detected` = True if any keyword pattern fires in the stripped text
+      - `link_present` = True if the item has url_patterns AND an <a href=> matches
+      - `score_signal` = 0 (not detected), 1 (detected, no link or N/A), 2 (detected + link)
+
+    Honest limit: the 1-vs-2 distinction the rubric makes ("thin" vs "complete")
+    is partially captured by link_present for link items. For prose items
+    (statements, descriptions), the audit only scores 0 vs ≥1 — the operator
+    refines 1 vs 2 by hand.
+    """
+    out = []
+    for item in RUBRIC_ITEMS:
+        detected_count = 0
+        for pat in item["patterns"]:
+            try:
+                # Try regex first; if it fails, fall back to substring
+                if any(c in pat for c in r"\^$*+?{}[]|()"):
+                    detected_count += len(re.findall(pat, text, re.IGNORECASE))
+                else:
+                    detected_count += text.count(pat)
+            except re.error:
+                detected_count += text.count(pat)
+        url_patterns = item.get("url_patterns")
+        link_present = _has_link(raw_html, url_patterns) if url_patterns else None
+
+        # Heuristic score signal:
+        #   0 = not detected
+        #   1 = detected once (possibly thin) OR detected w/o link when link is required
+        #   2 = detected ≥2 times (likely complete) OR detected + link for link items
+        if detected_count == 0:
+            signal = 0
+        elif url_patterns:
+            # Link item: needs both keyword AND href
+            signal = 2 if link_present else 1
+        else:
+            # Prose item: 1+ mention = at least present
+            signal = 2 if detected_count >= 2 else 1
+
+        out.append({
+            "category": item["cat"],
+            "key": item["key"],
+            "label": item["label"],
+            "detected_count": detected_count,
+            "link_present": link_present,
+            "score_signal": signal,
+        })
+    return out
+
+
+def _render_rubric(course_id: str, course_name: str, items: list[dict],
+                   ts: str) -> list[str]:
+    """Rubric-style output: per-item score signal + category totals + reflection prompts."""
+    lines = [
+        "# Syllabus Completeness Rubric — Audit",
+        "",
+        f"Course:  {course_name} ({course_id})",
+        f"Run at:  {ts}",
+        "",
+        "Scoring signal (heuristic — operator refines):",
+        "  ✅ 2  — detected + (link present for link items, or multiple mentions)",
+        "  ⚠️ 1  — detected once OR detected without link for link items",
+        "  🔴 0  — not detected",
+        "",
+        "Honest limit: a keyword detector cannot reliably distinguish 1 (thin) from",
+        "2 (complete and clear). The signal below is detection-based; operator",
+        "judgment refines 1 vs 2 by reading the actual text.",
+        "",
+        "=" * 62,
+        "",
+    ]
+
+    # Group by category, render table
+    by_cat: dict[str, list[dict]] = {}
+    for it in items:
+        by_cat.setdefault(it["category"], []).append(it)
+
+    total_score = 0
+    total_max = 0
+    glyph_for = {0: "🔴 0", 1: "⚠️ 1", 2: "✅ 2"}
+
+    for cat, cat_items in by_cat.items():
+        lines.append(f"## {cat}")
+        lines.append("")
+        lines.append("| Item | Score | Detected | Link |")
+        lines.append("|---|---|---|---|")
+        for it in cat_items:
+            score = it["score_signal"]
+            total_score += score
+            total_max += 2
+            link_str = ("✓ link" if it["link_present"] else "no link") if it["link_present"] is not None else "—"
+            det_str = str(it["detected_count"]) if it["detected_count"] > 0 else "0"
+            lines.append(f"| {it['label']} | {glyph_for[score]} | {det_str} mention(s) | {link_str} |")
+        lines.append("")
+
+    lines.append("=" * 62)
+    pct = (100 * total_score / total_max) if total_max else 0
+    lines.append(f"**TOTAL signal: {total_score} / {total_max}  ({pct:.0f}%)**")
+    lines.append("")
+    lines.append("(Maximum is 50 if all 25 items are applicable. Use N/A in operator")
+    lines.append("review for items that don't apply, then recompute.)")
+    lines.append("")
+    lines.append("─" * 62)
+    lines.append("Reflection prompts (rubric):")
+    lines.append("  1. Which 2–3 sections of your syllabus need the most attention?")
+    lines.append("  2. Which items could be improved quickly?")
+    lines.append("  3. What updates will make the syllabus more helpful and clear for students?")
+    lines.append("")
+    return lines
+
+
 def detect_ai_policy(text: str) -> dict:
     """The required AI-policy gate + advisory framework detection."""
     present = _any(text, _AI_POLICY_PATTERNS)
@@ -442,6 +696,11 @@ def main() -> None:
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="(Read-only tool; safety guard is advisory only. "
                          "Accepted for symmetry with write tools.)")
+    ap.add_argument("--rubric", action="store_true",
+                    help="Emit the 25-item Syllabus Completeness Rubric score "
+                         "instead of (or in addition to) the 9-section summary. "
+                         "Scores 0/1/2 per item with link-presence detection. "
+                         "Use with --detailed to keep the umbrella audit too.")
     args = ap.parse_args()
 
     missing_cfg: list[str] = []
@@ -482,13 +741,36 @@ def main() -> None:
     advisory = detect_advisory(text, body)
     verdict, missing = compute_verdict(sections, ai_policy, body_words)
 
+    # v0.31 — 25-item rubric (run alongside umbrella audit; surfaced when --rubric set)
+    rubric_items = detect_rubric_items(text, body)
+
     if args.emit_json:
         payload = _render_json(course_id, course_name, verdict, missing,
                                sections, ai_policy, advisory, ts)
+        payload["rubric"] = {
+            "items": rubric_items,
+            "score_signal_total": sum(it["score_signal"] for it in rubric_items),
+            "score_signal_max": 2 * len(rubric_items),
+        }
         out = json.dumps(payload, indent=2, ensure_ascii=False)
         print(out)
         if args.report:
             _write_report(Path(args.report), out)
+    elif args.rubric:
+        # Rubric-only output (use --detailed to also print the 9-section audit)
+        lines = _render_rubric(course_id, course_name, rubric_items, ts)
+        if args.detailed:
+            lines.append("")
+            lines.append("=" * 62)
+            lines.append("")
+            lines.append("Also showing the 9-section umbrella audit:")
+            lines.append("")
+            lines.extend(_render(course_id, course_name, verdict, missing, sections,
+                                ai_policy, advisory, False, ts))
+        for line in lines:
+            print(line)
+        if args.report:
+            _write_report(Path(args.report), "\n".join(lines))
     else:
         lines = _render(course_id, course_name, verdict, missing, sections,
                         ai_policy, advisory, args.detailed, ts)
