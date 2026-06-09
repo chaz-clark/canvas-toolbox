@@ -667,6 +667,13 @@ def _operator_warning() -> list[str]:
 def _write_report(path: Path, body: str) -> None:
     path.write_text(body + "\n", encoding="utf-8")
     print(f"\nReport written to {path}")
+    # v0.32 — default-on PDF pair when output is markdown (faculty default).
+    if path.suffix.lower() in (".md", ".markdown"):
+        try:
+            from _md_to_pdf import render_pair
+            render_pair(path)
+        except ImportError:
+            pass
 
 
 # ---------------------------------------------------------------------------

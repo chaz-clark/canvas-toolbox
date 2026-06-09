@@ -17,6 +17,8 @@ Built at BYU-Idaho, designed for all instructors. Works with any Canvas institut
 - **Score your syllabus against the BYU-I Completeness Rubric** — 25 specific items with link-presence detection for required policy links (Grievance / FERPA / Honor Code / Policy Library)
 - **Roll out a new semester** — sync your master course to a Blueprint and let Canvas handle section distribution
 
+**About the reports:** every audit/analysis tool below produces a **paired `.md` + `.pdf`** when you use `--report <name>.md`. The PDF is the faculty-friendly default (Chrome headless render); the MD is the editable source. If Chrome isn't installed the audit still runs and writes the `.md`; the agent can also explain any report aloud if you'd rather skip the file.
+
 Full knowledge base and agent framework references: [`lib/agents/knowledge/README.md`](lib/agents/knowledge/README.md)
 
 ---

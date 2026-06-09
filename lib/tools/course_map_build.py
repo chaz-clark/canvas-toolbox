@@ -1017,8 +1017,16 @@ def main():
 
     if args.emit_blank:
         md, _ = emit_report(data=None)
-        Path(args.output_md).write_text(md, encoding="utf-8")
-        print(f"✓ blank template → {args.output_md}", file=sys.stderr)
+        out_path = Path(args.output_md)
+        out_path.write_text(md, encoding="utf-8")
+        print(f"✓ blank template → {out_path}", file=sys.stderr)
+        # v0.32: default-on PDF pair
+        if out_path.suffix.lower() in (".md", ".markdown"):
+            try:
+                from _md_to_pdf import render_pair
+                render_pair(out_path, title=f"Course Map Template (blank)")
+            except ImportError:
+                pass
         return 0
 
     token = os.environ.get("CANVAS_API_TOKEN")
@@ -1045,8 +1053,16 @@ def main():
         return 1
 
     md, gaps = emit_report(data=data)
-    Path(args.output_md).write_text(md, encoding="utf-8")
-    print(f"✓ course map → {args.output_md} ({len(md)} bytes, {len(gaps)} gap(s))", file=sys.stderr)
+    out_path = Path(args.output_md)
+    out_path.write_text(md, encoding="utf-8")
+    print(f"✓ course map → {out_path} ({len(md)} bytes, {len(gaps)} gap(s))", file=sys.stderr)
+    # v0.32: default-on PDF pair
+    if out_path.suffix.lower() in (".md", ".markdown"):
+        try:
+            from _md_to_pdf import render_pair
+            render_pair(out_path, title=f"Course Map · {data.get('course', {}).get('name', 'Course')}")
+        except ImportError:
+            pass
     return 0
 
 

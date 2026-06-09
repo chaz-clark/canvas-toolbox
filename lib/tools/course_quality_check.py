@@ -1659,6 +1659,11 @@ def main():
 
         md_path = Path("quality_report.md")
         _write_dates_md_report(date_reports, labels_by_id, md_path)
+        try:
+            from _md_to_pdf import render_pair
+            render_pair(md_path, title="Date Validation")
+        except ImportError:
+            pass
         total = sum(r["summary"]["total"] for r in date_reports)
         print(f"\n  Date validation → {md_path} + .canvas/date_audit_*.json")
         sys.exit(1 if total > 0 else 0)
@@ -1679,6 +1684,11 @@ def main():
 
         md_path = Path("quality_report.md")
         _write_alignment_md_report(align_reports, labels_by_id, md_path)
+        try:
+            from _md_to_pdf import render_pair
+            render_pair(md_path, title="Alignment Audit")
+        except ImportError:
+            pass
         print(f"\n  Alignment audit → {md_path} + .canvas/alignment_audit_*.json")
         sys.exit(0)
 
@@ -1699,6 +1709,11 @@ def main():
             audit_path.write_text(json.dumps(r, indent=2, default=str))
         md_path = Path("link_metadata_report.md")
         _write_link_metadata_md_report(lm_reports, labels_by_id, md_path)
+        try:
+            from _md_to_pdf import render_pair
+            render_pair(md_path, title="Link Metadata Audit")
+        except ImportError:
+            pass
         print(f"\n  Link-metadata audit → {md_path} + .canvas/link_metadata_audit_*.json")
         sys.exit(0)
 
@@ -1718,6 +1733,11 @@ def main():
 
         md_path = Path("quality_report.md")
         _write_files_md_report(files_reports, labels_by_id, md_path)
+        try:
+            from _md_to_pdf import render_pair
+            render_pair(md_path, title="Files Audit")
+        except ImportError:
+            pass
         print(f"\n  Files audit → {md_path} + .canvas/file_audit_*.json")
         sys.exit(0)
 
@@ -1746,6 +1766,11 @@ def main():
     # Write combined markdown report at repo root
     md_path = Path("quality_report.md")
     _write_md_report(all_reports, label_map, md_path)
+    try:
+        from _md_to_pdf import render_pair
+        render_pair(md_path, title="Course Quality Check")
+    except ImportError:
+        pass
 
     print(f"\n{'='*62}")
     if all_clean:

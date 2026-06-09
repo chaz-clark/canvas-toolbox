@@ -338,6 +338,15 @@ def _render_json(course_id: str, course_name: str, res: dict, ts: str) -> dict:
 def _write_report(path: Path, body: str) -> None:
     path.write_text(body + "\n", encoding="utf-8")
     print(f"\nReport written to {path}", file=sys.stderr)
+    # v0.32 — default-on PDF pair when output is markdown (faculty default).
+    # Graceful-degrade: if Chrome isn't installed, prints a note and leaves
+    # just the .md. Operators can ask the agent to explain the report instead.
+    if path.suffix.lower() in (".md", ".markdown"):
+        try:
+            from _md_to_pdf import render_pair
+            render_pair(path)
+        except ImportError:
+            pass
 
 
 # ---------------------------------------------------------------------------
