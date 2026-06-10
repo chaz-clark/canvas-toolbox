@@ -156,6 +156,22 @@ Run **single-grader** on a handful first (5–10 submissions) with the instructo
 
 Krippendorff's α / Cohen's κ across the three graders is the formal next step beyond majority + spread. Useful as a per-cohort health signal — if α drops below a threshold mid-batch, the spec or rubric has drifted.
 
+### Grading runs agent-in-the-loop by default — the orchestrator is an optional accelerator
+
+**Institutional constraint (confirmed 2026-06-10):** BYUI faculty cannot obtain `ANTHROPIC_API_KEY`. Per the operator's confirmation with the instructor, this is a standing institutional constraint, not a transient env gap. The faculty grading path therefore **cannot depend on per-user API keys**.
+
+**The default grading path is keyless.** Claude Code / the IDE agent under the operator's existing subscription auth runs the N grading passes; each pass writes its own `feedback/_grader<n>.csv` per the spec. This is how the round-1 + round-2 ds460 beta worked, and how the alpha-test validation (KC1: 20/22 within 0.5; cohort mean within 0.09) was achieved. **No API key was ever required for the production faculty path.**
+
+**`lib/tools/grader_grade.py` is an OPTIONAL accelerator** for whoever DOES hold a key — primarily:
+
+- The canvas-toolbox maintainer running a **gold-set regression harness in CI** (the future Phase 4+ tool that re-runs known cohorts after any knowledge or rubric change to detect band drift).
+- An institution with an **API gateway** that fronts a shared key for faculty use.
+- A power user or developer who has their own key for testing / iteration.
+
+It is **not** the default faculty path. v1.0 acceptance is keyless-by-default; the orchestrator's role is to make the otherwise-manual agent loop programmatic for the use cases that need scriptability.
+
+**Practical rule:** if you're auditing a real course and the operator can't run `grader_grade.py`, that's not a failure — they should run the agent-in-the-loop path. The pipeline tools (de-id, signals, consensus, reidentify, push) all work regardless of which grading path produced the `_grader<n>.csv` files.
+
 ### Calibration is the tool's design intent, not a defect to fix
 
 The generic skill is built **80/20** — close out of the box across courses + scales, *tunable* through the calibration cohort + voice roundtrip to fit one instructor's anchors. **Boundary anchors are per-course** — what an "A" looks like in one course is what a "Strong" looks like in another, and what a "4 with sparse prose" rounds to is genuinely an instructor judgment, not a universal constant. The calibration cohort is where the operator tunes those anchors with the instructor; the voice roundtrip embeds them into `student_feedback_voice_<instructor>.md` so subsequent cohorts start much closer to the target.

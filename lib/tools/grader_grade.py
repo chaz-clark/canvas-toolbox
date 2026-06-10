@@ -1,25 +1,47 @@
 #!/usr/bin/env python3
 """
-N-pass LLM grading orchestrator — closes the one un-tooled step in the pipeline.
+N-pass LLM grading orchestrator — OPTIONAL accelerator for key-holders.
 
-Part of the canvas-toolbox generic grader skill (Phase 3d). See:
-  - lib/agents/canvas_grader.md (operator-facing pipeline guide)
-  - lib/agents/knowledge/grader_knowledge.md §4 (consensus + confidence-driven review queue)
-  - ds460-master/handoffs/HANDOFF_grader-alpha-test-feedback.md (the alpha-test
-    finding that named this as the missing tool)
+**THIS IS NOT THE DEFAULT FACULTY PATH.** BYUI faculty cannot obtain
+ANTHROPIC_API_KEY (confirmed 2026-06-10 — standing institutional constraint).
+The default grading path is keyless: the agent (Claude Code / IDE agent under
+the operator's existing subscription auth) runs the N passes and writes each
+`feedback/_grader<n>.csv` by hand. This is how the production faculty path
+works; this tool is for key-holder use cases ONLY.
 
-WHAT IT DOES
-  Reads a challenge dir's de-identified submissions, rubric, per-instructor voice
-  file, optional course context + answer key + signal priors, and SPAWNS N
-  independent grading passes per submission. Each pass writes its own
-  `feedback/_grader<n>.csv` + per-student `feedback/_pass<n>/<KEY>.md`. After
-  all passes, aggregates into `feedback/_summary.csv` and copies the consensus-
-  band's per-student file to `feedback/<KEY>.md` (the file `grader_push.py`
-  reads downstream).
+WHEN TO USE THIS TOOL
+  - CI gold-set regression harness (re-run a known cohort after any knowledge
+    or rubric change to detect band drift; needs scriptability)
+  - Institutional API gateway (an institution fronts a shared key for faculty)
+  - Power user / developer iteration with a personal key
 
-  Replaces the previous "agent spawns 3 grader sub-agents by hand" step. The 2/3
-  majority math still lives in `grader_consensus.py`; this tool just makes the
-  N passes themselves reproducible + scriptable.
+WHEN NOT TO USE IT (use the keyless agent path instead)
+  - Faculty grading on a personal account at BYUI or any institution without
+    a per-user key
+  - Any cohort where the operator can run the agent-in-the-loop manually
+    (the agent path produces identical _grader<n>.csv files; consensus +
+    reidentify + push read them either way)
+
+See:
+  - lib/agents/canvas_grader.md (operator-facing pipeline guide — describes
+    BOTH paths; orchestrator is the optional accelerator)
+  - lib/agents/knowledge/grader_knowledge.md §grading_path_keyless_default
+    (the rationale for keeping the default keyless)
+  - ds460-master/canvas-toolbox/handoffs/RESPONSE_generic-grader-phase4-mid-review.md
+    (the alpha + Mid Review review surfacing the constraint + fixes baked here)
+
+WHAT IT DOES (when you do run it)
+  Reads a challenge dir's de-identified submissions, rubric, per-instructor
+  voice file, optional course context + answer key + signal priors, and SPAWNS
+  N independent grading passes per submission. Each pass writes its own
+  `feedback/_grader<n>.csv` + per-student `feedback/_pass<n>/<KEY>.md`. The
+  consensus tool (`grader_consensus.py`) then aggregates these into
+  `_consensus.csv` + `_summary.csv` + copies the consensus-band's per-student
+  file to `feedback/<KEY>.md`.
+
+  This tool produces ONLY the per-pass artifacts. Aggregation + winner-copy
+  are now single-sourced in `grader_consensus.py` (eliminates the duplicated-
+  consensus-math gap surfaced in the Mid Review review).
 
 THREE DESIGN ADJUSTMENTS (per the ds460 alpha-test feedback)
 

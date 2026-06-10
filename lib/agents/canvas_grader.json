@@ -126,7 +126,7 @@
     },
     {
       "name": "grade_submission_pass",
-      "description": "Phase 2 step 5. Single grading pass over one or more submissions. Reads de-id'd work + rubric + per-class course context + calibration anchors + per-instructor voice file. Emits per-submission: band, quarter-point (if applicable), comment (in voice), coaching points, wellbeing-disclosure list. Run grader_count times in parallel for consensus.",
+      "description": "Phase 2 step 5. Single grading pass over one or more submissions. Reads de-id'd work + rubric + per-class course context + calibration anchors + per-instructor voice file. Emits per-submission: band, quarter-point (if applicable), comment (in voice), coaching points, wellbeing-disclosure list. Run grader_count times in parallel for consensus. DEFAULT EXECUTION PATH: the AGENT (Claude Code / IDE agent under operator's existing subscription auth) performs the N passes — NO ANTHROPIC_API_KEY required. This is the production faculty path (BYUI faculty cannot obtain API keys; standing institutional constraint). Optional alternative for key-holders only: lib/tools/grader_grade.py orchestrator (covers CI gold-set regression + institutional API-gateway use cases). See grader_knowledge.md grading_path_keyless_default fact.",
       "parameters": {
         "type": "object",
         "properties": {

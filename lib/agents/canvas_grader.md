@@ -12,6 +12,16 @@
 
 ---
 
+## Grading path (read first — sets which tools the operator actually uses)
+
+**The default faculty grading path is KEYLESS.** Confirmed 2026-06-10: BYUI faculty cannot obtain `ANTHROPIC_API_KEY`, and this is a standing institutional constraint. The agent (Claude Code / IDE agent) running under the operator's existing subscription auth performs the N grading passes; no per-user API key is ever required for the production path. This is how the round-1 + round-2 ds460 beta + the KC1 alpha-test validation (20/22 within 0.5) all ran.
+
+**`lib/tools/grader_grade.py` is an OPTIONAL accelerator** for whoever DOES hold a key (CI gold-set regression harness, institution with an API gateway, power user). Not required for faculty grading. See `grader_knowledge.md` → `grading_path_keyless_default` fact for the full rationale.
+
+The pipeline tools (de-id, signals, consensus, reidentify, push) are **identical** regardless of which grading path produced the per-pass `_grader<n>.csv` files. The agent path and the orchestrator path are interchangeable upstream of consensus.
+
+---
+
 ## Mission
 
 **What it does**: Drives a reusable, FERPA-safe, AI-assisted grading pipeline for any course. Walks an instructor through a 6-step setup interview to produce a per-assignment config, then runs the pipeline: de-identify submissions locally → extract objective signals (priors only, never scores) → grade with N independent LLM passes against a named-tier rubric + per-instructor voice + per-class course context → apply majority-rule consensus + auto-flag high-spread to review → reconcile claims against the real gradebook anonymously (where applicable) → surface wellbeing flags for the instructor → re-identify locally for review → push grades + comments to Canvas behind a required human-review gate, idempotently. Identity never reaches the cloud. The instructor finalizes every grade.
