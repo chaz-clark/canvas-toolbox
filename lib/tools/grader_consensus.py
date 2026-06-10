@@ -14,15 +14,26 @@ WHAT IT DOES
   CONSENSUS = MAJORITY: the score ≥2 of N graders agree on wins. If all differ,
   fall back to the median.
 
-WHY
+  DEFAULT EXPECTS 3 GRADERS. The bulk-mode design is N=3 (the cheapest configuration
+  that gives majority rule). The tool REFUSES to run if fewer than --expected
+  grader CSVs are present, so a partial pass doesn't silently compute consensus
+  over too few graders. Override --expected for calibration (N=1) or rigor (N=5+).
+
+WHY 3
   Holistic scoring varies between graders. Three-grader consensus is the cheapest
   configuration that gives majority rule (two can't break ties; five+ hits
   diminishing returns at 3× token cost). The spread is itself a signal — high-spread
   cases are precisely the borderlines a human should see.
 
 USAGE
-  # Conventional layout (default flag threshold 0.5)
+  # Default bulk mode (expects exactly 3 grader CSVs, flag threshold 0.5)
   uv run python lib/tools/grader_consensus.py --challenge-dir grading/kc1
+
+  # Single-grader calibration cohort (no consensus, no spread; just summary)
+  uv run python lib/tools/grader_consensus.py --challenge-dir grading/kc1 --expected 1
+
+  # Higher-rigor 5-grader pool
+  uv run python lib/tools/grader_consensus.py --challenge-dir grading/kc1 --expected 5
 
   # Tune the spread threshold for a different scale
   uv run python lib/tools/grader_consensus.py --challenge-dir grading/kc1 --flag 1.0
@@ -68,6 +79,11 @@ def main() -> int:
                     help="Path to write consensus CSV (default: <feedback-dir>/_consensus.csv)")
     ap.add_argument("--flag", type=float, default=0.5,
                     help="Spread (max-min) at/above which to flag NEEDS-REVIEW. Default 0.5 (tune per scale).")
+    ap.add_argument("--expected", type=int, default=3,
+                    help="Required grader count. Default 3 (bulk-mode design). The tool refuses if "
+                         "fewer than this many _grader*.csv files are present, so a partial pass "
+                         "doesn't silently compute consensus over too few graders. Use --expected 1 "
+                         "for single-grader calibration; --expected 5 for a higher-rigor pool.")
     args = ap.parse_args()
 
     if args.challenge_dir:
@@ -80,9 +96,38 @@ def main() -> int:
 
     fb = Path(args.feedback_dir)
     gfiles = sorted(fb.glob("_grader*.csv"))
-    if len(gfiles) < 2:
-        print(f"Need >=2 grader files (_grader*.csv) in {fb}; found {len(gfiles)}.")
+    if args.expected < 1:
+        print(f"--expected must be >= 1; got {args.expected}.", file=sys.stderr)
         return 1
+    if len(gfiles) < args.expected:
+        # The 3-grader bulk-mode default is the design (grader_knowledge §4).
+        # Refuse a partial pass; the operator must either complete the missing pass(es)
+        # or explicitly lower --expected (e.g. calibration with N=1).
+        print(f"Expected {args.expected} grader file(s) (_grader*.csv) in {fb}; "
+              f"found {len(gfiles)}.", file=sys.stderr)
+        if args.expected == 3:
+            print("Default is 3 (the round-1 bulk-mode design). Either run the missing pass(es), "
+                  "or re-run with --expected 1 for a calibration cohort / --expected 2 for a "
+                  "two-grader cohort.", file=sys.stderr)
+        return 1
+    # Sanity: if the operator supplied MORE CSVs than expected, that's also a smell —
+    # they may have an old run mixed in. Warn but don't refuse; they may have intentionally
+    # accumulated more passes than the default and want all included.
+    if len(gfiles) > args.expected:
+        print(f"NOTE: found {len(gfiles)} grader files but --expected is {args.expected}; "
+              f"using all {len(gfiles)}. Delete stale _grader*.csv files if this is unintended.",
+              file=sys.stderr)
+
+    if args.expected == 1:
+        # Single-grader calibration mode — there's nothing for consensus to compute.
+        # The downstream tools (reidentify, push) take a --summary argument; point them
+        # directly at the single grader's CSV instead of running consensus.
+        single = gfiles[0]
+        print(f"Single-grader calibration mode (--expected 1): nothing for consensus to compute.\n"
+              f"Use {single} as the summary for reidentify, e.g.:\n"
+              f"  uv run python lib/tools/grader_reidentify.py --challenge-dir {fb.parent} "
+              f"--summary {single.relative_to(fb.parent)}", file=sys.stderr)
+        return 0
 
     graders = [load(g) for g in gfiles]
     names = [g.stem.replace("_grader", "g") for g in gfiles]
