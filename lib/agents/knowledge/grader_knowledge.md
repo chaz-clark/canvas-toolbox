@@ -156,6 +156,14 @@ Run **single-grader** on a handful first (5–10 submissions) with the instructo
 
 Krippendorff's α / Cohen's κ across the three graders is the formal next step beyond majority + spread. Useful as a per-cohort health signal — if α drops below a threshold mid-batch, the spec or rubric has drifted.
 
+### Calibration is the tool's design intent, not a defect to fix
+
+The generic skill is built **80/20** — close out of the box across courses + scales, *tunable* through the calibration cohort + voice roundtrip to fit one instructor's anchors. **Boundary anchors are per-course** — what an "A" looks like in one course is what a "Strong" looks like in another, and what a "4 with sparse prose" rounds to is genuinely an instructor judgment, not a universal constant. The calibration cohort is where the operator tunes those anchors with the instructor; the voice roundtrip embeds them into `student_feedback_voice_<instructor>.md` so subsequent cohorts start much closer to the target.
+
+**Operator default:** don't expect a fresh-cohort 100% match on day one. Expect the 80% — a band distribution close to the instructor's mental anchor — and use the calibration cohort to tune the remaining ~20%. The setup interview's §6b confirmation step is where the top-band boundary question is surfaced explicitly (e.g. "what does flawless look like, and what tips it down a quarter-point?"). Same question recurs at every band boundary; the calibration anchors converge after the roundtrip.
+
+**Concrete example (alpha-test 2026-06-10):** KC1's first generic-skill run came back ~80% on the local 0-4 scale (20/22 within 0.5, cohort mean 0.09 lower than the original push). The remaining 0.09 mean delta concentrated on three flawless-4s that came back 3.5 because passes docked for sparse prose / a minor Q5 display issue. The instructor's local anchor tolerates sparse prose on a flawless-both-portions submission; the generic passes didn't. Resolution path: a calibration confirmation on the top-band boundary + the corresponding voice-file update — exactly the mechanism this skill is built around. Not a defect.
+
 ---
 
 ## 5 — Prompt-injection defense (✅ PROTOTYPED partial — hard-delimiting OPEN)
