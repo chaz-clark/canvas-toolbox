@@ -195,4 +195,63 @@ Both would be backward-compatible additions to `lib/tools/syllabus_audit.py`. Fi
 - **Operator-supplied verbatim text:** Chaz, 2026-06-08 (after the canvas-toolbox v0.31.0 commit identified the SharePoint URL as auth-gated). The verbatim block above is the authoritative source for what this knowledge file's policy claims rest on.
 - **SharePoint URL** (for re-verification by authorized users): `webmailbyui.sharepoint.com/sites/Policies/SitePages/3.3 Duties and Opportunities.aspx`.
 
-_Last updated: 2026-06-08 (v0.2.1 — Faculty Guide 3.3.1 verbatim block + cross-walk to 25-item rubric)_
+---
+
+## v0.3 (2026-06-10) — empirical best practices (advisory)
+
+The BYU-I *Architects of Learning* Week 8 Day 1 faculty workshop (slide deck + transcript at [`pre_knowledge/byui_learning_teaching/byui_aol_syllabus_design_workshop_w08d1.md`](../pre_knowledge/byui_learning_teaching/byui_aol_syllabus_design_workshop_w08d1.md) with the `.pptx` source alongside) names a research-backed advisory layer that sits *on top of* the 9-section / 25-item completeness check. None of this moves any pass/fail bar (the audit stays evidence-based / keyword-heuristic), but it gives operators a vocabulary for the human-judgment dimensions that the deterministic audit deliberately doesn't touch.
+
+### Syllabi do three things at once (purpose taxonomy)
+
+Every syllabus simultaneously serves three functions. The 9-section checklist tells you *what must be in it*; the three-purpose taxonomy tells you *what it's for*:
+
+| Purpose | Contains | Maps to checklist sections |
+|---|---|---|
+| **Inspire students** | Why we're in this class · How you will grow · Why it matters to your future | The "vision" line in §2 Overview (BYUI-flavored); the FG 3.3.1 "persuasive document that motivates students to learn" framing |
+| **Define obligations** | Course outcomes · Course-specific policies · University-level policies | §2 outcomes; §3 Requirements; §6 Grading; §8 University Policies |
+| **Outline procedures** | Major assignments & materials · Grading scale & timelines · Access to support resources | §3 materials; §4 Structure; §5 Expectations; §6 Grading; §7 Disabilities |
+
+**Use:** when a syllabus passes the completeness checks but still feels flat, score it qualitatively against the three purposes. A common failure mode is *defining obligations and outlining procedures while never inspiring*.
+
+### Five research-backed dimensions (advisory only)
+
+Each dimension is *advisory* — the audit cannot reliably detect it from keyword heuristics — but each is empirically grounded and worth naming in operator-facing output:
+
+| Dimension | Finding | Source |
+|---|---|---|
+| **Tone** | A warm tone empowers students. | Walters, 2026 |
+| **Detail** | More detailed syllabi signal that the instructor cares — about the course and about students. | Harrington & Gabert-Quillen, 2015 |
+| **Framing** | Centering community, shared power, and learning rationale — rather than rules and penalties — improves rapport. | Richman et al., 2018 |
+| **Flexibility** | Flexible policies (including *penalized* late work, not just no-penalty) raise student empowerment, perceived success, and the belief that the instructor cares. | Jones & Zhu, 2022 |
+| **Visuals** | Graphics don't move perceptions of difficulty or helpfulness in isolation — but they moderately correlate with a learner-centered syllabus overall. | Harrington & Gabert-Quillen, 2015 |
+
+**Posture:** these are NOT auto-scored. They go in the auditor's advisory output as a "things worth a human pass" reminder, with citations available for operators who want the evidence base.
+
+### Caveats
+
+1. **Self-care statements** — Empirically *unproven* effects on student outcomes, but may still support student empowerment and throughput. Worth including if the instructor's voice supports it; not worth requiring. (Walters, 2026)
+2. **Ceiling effect on syllabus quality** — Jones & Zhu (2022): *"You can't paint over a bad foundation, and a fresh coat of paint won't improve a mansion."* What actually happens in the course matters far more than the syllabus ever can. **Implication for the audit:** treat a strong syllabus score as necessary-but-not-sufficient. A complete syllabus on a hollow course still fails students; a thin syllabus on a great course still serves them. The audit can only see the syllabus.
+
+### Putting the syllabus in Canvas's `syllabus` field (validates current architecture)
+
+The workshop's "novel idea" — *put the syllabus in the syllabus section in Canvas* — happens to validate the audit's existing design choice: `syllabus_audit.py` reads `syllabus_body` via `GET /courses/:id?include[]=syllabus_body`, i.e., the audit *only sees* what's in that field. If a faculty member instead links out to a custom-built syllabus page or PDF, the audit returns `no_syllabus` (or detects a near-empty stub). The workshop's reasoning for using the Canvas field directly:
+
+- **Continuity for students** — one consistent place to find course info across every class
+- **Hundreds of hours saved** — central collection; no manual gathering by faculty/admins
+- **Visible beyond the course** — helps prospective students, accreditation, transfer evaluations
+
+Operator-facing note worth surfacing in audit output: *"This audit only inspects Canvas's `Syllabus` field. If your syllabus lives elsewhere, the audit will under-report what students see."*
+
+### Updated sources block (v0.3 additions)
+
+| Source | Contribution | Year |
+|---|---|---|
+| Harrington, C. & Gabert-Quillen, C. | Detail + visuals dimensions | 2015 |
+| Richman, E. L., et al. | Framing dimension | 2018 |
+| Jones, M. & Zhu, X. | Flexibility dimension + ceiling-effect caveat | 2022 |
+| Walters, J. | Tone dimension + self-care caveat | 2026 |
+| BYU-I Architects of Learning, Week 8 Day 1 workshop | Synthesis + three-purpose taxonomy framing | 2026 |
+
+> **JSON sibling note:** `syllabus_knowledge.json` was behind the MD prior to this edit (last JSON changelog entry was v0.1.1 / 2026-05-26 while the MD had advanced through v0.2 + v0.2.1). All three versions (v0.2, v0.2.1, v0.3) are now reflected in the JSON's `facts[]` array as five new facts: `three_purpose_taxonomy`, `empirical_best_practices`, `ceiling_effect_caveat`, `rubric_25_items`, `faculty_guide_3_3_1`. JSON `last_updated` and `last_reviewed` bumped to 2026-06-10; provenance.sources[] now lists the 4 cited papers + the AoL workshop + the two templates.
+
+_Last updated: 2026-06-10 (v0.3 — empirical best practices: 3-purpose taxonomy, 5 advisory dimensions, ceiling-effect caveat, 4 new sources)_
