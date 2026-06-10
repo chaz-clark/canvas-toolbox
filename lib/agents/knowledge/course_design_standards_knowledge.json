@@ -1,0 +1,210 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "manual (lift from byui_course_design_standards_2026.xlsx, operator-supplied 2026-06-10)",
+    "knowledge_id": "course_design_standards",
+    "last_updated": "2026-06-10",
+    "description": "The BYUI Campus Online institutional course-design checklist mapped to NWCCU accreditation codes. ~40 standards across 7 categories. The 'master checklist' the canvas-toolbox audit tools should be measuring against — many existing audits cover specific standards, ~5 specific gaps named for future tools, ~14 standards are inherently human-judgment.",
+    "owner": "Chaz Clark (BYUI course-design audit framework)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Large reference file (~600 lines, ~20k chars) — well above the 10k embed threshold. canvas_course_expert + ira_program_alignment + any new audit tool consult selectively, not all at once; selective-load defeats embed-cache benefits."
+  },
+  "shape": "reference",
+  "scope": "Institutional course-design audit standards — what BYUI Campus Online considers 'well-designed' at the procedural / structural / accreditation level. Covers NWCCU sections 1–7 (mission/values, outcomes/assessment, activities/engagement, organizational delivery, maintainability, student roadblock resources, successful facilitation). Two-modality split (online tab 1 vs common-core/in-person tab 2). Out of scope: visual design grammar (course_design_language_knowledge), syllabus-specific detail (syllabus_knowledge), pedagogy of specific assessment types (assessments_knowledge).",
+  "consumed_by": [
+    "canvas_course_expert.md",
+    "ira_program_alignment.md"
+  ],
+  "facts": [
+    {
+      "id": "modality_split",
+      "term": "Online vs In-Person Modality Split (two tabs)",
+      "definition": "Source xlsx has two tabs reflecting modality scope. TAB 1 = 'Campus Online Course Design Standards' — full set of ~40 standards for ONLINE courses including online-specific items (identity verification, online enrollment cap, synchronous flexibility, off-campus completion). TAB 2 = 'PROPOSED Campus Online Course Design Standards' — strict ~30-standard subset that applies regardless of modality (common core / in-person variant). DIFFERENTIAL (only-in-tab-1, drop for in-person): all of NWCCU §1 (1.1 discipleship, 1.2 online enrollment cap, 1.3 online identity verification); 3.1 Learning Model in each module; 3.4 synchronous sessions; 3.5 regular interaction; 4.5 off-campus completion; 5.1 multi-person external tool access; 5.7 setup notes; 7.3 grading load ≤75%. RULE: auditing an in-person course = ignore the ONLINE-only standards.",
+      "citations": [
+        "byui_course_design_standards_2026.xlsx tab 1 + tab 2 (operator-supplied 2026-06-10)"
+      ]
+    },
+    {
+      "id": "nwccu_categories",
+      "term": "7 NWCCU-Mapped Categories",
+      "definition": "All standards belong to one of 7 categories tied to NWCCU accreditation: (1) Course aligns with BYU-Idaho's mission and values [ONLINE only]; (2) Course uses and measures appropriate learning outcomes [BOTH]; (3) Course activities and materials promote learning and engagement [mixed]; (4) Course employs organizational and delivery strategies for student success [BOTH except 4.5]; (5) Course is maintainable and scalable [BOTH except 5.1, 5.7]; (6) Course provides resources to help students overcome roadblocks [BOTH]; (7) The Course promotes successful facilitation [BOTH except 7.3]. The leftmost column of the source xlsx maps each standard to specific NWCCU codes (1.0, 2.0, 6.0, 7.0, etc.).",
+      "citations": [
+        "byui_course_design_standards_2026.xlsx column A"
+      ]
+    },
+    {
+      "id": "audit_coverage_summary",
+      "term": "Audit Coverage Summary (40% deterministic today, 55% with proposed gaps closed)",
+      "definition": "FULLY COVERED today (8 standards): 2.2 syllabus completeness → syllabus_audit.py; 2.4 rubric design → rubric_quality_audit.py; 4.1 student load → workload_audit.py; 4.3 consistent structure → module_structure_diff.py; 4.6 instructor contact → syllabus_audit umbrella; 4.11 due dates in setup notes → canvas_schedule_auditor.py; 5.7 setup notes complete → canvas_schedule_auditor.py; 5.8 instructor contract fit → workload_audit.py; 7.1 instructor load → workload_audit.py. PARTIALLY COVERED (9): 1.2, 2.1, 3.2, 3.5, 4.7, 5.5, 6.2, 6.4. OPEN GAPS (5 — worth new audit tools): 2.3 alignment chain, 3.1 Learning Model, 3.3 formative variety, 6.3 web accessibility, 7.3 grading load. HUMAN-JUDGMENT-ONLY (~14): 1.1, 1.3, 3.4, 4.2, 4.4, 4.5, 4.8, 4.9, 4.10, 4.12, 5.1, 5.2, 5.3, 5.4, 5.6, 5.9, 6.1, 7.2. The 45% human-judgment slice is by design — out of deterministic scope.",
+      "citations": [
+        "byui_course_design_standards_2026.xlsx cross-walked to lib/tools/* (this knowledge file's per-standard tables)"
+      ]
+    },
+    {
+      "id": "covered_syllabus_22",
+      "term": "Standard 2.2 (syllabus in Canvas section) → syllabus_audit.py",
+      "definition": "Standard 2.2 BOTH: 'The syllabus includes all requirements required by the university and is located in the Syllabus section of Canvas.' Fully covered by syllabus_audit.py which reads `syllabus_body` via GET /courses/:id?include[]=syllabus_body and runs the 9-section + 25-item rubric check. Also covers standard 4.6 (instructor contact info) as section 1 of the 9-section umbrella. Partially covers 6.4 (tech requirements in syllabus) via the 25-item rubric.",
+      "citations": [
+        "lib/agents/knowledge/syllabus_knowledge.md",
+        "lib/tools/syllabus_audit.py"
+      ]
+    },
+    {
+      "id": "covered_workload_4_1_5_8_7_1",
+      "term": "Standards 4.1, 5.8, 7.1 (student + instructor load) → workload_audit.py",
+      "definition": "Three load-related standards covered by the same tool: 4.1 (BOTH) student load averages 3hr/wk/credit distributed across term; 5.8 (BOTH) course setup fits instructor contract expectations; 7.1 (BOTH) instructor load ≤3hr/wk/credit distributed across term. All use the same 3hr/credit/wk math. NOT covered: 7.3 (ONLINE) grading load ≤75% of instructor time — that's an open gap requiring derivation from assignment count × time-per-assignment.",
+      "citations": [
+        "lib/tools/workload_audit.py"
+      ]
+    },
+    {
+      "id": "covered_rubric_quality_24",
+      "term": "Standard 2.4 (consistent assessment design) → rubric_quality_audit.py",
+      "definition": "Standard 2.4 BOTH: 'Assessment design facilitates consistent results and transparency for students.' Covered by rubric_quality_audit.py via the rubric quality framework — observable rating descriptors (not adjectives), full long-form rating text, criterion clarity, weight distribution. Companion knowledge: rubrics_knowledge.md + course_design_language_knowledge.md §5 (observable rubrics, not adjectives).",
+      "citations": [
+        "lib/agents/knowledge/rubrics_knowledge.md",
+        "lib/tools/rubric_quality_audit.py"
+      ]
+    },
+    {
+      "id": "covered_schedule_4_11_5_7",
+      "term": "Standards 4.11 + 5.7 (setup-notes + due-dates) → canvas_schedule_auditor.py",
+      "definition": "4.11 (BOTH) 'Important assignments and pages have due dates in setup notes so they appear on students' to-do list; module requirements set.' 5.7 (ONLINE) 'Setup notes for set-up team and instructors are complete.' Both covered by canvas_schedule_auditor.py which reads the setup-notes Canvas page, parses the per-assignment-type rules, and audits dates against the rules with 1-hour tolerance.",
+      "citations": [
+        "lib/agents/canvas_schedule_auditor.md",
+        "lib/tools/canvas_schedule_auditor.py (or equivalent — exact path per the agent spec)"
+      ]
+    },
+    {
+      "id": "covered_module_structure_43",
+      "term": "Standard 4.3 (consistent module structure) → module_structure_diff.py",
+      "definition": "Standard 4.3 BOTH: 'Similar activities use consistent structure, terminology, and expectations across modules to reduce unnecessary cognitive load.' Covered by module_structure_diff.py which compares module shapes (item counts, types, terminology) and flags drift between modules. Pairs with course_design_language_knowledge.md §4 (consistent structural beats — same section order on every artifact of the same type).",
+      "citations": [
+        "lib/tools/module_structure_diff.py",
+        "lib/agents/knowledge/course_design_language_knowledge.md §4"
+      ]
+    },
+    {
+      "id": "open_gap_23_alignment_chain",
+      "term": "OPEN GAP — Standard 2.3 (alignment chain)",
+      "definition": "Standard 2.3 BOTH: 'Outcomes, department-approved key assessments, activities, and instructional content align.' Currently NO single audit tool produces the full alignment chain. Tool sketch: course_alignment_audit.py — combines clo_quality_audit.py outputs (course-level outcomes) with rubric_coverage_audit.py (assignment → rubric criteria) + a new activity-to-outcome map (module overview pages + assignment descriptions matched against outcome verbs). Output: per-outcome → assessments[] → rubric-criteria[] → activities[] chain with broken-link flagging. Companion knowledge: backwards_design_knowledge.md (UbD 3-stage) is the design framework this would operationalize.",
+      "citations": [
+        "byui_course_design_standards_2026.xlsx standard 2.3",
+        "lib/agents/knowledge/backwards_design_knowledge.md"
+      ]
+    },
+    {
+      "id": "open_gap_31_learning_model",
+      "term": "OPEN GAP — Standard 3.1 (Learning Model integration per module)",
+      "definition": "Standard 3.1 ONLINE: 'The Learning Model is integrated into each module.' BYUI Learning Model has three phases: Prepare (preparatory readings/videos), Teach One Another (discussion/peer activity), Ponder/Prove (reflection/performance task). Tool sketch: a flag on course_audit.py OR a standalone learning_model_audit.py that scans each module for the three phases via heading keywords + activity types. Institution-detection rule: only runs when INSTITUTION=byui (matches canvas_schedule_auditor.py pattern).",
+      "citations": [
+        "byui_course_design_standards_2026.xlsx standard 3.1",
+        "BYUI Learning Model documentation (pre_knowledge/byui_learning_teaching/ — multiple sources)"
+      ]
+    },
+    {
+      "id": "open_gap_33_formative_variety",
+      "term": "OPEN GAP — Standard 3.3 (formative variety distribution)",
+      "definition": "Standard 3.3 BOTH: 'A variety of formative, low-stakes, and self-evaluation activities are used to support outcome achievement.' Tool sketch: formative_variety_audit.py — counts assignments by category and weight, flags courses where >X% of grade comes from <Y assignments (all summative, no formative practice); checks temporal spacing (formative checks distributed across term vs. stacked at end). Companion knowledge: assessments_knowledge.md (formative vs summative classification).",
+      "citations": [
+        "byui_course_design_standards_2026.xlsx standard 3.3",
+        "lib/agents/knowledge/assessments_knowledge.md"
+      ]
+    },
+    {
+      "id": "open_gap_63_accessibility",
+      "term": "OPEN GAP — Standard 6.3 (web accessibility)",
+      "definition": "Standard 6.3 BOTH: 'Course materials meet the current legal standards of web accessibility.' Tool sketch: accessibility_audit.py — two-mode design: (a) BYUI mode wraps the UDoIt API call to scan the course and surface high-priority issues; (b) generic mode embeds direct checks (alt-text on images, captions on videos, heading-hierarchy correctness, color-contrast). Standards clip: current legal = WCAG 2.1 AA.",
+      "citations": [
+        "byui_course_design_standards_2026.xlsx standard 6.3",
+        "BYUI UDoIt scanner documentation"
+      ]
+    },
+    {
+      "id": "open_gap_73_grading_load",
+      "term": "OPEN GAP — Standard 7.3 (grading load ≤75%)",
+      "definition": "Standard 7.3 ONLINE: 'Grading load does not consume more than 75% of instructors' time on average each week.' Tool sketch: grading_load_audit.py — derives expected grading hours from assignment_count × time-per-assignment-estimate × students-enrolled; compares to the 75% × 3hr/credit/wk facilitator-load cap. Per-assignment time estimates come from assignment type defaults (rubric-graded vs essay vs quiz). Complements workload_audit.py which handles 4.1 + 5.8 + 7.1.",
+      "citations": [
+        "byui_course_design_standards_2026.xlsx standard 7.3",
+        "lib/tools/workload_audit.py (companion)"
+      ]
+    },
+    {
+      "id": "human_judgment_standards",
+      "term": "Human-Judgment-Only Standards (by design out of deterministic scope)",
+      "definition": "~14 standards are inherently human judgment + process: 1.1 discipleship/leader framing; 1.3 online identity verification policy; 3.4 synchronous flexibility; 4.2 instruction completeness; 4.4 group work flexibility; 4.5 off-campus completion; 4.8 home page visual appeal; 4.9 dashboard icon style; 4.10 grammatical correctness; 4.12 cultural sensitivity; 5.1 multi-person tool access; 5.2 copyright compliance; 5.3 internal-resource judgment; 5.4 external resource approval; 5.6 mobile-friendly; 5.9 student feedback opportunities; 6.1 external tool help; 7.2 support materials presence. These are NOT failures of the audit framework — they're out of deterministic scope by design. Audits surface 'needs human review' notes; never produce a verdict on these.",
+      "citations": [
+        "byui_course_design_standards_2026.xlsx (the standards themselves; classification by audit-tool analysis)"
+      ]
+    },
+    {
+      "id": "campus_online_template_reference",
+      "term": "Campus Online Template (recurring operational reference)",
+      "definition": "Multiple standards (2.2, 4.6, 4.7, 4.8, 4.9, 5.5, 5.6, 5.7, 5.9, 6.2) reference 'the Campus Online template' as the canonical artifact that addresses the standard. This is BYUI Campus Online's institutional Canvas course template — a pre-built shell that bakes in the design conventions (banner, instructor module, student resources page, syllabus structure, setup notes page). Operators using the template get many standards covered for free; auditing a non-template course requires explicit checks for the template-provided artifacts. Audit advisory: if the course wasn't built from the Campus Online template, expect more partial findings (the audits assume template-provided artifacts exist).",
+      "citations": [
+        "byui_course_design_standards_2026.xlsx (the 'Suggestion' column references the template throughout)"
+      ]
+    },
+    {
+      "id": "modality_application_rule",
+      "term": "Modality Application Rule",
+      "definition": "AUDITING AN ONLINE COURSE: apply ALL standards from tab 1 (40 standards). AUDITING AN IN-PERSON COURSE: apply only the tab 2 subset (~30 standards) — skip the ONLINE-only items (entire NWCCU §1; 3.1, 3.4, 3.5; 4.5; 5.1, 5.7; 7.3). EXCEPTION: 3.1 Learning Model integration is BYUI-specific not online-specific — in-person BYUI courses also use the Learning Model and could be audited against it; the in-person variant drops 3.1 from the formal checklist but operators may want to keep it as a soft check. CONFIGURABLE via the future audit tool's --modality flag (online|in_person|auto-detect-via-canvas-format).",
+      "citations": [
+        "byui_course_design_standards_2026.xlsx (the tab differential)"
+      ]
+    },
+    {
+      "id": "audit_report_organization",
+      "term": "Audit Report Organization (recommend NWCCU-section structure)",
+      "definition": "A course-wide audit report should organize findings by NWCCU category and include the 7 section headers from this knowledge file. Operators reviewing for accreditation will recognize the structure. Per category, surface: (1) standards FULLY covered by an audit tool with the tool's findings; (2) PARTIAL findings with 'needs human review' notes; (3) OPEN GAPS noted as 'not currently auditable — recommended for human review'; (4) HUMAN-JUDGMENT-ONLY standards listed explicitly so the reviewer knows they're not skipped, just out of scope. Format: markdown report with one H2 per NWCCU category + per-standard rows.",
+      "citations": [
+        "lib/agents/canvas_course_expert.md (the consuming agent)"
+      ]
+    },
+    {
+      "id": "knowledge_layering",
+      "term": "Knowledge File Layering — What This Reference Coordinates",
+      "definition": "This knowledge file is the OUTERMOST coordinating reference — the institutional 'why' behind the audit fleet. It points at deeper knowledge files for the 'how': course_design_language_knowledge.md (visual/structural grammar — orthogonal); syllabus_knowledge.md (deep dive on 2.2 + 4.6 + 6.4); assessments_knowledge.md (deep dive on 3.2 + 3.3 + open-gap formative variety); backwards_design_knowledge.md (deep dive on 2.3 alignment chain — UbD 3-stage as the framework); rubrics_knowledge.md (deep dive on 2.4 + rubric quality); canvas_api_knowledge.md + canvas_api_lessons_learned.md (API surface for any new audit tool). NOT replacing any of them — this is the institutional checklist they all collectively answer.",
+      "citations": [
+        "lib/agents/knowledge/ (the existing knowledge layer)"
+      ]
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "BYU-Idaho Campus Online team — Course Design Standards (2026), 2-tab xlsx, operator-supplied 2026-06-10. Parked at lib/agents/pre_knowledge/byui_learning_teaching/byui_course_design_standards_2026.xlsx (gitignored) with paired transcript .md",
+      "NWCCU accreditation framework (the xlsx column A maps to NWCCU codes)",
+      "Cross-walk derived 2026-06-10 from canvas-toolbox's existing audit tools (lib/tools/syllabus_audit.py, workload_audit.py, rubric_quality_audit.py, module_structure_diff.py, canvas_schedule_auditor.py, etc.)"
+    ],
+    "last_reviewed": "2026-06-10"
+  },
+  "validation": {
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "Each entry in consumed_by[] resolves to an existing agent",
+      "Companion knowledge files exist: course_design_language_knowledge, syllabus_knowledge, assessments_knowledge, backwards_design_knowledge, rubrics_knowledge, canvas_api_knowledge"
+    ],
+    "post_run_checklist": [
+      "knowledge/course_design_standards_knowledge.md exists",
+      "knowledge/course_design_standards_knowledge.json exists with shape=reference and facts[] present",
+      "_metadata.runtime_strategy is set",
+      "consumed_by[] is non-empty",
+      "provenance.sources[] is non-empty"
+    ],
+    "real_course_validation": "PENDING (v0.1). This knowledge file has not yet been wired into an audit tool that grades a course against the standards end-to-end. v1.0 promotion gate: an audit tool (canvas_course_expert or a future course_standards_audit.py) successfully audits a real course against the standards and produces a per-NWCCU-category report.",
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "0.1",
+        "date": "2026-06-10",
+        "changes": [
+          "Created from operator-supplied byui_course_design_standards_2026.xlsx (BYUI Campus Online team, 2026). Captures all ~40 standards across 7 NWCCU categories with per-standard scope (ONLINE vs BOTH modalities), audit-tool cross-walk (8 covered, 9 partial, 5 open gaps, ~14 human-judgment-only), and a coordinating-reference position in the knowledge layer.",
+          "Five open gaps surfaced as candidate audit tools: course_alignment_audit (standard 2.3), learning_model_audit (3.1, BYUI-specific), formative_variety_audit (3.3), accessibility_audit (6.3, UDoIt integration), grading_load_audit (7.3). These are appropriate parking-lot candidates with explicit triggers ('an audit run against a real course where this standard's coverage is the limiting factor').",
+          "Not catalogued in knowledge/README.md per the 0.x convention until v1.0 (real audit run promotes it). Wired into canvas_course_expert.md + ira_program_alignment.md cross_references with the v0.x-untested caveat."
+        ]
+      }
+    ]
+  }
+}
