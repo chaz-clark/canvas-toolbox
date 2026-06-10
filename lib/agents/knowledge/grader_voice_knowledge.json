@@ -1,0 +1,126 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "manual (lift from ds460-master/handoffs/HANDOFF_generic-grader-skill.md §F + ds460 student_feedback_voice_knowledge.md)",
+    "knowledge_id": "grader_voice_knowledge",
+    "last_updated": "2026-06-10",
+    "description": "How the grader writes the student-facing Canvas comment. The structure and edit-roundtrip learning protocol are shared across instructors; the per-instructor specifics (banned terms, dial settings, opener wording) live in a course-local student_feedback_voice_<instructor>.md the grader loads at runtime. Pair with grader_knowledge (core grading pipeline) and grader_setup_knowledge (the interview that baselines the voice file).",
+    "owner": "Chaz Clark (BYUI course-design audit framework)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Medium reference file (~250 lines, ~10k chars). canvas_grader.md loads it for every grading operation that writes a comment; selective-load over knowledge/ catalog means embed-cache benefit is minimal."
+  },
+  "shape": "reference",
+  "scope": "The structure of the student-facing Canvas comment, the never-feed-back-values hard rule, the cross-instructor invariants, the edit-roundtrip protocol for learning a per-instructor voice, the default banned-patterns catalog, and the per-instructor file contract the grader expects to find. Out of scope: rubric design (grader_knowledge §11), gradebook reconciliation (grader_knowledge §8), wellbeing flag content (grader_knowledge §9 — kept OUT of the comment).",
+  "consumed_by": [
+    "canvas_grader.md",
+    "canvas_grader.json"
+  ],
+  "facts": [
+    {
+      "id": "comment_structure",
+      "term": "Comment Structure — Four Parts in Order",
+      "definition": "The Canvas comment is the ONLY thing the student sees, so every coaching point lives here. Structure: (1) 'Overall: <Tier>' as first line — saves student scanning for verdict. (2) ONE OR TWO SENTENCES naming a SPECIFIC strength — anchors in what worked before what didn't; without it every comment reads as criticism even when score is high. (3) 'Coaching Tips:' header — visual break; tells student here's the work. (4) ONE IDEA PER PARAGRAPH for each coaching point — multi-point paragraphs make reader stop at first point. (5) HABIT-TO-BUILD closing paragraph — one thing to take forward, framed as practice not deficiency. Anti-pattern: 'Here are two things I noticed...' preamble — structure already telegraphs coaching is coming; preamble is filler that reads as AI. Go straight to first paragraph.",
+      "citations": [
+        "ds460-master agents/knowledge/student_feedback_voice_knowledge.md (commit 8f7814b)"
+      ]
+    },
+    {
+      "id": "never_feed_back_values",
+      "term": "Never Feed Back Data Values (hard rule — fairness + safety)",
+      "definition": "Comment must NOT contain: student's numbers ('Your DataFrame had 26 rows'), 'correct' numbers ('The expected answer was 12'), value-vs-value comparisons, or specific data interpretations the assignment was supposed to elicit. WHY FAIRNESS: naming a value lets student SWAP the number to chase the answer instead of fixing reasoning; they patch submission to match comment but underlying misunderstanding survives. WHY SAFETY: LLMs hallucinate numbers; a comment that names a value MUST be human-verified before posting; a comment that names a CONCEPT is safe by construction (no value to verify). SUBSTITUTION: replace 'you got 26 rows but right answer is 12' with concept + question — 'The key tool here is counting *distinct entities* rather than rows — when one building shows up across many months, counting rows lets each month re-count the building. Which Python/SQL operation gives you one row per unique value?' Explains concept behind the miss + poses question that leads student to it.",
+      "citations": [
+        "HANDOFF_generic-grader-skill.md §4a (student-facing comments: guided, never values)"
+      ]
+    },
+    {
+      "id": "tone_dial",
+      "term": "Tone — the Dimensions to Calibrate Per Instructor",
+      "definition": "Dial dimensions: WARMTH (clinical/procedural → warm/personal/'I'), DIRECTNESS (hedged 'you might consider' → plain 'do X'), TECHNICAL DENSITY (approachable/metaphor-first → technical/vocabulary-dense), ENCOURAGEMENT FREQUENCY (once per comment → multiple), BREVITY (2 short paragraphs → 5+). CROSS-INSTRUCTOR INVARIANTS (hold regardless of dials): conversational not formal (no 'pursuant to', no 'in alignment with the rubric criteria'); plain English (define jargon on first use or replace with phrase); instructor-to-student ('I' and 'you' naturally); no bureaucratese ('going forward', 'moving the needle', 'leveraging'); no emojis unless per-instructor file opts in.",
+      "citations": [
+        "ds460-master student_feedback_voice_knowledge.md + HANDOFF §4b"
+      ]
+    },
+    {
+      "id": "edit_roundtrip",
+      "term": "Edit Roundtrip — How the Per-Instructor Voice File Gets Built",
+      "definition": "Voice file is LEARNED, not hand-authored on day one. Protocol: (1) BULK-EMIT ALL COMMENTS to ONE file (feedback/all_comments.md) for the cohort, with every student's comment + score by key. This is instructor's editing surface (NOT the per-student files — those are appeals/review path). (2) INSTRUCTOR EDITS IN THEIR VOICE — fast (5-10 min/comment after first few); produces the truth; edits in-place. (3) SYNC EDITS BACK INTO PER-STUDENT FILES via sync_voice_edits.py — parses edited all_comments.md, splits by key, overwrites per-student <KEY>.md with instructor's text. Per-student files become artifact of record. (4) BAKE RECURRING PATTERNS into student_feedback_voice_<instructor>.md — words consistently removed (→ banned terms), phrasings consistently shortened (→ preferred phrasing examples), structural choices consistently made (→ per-instructor structure notes), encouragement frequency that emerged (→ pin dial setting). NEXT cohort's auto-emit starts closer to instructor's voice; edit pass shorter. KEEP BOTH REVIEW SURFACES: all-comments overview (fast pass, 20 min cohort read) + per-student files (evidence behind score, what student sees on appeal).",
+      "citations": [
+        "HANDOFF_generic-grader-skill.md §4b (edit roundtrip) + §F (per-instructor voice as knowledge)"
+      ]
+    },
+    {
+      "id": "default_banned_patterns",
+      "term": "Default Banned Patterns (extendable per instructor)",
+      "definition": "WORD-LEVEL: 'idiomatic' (round-2 specific tell; clinical; replace with specific 'more conventional Spark usage' or omit), 'leveraging/leverage' (bureaucratese → 'using'), 'going forward' (filler-bureaucratese → omit or just say what to do), 'moving the needle' (marketing jargon → concrete), 'pursuant to/in accordance with' (legalese → plain), 'as per the rubric' (bureaucratese → reference band by name), 'unpack' (therapy-talk; preachy → 'look at'/'think about'), 'the user'/'the learner' (reader IS the student → 'you'), 'delve into/delve' (LLM tell → 'look at'/'dig into'). PHRASE-LEVEL: 'Here are two things I noticed...' / 'a couple of...' (filler preamble); 'Great job!' followed by criticism (praise sandwich; performative); 'Overall, this was a strong submission, but...' (the 'but' cancels 'strong'; replace with specific strength + drop contrast); 'Hope this helps!' as closing (reflexive AI closing; use habit-to-build instead); 'I noticed that you...' (every paragraph; repetitive; vary or drop); 'One thing to consider...' (every paragraph; same). STRUCTURE-LEVEL: multiple coaching points per paragraph (one idea per paragraph rule); internal-only 'Notes for instructor' sections (comment IS the coaching; no hidden version); per-criterion point arithmetic in comment (holistic scoring; comment names band not math).",
+      "citations": [
+        "ds460-master student_feedback_voice_knowledge.md (banned-terms section)"
+      ]
+    },
+    {
+      "id": "template_openers_intentional",
+      "term": "Template Openers ARE Intentional, NOT an AI Tell",
+      "definition": "Grader emits openers like 'Overall: Strong' because the structure (fact comment_structure) requires them. Student reading three classmates' comments will see the same opener three times. THIS IS BY DESIGN, NOT AN AI TELL. Why safe: opener is a FUNCTIONAL element (the band) — students benefit from finding it in same place every time; body of comment is per-student, written against student's actual work; instructor's voice file shapes the body; opener stays canonical. Instructor can override opener wording per voice file (e.g. 'Score: Strong' instead of 'Overall: Strong') — but consistency across cohort is correct, not lazy.",
+      "citations": [
+        "HANDOFF_generic-grader-skill.md §F (template openers are intentional, not an AI tell)"
+      ]
+    },
+    {
+      "id": "comment_vs_internal_surfaces",
+      "term": "What Does NOT Go in the Comment (separation of surfaces)",
+      "definition": "Canvas comment is PUBLIC student-facing artifact. Several grader-produced things never reach it. PER-CRITERION POINT BREAKDOWN → per-student file (review surface only); comment names band, not math. INTERNAL CALIBRATION / SPREAD NOTES → per-student file or audit log; student doesn't need to know they were a 0.5-spread borderline. WELLBEING FLAGS → _checkin_flags.md (instructor-only); compassion is private conversation, not a record (grader_knowledge §9). RECONCILIATION EVIDENCE (claim vs earned) → keyed actuals sheet (instructor review); earned grade IS the comment's band, gap analysis is for instructor's decision. INSTRUCTOR'S COACHING-TO-SELF NOTES about student's pattern across the term → local instructor journal; not AI's to write.",
+      "citations": [
+        "grader_knowledge.md §9 (wellbeing) + §8 (reconciliation) + §2 (holistic scoring)"
+      ]
+    },
+    {
+      "id": "no_comment_modes",
+      "term": "When the Comment Doesn't Fit (--grade-only modes)",
+      "definition": "Some grades push with --grade-only (grader_knowledge §7) — no comment. Examples: consequential grade in multi-output flow (one assignment gets comment, other gets --grade-only); grades pushed retroactively for completion-only items; --default-comment flag pattern (every student in batch gets fixed short comment like 'See Mid Review for detailed feedback'). Structure still applies when there IS a comment; voice file still gates words; but 'no comment' is a valid grader output, not a failure.",
+      "citations": [
+        "ds460-master grading/push_grades.py (--grade-only + --default-comment additions)"
+      ]
+    },
+    {
+      "id": "per_instructor_file_contract",
+      "term": "Per-Instructor File Contract (student_feedback_voice_<instructor>.md shape)",
+      "definition": "Shape grader expects: '# Voice — <Instructor name>' header; '## Dial settings' section (Warmth/Directness/Technical density/Encouragement frequency/Brevity each low|medium|high or specific values); '## Opener wording' (literal opener like 'Overall: <Tier>' or 'Score: <Tier>'); '## Strength sentence template' (one-line guide for post-opener strength sentence); '## Coaching paragraph opener (if any consistent one)' or 'vary, no template'; '## Habit-to-build closing template' (one-line guide); '## Extra banned terms' (instructor-specific beyond defaults — 'term1 → replace with X', 'term2 → omit'); '## Preferred phrasings' (instructor's characteristic moves — 'pattern → instructor's version'); '## Worked example' (one full real edited comment, keyed, with band noted). Grader reads at runtime alongside rubric and per-class course context. Adding new instructor to toolkit is WRITING ONE OF THESE FILES + running edit roundtrip on calibration cohort.",
+      "citations": [
+        "ds460-master agents/knowledge/student_feedback_voice_knowledge.md (the working example)"
+      ]
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "ds460-master agents/knowledge/student_feedback_voice_knowledge.md (commit 8f7814b) — the round-2 working per-instructor voice file in the beta",
+      "ds460-master/handoffs/HANDOFF_generic-grader-skill.md §4a (never feed back values) + §4b (comment IS the coaching) + §F (per-instructor voice as knowledge)"
+    ],
+    "last_reviewed": "2026-06-10"
+  },
+  "validation": {
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "grader_knowledge.md and grader_setup_knowledge.md exist (companion files)"
+    ],
+    "post_run_checklist": [
+      "knowledge/grader_voice_knowledge.md exists",
+      "knowledge/grader_voice_knowledge.json exists with shape=reference and facts[] present",
+      "_metadata.runtime_strategy is set",
+      "consumed_by[] is non-empty",
+      "provenance.sources[] is non-empty (reference shape)"
+    ],
+    "real_course_validation": "PENDING (v0.1). The beta voice file ran successfully for ds460 round 2 (Mid Performance Review cohort). The generic skill needs a SECOND instructor (not Chaz) to baseline their own voice file through the edit roundtrip before v1.0 promotion.",
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "0.1",
+        "date": "2026-06-10",
+        "changes": [
+          "Created from ds460-master round 2 (commit 8f7814b) and HANDOFF §F. Captures 9 named facts: comment structure (4 parts), never-feed-back-values hard rule, tone dial dimensions + invariants, edit-roundtrip protocol, default banned-patterns catalog, template-openers-intentional clarification, comment-vs-internal-surfaces separation, no-comment modes (--grade-only / --default-comment), per-instructor file contract.",
+          "Wired into canvas_grader.{md,json} cross_references with v0.1 untested caveat. Not catalogued in knowledge/README.md until v1.0."
+        ]
+      }
+    ]
+  }
+}

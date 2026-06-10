@@ -1,0 +1,136 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "manual (lift from ds460-master/handoffs/HANDOFF_generic-grader-skill.md §A round-2 setup flow)",
+    "knowledge_id": "grader_setup_knowledge",
+    "last_updated": "2026-06-10",
+    "description": "The 6-step setup interview that gets an instructor from 'I have an assignment' to a runnable per-assignment grader config. Includes the verifiable-quiz Classic-mirror pattern that branches off step 5 when the assignment depends on quiz-collected self-reports. Companion to grader_knowledge (the lessons each step grounds in) and grader_voice_knowledge (the voice baseline step 6 captures).",
+    "owner": "Chaz Clark (BYUI course-design audit framework)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Medium reference file (~400 lines, ~16k chars). Loaded by canvas_grader.md when onboarding an instructor / configuring a new assignment; the rest of the grading pipeline doesn't need it. Selective-load."
+  },
+  "shape": "reference",
+  "scope": "The interview flow (6 steps in order), the decisions captured at each step, the structure of the per-assignment config the interview emits, the verifiable-quiz Classic-mirror pattern that pairs with step 5 when evidence lives in quizzes, and the additional onboarding steps for a brand-new instructor. Out of scope: the grading philosophy each step grounds in (grader_knowledge), comment voice (grader_voice_knowledge), and the implementation of the per-assignment config schema in code (canvas_grader spec + tools).",
+  "consumed_by": [
+    "canvas_grader.md",
+    "canvas_grader.json"
+  ],
+  "facts": [
+    {
+      "id": "interview_step1_input_format",
+      "term": "Step 1 — Input Format → De-id Adapter",
+      "definition": "Ask: 'What file format do students submit in?' Map: Databricks .html → databricks_html adapter; Jupyter .ipynb → ipynb adapter; Word .docx → docx_form (handles Name:/Signature: form-field patterns); plain markdown/text → markdown; PDF → pdf (extract text; warn that figures don't reach grader); multi-format cohort → multi (per-file by extension). SUB-QUESTIONS: 'Do students submit through Canvas or sometimes via Slack/email?' → captures out-of-band path (grader_knowledge §10) — if yes, pre-stage files with <prefix>_<userid>.<ext> naming + add student names to .known_names.txt. 'Are there typical hardcoded secrets in this assignment type?' → captures token-scrub patterns (Databricks tokens for ds460, AWS keys for infra course, etc.).",
+      "citations": [
+        "HANDOFF_generic-grader-skill.md §A step 1"
+      ]
+    },
+    {
+      "id": "interview_step2_rubric_three_paths",
+      "term": "Step 2 — Rubric: Three Paths (Path C is highest-value)",
+      "definition": "Ask: 'Do you have a rubric for this assignment?' The branching is the MOST IMPORTANT moment in the interview. PATH A (HAS RUBRIC): ask where it lives — Canvas-attached → --rubric-from-canvas <assignment_id>; course-repo RUBRIC.md → file path; Google Doc/Word → 'paste into RUBRIC.md' (don't paste in interview). Validate structure: named tiers (Meets/Developing/Does-Not-Yet OR industry like INL's Leading/Strong/Solid/Building/Insufficient); each tier has both description (name) and long_description (observable behavior — course_design_language_knowledge §5); if not, walk one criterion to fix shape, loop. PATH B (CONTRACT/OUTCOMES MODEL): ask 'outcomes doc, syllabus performance table, contract describing A/B/C?' Round 2 example: Mid Performance Review syllabus had Performance Table with 5 dimensions (Hours/Key Challenges/Written Challenges/Involvement/Impact) each with A/B/C thresholds. Capture path + dimensions + thresholds; emit structured OUTCOMES.md mapping dimension→tier→threshold-description. Grader uses in place of rubric. PATH C (NEITHER — highest-leverage step): ask 'What are you actually looking for?' Open-ended; extract gradeable criteria with observable thresholds. Recipe: (1) list criteria ('if I gave you 4 students' work, what would you look at first?'), (2) for each criterion name what STRONG looks like (push for observable behavior, not adjectives — 'clear data interrogation with specific questions written next to data' not 'good critical thinking'), (3) for each name what WEAK looks like, (4) draft rubric (3 or 5 named tiers, observable behavior at each, points if appropriate), (5) instructor confirms, edit until 'yes', (6) save as RUBRIC.md in course repo (future cohorts skip Path C). Plan 30-60 min for Path C; output is permanent.",
+      "citations": [
+        "HANDOFF_generic-grader-skill.md §A step 2"
+      ]
+    },
+    {
+      "id": "interview_step3_critical_thinking_mode",
+      "term": "Step 3 — Critical Thinking: Scored or Formative",
+      "definition": "Ask: 'Is critical thinking (data interrogation, self-questioning, reasoning quality) part of the grade, or surfaced as coaching but not scored?' Two modes (grader_knowledge §2): FORMATIVE (default) — 'I want to see it but it doesn't change the band'; grader surfaces critical-thinking observations in coaching, score reflects only named rubric dimensions. SCORED — 'It's a named rubric dimension and weighted'; grader treats critical thinking as one of rubric criteria, scores like any other; rubric (from step 2) must already have critical-thinking criterion, if not loop back and add. Setup writes policies.critical_thinking_mode = formative|scored.",
+      "citations": [
+        "HANDOFF_generic-grader-skill.md §B (round-2 generalization: critical questioning configurable)"
+      ]
+    },
+    {
+      "id": "interview_step4_multi_output",
+      "term": "Step 4 — One Grade or Several? (Multi-Output Config)",
+      "definition": "Ask: 'How many grades does this assignment produce, and where do they go in Canvas?' Most assignments are one-grade→one-gradebook-entry; round 2 surfaced multi-output (grader_knowledge §7) — one submission produces N grades to N Canvas items. PER OUTPUT capture: label (e.g. 'did_the_review'), canvas_assignment_id, scale (0-4 / A-F / etc.), grader_count (1 single / 3 consensus), comment_mode (with_comment | grade_only | default_comment), default_comment_text (if applicable), is_consequential (true|false, informational — which is the 'real' grade). If multi-output setup writes outputs[] array; if single-output single entry. push_grades.py per-assignment idempotency handles rest.",
+      "citations": [
+        "HANDOFF_generic-grader-skill.md §C (multi-output)"
+      ]
+    },
+    {
+      "id": "interview_step5_reconciliation",
+      "term": "Step 5 — Verifiable Against Gradebook?",
+      "definition": "Ask: 'Does this assignment make claims that can be checked against actual gradebook records — like self-assessment, effort/participation contract, mid-term review?' NO (original work — essay, code, project): no reconciliation, skip. YES + evidence in standard gradebook: capture assignments/categories to pull (KC/WC/participation/etc.); grader runs reconcile_gradebook.py → keyed actuals sheet. YES + evidence in QUIZZES: branch to verifiable-quiz Classic-mirror pattern (separate fact below) — New Quizzes don't expose per-student responses via API, Classic Quizzes do. CAPTURE per reconcilable dimension: dimension (e.g. 'hours'), source ('gradebook' | 'classic_quiz_submissions'), assignment_ids[], zero_means ('not_submitted' | 'failure' per-course convention — grader_knowledge §8).",
+      "citations": [
+        "HANDOFF_generic-grader-skill.md §D (grade earned not asked) + §J (verifiable Classic-quiz pattern)"
+      ]
+    },
+    {
+      "id": "interview_step6_scale_bands_voice",
+      "term": "Step 6 — Scale / Bands / Equivalences / Voice / Cost",
+      "definition": "(a) WHOLE POINTS OR QUARTER-POINTS? 0/1/2/3/4 or 0/0.25/0.5/.../4. Quarter-points are finer placement WITHIN a band, NOT new bands (grader_knowledge §11). (b) NAMED BANDS? Default Meets/Developing/Does Not Yet Meet; industry variants like INL's Leading/Strong/Solid/Building/Insufficient. (c) COURSE-SPECIFIC EQUIVALENCES? 'Are there approaches you treat as equivalent for grading?' (e.g. 'Spark SQL == DataFrame API' for ds460) → policies.language_equivalence[]. (d) VOICE FILE: 'Already built voice profile or first cohort?' EXISTING → voice_file: agents/knowledge/student_feedback_voice_<instructor>.md. NOT YET → schedule edit roundtrip for first calibration cohort (grader_voice_knowledge edit-roundtrip protocol), create stub voice file with default dial settings. (e) COST PREVIEW based on (submissions × extracted-token estimate) × grader_count + voice-roundtrip overhead; confirm before proceeding.",
+      "citations": [
+        "HANDOFF_generic-grader-skill.md §A step 6 + grader_knowledge §11 (rubric tiers) + §14 (token reality)"
+      ]
+    },
+    {
+      "id": "per_assignment_config_shape",
+      "term": "Per-Assignment Config Shape (interview output)",
+      "definition": "Interview emits structured config (YAML or JSON) the grader pipeline reads. Canonical shape: assignment.{name, primary_canvas_assignment_id}; input.{adapter, out_of_band, scrub_secrets}; rubric.{source: canvas|file|outcomes|generated, path, named_tiers}; policies.{critical_thinking_mode, language_equivalence[]}; outputs[].{label, canvas_assignment_id, scale, grader_count, comment_mode, is_consequential}; reconciliation.{enabled, dimensions[].{dimension, source, assignment_ids[], zero_means}}; voice.{file, edit_roundtrip_scheduled}; cost_preview.{estimated_tokens, estimated_dollars}. This object is what canvas_grader runs against. Every per-assignment difference between courses is captured here; grading code itself never changes per-course.",
+      "citations": [
+        "HANDOFF_generic-grader-skill.md §A + reference impl ds460 grading/kc1/ + grading/mid_review/ configs"
+      ]
+    },
+    {
+      "id": "classic_quiz_mirror_pattern",
+      "term": "§J — Verifiable Self-Report Quiz Pattern (Classic Mirror; step-5 branch)",
+      "definition": "When step 5's answer is 'yes, but evidence lives in quizzes,' New Quizzes API gap forces this workaround (working ds460 recipe, commit 2fd277f). PROBLEM: courses collect weekly self-reports in NEW QUIZZES; New Quizzes do NOT expose per-student responses via API (only metadata; /api/quiz/v1/.../{submissions,results,reports} 404). Classic Quizzes DO via submission_data on /assignments/:aid/submissions?include[]=submission_history. RECIPE: (1) MIRROR each New Quiz as UNPUBLISHED Classic Quiz — same title/desc/due/group/module (mirror_standups_classic.py); FILTER source on submission_types==external_tool, else naive title-filter mirrors own Classic output → duplicates (real bug). (2) AUTO-GRADE ZERO REVIEW for pure self-report: numeric questions wide-range (any answer=correct=full points → auto-grades on submit); NO essays (force manual grade); missed-work justification as submission comment instead. (3) VALIDATE via Test Student masquerade — start→answer with ?as_user_id=<test>→complete; CAVEATS: quiz submissions can't be API-deleted (clear by delete+recreate quiz); student-analysis report EXCLUDES Student-View → use submission_data which includes everyone. (4) SWAP MID-TERM if needed: for 0-submission weeks, unpublish New Quiz + publish Classic mirror; students see no change (same questions, same module spot, same due dates); fully reversible. (5) PULL: GET /assignments/:aid/submissions?include[]=submission_history → submission_data → per-question {question_id, text} → sum per user_id. CONFIG capture: reconciliation.dimensions[].{dimension, source='classic_quiz_submissions', assignment_ids[]=the_classic_mirrors, zero_means, mirror_source_ids[]=the_original_new_quizzes}. ENABLES hours/involvement to be gradebook-verifiable for final letters (feeds grade-earned-not-asked).",
+      "citations": [
+        "ds460-master mirror_standups_classic.py + reconcile_gradebook.py → classic_standup_totals (commit 2fd277f)",
+        "HANDOFF_generic-grader-skill.md §J"
+      ]
+    },
+    {
+      "id": "pipeline_after_interview",
+      "term": "Pipeline After Interview (the order the steps run)",
+      "definition": "Once per-assignment config set, grader pipeline runs in order: (1) DE-IDENTIFY — adapter from step 1; produces keyed <KEY>.md + local .keymap.csv; FERPA self-check passes. (2) RECONCILE (if step 5 enabled) — pull gradebook actuals via local keymap; emit keyed actuals sheet. (3) GRADE — run N grading passes (N from step 4 outputs[].grader_count); each pass reads de-id'd work + rubric/outcomes + course context + per-instructor voice file. (4) CONSENSUS — majority + spread; auto-flag high-spread to NEEDS-REVIEW. (5) RE-IDENTIFY LOCALLY — instructor reviews per-student files. (6) PUSH GATE — --mark-reviewed after eyeball; validates on Test Student; pushes to Canvas via push_grades.py (idempotent, per-assignment-scoped). (7) WELLBEING FLAGS — keyed _checkin_flags.md reaches instructor before final push. Each step's success criteria are checklists from grader_knowledge §12 (acceptance bars).",
+      "citations": [
+        "grader_knowledge.md §12 (acceptance checks) + cross-walk § (where each lesson is enforced)"
+      ]
+    },
+    {
+      "id": "new_instructor_onboarding",
+      "term": "Onboarding a Brand-New Instructor (additional steps beyond the 6)",
+      "definition": "When instructor has never used toolkit grader before, run 6-step interview AND: (a) Confirm Canvas API access (CANVAS_API_TOKEN + course ID in .env). (b) Confirm canvas_course_guard awareness — instructor will see live-course-write blocks until --allow-enrolled passed deliberately. (c) SCHEDULE FIRST CALIBRATION COHORT (5-10 submissions, single-grader, instructor reviews each) — voice-roundtrip baseline AND spec calibration moment. DON'T start with bulk + parallel. (d) Create stub student_feedback_voice_<instructor>.md with default dials; commit to running edit roundtrip after calibration cohort. AFTER calibration cohort succeeds + voice file built, instructor 'onboarded'; subsequent cohorts of SAME assignment skip steps 1, 2, 6c, 6d (already captured) and only confirm cost preview (6e).",
+      "citations": [
+        "HANDOFF_generic-grader-skill.md (calibration decision tree + voice-roundtrip protocol)"
+      ]
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "ds460-master/handoffs/HANDOFF_generic-grader-skill.md — §A (6-step interview), §B (critical-thinking mode), §C (multi-output), §D (grade-earned reconciliation), §F (per-instructor voice baseline), §J (Classic-quiz mirror pattern)",
+      "ds460-master grading/kc1/ + grading/mid_review/ — reference per-assignment configs the interview emits this shape of",
+      "ds460-master mirror_standups_classic.py + reconcile_gradebook.py → classic_standup_totals (commit 2fd277f) — the §J working code"
+    ],
+    "last_reviewed": "2026-06-10"
+  },
+  "validation": {
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "grader_knowledge.md and grader_voice_knowledge.md exist (companion files)"
+    ],
+    "post_run_checklist": [
+      "knowledge/grader_setup_knowledge.md exists",
+      "knowledge/grader_setup_knowledge.json exists with shape=reference and facts[] present",
+      "_metadata.runtime_strategy is set",
+      "consumed_by[] is non-empty",
+      "provenance.sources[] is non-empty (reference shape)"
+    ],
+    "real_course_validation": "PENDING (v0.1). The interview was run informally for ds460 round 1 (KC1) and round 2 (Mid Review) and produced runnable configs both times. The structured 6-step form needs a SECOND instructor (not Chaz) onboarded via this file's protocol before v1.0 promotion.",
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "0.1",
+        "date": "2026-06-10",
+        "changes": [
+          "Created from ds460-master round 2 §A setup-flow + supporting §B/C/D/F/J of the originating handoff. Captures 10 named facts: the 6 interview steps (input format / rubric three paths / critical-thinking mode / multi-output / reconciliation / scale-bands-voice-cost), per-assignment config shape, Classic-quiz mirror pattern (§J), pipeline-after-interview order, new-instructor onboarding extras.",
+          "Wired into canvas_grader.{md,json} cross_references with v0.1 untested caveat. Not catalogued in knowledge/README.md until v1.0."
+        ]
+      }
+    ]
+  }
+}
