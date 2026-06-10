@@ -40,6 +40,8 @@ Throughout this file, each standard is tagged with its scope:
 
 Operators auditing an **in-person** course should ignore the 🌐 ONLINE standards. Operators auditing an **online** course apply all.
 
+**Online is the higher standard.** The online bar is a strict superset of the in-person bar — online courses face additional design considerations (identity verification, synchronous-session flexibility, off-campus completion, etc.) that in-person courses get for free by virtue of physical presence. A course meeting the online standard automatically meets the in-person standard too; the inverse isn't true. **Implication:** if a course audit isn't sure of the modality, audit against the online standard (the safer bar). If the course turns out to be in-person, the extra ONLINE findings are surfaced as "advisory — not strictly required" rather than missed.
+
 ---
 
 ## The 7 NWCCU categories
