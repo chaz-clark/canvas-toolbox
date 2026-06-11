@@ -21,7 +21,10 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 | Whether the course's learning outcomes are well-formed (precedes alignment) | [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md) |
 | Whether a rubric is well-formed (4-criterion backbone, typology, alignment-to-CLOs) | [`rubrics_knowledge.md`](rubrics_knowledge.md) |
 | Whether a specific assessment is the right type (formative vs. summative) and AI-resistant | [`assessments_knowledge.md`](assessments_knowledge.md) |
+| How to *redesign* a weak assessment into stronger evidence of learning (procedural, AI-era) | [`evidence_centered_design_knowledge.md`](evidence_centered_design_knowledge.md) |
 | Whether assessments accept AI-generated work as a substitute for learning | [`inverted_blooms_knowledge.md`](inverted_blooms_knowledge.md) |
+| Whether an assignment prompts critical thinking — and how to *score* student work on a critical-thinking criterion | [`critical_thinking_knowledge.md`](critical_thinking_knowledge.md) |
+| Whether a course meets the BYUI / NWCCU course-design master checklist (audit-coverage map) | [`course_design_standards_knowledge.md`](course_design_standards_knowledge.md) |
 | Whether a BYUI course is a coherent artifact (visual grammar, rubrics, alignment) | [`course_design_language_knowledge.md`](course_design_language_knowledge.md) |
 | Writing a precise change plan for a flagged issue | [`toyota_gap_analysis_knowledge.md`](toyota_gap_analysis_knowledge.md) |
 | Setting up + running a FERPA-safe AI-assisted grading pipeline (core lessons) | [`grader_knowledge.md`](grader_knowledge.md) |
@@ -161,6 +164,17 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 
 ---
 
+### [`evidence_centered_design_knowledge.md`](evidence_centered_design_knowledge.md)
+
+**Source:** BYUI *Architects of Learning* workshop deck *Designing Stronger Assessments — Engineering Stronger Evidence of Learning* (13 slides, 2026-05-18).
+**Core idea:** Procedural — trigger-keyed playbooks for *strengthening* a weak assessment. Five decisions: (1) clarify the core learning, (2) identify convincing evidence, (3) make learning visible, (4) stress-test visibility in an AI-rich environment, (5) add one architectural improvement. The thesis: *AI mostly threatens assessments that mistake product for cognition.* Moves an assessment from Weak (task completion / polished product / output) to Strong (thinking demonstration / decision-making / process + judgment).
+**When to use:** When the assessment audit flags a weakness and you need to *act on it*. Composes with `assessments_knowledge` (diagnostic — what type), `backwards_design` (Decisions 1–2 mirror UbD Stages 1–2), `inverted_blooms` (AI-agency framing feeds Decision 4), and `toyota_gap_analysis` (A3 format for the redesign write-up).
+**Audit tag:** none (procedural — produces redesign artifacts, not classification).
+**Status:** ⚠️ **v0.1** — extracted from source deck; field calibration pending.
+**Consumed by:** `canvas_course_expert.json`, `ira_program_alignment.md`. **Pairs with:** [`assessments_knowledge.md`](assessments_knowledge.md), [`backwards_design_knowledge.md`](backwards_design_knowledge.md), [`inverted_blooms_knowledge.md`](inverted_blooms_knowledge.md), [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md), [`toyota_gap_analysis_knowledge.md`](toyota_gap_analysis_knowledge.md).
+
+---
+
 ### [`inverted_blooms_knowledge.md`](inverted_blooms_knowledge.md)
 
 **Source:** Kassorla, M. *Inverted Bloom's for the Age of AI.* Substack.
@@ -190,6 +204,28 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 **Audit tag:** `workload` ∈ {`balanced`, `uneven`, `sparse`, `unscheduled`} + flags (uneven_distribution / front_loaded / back_loaded / mostly_unscheduled / low_volume / high_volume).
 **Status:** ⚠️ **v0.1** — real-course-validated (ITM327 uneven; sandbox/ds250 balanced) but the thresholds are fresh; calibration may refine.
 **Consumed by:** `workload_audit.py`, `canvas_course_expert`. **Pairs with:** `cognitive_load_theory_knowledge.md` (per-task load), `syllabus_knowledge.md` (the schedule).
+
+---
+
+### [`course_design_standards_knowledge.md`](course_design_standards_knowledge.md)
+
+**Source:** BYU-Idaho Campus Online *Course Design Standards* (2026 edition — both the .xlsx instrument and the canonical HTML at `content.byui.edu/file/25dac126-…/course-design-standards.html`); cross-walked to **NWCCU 2020 Standards for Accreditation** (specifically Std. 2.C learning outcomes, 2.E faculty/courses, 4 instructional design / accessibility).
+**Core idea:** The institutional master checklist (~40 standards across 7 categories — Outcomes / Alignment / Pedagogy / Assessment / Materials / Accessibility / Workload) mapped onto NWCCU accreditation codes, with an **audit-coverage map** for canvas-toolbox: which standards are already deterministically auditable, which are heuristic, and which remain "human review only." Currently 13 standards fully covered, 9 partial, 0 open standards-gap audits remaining (the five originally-parked audits — `course_alignment`, `learning_model`, `formative_variety`, `grading_structure`, `grading_load`, `accessibility` — all shipped 2026-06-10).
+**When to use:** When triaging a course against the institutional checklist, or scoping a new audit tool against the standards it would close. Also the reference faculty cite when arguing "this audit maps to standard X.Y."
+**Audit tag:** none (cross-walk reference; consumed via fact lookup).
+**Status:** ⚠️ **v0.1** — checklist baseline + coverage map; refreshed as audits ship.
+**Consumed by:** `canvas_course_expert.md`, the audit tools' standards-mapping comments. **Pairs with:** every audit-producing knowledge file (each closes one or more rows of the coverage map).
+
+---
+
+### [`critical_thinking_knowledge.md`](critical_thinking_knowledge.md)
+
+**Sources:** AAC&U *Critical Thinking VALUE Rubric*; Paul-Elder Framework (Foundation for Critical Thinking — 8 elements + 9 intellectual standards); Anderson & Krathwohl (2001) revised Bloom's *Analyze / Evaluate / Create*; Brookhart (2010) *How to Assess Higher-Order Thinking Skills*; Socratic-questioning taxonomies; Willingham (2008) *Critical Thinking: Why Is It So Hard to Teach?*; Toulmin argumentation model; Bean (2011) *Engaging Ideas*.
+**Core idea:** A shared vocabulary used by **two consumers** — (a) the **grader** scoring student work against a "critical thinking" rubric criterion, and (b) the **audit agent** evaluating whether an assignment is *designed to prompt* critical thinking. Five-dimension spine from the AAC&U VALUE rubric (explanation of issues, evidence, context/assumptions, position/perspective, conclusions/implications) with scorable anchors at each level. Distinguishes critical *thinking* (analyze / evaluate / synthesize) from critical *questioning* (Socratic taxonomy — clarification / probe assumptions / probe reasons / probe perspective / probe implications). Critically: most rubrics that name "critical thinking" do so with *vague descriptors* and need scorable anchors to be defensible.
+**When to use:** When grading any criterion that names critical thinking, when authoring/auditing a rubric criterion meant to capture it, or when auditing whether an assignment's design *prompts* the skill (vs. recall).
+**Audit tag:** none yet (reference-shape, dual-consumer; consumed via fact lookup by grader + audit).
+**Status:** ⚠️ **v0.1** — dual-consumer file built ahead of a real critical-thinking criterion landing in a graded cohort; calibration pending.
+**Consumed by:** [`canvas_grader.md`](canvas_grader.md) (when a rubric criterion targets critical thinking), `canvas_course_expert.md`. **Pairs with:** [`rubrics_knowledge.md`](rubrics_knowledge.md), [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md), [`grader_knowledge.md`](grader_knowledge.md), [`assessments_knowledge.md`](assessments_knowledge.md).
 
 ---
 

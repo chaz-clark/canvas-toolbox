@@ -10,8 +10,12 @@ Built at BYU-Idaho, designed for all instructors. Works with any Canvas institut
 
 - **Keep your course in sync** — pull your Canvas course to a local folder, edit content in any text editor, push changes back
 - **Catch problems before students do** — audit for broken module structure, items students can't find, and empty modules
+- **Run a full health sweep in one command** — `course_audit.py --full` composes 11 read-only audits into one report (rubrics · syllabus · outcomes · alignment chain · learning model · formative variety · grading structure · grading load · accessibility · workload)
 - **Validate your dates** — check that due dates are in the right window, in the right order, and not accidentally duplicated
-- **Check your outcome chain** — see whether your course outcomes actually connect to what you're grading
+- **Check your outcome chain** — see whether your course outcomes actually connect to what you're grading (rubric criteria → module outcomes → course outcomes)
+- **Check your pedagogy phase coverage** — does each module exercise the BYUI Learning Model (or Kolb / Hattie 3-phase / Merrill's First Principles — your choice of preset)
+- **Audit your grading design** — surface weight-balance issues, over-influential single assignments, missing formative practice, and grader-hours overload (NWCCU 7.x)
+- **Aid WCAG 2.1 AA accessibility review** — embedded sensory + cognitive checks (alt-text, captions, headings, reading level, color-only signaling, distracting elements) with a legal disclaimer (this *aids* review, does not *certify* compliance)
 - **Find unused files** — surface files sitting in Canvas that nothing links to
 - **Build a Course Map & Schedule** — generate an Architects-of-Learning–style course map (CLOs, per-module outcomes, 14-week schedule, pacing analysis) from your Canvas course
 - **Score your syllabus against the BYU-I Completeness Rubric** — 25 specific items with link-presence detection for required policy links (Grievance / FERPA / Honor Code / Policy Library)
@@ -244,14 +248,43 @@ Questions the audit tools can answer. All of them are read-only — they report 
 
 ## "Give me a full health check" (start here)
 
-**Ask your agent:** *"Run a full course health audit"*
+Two tiers — pick by where you are in the course lifecycle.
+
+### QUICK — mid-authoring, ~30 seconds
+
+**Ask your agent:** *"Run a course health audit"*
 
 Approve the run of:
 ```bash
 uv run python canvas_toolbox/lib/tools/course_audit.py
 ```
 
-Runs the four read-only audits — rubric coverage, rubric quality, syllabus completeness, and outcome quality — and composes one report: an overall verdict (**HEALTHY / REVIEW / NEEDS ATTENTION**) plus a single "top things to fix" list. Run the individual audits below when you want the full detail on one area.
+Runs the four core read-only audits — rubric coverage, rubric quality, syllabus completeness, and outcome quality — and composes one report: an overall verdict (**HEALTHY / REVIEW / NEEDS ATTENTION**) plus a single "top things to fix" list.
+
+### FULL — pre-publish / pre-semester sweep
+
+**Ask your agent:** *"Run the full course health sweep and share the results"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/course_audit.py --full --report health.md
+```
+
+Adds **seven more read-only audits** on top of the QUICK four:
+
+| Audit | What it checks | Standard |
+|---|---|---|
+| Alignment chain | Course outcomes ↔ rubric criteria ↔ activities (orphan outcomes, orphan criteria) | NWCCU 2.3 |
+| Learning model | Pedagogy-phase coverage per module — preset `byui` / `kolb` / `bloom-3` / `merrill` | BYUI 3.1 |
+| Formative variety | Formative items present, precede summatives, distribute across the term | BYUI 3.3 |
+| Grading structure | Weight balance, over-influential assignments, temporal stacking | NWCCU 7.x |
+| Grading load | Estimated grader hours per week vs. credit-based cap | NWCCU 7.3 |
+| Accessibility | WCAG 2.1 AA sensory + cognitive layer (alt-text, captions, headings, reading level, color signaling, distracting elements) | BYUI 6.3 / WCAG |
+| Workload | Gradable-work distribution + crunch-week detection | — |
+
+> ⚖️ **Legal disclaimer (accessibility audit):** the accessibility check **aids** WCAG 2.1 AA review — it does **not** certify compliance, does **not** guarantee every violation is flagged, and does **not** replace assistive-technology testing or manual review. Operators retain full responsibility for compliance.
+
+`--full` takes longer (~minutes — the accessibility audit walks every page); the QUICK tier is the right default during authoring. Add `--detailed` to either tier to get per-specialist run hints. Run the individual audits below when you want the full detail on one area.
 
 ## "Are there items students can't find?"
 
@@ -386,6 +419,84 @@ uv run python canvas_toolbox/lib/tools/workload_audit.py
 ```
 
 Buckets your gradable assignments by due-date week and flags **crunch weeks** (one week carrying far more than the term average), front- or back-loading, and work with no due date. Add `--credits 3` for a rough over/under-assignment sanity note. It reports `balanced` / `uneven` / `sparse` / `unscheduled`. (Honest limit: it measures *distribution* from due dates — it can't see reading *hours* inside linked files, so it doesn't compute a precise time budget.)
+
+## "Audit my outcome → rubric → activity chain (standalone)"
+
+**Ask your agent:** *"Audit my course alignment chain"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/course_alignment_audit.py
+```
+
+The standards-aligned (NWCCU 2.3) sibling of `course_quality_check.py --alignment`. Uses Canvas's native `learning_outcome_id` field on rubric criteria as the deterministic outcome → criterion linkage, then flags **orphan outcomes** (no assessment evidence anywhere) and **orphan rubric criteria** (no upstream outcome justifying them). Module-overview text overlap is reported as a soft "is this outcome taught" signal — never drives the verdict. Tag: `alignment_chain` ∈ {complete, partial, unverified}.
+
+## "Does each module exercise the learning model?"
+
+**Ask your agent:** *"Audit my course against the BYUI Learning Model"* (or *"…against Kolb's cycle"*, *"…against Hattie's 3-phase"*, *"…against Merrill's First Principles"*)
+
+Approve the run of:
+```bash
+# BYUI default (Prepare / Teach One Another / Ponder-Prove)
+uv run python canvas_toolbox/lib/tools/learning_model_audit.py
+
+# Or pick a different pedagogical framework:
+uv run python canvas_toolbox/lib/tools/learning_model_audit.py --preset kolb
+uv run python canvas_toolbox/lib/tools/learning_model_audit.py --preset bloom-3
+uv run python canvas_toolbox/lib/tools/learning_model_audit.py --preset merrill
+```
+
+Per-module phase-marker keyword scan. Four built-in presets: **`byui`** (Prepare / Teach One Another / Ponder-Prove), **`kolb`** (Concrete Experience / Reflective Observation / Abstract Conceptualization / Active Experimentation), **`bloom-3`** (Surface / Deep / Transfer), **`merrill`** (Task-centered / Activation / Demonstration / Application / Integration). Override entirely with `--phases-config <path>.json` for any custom framework. Soft signal — heuristic, not auto-fail. Tag: `learning_model_integration` ∈ {complete, partial, unverified}.
+
+## "Is there enough formative practice before the big assignments?"
+
+**Ask your agent:** *"Audit my course for formative variety"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/formative_variety_audit.py
+```
+
+Four checks: **PRESENCE** (any formative items at all), **SUMMATIVE_ONLY_CATEGORIES** (categories with no formative items), **PRECEDENCE** (every high-stakes assessment is preceded by formative practice in the same category within a configurable window — default 3 weeks), **DISTRIBUTION** (formative items skewed across term thirds — flag if any third has <15% of items). Classification uses %-of-grade thresholds (configurable). Tag: `formative_variety` ∈ {no_flags, flags_present}.
+
+## "Is my grading structure balanced?"
+
+**Ask your agent:** *"Audit my course grading structure"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/grading_structure_audit.py
+```
+
+Six deterministic arithmetic flags: **SUM_NOT_100** (weights don't total 100% when weighting is on), **WEIGHT_MISMATCH** (groups have weights but weighting is off, or vice versa), **OVER_INFLUENCE** (any single assignment ≥25% of grade — configurable), **TOO_SMALL** (any single assignment <1% of grade), **CATEGORY_CARRY** (one assignment ≥60% of its category), **TEMPORAL_STACK** (≥40% of points due in last 2 weeks). No AI required — eliminates the print-to-PDF-then-upload-to-ChatGPT workflow. Tag: `grading_structure` ∈ {no_flags, flags_present}.
+
+## "How many grader hours per week does my course demand?"
+
+**Ask your agent:** *"Audit my course grading load"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/grading_load_audit.py
+```
+
+Estimation model: per-assignment grader minutes from time-per-submission-type defaults + bumps (rubric `+5`; peer review `+5`; prose-name `+50%` on online_upload); per-week total = minutes × (students × submission_rate); cap = `credits × 3 hr × 0.75`. Two flags: **OVER_CAP_WEEKS** (individual weeks over cap) + **CAP_OVERAGE_MEAN** (cohort mean over cap — structural overload). Calibrate per-type minute defaults via `--time-defaults-json` after a real grading cycle. Tag: `grading_load` ∈ {under_cap, over_cap}.
+
+## "Aid my WCAG 2.1 AA accessibility review"
+
+**Ask your agent:** *"Run an accessibility audit on my course"*
+
+Approve the run of:
+```bash
+uv run python canvas_toolbox/lib/tools/accessibility_audit.py
+```
+
+> ⚖️ **Legal disclaimer:** this audit **aids** WCAG 2.1 AA review — it does **not** certify compliance, does **not** guarantee every violation is flagged, and does **not** replace comprehensive accessibility testing (UDoIt + manual assistive-technology testing recommended for the broader picture). Operators retain full responsibility. Per federal mandate (Section 504, ADA Title II, DOJ 2024 WCAG 2.1 AA rule).
+
+**Sensory checks** (vision/hearing): image alt-text (1.1.1), video captioning indicator on YouTube/Vimeo/Kaltura/Studio iframes (1.2.2), transcript-link detection near video embeds (1.2.3), non-descriptive link text — click-here / read-more / bare URL / empty (2.4.4).
+
+**Cognitive / learning-accessibility checks**: heading-hierarchy skips (1.3.1), document language attribute (3.1.1), Flesch-Kincaid reading-level vs. configurable target grade (3.1.5 AAA advisory, default 14 = college sophomore), color-only signaling (1.4.1), distracting elements — marquee / autoplay / meta-refresh / animated GIF (2.2.1 + 2.2.2).
+
+Walks syllabus + Canvas pages + assignment descriptions. Configurable via `--target-grade`, `--skip-syllabus` / `--skip-pages` / `--skip-assignments`. Tag: `accessibility` ∈ {compliant, compliant_with_review, partial_compliant, non_compliant}. The PDF and JSON reports both carry the legal disclaimer prominently.
 
 ## "Build me a Course Map & Schedule for my course"
 
