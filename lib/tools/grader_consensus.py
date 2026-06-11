@@ -16,10 +16,16 @@ WHAT IT DOES
   fall back to the median.
 
   OWNS THE FULL AGGREGATION (single-sourced as of 2026-06-10):
-    - _consensus.csv  per-grader scores + consensus + spread + needs_review (existing)
-    - _summary.csv    key,score,one_line_reason (new — what reidentify reads)
-    - <KEY>.md        copy of the consensus-pass's per-student file (new —
-                      what push reads). Source: _pass<winner>/<KEY>.md.
+    - _consensus.csv     per-grader scores + consensus + spread + needs_review (existing)
+    - _summary.csv       key,score,one_line_reason (new — what reidentify reads)
+    - <KEY>.md           copy of the consensus-pass's per-student file (new —
+                         what push reads). Source: _pass<winner>/<KEY>.md.
+    - _all_comments.md   (new — ds460 lesson, parked then promoted 2026-06-10) the
+                         compiled review document: every winner file's
+                         "## Comment to student" block, prefixed with
+                         `## <KEY>  ·  <score>[/<max>]`. Instructor edits the
+                         phrasing in ONE place, then a sync-back tool (parked)
+                         propagates the edits to per-student files before push.
 
   Previously the orchestrator (grader_grade.py) had a parallel `_aggregate_summary`
   implementation. As of 2026-06-10 that's removed and consensus owns the aggregation.
@@ -131,6 +137,91 @@ def copy_winner_per_student(
     return True
 
 
+def _extract_comment(per_student_md: str) -> str:
+    """Extract the '## Comment to student' section body from a per-student file.
+    Returns the body (without the heading), trimmed; '' if not found.
+    The section runs from '## Comment to student' to the next top-level
+    heading or end-of-file."""
+    lines = per_student_md.splitlines()
+    in_section = False
+    body: list[str] = []
+    for ln in lines:
+        if not in_section:
+            if ln.strip().lower().startswith("## comment to student"):
+                in_section = True
+            continue
+        # End at the next heading (## or #), but allow ### subheadings
+        stripped = ln.lstrip()
+        if stripped.startswith("# ") or (stripped.startswith("## ")
+                                         and not stripped.lower().startswith("## comment to student")):
+            break
+        body.append(ln)
+    return "\n".join(body).strip()
+
+
+def compile_all_comments(
+    fb: Path,
+    score_by_key: dict[str, object],
+    score_max: str | None,
+    prefix: str | None,
+) -> tuple[int, int]:
+    """Compile feedback/_all_comments.md from each winner file's
+    '## Comment to student' block. Returns (compiled_count, missing_count).
+
+    The output mirrors the ds460 KC1 round-1 shape (the artifact instructors
+    actually edit before push):
+        # <prefix> — all student comments (edit phrasing here)
+
+        `Overall:` uses the rubric's named tiers. Coaching Tips: one idea per
+        paragraph. Edit here; the sync-back step propagates to per-student files.
+
+        ## <KEY>  ·  <score>[/<max>]
+
+        <comment body>
+
+        ## <KEY>  ·  <score>[/<max>]
+
+        ...
+    """
+    items: list[tuple[str, str, str]] = []  # (key, score_label, comment_body)
+    missing = 0
+    for key in sorted(score_by_key):
+        ws = fb / f"{key}.md"
+        if not ws.exists():
+            missing += 1
+            continue
+        try:
+            body = _extract_comment(ws.read_text(encoding="utf-8", errors="replace"))
+        except Exception:
+            missing += 1
+            continue
+        if not body:
+            # Per-student file exists but has no Comment-to-student section
+            # (e.g., grade-only output). Skip rather than emit an empty block.
+            missing += 1
+            continue
+        sc = score_by_key[key]
+        label = f"{sc}/{score_max}" if score_max else str(sc)
+        items.append((key, label, body))
+
+    if not items:
+        return 0, missing
+
+    title = f"# {prefix.upper() if prefix else 'Cohort'} — all student comments (edit phrasing here)"
+    header = (
+        title + "\n\n"
+        "`Overall:` uses the rubric's named tiers. Coaching Tips: one idea "
+        "per paragraph. Edit phrasing here; the sync-back step propagates "
+        "edits to per-student files before push.\n"
+    )
+    body_blocks = "\n\n".join(
+        f"## {k}  ·  {label}\n\n{body}" for k, label, body in items
+    )
+    out_path = fb / "_all_comments.md"
+    out_path.write_text(header + "\n" + body_blocks + "\n", encoding="utf-8")
+    return len(items), missing
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="N-grader consensus (majority + spread + NEEDS-REVIEW queue).")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
@@ -147,6 +238,9 @@ def main() -> int:
                          "fewer than this many _grader*.csv files are present, so a partial pass "
                          "doesn't silently compute consensus over too few graders. Use --expected 1 "
                          "for single-grader calibration; --expected 5 for a higher-rigor pool.")
+    ap.add_argument("--score-max", default=None,
+                    help="Optional max-score label (e.g. '4') for the _all_comments.md headers. "
+                         "Renders '<KEY>  ·  <score>/<max>'. Omit for '<KEY>  ·  <score>'.")
     args = ap.parse_args()
 
     if args.challenge_dir:
@@ -191,6 +285,9 @@ def main() -> int:
             continue
         per_pass[pn] = load_with_reasons(gf)
 
+    # Derive prefix for _all_comments.md heading from challenge-dir basename when present
+    cd_prefix = (Path(args.challenge_dir).name if args.challenge_dir else None)
+
     if args.expected == 1:
         # Single-grader calibration mode — no majority to compute. Still write
         # _summary.csv (copied from the single grader) + copy _pass1/<KEY>.md →
@@ -204,6 +301,10 @@ def main() -> int:
         write_summary(summary_path, summary_rows)
         copied = sum(1 for k in only if copy_winner_per_student(fb, k, pn))
         missing = len(only) - copied
+        # Compile _all_comments.md from winner per-student files (grade-only outputs
+        # without per-student .md skip cleanly because compile_all_comments returns 0)
+        score_by_key = {k: only[k]["score"] for k in sorted(only)}
+        compiled, ac_missing = compile_all_comments(fb, score_by_key, args.score_max, cd_prefix)
         print(f"Single-grader calibration mode (--expected 1): no consensus to compute.")
         print(f"  -> {summary_path}  ({len(summary_rows)} rows, copy of _grader{pn}.csv)")
         if missing == len(only) and copied == 0:
@@ -212,6 +313,9 @@ def main() -> int:
         else:
             print(f"  -> {fb}/<KEY>.md   ({copied} per-student files copied from _pass{pn}/"
                   + (f"; ⚠ {missing} missing source — partial)" if missing > 0 else ")"))
+        if compiled:
+            print(f"  -> {fb}/_all_comments.md  ({compiled} comment block(s) compiled "
+                  f"for instructor review/edit)")
         return 0
 
     # Multi-pass: majority + spread + flag
@@ -310,6 +414,17 @@ def main() -> int:
               f"partial output, expected if grade-only)")
     else:
         print(f"-> {fb}/<KEY>.md  ({copied} copied from winning pass)")
+
+    # 4. _all_comments.md — compiled review document (ds460 lesson). Reads each
+    # winner per-student file's "## Comment to student" section and stitches them
+    # with `## <KEY>  ·  <score>[/<max>]` headers. Grade-only outputs (no per-
+    # student .md) cleanly produce 0 compiled blocks; tool stays quiet then.
+    score_by_key = {r["key"]: r["consensus"] for r in rows}
+    compiled, ac_missing = compile_all_comments(fb, score_by_key, args.score_max, cd_prefix)
+    if compiled:
+        print(f"-> {fb}/_all_comments.md  ({compiled} comment block(s) compiled "
+              f"for instructor review/edit"
+              + (f"; ⚠ {ac_missing} per-student file(s) had no Comment block)" if ac_missing else ")"))
 
     return 0
 

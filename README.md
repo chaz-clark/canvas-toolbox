@@ -19,6 +19,7 @@ Built at BYU-Idaho, designed for all instructors. Works with any Canvas institut
 - **Find unused files** — surface files sitting in Canvas that nothing links to
 - **Build a Course Map & Schedule** — generate an Architects-of-Learning–style course map (CLOs, per-module outcomes, 14-week schedule, pacing analysis) from your Canvas course
 - **Score your syllabus against the BYU-I Completeness Rubric** — 25 specific items with link-presence detection for required policy links (Grievance / FERPA / Honor Code / Policy Library)
+- **Grade an assignment end-to-end, FERPA-safe** — fetch submissions (keyed by `user_id`, no name in any filename), de-identify, run N independent grader passes, consensus + spread auto-flag for borderlines, edit comments in one compiled doc, push gated behind `--mark-reviewed`. The AI never sees a student name. See **[`grading_readme.md`](grading_readme.md)** for the canonical folder layout + 8-step pipeline + dual-push pattern + setup interview.
 - **Roll out a new semester** — sync your master course to a Blueprint and let Canvas handle section distribution
 
 **About the reports:** every audit/analysis tool below produces a **paired `.md` + `.pdf`** when you use `--report <name>.md`. The PDF is the faculty-friendly default (Chrome headless render); the MD is the editable source. If Chrome isn't installed the audit still runs and writes the `.md`; the agent can also explain any report aloud if you'd rather skip the file.

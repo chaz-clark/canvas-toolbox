@@ -1,0 +1,93 @@
+# =============================================================================
+# FERPA GATE — canvas-toolbox grader pipeline
+#
+# ★ DO NOT REMOVE OR LOOSEN ENTRIES IN THIS FILE WITHOUT REVIEW ★
+#
+# This .gitignore is the SINGLE place that ensures student-identifying
+# artifacts never reach git. Every entry below is here because losing it
+# would create a FERPA-reportable incident.
+#
+# The student files in `submissions_raw/` carry names in their filenames
+# AND inside their bodies. Even AFTER de-identification, the original files
+# stay local. The .keymap.json and .known_names.txt and .fetch_log.json
+# files are the bridge back to real students; if they leak, the whole
+# anonymization story collapses retroactively.
+#
+# Patterns are matched at ANY nesting depth (leading `**/`) so creating a
+# sub-cohort folder like `grading/spring2026/kc1/submissions_raw/` is also
+# caught.
+# =============================================================================
+
+# What the consumer repo SHOULD commit from grading/ (the instructor's own
+# work, no student data):
+#   - RUBRIC.md, OUTCOMES.md, config.json per assignment
+#   - PROCESS.md per assignment (operational doc)
+#   - template/ directory (assignment-template source files)
+#   - answer_keys/README.md (the convention; not the keys themselves)
+#   - grading_readme.md / GRADING_PROCESS.md at the grading/ root
+
+# -----------------------------------------------------------------------------
+# Submission files — names live in filenames AND bodies. NEVER COMMIT.
+# Matched at any depth so sub-cohort folders are caught too.
+# -----------------------------------------------------------------------------
+submissions_raw/
+**/submissions_raw/
+**/_raw/
+
+# -----------------------------------------------------------------------------
+# De-identified mirrors — keyed and safe in principle, but kept local as
+# defense in depth (a de-id bug shouldn't be the first line of defense).
+# -----------------------------------------------------------------------------
+submissions_deid/
+**/submissions_deid/
+**/_deid/
+
+# -----------------------------------------------------------------------------
+# FERPA bridge files — these map opaque keys back to real students. If
+# committed, the whole anonymization story unwinds retroactively. NEVER COMMIT.
+# -----------------------------------------------------------------------------
+.keymap.json
+**/.keymap.json
+.fetch_log.json
+**/.fetch_log.json
+.known_names.txt
+**/.known_names.txt
+
+# -----------------------------------------------------------------------------
+# Push gate + audit trail — has user_ids and scores; instructor-only.
+# -----------------------------------------------------------------------------
+.mark_reviewed
+**/.mark_reviewed
+.push_log.md
+**/.push_log.md
+
+# -----------------------------------------------------------------------------
+# Re-identified review sheet — has user_ids and scores; instructor-only.
+# Glob form covers the multi-output dual-push case (e.g. .review_your_grade.csv).
+# -----------------------------------------------------------------------------
+.review.csv
+.review*.csv
+**/.review.csv
+**/.review*.csv
+
+# -----------------------------------------------------------------------------
+# Per-student feedback + consensus artifacts — instructor-only until push.
+# Comments may quote student work; safer kept local. (A course that wants
+# to commit pseudonymized feedback can override per-folder.)
+# -----------------------------------------------------------------------------
+feedback/
+**/feedback/
+
+# -----------------------------------------------------------------------------
+# Answer keys — instructor's own work, but contain hardcoded tokens/PATs and
+# the reference solution. ALWAYS local. README + .gitkeep allowed.
+# -----------------------------------------------------------------------------
+answer_keys/*/
+!answer_keys/README.md
+!answer_keys/.gitkeep
+
+# -----------------------------------------------------------------------------
+# Python bytecode
+# -----------------------------------------------------------------------------
+__pycache__/
+*.pyc
