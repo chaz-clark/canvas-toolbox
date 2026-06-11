@@ -196,6 +196,60 @@ def fetch_roster(base: str, cid: str, headers: dict) -> list[dict]:
     return roster
 
 
+def fetch_assignment_metadata(base: str, cid: str, headers: dict, aid: str) -> dict:
+    """One-call lookup of the assignment object so the tool can branch by
+    submission_type (online_upload / online_text_entry / discussion_topic /
+    online_quiz / etc.). Also surfaces discussion_topic.id and quiz_id for
+    the alternate fetch paths."""
+    r = requests.get(
+        f"{base}/api/v1/courses/{cid}/assignments/{aid}",
+        headers=headers, timeout=_TIMEOUT,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def fetch_discussion_view(base: str, cid: str, headers: dict, topic_id: str) -> dict:
+    """Pull the threaded view of a discussion topic. Returns the dict with
+    `view` (the tree of entries+replies) and `participants` (user list).
+    One API call regardless of thread depth — Canvas's /view endpoint flattens
+    nested replies into a single response."""
+    r = requests.get(
+        f"{base}/api/v1/courses/{cid}/discussion_topics/{topic_id}/view",
+        headers=headers, timeout=_TIMEOUT,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def fetch_quiz_questions(base: str, cid: str, headers: dict, quiz_id: str) -> dict:
+    """Pull the quiz's questions (id → {question_name, question_text,
+    question_type, points_possible}) so submission_data can be rendered
+    alongside the prompts the student answered. Paginated."""
+    out: dict = {}
+    page = 1
+    while True:
+        r = requests.get(
+            f"{base}/api/v1/courses/{cid}/quizzes/{quiz_id}/questions",
+            headers=headers,
+            params={"per_page": 100, "page": page},
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        batch = r.json()
+        if not batch:
+            break
+        for q in batch:
+            out[q["id"]] = {
+                "question_name": q.get("question_name", ""),
+                "question_text": q.get("question_text", ""),
+                "question_type": q.get("question_type", ""),
+                "points_possible": q.get("points_possible", 0),
+            }
+        page += 1
+    return out
+
+
 def fetch_submissions(base: str, cid: str, headers: dict, aid: str) -> list[dict]:
     """Paginate all submissions for the assignment, including the user object."""
     subs: list[dict] = []
@@ -253,15 +307,89 @@ def write_body_file(body: str, out_path: Path) -> int:
     return len(data)
 
 
+def flatten_discussion_view(view_payload: dict) -> dict[int, list[dict]]:
+    """Recurse the threaded discussion view and return {user_id: [entries...]}
+    aggregating top-level posts and replies per user. Entries are sorted by
+    created_at within each user's list so the rendered submission reads
+    chronologically. Deleted / empty / system entries are skipped."""
+    per_user: dict[int, list[dict]] = {}
+
+    def _walk(entries: list[dict]) -> None:
+        for e in entries or []:
+            uid = e.get("user_id")
+            message = (e.get("message") or "").strip()
+            if uid and message and message not in ("[deleted]", "<p>[deleted]</p>"):
+                per_user.setdefault(uid, []).append({
+                    "id": e.get("id"),
+                    "parent_id": e.get("parent_id"),
+                    "created_at": e.get("created_at", ""),
+                    "message": message,
+                })
+            # Recurse into nested replies
+            _walk(e.get("replies") or [])
+
+    _walk(view_payload.get("view") or [])
+    for uid, entries in per_user.items():
+        entries.sort(key=lambda x: x.get("created_at") or "")
+    return per_user
+
+
+def render_discussion_html(entries: list[dict]) -> str:
+    """Render one student's aggregated discussion entries as a single HTML
+    body — preserves their post(s) + replies in chronological order, with
+    a thin separator between posts. The text adapter will strip tags
+    downstream; this just stitches the bodies."""
+    parts = []
+    for i, e in enumerate(entries, 1):
+        kind = "Reply" if e.get("parent_id") else "Post"
+        parts.append(
+            f"<h2>{kind} {i}</h2>\n"
+            f"<p><em>posted: {e.get('created_at', '')}</em></p>\n"
+            f"{e['message']}\n"
+        )
+    return "<html><body>\n" + "\n<hr/>\n".join(parts) + "\n</body></html>\n"
+
+
+def render_quiz_markdown(submission_data: list[dict], questions: dict, quiz_title: str) -> str:
+    """Render one student's quiz submission_data as Markdown the grader can
+    read. Joins each entry's question_id against the questions map to surface
+    the prompt alongside the answer."""
+    if not submission_data:
+        return f"# Quiz: {quiz_title}\n\n_(No submission_data recorded for this student.)_\n"
+    parts = [f"# Quiz: {quiz_title}\n"]
+    for i, item in enumerate(submission_data, 1):
+        qid = item.get("question_id")
+        q = questions.get(qid) or {}
+        qname = q.get("question_name", f"Question {i}")
+        qtext = q.get("question_text", "").strip()
+        qtype = q.get("question_type", "")
+        parts.append(f"## Q{i}: {qname}")
+        if qtype:
+            parts.append(f"_(type: {qtype})_")
+        if qtext:
+            parts.append(qtext)
+        # submission_data shapes vary by question_type — text/answer/correct/points
+        ans_text = (item.get("text") or "").strip()
+        if not ans_text:
+            ans_text = str(item.get("answer", "")).strip()
+        parts.append("\n**Student answer:**\n")
+        parts.append(ans_text if ans_text else "_(blank)_")
+        if "points" in item:
+            parts.append(f"\n_(auto-points: {item.get('points')})_")
+        parts.append("")
+    return "\n".join(parts) + "\n"
+
+
 def detect_adapter(raw_dir: Path) -> str:
     """Sniff submissions_raw/ and pick the right de-id adapter.
-    Returns one of: 'docx', 'databricks', 'text', 'pdf', 'xlsx',
+    Returns one of: 'docx', 'databricks', 'text', 'pdf', 'xlsx', 'jupyter',
     'mixed_or_unknown'.
 
     Rules (homogeneous extensions only; mixed types → mixed_or_unknown):
-      - all .docx → 'docx'
-      - all .pdf  → 'pdf'
-      - all .xlsx → 'xlsx'
+      - all .docx  → 'docx'
+      - all .pdf   → 'pdf'
+      - all .xlsx  → 'xlsx'
+      - all .ipynb → 'jupyter'
       - all .txt or .md (or a mix of these two) → 'text'
       - all .html:
           * if EVERY .html file has __DATABRICKS_NOTEBOOK_MODEL → 'databricks'
@@ -282,6 +410,8 @@ def detect_adapter(raw_dir: Path) -> str:
         return "pdf"
     if exts == {".xlsx"}:
         return "xlsx"
+    if exts == {".ipynb"}:
+        return "jupyter"
     if exts <= {".txt", ".md"}:  # subset — accepts pure .txt, pure .md, or mix
         return "text"
 
@@ -305,6 +435,53 @@ def detect_adapter(raw_dir: Path) -> str:
     # Heterogeneous extensions (e.g. .docx + .pdf in one cohort) — operator
     # must split or pick explicitly.
     return "mixed_or_unknown"
+
+
+def _run_chain(adapter: str, cd: Path, prefix: str) -> int:
+    """Run deidentify → name_leak_check for the given adapter. Returns the
+    subprocess exit code; non-zero on any step failure (caller propagates).
+    Used by the discussion + quiz fetch branches where the adapter is known
+    in advance (text); the default attachment-based fetch path inlines this
+    logic with detect_adapter() instead."""
+    tool_for_adapter = {
+        "databricks": "grader_deidentify_databricks.py",
+        "docx": "grader_deidentify_docx.py",
+        "text": "grader_deidentify_text.py",
+        "pdf": "grader_deidentify_pdf.py",
+        "xlsx": "grader_deidentify_xlsx.py",
+        "jupyter": "grader_deidentify_jupyter.py",
+    }.get(adapter)
+    if not tool_for_adapter:
+        print(f"\nChain: unknown adapter {adapter!r}.", file=sys.stderr)
+        return 4
+
+    deid_cmd = [
+        sys.executable, str(_TOOLS_DIR / tool_for_adapter),
+        "--challenge-dir", str(cd),
+        "--prefix", prefix.upper(),
+    ]
+    deid_rc = run_chain_step(f"deidentify ({adapter})", deid_cmd)
+    if deid_rc != 0:
+        print(f"\nChain stopped — deidentify exited {deid_rc}. submissions_deid/ "
+              "may be incomplete. DO NOT let the AI read it until you've "
+              "investigated and re-run successfully.", file=sys.stderr)
+        return deid_rc
+
+    leak_cmd = [
+        sys.executable, str(_TOOLS_DIR / "grader_name_leak_check.py"),
+        "--challenge-dir", str(cd),
+    ]
+    leak_rc = run_chain_step("name_leak_check", leak_cmd)
+    if leak_rc != 0:
+        print(f"\nChain stopped — name_leak_check exited {leak_rc}. A name "
+              "slipped through deidentify. DO NOT let the AI read "
+              "submissions_deid/ until you've added the missing name to "
+              ".known_names.txt and re-run deidentify until leak_check "
+              "exits 0.", file=sys.stderr)
+        return leak_rc
+
+    print("\nChain complete: submissions_deid/ ready for the grader.")
+    return 0
 
 
 def run_chain_step(name: str, cmd: list[str]) -> int:
@@ -377,11 +554,11 @@ def main() -> int:
                          "download. Default: chain ON — a single grader_fetch.py call "
                          "lands at a fully-de-identified, leak-verified state.")
     ap.add_argument("--deid-adapter",
-                    choices=("auto", "databricks", "docx", "text", "pdf", "xlsx", "none"),
+                    choices=("auto", "databricks", "docx", "text", "pdf", "xlsx", "jupyter", "none"),
                     default="auto",
                     help="De-id adapter to chain into. Default 'auto' sniffs the file "
                          "types in submissions_raw/ and picks docx / databricks / text / "
-                         "pdf / xlsx. 'none' skips de-id even when --no-chain is not set.")
+                         "pdf / xlsx / jupyter. 'none' skips de-id even when --no-chain is not set.")
     args = ap.parse_args()
 
     tok, cid, base = _env_canvas(args.course_id)
@@ -423,6 +600,240 @@ def main() -> int:
                   "peer-mention scrub may be incomplete. "
                   "Continuing with submitter-only roster.", file=sys.stderr)
 
+    # ── Branch by submission_type. One up-front call to the assignment
+    # endpoint tells us whether this is a regular attachment-based assignment,
+    # a graded discussion (entries live in /discussion_topics/:tid/view),
+    # or a quiz (per-item answers live in submission_data on the submission
+    # history). The branch picks the right fetch path and writes the right
+    # files into submissions_raw/ so the deid auto-chain picks the right
+    # adapter.
+    try:
+        asg_meta = fetch_assignment_metadata(base, cid, headers, args.assignment_id)
+    except requests.HTTPError as e:
+        print(f"Canvas API error: {e.response.status_code} on assignment "
+              f"{args.assignment_id} (metadata lookup). Check CANVAS_COURSE_ID + "
+              "token scope.", file=sys.stderr)
+        return 2
+
+    sub_types = asg_meta.get("submission_types") or []
+
+    # Discussion path — graded discussions store the gradeable content in the
+    # discussion topic's entries (one entry per post; replies nested). We pull
+    # the threaded /view, flatten per user_id, and write one .html file per
+    # student containing their aggregated entries. Downstream the text adapter
+    # picks this up (bare HTML, no Databricks marker).
+    if "discussion_topic" in sub_types:
+        topic_id = (asg_meta.get("discussion_topic") or {}).get("id")
+        if not topic_id:
+            print(f"Assignment {args.assignment_id} reports submission_type "
+                  "discussion_topic but has no discussion_topic.id in the API "
+                  "response. Cannot fetch entries.", file=sys.stderr)
+            return 2
+        try:
+            view = fetch_discussion_view(base, cid, headers, str(topic_id))
+        except requests.HTTPError as e:
+            print(f"Canvas API error: {e.response.status_code} fetching "
+                  f"discussion topic {topic_id} view.", file=sys.stderr)
+            return 2
+
+        per_user = flatten_discussion_view(view)
+        new_names: list[str] = []
+        fetch_log_data: dict = {
+            "_warning": "FERPA — do NOT commit, do NOT let an AI read this. "
+                        "Local re-identification only.",
+            "assignment_id": str(args.assignment_id),
+            "discussion_topic_id": str(topic_id),
+            "course_id": str(cid),
+            "prefix": prefix,
+            "submission_type": "discussion_topic",
+            "entries": {},
+        }
+        if fetch_log.exists():
+            try:
+                existing = json.loads(fetch_log.read_text(encoding="utf-8"))
+                fetch_log_data["entries"].update(existing.get("entries", {}))
+            except Exception:
+                pass
+
+        # Map participant user_id → display_name for known_names update
+        participants = {p.get("id"): (p.get("display_name") or "").strip()
+                        for p in (view.get("participants") or [])}
+
+        ok = skipped = failed = test_student_count = 0
+        for uid, entries in per_user.items():
+            uid_s = str(uid)
+            display_name = participants.get(uid, "")
+            is_test_student = display_name == _TEST_STUDENT_NAME
+
+            if args.test_student_only and not is_test_student:
+                continue
+            if is_test_student:
+                test_student_count += 1
+
+            fname = f"{prefix}_{uid_s}.html"
+            out_path = raw_dir / fname
+            if out_path.exists() and not args.force:
+                skipped += 1
+            else:
+                try:
+                    out_path.write_text(render_discussion_html(entries), encoding="utf-8")
+                    ok += 1
+                    print(f"  {uid_s}: {fname} (discussion, {len(entries)} entries)")
+                except Exception as e:
+                    print(f"  {uid_s}: SKIP — error ({type(e).__name__})")
+                    failed += 1
+                    continue
+
+            if display_name and not is_test_student:
+                new_names.append(display_name)
+            fetch_log_data["entries"][uid_s] = {
+                "name": display_name,
+                "files": [fname],
+                "entry_count": len(entries),
+            }
+
+        added = update_known_names(names_file, new_names) if new_names else 0
+        fetch_log.write_text(
+            json.dumps(fetch_log_data, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        print(f"\nDiscussion fetch: {ok} students written, {skipped} skipped "
+              f"(existing — use --force), {failed} failed. {added} new name(s) "
+              f"appended to {names_file.name}.")
+        if args.test_student_only:
+            if test_student_count == 0:
+                print("WARNING: --test-student-only set but no Test Student found "
+                      "among discussion participants.", file=sys.stderr)
+                return 3
+            print(f"Test Student validation: {test_student_count} discussion file(s) "
+                  "written. Inspect, then re-run without --test-student-only.")
+            return 0 if failed == 0 else 2
+
+        # Auto-chain (discussion files are .html bare → text adapter)
+        if args.no_chain or args.deid_adapter == "none":
+            print("\nChain skipped (--no-chain or --deid-adapter none).")
+            return 0 if failed == 0 else 2
+        adapter = args.deid_adapter if args.deid_adapter != "auto" else "text"
+        # The discussion fetch always produces bare HTML — text is the right
+        # adapter unless the operator overrides.
+        chain_rc = _run_chain(adapter, cd, prefix)
+        return chain_rc if chain_rc else (0 if failed == 0 else 2)
+
+    # Quiz path — Classic quizzes (or NWQ→Classic-mirrored) store per-item
+    # answers in submission_data on the submission history. We fetch the
+    # quiz questions ONCE, then iterate submissions, rendering each student's
+    # Q+A pairs to a single .md file. Downstream the text adapter picks this up.
+    if "online_quiz" in sub_types:
+        quiz_id = asg_meta.get("quiz_id")
+        if not quiz_id:
+            print(f"Assignment {args.assignment_id} reports submission_type "
+                  "online_quiz but has no quiz_id in the API response.",
+                  file=sys.stderr)
+            return 2
+        try:
+            questions = fetch_quiz_questions(base, cid, headers, str(quiz_id))
+            subs = fetch_submissions(base, cid, headers, args.assignment_id)
+        except requests.HTTPError as e:
+            print(f"Canvas API error: {e.response.status_code} fetching quiz "
+                  f"{quiz_id} questions or submissions.", file=sys.stderr)
+            return 2
+
+        quiz_title = asg_meta.get("name", f"Quiz {quiz_id}")
+        new_names: list[str] = []
+        fetch_log_data = {
+            "_warning": "FERPA — do NOT commit, do NOT let an AI read this. "
+                        "Local re-identification only.",
+            "assignment_id": str(args.assignment_id),
+            "quiz_id": str(quiz_id),
+            "course_id": str(cid),
+            "prefix": prefix,
+            "submission_type": "online_quiz",
+            "entries": {},
+        }
+        if fetch_log.exists():
+            try:
+                existing = json.loads(fetch_log.read_text(encoding="utf-8"))
+                fetch_log_data["entries"].update(existing.get("entries", {}))
+            except Exception:
+                pass
+
+        ok = skipped = failed = test_student_count = 0
+        for s in subs:
+            if not is_actual_submission(s):
+                continue
+            uid = s.get("user_id")
+            if not uid:
+                continue
+            uid_s = str(uid)
+            display_name = ((s.get("user") or {}).get("display_name") or "").strip()
+            is_test_student = display_name == _TEST_STUDENT_NAME
+
+            if args.test_student_only and not is_test_student:
+                continue
+            if is_test_student:
+                test_student_count += 1
+
+            # submission_data is on the most-recent submission_history attempt
+            # (or on the top-level submission for single-attempt quizzes).
+            sub_data = s.get("submission_data")
+            if not sub_data:
+                hist = s.get("submission_history") or []
+                if hist:
+                    sub_data = hist[-1].get("submission_data")
+
+            fname = f"{prefix}_{uid_s}.md"
+            out_path = raw_dir / fname
+            if out_path.exists() and not args.force:
+                skipped += 1
+            else:
+                try:
+                    out_path.write_text(
+                        render_quiz_markdown(sub_data or [], questions, quiz_title),
+                        encoding="utf-8",
+                    )
+                    ok += 1
+                    print(f"  {uid_s}: {fname} (quiz, {len(sub_data or [])} answers)")
+                except Exception as e:
+                    print(f"  {uid_s}: SKIP — error ({type(e).__name__})")
+                    failed += 1
+                    continue
+
+            if display_name and not is_test_student:
+                new_names.append(display_name)
+            fetch_log_data["entries"][uid_s] = {
+                "name": display_name,
+                "files": [fname],
+                "answer_count": len(sub_data or []),
+                "submission_id": s.get("id"),
+            }
+
+        added = update_known_names(names_file, new_names) if new_names else 0
+        fetch_log.write_text(
+            json.dumps(fetch_log_data, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        print(f"\nQuiz fetch: {ok} students written, {skipped} skipped "
+              f"(existing — use --force), {failed} failed. {added} new name(s) "
+              f"appended to {names_file.name}.")
+        if args.test_student_only:
+            if test_student_count == 0:
+                print("WARNING: --test-student-only set but no Test Student "
+                      "submission found.", file=sys.stderr)
+                return 3
+            print(f"Test Student validation: {test_student_count} quiz file(s) "
+                  "written. Inspect, then re-run without --test-student-only.")
+            return 0 if failed == 0 else 2
+
+        # Auto-chain (quiz files are .md → text adapter)
+        if args.no_chain or args.deid_adapter == "none":
+            print("\nChain skipped (--no-chain or --deid-adapter none).")
+            return 0 if failed == 0 else 2
+        adapter = args.deid_adapter if args.deid_adapter != "auto" else "text"
+        chain_rc = _run_chain(adapter, cd, prefix)
+        return chain_rc if chain_rc else (0 if failed == 0 else 2)
+
+    # ── Default path: regular attachment-based assignments (online_upload,
+    # online_text_entry, online_url) — what grader_fetch shipped with.
     try:
         subs = fetch_submissions(base, cid, headers, args.assignment_id)
     except requests.HTTPError as e:
@@ -607,6 +1018,7 @@ def main() -> int:
         "text": "grader_deidentify_text.py",
         "pdf": "grader_deidentify_pdf.py",
         "xlsx": "grader_deidentify_xlsx.py",
+        "jupyter": "grader_deidentify_jupyter.py",
     }[adapter]
     deid_cmd = [
         sys.executable, str(_TOOLS_DIR / tool_for_adapter),

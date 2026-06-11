@@ -140,6 +140,8 @@ Everything that is FERPA-sensitive is **gitignored by default** via
                           │    .html (Databricks) → grader_deidentify_databricks.py
                           │    .html (bare body)  → grader_deidentify_text.py
                           │      OR .txt / .md       (online_text_entry case)
+                          │    .ipynb             → grader_deidentify_jupyter.py
+                          │      (per-cell extraction; metadata + images dropped)
                           │    .pdf               → grader_deidentify_pdf.py
                           │      (warns + writes placeholder on image-only PDFs;
                           │       operator OCRs or skips)
@@ -147,6 +149,10 @@ Everything that is FERPA-sensitive is **gitignored by default** via
                           │      (workbook audit pattern: structure, formulas,
                           │       formatting, charts — NOT the raw binary;
                           │       file properties scrubbed)
+                          │  Plus grader_fetch.py auto-detects discussion_topic
+                          │  and online_quiz assignments and writes per-student
+                          │  files (HTML or Markdown) that route to the text
+                          │  adapter — see "Canvas submission-type coverage" below.
                           ├─ All adapters: strip names, emails, paths, hardcoded
                           │  secrets; honor .known_names.txt for peer-mention scrub
                           ├─ Writes keyed .md files to submissions_deid/
@@ -535,6 +541,54 @@ test-user, display name "Test Student") — `grader_fetch.py
 
 ---
 
+## Canvas submission-type coverage
+
+Canvas exposes 10 `submission_type` values. The grader pipeline currently
+covers the ones below; gaps are documented so you know what's missing and
+what to ask for if your assignment uses a format we haven't built yet.
+
+| `submission_type` | What it is | Coverage |
+|---|---|---|
+| `online_text_entry` | Student types into a box | ✅ `grader_deidentify_text.py` (HTML-strip + scrub) |
+| `online_upload` `.docx` | Word doc | ✅ `grader_deidentify_docx.py` |
+| `online_upload` `.pdf` | PDF (text-layer extraction; image-only warned) | ✅ `grader_deidentify_pdf.py` |
+| `online_upload` `.xlsx` | Excel (workbook audit pattern: structure + formulas + formatting + charts) | ✅ `grader_deidentify_xlsx.py` |
+| `online_upload` `.html` w/ Databricks marker | Databricks notebook export (cell-aware extraction) | ✅ `grader_deidentify_databricks.py` |
+| `online_upload` `.html` bare | Generic HTML body | ✅ `grader_deidentify_text.py` (flat tag-strip) |
+| `online_upload` `.ipynb` | Jupyter notebook (per-cell extraction; metadata + base64 images dropped) | ✅ `grader_deidentify_jupyter.py` |
+| `online_upload` `.txt` / `.md` | Plain text / Markdown | ✅ `grader_deidentify_text.py` (encoding fallback: UTF-8 → CP1252 → Latin-1) |
+| `online_upload` `.csv` | CSV data | ✅ falls through `grader_deidentify_text.py` (CSV is just text) |
+| `online_upload` code (`.py` / `.js` / `.r` / `.sql` / `.java` / `.cpp` etc.) | Raw source code | ✅ falls through `grader_deidentify_text.py` (code is already plain text) |
+| `discussion_topic` | Student's discussion-thread posts + replies | ✅ `grader_fetch.py` detects via assignment metadata + fetches `/discussion_topics/:tid/view`; aggregates per-user chronologically to bare HTML; text adapter handles |
+| `online_quiz` | Classic Canvas quiz (or NWQ→Classic-mirrored) | ✅ `grader_fetch.py` detects + extracts `submission_data` + joins with quiz questions; renders Q+A as Markdown; text adapter handles |
+| `online_upload` `.pptx` | PowerPoint | ❌ Not built — ask if your assignment needs it |
+| `online_upload` `.mp3` / `.mp4` / `.m4a` / `.wav` | Audio / video | ❌ Not built (transcription pipeline) — ask if your assignment needs it |
+| `online_upload` `.zip` | Archive | ❌ Not built (extract + delegate per inner file) — ask if your assignment needs it |
+| `student_annotation` | Annotations on instructor-uploaded doc | ❌ Not built (Canvas DocViewer API) — ask if your assignment needs it |
+| `online_url` | Student submits a URL | ⚠ `grader_fetch.py` writes the URL to a file; no content fetch (arbitrary external URLs are FERPA-risky to cache locally) |
+| `external_tool` | LTI tool (Pearson, McGraw-Hill, etc.) | ⚠ Vendor handles grading; NWQ has the Classic-mirror pattern (`grader_quiz_mirror.py`). Other LTIs return scores only |
+| `on_paper` | Physical submission | n/a — operator grades in the gradebook UI |
+| `none` | No submission | n/a |
+
+### Have a use case that's not covered? Reach out.
+
+If your assignment uses one of the unbuilt formats above (or a format
+that's not listed at all), file an issue at
+[chaz-clark/canvas-toolbox/issues](https://github.com/chaz-clark/canvas-toolbox/issues)
+with:
+
+1. The Canvas `submission_type` value (visible in the assignment's API
+   payload or the Edit Assignment UI)
+2. The submission file extension(s) you're seeing
+3. A sample (de-identified by you) of what one student's submission
+   looks like
+4. Whether structure (cells / slides / annotations / threads) matters
+   for grading or whether flat text extraction would suffice
+
+Each new adapter ports in 150-300 lines once a real consumer signal lands —
+the canonical layout + the FERPA two-zone architecture stay the same,
+only the file-format parser changes.
+
 ## Backlog (parked items, surfaced as they're needed)
 
 These are in the parking lot (`handoffs/parkinglot.md`); pulled into a real
@@ -595,7 +649,8 @@ All grader tools live in `lib/tools/grader_*.py`. They share the
 flag list:
 
 - `grader_fetch.py` — Step 0 (fetch + roster + chain to deid + leak-check)
-- `grader_deidentify_databricks.py` · `grader_deidentify_docx.py` · `grader_deidentify_text.py` · `grader_deidentify_pdf.py` · `grader_deidentify_xlsx.py` — de-id adapters by file type. `grader_fetch.py`'s auto-chain picks the right adapter automatically; `--deid-adapter` overrides.
+- `grader_deidentify_databricks.py` · `grader_deidentify_docx.py` · `grader_deidentify_text.py` · `grader_deidentify_pdf.py` · `grader_deidentify_xlsx.py` · `grader_deidentify_jupyter.py` — de-id adapters by file type. `grader_fetch.py`'s auto-chain picks the right adapter automatically; `--deid-adapter` overrides.
+- `grader_fetch.py` also branches by Canvas `submission_type`: graded discussions (`/discussion_topics/:tid/view`) and Classic quizzes (`submission_data` + question join) get their own fetch paths — output routes to the text adapter downstream.
 - `grader_name_leak_check.py` — name-leak verifier (FERPA gate)
 - `grader_prep_answer_key.py` — secret-scrub instructor answer keys for code/notebook assignments
 - `grader_signals.py` — static-analysis priors (not scores)
