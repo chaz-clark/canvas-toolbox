@@ -106,7 +106,7 @@ Mixed scope. 3.1, 3.4, 3.5 are 🌐 ONLINE (tab 1 only); 3.2, 3.3 are 🔁 BOTH.
 
 | # | Scope | Standard | Audit status | Notes |
 |---|---|---|---|---|
-| **3.1** | 🌐 ONLINE | Learning Model is integrated into each module. | ❌ **OPEN gap** | A new audit could check for Prepare / Teach One Another / Ponder-Prove markers per module (header keywords, activity types). See Open Gaps. |
+| **3.1** | 🌐 ONLINE | Learning Model is integrated into each module. | ✅ **`learning_model_audit.py`** (shipped 2026-06-10, generalized) | Per-module phase-marker scan against configurable presets (BYUI Prepare/Teach One Another/Ponder-Prove by default; also `kolb` 4-phase + `bloom-3` Surface/Deep/Transfer; or `--phases-config <path>` for any institution). Heuristic — soft signal, not auto-fail. Tag: `learning_model_integration` ∈ {complete, partial, unverified}. |
 | **3.2** | 🔁 BOTH | Assessments give timely feedback. | ⚠️ Partial | Could check `peer_review_count`, auto-grade quiz fraction, manually-graded-essay count. Not currently a dedicated audit; could fold into `assessments_knowledge.md`-driven check. |
 | **3.3** | 🔁 BOTH | Variety of formative, low-stakes, self-evaluation activities support outcomes. | ✅ **`formative_variety_audit.py`** (shipped 2026-06-10) | Classifies assignments low/medium/high-weight via deterministic %-of-grade arithmetic; flags presence (no formative items at all), summative-only categories, missing precedence (high-stakes without formative practice in preceding N weeks), skewed temporal distribution. Tag: `formative_variety`. |
 | **3.4** | 🌐 ONLINE | Synchronous sessions, when used, meet flexibility needs. | ❌ Process check | Synchronous session policies live in setup notes; not Canvas-API-auditable. |
@@ -155,7 +155,7 @@ Mixed scope. 3.1, 3.4, 3.5 are 🌐 ONLINE (tab 1 only); 3.2, 3.3 are 🔁 BOTH.
 |---|---|---|---|---|
 | **6.1** | 🔁 BOTH | External-tool help instructions available (if applicable). | ❌ Human only | Content presence + judgment about quality. |
 | **6.2** | 🔁 BOTH | Links to support resources (tutoring, IT). | ⚠️ Partial | Could detect "Student Resources" page presence + the canonical Canvas template page. |
-| **6.3** | 🔁 BOTH | Course materials meet legal web-accessibility standards. | ❌ **OPEN gap** — UDoIt integration | A UDoIt API call (or embedded checks) would close this. See Open Gaps. |
+| **6.3** | 🔁 BOTH | Course materials meet legal web-accessibility standards. | ✅ **`accessibility_audit.py`** (shipped 2026-06-10, WCAG 2.1 AA + cognitive layer) | Sensory (vision/hearing): missing alt-text (1.1.1), video-captioning indicator (1.2.2), transcript-link detection (1.2.3), non-descriptive link text (2.4.4). Cognitive/learning: heading-hierarchy skips (1.3.1), document language attribute (3.1.1), reading-level estimation via Flesch-Kincaid (3.1.5 AAA — advisory), color-only signaling (1.4.1), distracting elements (marquee, autoplay, meta-refresh, animated GIFs — 2.2.1+2.2.2). Walks syllabus + pages + assignment descriptions. **Tool emits a prominent legal disclaimer** in every report + JSON output: aids WCAG review, does NOT certify compliance. For full coverage, run UDoIt + manual assistive-tech testing. Tag: `accessibility` ∈ {compliant, compliant_with_review, partial_compliant, non_compliant}. |
 | **6.4** | 🔁 BOTH | Minimum tech requirements + how-to-obtain in syllabus. | ⚠️ Partial via `syllabus_audit.py` | The 25-item rubric includes a tech-requirements check; partial coverage. |
 
 ### Category 7 — Course promotes successful facilitation
@@ -174,9 +174,9 @@ Mixed scope. 3.1, 3.4, 3.5 are 🌐 ONLINE (tab 1 only); 3.2, 3.3 are 🔁 BOTH.
 
 | Coverage | Count | Standards |
 |---|---|---|
-| ✅ **Fully covered today** | 11 | 2.2, **2.3** (`course_alignment_audit.py` 2026-06-10), 2.4, **3.3** ← new (`formative_variety_audit.py` 2026-06-10), 4.1, 4.3, 4.6, 4.11, 5.7, 5.8, 7.1, **7.3** ← new (`grading_load_audit.py` 2026-06-10) |
+| ✅ **Fully covered today** | 13 | 2.2, 2.3, 2.4, **3.1** ← new (`learning_model_audit.py` 2026-06-10), 3.3, 4.1, 4.3, 4.6, 4.11, 5.7, 5.8, **6.3** ← new (`accessibility_audit.py` 2026-06-10), 7.1, 7.3 |
 | ⚠️ **Partially covered today** | 9 | 1.2, 2.1, 3.2, 3.5, 4.7, 5.5, 6.2, 6.4 |
-| ❌ **Open gaps** (worth new audit tools) | 2 | 3.1, 6.3 |
+| ❌ **Open gaps** (worth new audit tools) | **0** | (all 5 originally-named standards-gap audits shipped 2026-06-10) |
 | ❌ **Human-judgment-only** | ~14 | 1.1, 1.3, 3.4, 4.2, 4.4, 4.5, 4.8, 4.9, 4.10, 4.12, 5.1, 5.2, 5.3, 5.4, 5.6, 5.9, 6.1, 7.2 |
 
 The audit fleet covers roughly **40%** of the institutional standards deterministically. The 5 open-gap items would push that to ~55%. The remaining ~45% are inherently human judgment + process — not failures of the audit framework, just out of deterministic scope by design.
