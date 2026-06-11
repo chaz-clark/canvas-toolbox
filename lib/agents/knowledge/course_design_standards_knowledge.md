@@ -75,7 +75,7 @@ Mixed scope. 3.1, 3.4, 3.5 are 🌐 ONLINE (tab 1 only); 3.2, 3.3 are 🔁 BOTH.
 |---|---|---|---|---|
 | **3.1** | 🌐 ONLINE | Learning Model is integrated into each module. | ❌ **OPEN gap** | A new audit could check for Prepare / Teach One Another / Ponder-Prove markers per module (header keywords, activity types). See Open Gaps. |
 | **3.2** | 🔁 BOTH | Assessments give timely feedback. | ⚠️ Partial | Could check `peer_review_count`, auto-grade quiz fraction, manually-graded-essay count. Not currently a dedicated audit; could fold into `assessments_knowledge.md`-driven check. |
-| **3.3** | 🔁 BOTH | Variety of formative, low-stakes, self-evaluation activities support outcomes. | ❌ **OPEN gap** | Distribution-by-weight + assignment-type variety check. See Open Gaps. |
+| **3.3** | 🔁 BOTH | Variety of formative, low-stakes, self-evaluation activities support outcomes. | ✅ **`formative_variety_audit.py`** (shipped 2026-06-10) | Classifies assignments low/medium/high-weight via deterministic %-of-grade arithmetic; flags presence (no formative items at all), summative-only categories, missing precedence (high-stakes without formative practice in preceding N weeks), skewed temporal distribution. Tag: `formative_variety`. |
 | **3.4** | 🌐 ONLINE | Synchronous sessions, when used, meet flexibility needs. | ❌ Process check | Synchronous session policies live in setup notes; not Canvas-API-auditable. |
 | **3.5** | 🌐 ONLINE | Students have regular instructor and peer interaction. | ⚠️ Partial | Could detect discussion / peer-review / sync-session frequency across modules. |
 
@@ -133,7 +133,7 @@ Mixed scope. 3.1, 3.4, 3.5 are 🌐 ONLINE (tab 1 only); 3.2, 3.3 are 🔁 BOTH.
 |---|---|---|---|---|
 | **7.1** | 🔁 BOTH | Instructor load ≤3hr/week/credit, distributed throughout term. | ✅ `workload_audit.py` | Same math as 4.1 / 5.8 from the instructor side. |
 | **7.2** | 🔁 BOTH | Support materials (answer keys, teaching notes, sync support) present. | ❌ Human only | Instructor-resources module presence + judgment. |
-| **7.3** | 🌐 ONLINE | Grading load ≤75% of instructor time on average. | ❌ **OPEN gap** | Could derive from assignment count × time-per-assignment estimates. See Open Gaps. |
+| **7.3** | 🌐 ONLINE | Grading load ≤75% of instructor time on average. | ✅ **`grading_load_audit.py`** (shipped 2026-06-10) | Deterministic estimate: assignments × time-per-submission-type defaults × students × submission_rate → per-week hours vs. (credits × 3 hr × 0.75) cap. Flags individual over-cap weeks + cohort mean over cap. Operator overrides per-type minute defaults via `--time-defaults-json`. Tag: `grading_load`. |
 
 ---
 
@@ -141,9 +141,9 @@ Mixed scope. 3.1, 3.4, 3.5 are 🌐 ONLINE (tab 1 only); 3.2, 3.3 are 🔁 BOTH.
 
 | Coverage | Count | Standards |
 |---|---|---|
-| ✅ **Fully covered today** | 9 | 2.2, **2.3** ← new (`course_alignment_audit.py` 2026-06-10), 2.4, 4.1, 4.3, 4.6, 4.11, 5.7, 5.8, 7.1 |
+| ✅ **Fully covered today** | 11 | 2.2, **2.3** (`course_alignment_audit.py` 2026-06-10), 2.4, **3.3** ← new (`formative_variety_audit.py` 2026-06-10), 4.1, 4.3, 4.6, 4.11, 5.7, 5.8, 7.1, **7.3** ← new (`grading_load_audit.py` 2026-06-10) |
 | ⚠️ **Partially covered today** | 9 | 1.2, 2.1, 3.2, 3.5, 4.7, 5.5, 6.2, 6.4 |
-| ❌ **Open gaps** (worth new audit tools) | 4 | 3.1, 3.3, 6.3, 7.3 |
+| ❌ **Open gaps** (worth new audit tools) | 2 | 3.1, 6.3 |
 | ❌ **Human-judgment-only** | ~14 | 1.1, 1.3, 3.4, 4.2, 4.4, 4.5, 4.8, 4.9, 4.10, 4.12, 5.1, 5.2, 5.3, 5.4, 5.6, 5.9, 6.1, 7.2 |
 
 The audit fleet covers roughly **40%** of the institutional standards deterministically. The 5 open-gap items would push that to ~55%. The remaining ~45% are inherently human judgment + process — not failures of the audit framework, just out of deterministic scope by design.

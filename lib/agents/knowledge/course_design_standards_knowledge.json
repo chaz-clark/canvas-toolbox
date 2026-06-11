@@ -35,7 +35,7 @@
     {
       "id": "audit_coverage_summary",
       "term": "Audit Coverage Summary (40% deterministic today, 55% with proposed gaps closed)",
-      "definition": "FULLY COVERED today (9 standards as of 2026-06-10): 2.2 syllabus completeness → syllabus_audit.py; 2.3 alignment chain → course_alignment_audit.py (NEW — shipped 2026-06-10); 2.4 rubric design → rubric_quality_audit.py; 4.1 student load → workload_audit.py; 4.3 consistent structure → module_structure_diff.py; 4.6 instructor contact → syllabus_audit umbrella; 4.11 due dates in setup notes → canvas_schedule_auditor.py; 5.7 setup notes complete → canvas_schedule_auditor.py; 5.8 instructor contract fit → workload_audit.py; 7.1 instructor load → workload_audit.py. PARTIALLY COVERED (9): 1.2, 2.1, 3.2, 3.5, 4.7, 5.5, 6.2, 6.4. OPEN GAPS (4 remaining — worth new audit tools): 3.1 Learning Model, 3.3 formative variety, 6.3 web accessibility, 7.3 grading load. HUMAN-JUDGMENT-ONLY (~14): 1.1, 1.3, 3.4, 4.2, 4.4, 4.5, 4.8, 4.9, 4.10, 4.12, 5.1, 5.2, 5.3, 5.4, 5.6, 5.9, 6.1, 7.2. The 45% human-judgment slice is by design — out of deterministic scope.",
+      "definition": "FULLY COVERED today (11 standards as of 2026-06-10 — three more shipped same-day sweep): 2.2 syllabus completeness → syllabus_audit.py; 2.3 alignment chain → course_alignment_audit.py (shipped 2026-06-10); 2.4 rubric design → rubric_quality_audit.py; 3.3 formative variety → formative_variety_audit.py (NEW — shipped 2026-06-10); 4.1 student load → workload_audit.py; 4.3 consistent structure → module_structure_diff.py; 4.6 instructor contact → syllabus_audit umbrella; 4.11 due dates in setup notes → canvas_schedule_auditor.py; 5.7 setup notes complete → canvas_schedule_auditor.py; 5.8 instructor contract fit → workload_audit.py; 7.1 instructor load → workload_audit.py; 7.3 grading load → grading_load_audit.py (NEW — shipped 2026-06-10). PARTIALLY COVERED (9): 1.2, 2.1, 3.2, 3.5, 4.7, 5.5, 6.2, 6.4. OPEN GAPS (2 remaining — worth new audit tools): 3.1 Learning Model, 6.3 web accessibility. HUMAN-JUDGMENT-ONLY (~14): 1.1, 1.3, 3.4, 4.2, 4.4, 4.5, 4.8, 4.9, 4.10, 4.12, 5.1, 5.2, 5.3, 5.4, 5.6, 5.9, 6.1, 7.2. Deterministic coverage is now ~55% of standards; with the 2 remaining gaps closed it would reach ~60%. The 45% human-judgment slice is by design — out of deterministic scope.",
       "citations": [
         "byui_course_design_standards_2026.xlsx cross-walked to lib/tools/* (this knowledge file's per-standard tables)"
       ]
@@ -103,11 +103,11 @@
       ]
     },
     {
-      "id": "open_gap_33_formative_variety",
-      "term": "OPEN GAP — Standard 3.3 (formative variety distribution)",
-      "definition": "Standard 3.3 BOTH: 'A variety of formative, low-stakes, and self-evaluation activities are used to support outcome achievement.' Tool sketch: formative_variety_audit.py — counts assignments by category and weight, flags courses where >X% of grade comes from <Y assignments (all summative, no formative practice); checks temporal spacing (formative checks distributed across term vs. stacked at end). Companion knowledge: assessments_knowledge.md (formative vs summative classification).",
+      "id": "covered_formative_variety_33",
+      "term": "Standard 3.3 (formative variety) → formative_variety_audit.py (shipped 2026-06-10)",
+      "definition": "Standard 3.3 BOTH: 'A variety of formative, low-stakes, and self-evaluation activities are used to support outcome achievement.' COVERED 2026-06-10 by formative_variety_audit.py. Classifies each published assignment as low_weight (formative-shaped, <X% of grade), medium, or high_weight (summative-shaped, ≥Y% of grade) via deterministic %-of-grade arithmetic — instructor naming intent is reported as advisory, never overrides the math. Four flags: PRESENCE (no formative items at all), SUMMATIVE_ONLY_CATEGORIES (categories with no formative items), PRECEDENCE (high-stakes assessment without formative practice in same category in preceding N weeks), DISTRIBUTION (formative items skewed across term thirds, <15% in any third). Tag: `formative_variety` ∈ {no_flags, flags_present}. Thresholds configurable: --low-weight-pct (default 3.0), --high-weight-pct (default 10.0), --precedence-weeks (default 3). Companion knowledge: assessments_knowledge.md (formative vs summative pedagogy).",
       "citations": [
-        "byui_course_design_standards_2026.xlsx standard 3.3",
+        "lib/tools/formative_variety_audit.py (shipped 2026-06-10)",
         "lib/agents/knowledge/assessments_knowledge.md"
       ]
     },
@@ -121,12 +121,12 @@
       ]
     },
     {
-      "id": "open_gap_73_grading_load",
-      "term": "OPEN GAP — Standard 7.3 (grading load ≤75%)",
-      "definition": "Standard 7.3 ONLINE: 'Grading load does not consume more than 75% of instructors' time on average each week.' Tool sketch: grading_load_audit.py — derives expected grading hours from assignment_count × time-per-assignment-estimate × students-enrolled; compares to the 75% × 3hr/credit/wk facilitator-load cap. Per-assignment time estimates come from assignment type defaults (rubric-graded vs essay vs quiz). Complements workload_audit.py which handles 4.1 + 5.8 + 7.1.",
+      "id": "covered_grading_load_73",
+      "term": "Standard 7.3 (grading load ≤75%) → grading_load_audit.py (shipped 2026-06-10)",
+      "definition": "Standard 7.3 ONLINE: 'Grading load does not consume more than 75% of instructors' time on average each week.' COVERED 2026-06-10 by grading_load_audit.py. Deterministic estimation model: estimated_grader_minutes_per_submission = lookup(submission_types, time_defaults) + bumps (+5 min for rubric-used-for-grading; +5 min for peer_review_count>0; +50% for online_upload with prose-name patterns); per-assignment total = minutes × (students × submission_rate); per-week distribution by ISO week of due_at; cap = credits × 3 hr × 0.75. Two flags: OVER_CAP_WEEKS (individual weeks exceed cap) + CAP_OVERAGE_MEAN (cohort mean exceeds cap — structural overload). Operator overrides per-type minute defaults via --time-defaults-json (calibrated from a real grading cycle). Tag: `grading_load` ∈ {under_cap, over_cap}. Complements workload_audit.py (which handles 4.1 + 5.8 + 7.1 — total facilitator load); this tool zeroes in on the GRADING portion specifically.",
       "citations": [
-        "byui_course_design_standards_2026.xlsx standard 7.3",
-        "lib/tools/workload_audit.py (companion)"
+        "lib/tools/grading_load_audit.py (shipped 2026-06-10)",
+        "lib/tools/workload_audit.py (companion — total facilitator-load math)"
       ]
     },
     {
