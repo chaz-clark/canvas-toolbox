@@ -1,0 +1,215 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "manual (synthesis of Facione/Delphi + AAC&U VALUE Rubric + Paul-Elder + Bloom revised + Brookhart + Socratic questioning)",
+    "knowledge_id": "critical_thinking_knowledge",
+    "last_updated": "2026-06-10",
+    "description": "The shared vocabulary canvas-toolbox uses for (a) GRADING student work against a rubric criterion that scores critical thinking, and (b) AUDITING whether an assignment is designed to prompt critical thinking in students. One file, two consumers (grader-side + auditor-side). Anchored on the AAC&U VALUE Rubric (5-dimension spine) + Facione Delphi definition + Paul-Elder framework + Bloom revised taxonomy upper tier + Brookhart's rubric-language patterns + Socratic questioning taxonomy.",
+    "owner": "Chaz Clark (BYUI course-design audit framework)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Large reference file (~700 lines, ~28k chars) — well above the 10k embed threshold. canvas_grader loads when critical_thinking_mode=scored; canvas_course_expert + future critical_thinking_audit.py loads when a rubric mentions CT or an assignment prompt is being audited. Selective-load defeats embed-cache benefit."
+  },
+  "shape": "reference",
+  "scope": "What critical thinking IS, what counts as evidence of it in student work (grader use), what makes an assignment prompt it (audit use), what makes a rubric criterion measure it observably (rubric audit + authoring). Covers the AAC&U 5-dimension spine, the Facione 6 core skills, Paul-Elder's 8 elements + 9 standards, Bloom upper-tier verbs as the cognitive demand layer, Brookhart's rubric-language patterns, and the Socratic questioning taxonomy. Out of scope: domain-specific critical thinking (nursing, software, history); creativity (separable skill); problem-solving (overlaps); metacognition beyond self-regulation (Schraw/Pintrich/Zimmerman territory).",
+  "consumed_by": [
+    "canvas_grader.md",
+    "canvas_course_expert.md"
+  ],
+  "facts": [
+    {
+      "id": "definition_facione",
+      "term": "Facione (Delphi) Definition + 6 Core Skills",
+      "definition": "Facione (1990) Delphi Report consensus definition: 'Purposeful, self-regulatory judgment which results in interpretation, analysis, evaluation, and inference, as well as explanation of the evidential, conceptual, methodological, criteriological, or contextual considerations upon which that judgment is based.' Six core skills: (1) INTERPRETATION — comprehending and expressing meaning of varied data; (2) ANALYSIS — identifying intended/actual inferential relationships among statements/questions/concepts; (3) EVALUATION — assessing credibility of claims and strength of arguments; (4) INFERENCE — drawing reasonable conclusions; (5) EXPLANATION — stating + justifying reasoning supporting one's conclusion; (6) SELF-REGULATION — self-consciously monitoring and correcting one's reasoning. Critical thinking is NOT: recall + summarization; personal opinion without grounding; comparison without criteria; long-form prose (length ≠ depth); citing many sources without engagement.",
+      "citations": [
+        "Facione, P. A. (1990). Critical Thinking: A Statement of Expert Consensus for Purposes of Educational Assessment and Instruction (Delphi Report). The California Academic Press."
+      ]
+    },
+    {
+      "id": "aacu_value_spine",
+      "term": "AAC&U VALUE Rubric — Critical Thinking (5-Dimension Spine, the Structural Backbone)",
+      "definition": "Peer-reviewed, freely available, the most rubric-defensible single source. 5 criteria × 4 performance levels (Benchmark 1 / Milestones 2-3 / Capstone 4). FIVE DIMENSIONS: (1) EXPLANATION OF ISSUES — issue stated, described, and clarified; (2) EVIDENCE (selecting + using sources) — interpretation/evaluation of source(s); sources questioned; (3) INFLUENCE OF CONTEXT AND ASSUMPTIONS — analyzes own and others' assumptions; evaluates relevance of contexts; (4) STUDENT'S POSITION (perspective, thesis, hypothesis) — specific position is imaginative; takes into account complexities; others' POVs acknowledged; (5) CONCLUSIONS AND RELATED OUTCOMES (implications, consequences) — conclusions are logical, reflect informed evaluation, related implications presented clearly. CAPSTONE (4) descriptors are the most rigorous; BENCHMARK (1) is minimum-passing. Both grader (what evidence to look for in student work) and auditor (what the assignment must demand for evidence to be possible) read this spine.",
+      "citations": [
+        "Association of American Colleges & Universities (AAC&U). Critical Thinking VALUE Rubric. https://www.aacu.org/value/rubrics/critical-thinking (peer-reviewed, freely available)."
+      ]
+    },
+    {
+      "id": "paul_elder_framework",
+      "term": "Paul-Elder Framework — 8 Elements of Reasoning + 9 Intellectual Standards",
+      "definition": "Most widely-adopted higher-ed CT framework. EIGHT ELEMENTS OF REASONING: (1) Purpose — what's the goal? (2) Question at issue — what's the question? (3) Information — what evidence? (4) Interpretation and inference — what conclusions? (5) Concepts — what ideas/theories? (6) Assumptions — what's taken for granted? (7) Point of view — from what perspective? (8) Implications and consequences — what follows? NINE INTELLECTUAL STANDARDS applied to each element: clarity (could you elaborate / give an example?), accuracy (is that really true?), precision (could you be more specific?), relevance (how does that relate to the question?), depth (what factors make this difficult?), breadth (do we need another POV?), logic (does this make sense?), significance (which fact is most important?), fairness (are we considering all viewpoints?). CROSS-WALK TO AAC&U: Purpose+Question→Dim1; Information→Dim2; Interpretation+Concepts→Dim4+5; Assumptions+POV→Dim3; Implications→Dim5. The standards apply across all 5 AAC&U dimensions.",
+      "citations": [
+        "Paul, R. & Elder, L. — Foundation for Critical Thinking. https://www.criticalthinking.org/"
+      ]
+    },
+    {
+      "id": "bloom_upper_tier",
+      "term": "Bloom's Revised Taxonomy — Upper Tier (Analyze / Evaluate / Create) IS the CT Cognitive Demand",
+      "definition": "Anderson & Krathwohl (2001) revision: ANALYZE (Bloom 4) / EVALUATE (Bloom 5) / CREATE (Bloom 6) — the three upper levels — are precisely where critical thinking lives at the cognitive-demand layer. ANALYZE = breaking material into parts, detecting how parts relate to one another and to the overall structure (verbs: differentiate, organize, attribute). EVALUATE = making judgments based on criteria + standards (verbs: check, critique). CREATE = putting elements together to form a novel, coherent whole; reorganizing into a new pattern or structure (verbs: generate, plan, produce). LOWER TIER (Remember/Understand/Apply) is INSUFFICIENT for critical thinking — recall/restatement/execution alone don't require analysis/evaluation/inference. AUDIT IMPLICATION: an assignment prompt whose primary verb is at Bloom 1-3 (remember/understand/apply) cannot prompt critical thinking at any level; the cognitive demand is too low. The toolkit's lib/tools/bloom_verbs.py classifies verbs; this knowledge file adds the dimension-level layer above the verb-level layer.",
+      "citations": [
+        "Anderson, L. W., & Krathwohl, D. R. (Eds.). (2001). A Taxonomy for Learning, Teaching, and Assessing: A Revision of Bloom's Taxonomy of Educational Objectives. Longman.",
+        "lib/tools/bloom_verbs.py — the verb-level classifier this knowledge layer sits above."
+      ]
+    },
+    {
+      "id": "brookhart_rubric_patterns",
+      "term": "Brookhart's Rubric Language Patterns (anti-vague-rubric)",
+      "definition": "From Brookhart (2010, 2nd ed. 2018) 'How to Assess Higher-Order Thinking Skills in Your Classroom.' DON'T WRITE / WRITE pairs: (a) 'demonstrates critical thinking' → 'identifies and evaluates assumptions underlying the argument' [analysis depth]; (b) 'uses good sources' → 'evaluates source credibility, methodology, and context; cites limitations' [evidence quality]; (c) 'states a position' → 'defends a position, engaging with at least one substantive counterargument' [position-defense]; (d) 'uses logic' → 'presents a chain of reasoning where each step follows from the evidence and the prior step' [reasoning quality]; (e) 'discusses impact' → 'names specific implications and traces them to identifiable stakeholders or outcomes' [implications]; (f) 'shows growth' → 'identifies what they missed on a prior attempt and what changed in their reasoning' [self-regulation]. THE RIGHT-HAND COLUMN gives the GRADER concrete behaviors to score; the LEFT-HAND COLUMN is the vague-rubric anti-pattern. Audit-side: rubric criterion using left-column language is a gap signal.",
+      "citations": [
+        "Brookhart, S. M. (2018, 2nd ed.). How to Assess Higher-Order Thinking Skills in Your Classroom. ASCD."
+      ]
+    },
+    {
+      "id": "toulmin_argument_structure",
+      "term": "Toulmin Argument Structure (when student is making an argument)",
+      "definition": "Toulmin (1958/2003 reissue) model decomposes an argument into six elements; both grader and auditor use this when the rubric criterion is 'reasoning quality,' 'argumentation,' or 'argument structure.' SIX ELEMENTS: (1) CLAIM — the position/conclusion being defended (grader signal: stated explicitly, framed as a thesis not a question). (2) DATA/GROUNDS — evidence supporting the claim (specific facts/sources/examples cited AND tied to the claim). (3) WARRANT — the bridging principle linking data to claim, often implicit (made EXPLICIT when the link is non-obvious; otherwise inferable). (4) BACKING — support for the warrant itself (reasoning for WHY the warrant holds: theory, prior cases, generalization). (5) QUALIFIER — confidence modifier ('usually,' 'in most cases,' 'with the caveat that') calibrating claim strength to evidence strength. (6) REBUTTAL — acknowledgment of when/where claim doesn't hold; engagement with counterarguments. CAPSTONE-LEVEL argument has all six elements present and operative. BENCHMARK-LEVEL has only claim + data, no explicit warrant, no qualifier, no rebuttal. AUDIT SIGNAL: rubric using 'argument' or 'reasoning chain' language without naming any of these elements is vague (Brookhart anti-pattern). Toulmin-aware criterion: 'States a defensible claim, supports it with evidence specifically tied to the claim via an explicit or clearly-inferable warrant, qualifies the claim's scope, and engages at least one substantive counterargument with a rebuttal.'",
+      "citations": [
+        "Toulmin, S. (1958/2003). The Uses of Argument. Cambridge UP."
+      ]
+    },
+    {
+      "id": "bean_prose_signals",
+      "term": "Bean's Prose-Assignment Audit Signals (writing-across-the-curriculum patterns)",
+      "definition": "From Bean (2011, 2nd ed.) 'Engaging Ideas.' Prose-specific assignment-prompt patterns and whether they prompt CT: (1) SKEPTICISM PROMPT ('argue against the obvious answer' / 'what's wrong with the standard view?') — strongly prompts CT (forces analysis of assumptions + alternative perspectives; Dim 3 + Dim 4). (2) COGNITIVE-DISSONANCE PROMPT (present two conflicting sources, ask resolution) — strongly prompts CT (Dim 2 + Dim 4). (3) MICROTHEME (short focused writing, 1-2 paragraphs tied to a specific question) — often prompts CT (concision forces choices about what to include — analysis under constraint). (4) EXPLORATORY WRITING ('freewrite about X for 10 min') — neutral (develops reasoning process; doesn't on its own require CT product; best as scaffolding, not assessment). (5) THESIS-BASED WRITING ('argue for/against X') — often prompts CT if counterargument is required (Dim 4 ceiling check). (6) SUMMARY/PRÉCIS — suppresses CT (recall + condensation; no analysis demanded). (7) 'REFLECT ON YOUR LEARNING' without anchoring question — often suppresses CT (free-association without structure). (8) READING RESPONSE WITH STRUCTURED QUESTIONS ('identify the author's main claim; identify one assumption; identify one weakness') — prompts CT (Toulmin/Paul-Elder elements baked in). BEAN'S BROADER ARGUMENT: prompting CT in writing requires the assignment to ask students to do something WITH what they read — not just read or summarize it. The prompt's verb structure is the single best audit signal.",
+      "citations": [
+        "Bean, J. C. (2011, 2nd ed.). Engaging Ideas: The Professor's Guide to Integrating Writing, Critical Thinking, and Active Learning in the Classroom. Jossey-Bass."
+      ]
+    },
+    {
+      "id": "willingham_domain_caveat",
+      "term": "Willingham's Domain-Specificity Caveat (background knowledge is a CT precondition)",
+      "definition": "Willingham (2007/2008) 'Critical Thinking: Why Is It So Hard to Teach?' (American Educator). EMPIRICAL CASE: CT is domain-specific. You cannot think critically about chemistry without chemistry knowledge; background knowledge is a PRECONDITION for CT in any domain, not a separable layer. Transfer between domains is hard. IMPLICATIONS for the audit: (a) a course that prompts CT before the domain content is in place will produce surface-level reasoning even from strong students — audit signal: CT prompted in week 14 of a course that did recall in weeks 1-13 will produce frustration, not CT. (b) The dimensions + signals in this file are DOMAIN-GENERAL; the instructor's rubric applies them to a specific domain, and the course's content scaffolding must provide the knowledge base CT operates on. (c) Cross-domain transfer claims (e.g. 'students who learn CT in this course will think critically in their professional domain') need evidence; Willingham's argument is they typically don't. This is why this file's scope explicitly excludes domain-specific CT (nursing/software/history) — those are course-level applications, not part of the general framework.",
+      "citations": [
+        "Willingham, D. T. (2007/2008). Critical Thinking: Why Is It So Hard to Teach? American Educator (American Federation of Teachers)."
+      ]
+    },
+    {
+      "id": "socratic_questioning_taxonomy",
+      "term": "Socratic Questioning — Six Types (Critical QUESTIONING, separable from Critical THINKING)",
+      "definition": "Critical questioning is the act of generating probing questions; distinct from but related to critical thinking. Both grader and auditor care: grader checks whether student GENERATES questions in their work (a Capstone-level signal); auditor checks whether the assignment REQUIRES students to generate questions. SIX TYPES: (1) CLARIFICATION — surface unstated meaning/definitions ('What do you mean by X?' 'Can you give an example?'); (2) PROBING ASSUMPTIONS — surface what's taken as given ('What are you assuming?' 'What if the opposite were true?'); (3) PROBING REASONS/EVIDENCE — surface support behind a claim ('What evidence supports this?' 'Is the source reliable?'); (4) PROBING VIEWPOINTS/PERSPECTIVES — surface alternative framings ('How might someone disagree?' 'Whose interests are served?'); (5) PROBING IMPLICATIONS/CONSEQUENCES — surface what follows ('What follows from this?' 'How does this affect [stakeholder]?'); (6) QUESTIONS ABOUT THE QUESTION — surface meta concerns ('Is this the right question to ask?' 'What does this question presuppose?'). GRADER OBSERVABLE: Capstone = student generates questions across multiple types, non-obvious, with attempt to answer or explicit 'open for further investigation'; Benchmark = no question-generation. AUDITOR OBSERVABLE: Capstone-permitting assignment requires question-generation ('Generate questions about X — your own, not from the readings'); Benchmark-only assignment provides all questions for the student to answer.",
+      "citations": [
+        "Synthesized from Paul-Elder questioning taxonomies + Yale Poorvu Socratic-questioning resources + classical Socratic-method literature. Set varies slightly across sources; this is the operative common core."
+      ]
+    },
+    {
+      "id": "grader_observable_evidence",
+      "term": "Grader: Observable Textual Signals in Student Work",
+      "definition": "When scoring a criterion that should measure critical thinking, the grader looks for these CAPSTONE-level textual signals: (1) HEDGING ON CERTAINTY ('this suggests' / 'this might imply' / 'with the caveat that' — student calibrating confidence to evidence quality); (2) COUNTER-CONSTRUCTION ('one could argue that..., but...' — engagement with opposing views, Dimension 4); (3) ASSUMPTION-SURFACING ('if we accept that X, then...' / 'this assumes...' — Dimension 3); (4) METHODOLOGICAL AWARENESS ('the source used method Y, which means...' — Dimension 2); (5) QUESTION-GENERATION ('this raises the question of...' — Section 3 Socratic); (6) LIMITATION-ACKNOWLEDGEMENT ('this analysis is limited because...' — Capstone-level self-regulation). INVERSE SIGNALS suggesting BENCHMARK at best: (a) restating the prompt verbatim as the analysis; (b) asserting without warrant ('clearly,' 'obviously,' 'everyone knows'); (c) source-as-authority ('the article says X, so X'); (d) position-without-defense ('I think X' with no reasoning chain). The grader prompt should list these signals explicitly when critical_thinking_mode=scored.",
+      "citations": [
+        "Synthesis of AAC&U VALUE rubric descriptors + Brookhart's evidence patterns + Facione's six core skills as operationalized behaviors."
+      ]
+    },
+    {
+      "id": "audit_rubric_gap_signals",
+      "term": "Auditor: Rubric Gap Signals (CT-Criterion-Not-Actually-Measuring-CT)",
+      "definition": "Red flags an audit tool surfaces when reviewing a rubric criterion that claims to score critical thinking: (1) Criterion title is 'Critical Thinking' but rating descriptors use recall verbs (defines/lists/restates) — mislabeled criterion. (2) Criterion uses bare adjectives ('excellent critical thinking' / 'weak critical thinking') with no observable behavior — vague rubric; inter-rater reliability collapses. (3) Highest-band descriptor is 'demonstrates critical thinking' verbatim — tautology (Brookhart's #1 gap pattern). (4) Lowest-band descriptor is 'does not demonstrate critical thinking' — negative tautology. (5) Critical thinking criterion is worth <10% of grade — students rationally optimize away from it. (6) No CT criterion at all, but the CLO claims to develop critical thinking — alignment break (course_alignment_audit territory). (7) Each band's descriptor is structurally the same with severity adjectives swapped ('mostly demonstrates' / 'somewhat demonstrates' / 'doesn't demonstrate') — adjective-ladder anti-pattern, no behavioral differentiation.",
+      "citations": [
+        "Brookhart (2018) — the rubric-pattern source for most of these signals.",
+        "lib/agents/knowledge/rubrics_knowledge.md (rubric quality framework)."
+      ]
+    },
+    {
+      "id": "audit_assignment_gap_signals",
+      "term": "Auditor: Assignment-Prompt Gap Signals (Won't-Prompt-CT)",
+      "definition": "Red flags an audit tool surfaces when reviewing an assignment prompt: (1) Prompt's primary verb is at Bloom levels 1-3 (remember/understand/apply) — lower-Bloom prompt, critical thinking cannot show up at the prompted level. (2) Prompt provides the issue, the position to take, AND the evidence to use — all work pre-framed; student executes, doesn't think critically. (3) Prompt asks 'what is X' / 'summarize Y' / 'list Z' — recall-only, no critical thinking possible. (4) Prompt has a single correct answer — if there's a key, not much room for evaluation/inference. (5) Prompt is 'reflect on X' with no anchoring questions — reflection without structure → free-association, not analysis. (6) Prompt assigns critical-thinking work but provides only Benchmark-level rubric criteria — the work is asked for but won't be measured. (7) No counterargument / alternative perspective requirement — Dimension 4 ceiling reached, Capstone unreachable. (8) No 'what are you assuming?' / 'what context?' prompt — Dimension 3 ceiling. (9) No 'what's the implication?' / 'what follows?' prompt — Dimension 5 ceiling.",
+      "citations": [
+        "Synthesis of AAC&U dimension demands + Bloom-revised cognitive levels + Brookhart's assignment-prompt patterns."
+      ]
+    },
+    {
+      "id": "audit_tag_critical_thinking_prompt",
+      "term": "Audit Tag: `critical_thinking_prompt` ∈ {prompts, neutral, suppresses}",
+      "definition": "What an ASSIGNMENT PROMPT (not the student's work) demands. PROMPTS — assignment actively requires critical thinking; at least one of: assumption-naming required; counterargument required; implication-naming required; position-defense required; source-evaluation (not just citing) required. Primary task at Bloom verb level ≥ 4 (Analyze). NEUTRAL — prompt doesn't actively prevent CT but doesn't require it either; student could earn full credit at Apply level. Most 'explain your answer' prompts land here. SUPPRESSES — prompt requires recall or single-correct-answer work; critical thinking would be off-task. 'Define X,' 'list Y,' 'calculate Z.'",
+      "citations": [
+        "lib/agents/knowledge/course_design_standards_knowledge.md (audit tag stack convention)",
+        "lib/agents/knowledge/critical_thinking_knowledge.md §7 (Audit tags)"
+      ]
+    },
+    {
+      "id": "audit_tag_critical_thinking_demand_level",
+      "term": "Audit Tag: `critical_thinking_demand_level` ∈ {capstone, milestone3, milestone2, benchmark, absent}",
+      "definition": "If `critical_thinking_prompt` is `prompts`, the ceiling of demand. CAPSTONE — all 5 AAC&U dimensions are demanded at highest level. Rare; usually capstone projects, theses, defenses. MILESTONE3 — 3-4 dimensions at Capstone-permitting level; 1-2 at Milestone-3. MILESTONE2 — most dimensions at Milestone-2; some Capstone-permitting. BENCHMARK — prompt requires CT but caps at Benchmark level on all dimensions (rare; usually indicates poorly-designed assignment). ABSENT — paired with critical_thinking_prompt=neutral or suppresses; CT is not on the table for this assignment.",
+      "citations": [
+        "AAC&U VALUE Rubric performance levels"
+      ]
+    },
+    {
+      "id": "grader_consumer_specifics",
+      "term": "Grader Consumer — How This Knowledge File Plugs Into the Grading Pipeline",
+      "definition": "When canvas-toolbox grader is configured with policies.critical_thinking_mode=scored (per grader_setup_knowledge.md Step 3), the grading prompt (whether agent-in-the-loop or grader_grade.py orchestrator) should load this file alongside the rubric + voice file. The grader uses: (1) The five AAC&U dimensions as the scoring spine — each dimension scored independently then synthesized into a band. (2) The observable textual signals (fact grader_observable_evidence) as the evidence checklist. (3) The Brookhart inverse signals as Benchmark indicators. (4) The Socratic question-generation observables IF the assignment involved question-generation. INTER-RATER RELIABILITY DEPENDS ON THIS: the 3 graders (or the agent's 3 passes) MUST be working from the same operational vocabulary, or the consensus_three_graders math (grader_knowledge §4) produces high spread on CT criteria. Calibration cohort should explicitly test CT-scoring consistency.",
+      "citations": [
+        "lib/agents/knowledge/grader_knowledge.md §4 (consensus + inter-rater)",
+        "lib/agents/knowledge/grader_setup_knowledge.md (critical_thinking_mode setup step)"
+      ]
+    },
+    {
+      "id": "audit_consumer_specifics",
+      "term": "Audit Consumer — How This Knowledge File Plugs Into Audit Tools",
+      "definition": "Three audit angles: (1) RUBRIC AUDIT — does a rubric criterion that claims to score CT actually measure it observably? Tool: rubric_quality_audit.py (Brookhart-pattern gap signals — fact audit_rubric_gap_signals); consumes audit_rubric_gap_signals and grader_observable_evidence. (2) ASSIGNMENT-PROMPT AUDIT — does an assignment prompt elicit CT? Tool: future critical_thinking_audit.py OR a flag on course_audit.py; consumes audit_assignment_gap_signals + the audit tags. Reads the assignment's description + rubric + emits critical_thinking_prompt + critical_thinking_demand_level tags. (3) ALIGNMENT AUDIT — when a CLO claims to target CT, is it actually being assessed? Tool: course_alignment_audit.py (shipped 2026-06-10) reads the outcome→criterion→assignment chain; this knowledge file adds CT-specific signals to its interpretation. PROMOTION PATH: this knowledge file goes v0.1 → v1.0 once one of (a) the grader scores a real cohort with critical_thinking_mode=scored using this file's vocabulary, or (b) an audit tool flags a real assignment as prompts/neutral/suppresses using this file's signals.",
+      "citations": [
+        "lib/tools/rubric_quality_audit.py",
+        "lib/tools/course_alignment_audit.py",
+        "lib/agents/canvas_course_expert.md (the consuming agent)"
+      ]
+    },
+    {
+      "id": "cross_walk_to_knowledge_layer",
+      "term": "Cross-Walk to Other Knowledge Files (Where This Sits in the Layer)",
+      "definition": "(1) lib/tools/bloom_verbs.py + this file → verb-level classifier (bloom_verbs) PLUS dimension-level layer (this file). Together they decide 'is this CLO/criterion targeting CT?' (2) outcomes_quality_knowledge.md + this file → outcome well-formedness first, then CT-targeting check. (3) rubrics_knowledge.md + this file → rubric quality framework PLUS the CT-specific observable-evidence layer. (4) assessments_knowledge.md + this file → CT is typically a Capstone-level summative target; formative scaffolding builds toward it. (5) backwards_design_knowledge.md + this file → UbD designs backward from CT outcomes; this file specifies what CT looks like in observable terms. (6) hattie_3phase_knowledge.md + this file → CT lives at Deep/Transfer phases; Surface scaffolding must precede CT capstone for the demand to be reachable. (7) grader_knowledge.md + this file → grading pipeline + voice + this file's evidence checklist for the CT criterion.",
+      "citations": [
+        "lib/agents/knowledge/* (the knowledge layer)",
+        "lib/agents/knowledge/critical_thinking_knowledge.md §8 (cross-walk table)"
+      ]
+    },
+    {
+      "id": "operator_notes",
+      "term": "Operator Notes — Things Worth Knowing Before Using This File",
+      "definition": "(1) CT IS TAUGHT + ASSESSED — it's not 'give them a hard prompt' alone. If earlier scaffolding doesn't develop the skills (Hattie Surface → Deep), Capstone-level CT is unreachable. An assignment that prompts CT in week 14 of a course that did recall in weeks 1-13 produces frustrated students, not critical thinkers. (2) INTER-RATER RELIABILITY COLLAPSES on vague CT rubrics. consensus_three_graders produces high spread when the criterion is 'demonstrates critical thinking' without observable behavior. The fix is rubric-side (Brookhart's language), not grader-side. (3) CRITICAL QUESTIONING IS SEPARABLE — if you want students to ASK critical questions (not just answer them), the assignment has to require it (Socratic taxonomy + audit signal: does the prompt require question-generation?). (4) DOMAIN-SPECIFIC CT is the next layer down — what CT looks like in nursing vs. software vs. history. This file deliberately doesn't go there; dimensions + signals are domain-general, the instructor's rubric applies them to the discipline. (5) OUT OF SCOPE: creativity (generating novel options), problem-solving (process-oriented), metacognition beyond self-regulation (Schraw/Pintrich/Zimmerman). Could be future sibling files when needed.",
+      "citations": [
+        "lib/agents/knowledge/critical_thinking_knowledge.md §Operator notes"
+      ]
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "Facione, P. A. (1990). Critical Thinking: A Statement of Expert Consensus for Purposes of Educational Assessment and Instruction (Delphi Report). The California Academic Press.",
+      "Association of American Colleges & Universities (AAC&U). Critical Thinking VALUE Rubric. https://www.aacu.org/value/rubrics/critical-thinking",
+      "Paul, R. & Elder, L. — Foundation for Critical Thinking. https://www.criticalthinking.org/",
+      "Anderson, L. W., & Krathwohl, D. R. (Eds.). (2001). A Taxonomy for Learning, Teaching, and Assessing: A Revision of Bloom's Taxonomy of Educational Objectives. Longman.",
+      "Brookhart, S. M. (2018, 2nd ed.). How to Assess Higher-Order Thinking Skills in Your Classroom. ASCD.",
+      "Yale Poorvu Center — Socratic questioning resources (synthesized into the six-type taxonomy alongside Paul-Elder questioning literature).",
+      "Toulmin, S. (1958/2003 reissue). The Uses of Argument. Cambridge UP. — claim/data/warrant/backing/qualifier/rebuttal argument-structure model (§toulmin_argument_structure fact + MD §4.5).",
+      "Willingham, D. T. (2007/2008). Critical Thinking: Why Is It So Hard to Teach? American Educator (AFT). — empirical case that CT is domain-specific; background knowledge is a precondition (§willingham_domain_caveat fact + MD Operator notes).",
+      "Bean, J. C. (2011, 2nd ed.). Engaging Ideas: The Professor's Guide to Integrating Writing, Critical Thinking, and Active Learning in the Classroom. Jossey-Bass. — prose-assignment patterns for prompting CT (§bean_prose_signals fact + MD §6 prose-specific signals)."
+    ],
+    "last_reviewed": "2026-06-10"
+  },
+  "validation": {
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "Each entry in consumed_by[] resolves to an existing agent",
+      "Companion files exist: bloom_verbs.py, outcomes_quality_knowledge, rubrics_knowledge, assessments_knowledge, backwards_design_knowledge, hattie_3phase_knowledge, grader_knowledge"
+    ],
+    "post_run_checklist": [
+      "knowledge/critical_thinking_knowledge.md exists",
+      "knowledge/critical_thinking_knowledge.json exists with shape=reference and facts[] present",
+      "_metadata.runtime_strategy is set",
+      "consumed_by[] is non-empty",
+      "provenance.sources[] is non-empty"
+    ],
+    "real_course_validation": "PENDING (v0.1). This knowledge file has not yet been consumed by a live audit or grading run. Promotion path: (a) grader scores a real cohort against a critical-thinking criterion using this file's vocabulary (most likely first consumer), OR (b) an audit tool (rubric_quality_audit OR future critical_thinking_audit.py OR course_audit.py with --critical-thinking flag) flags a real assignment as prompts/neutral/suppresses using this file's signals. Either fires v0.1 → v1.0 promotion.",
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "0.1",
+        "date": "2026-06-10",
+        "changes": [
+          "Created from parking-lot entry (lines 69-86 of handoffs/parkinglot.md). Synthesized from Facione/Delphi (canonical definition + 6 core skills) + AAC&U VALUE Rubric (5-dimension spine — the structural backbone) + Paul-Elder (8 elements + 9 standards + questioning) + Bloom revised upper tier (cognitive demand layer) + Brookhart (rubric-language patterns, anti-vague-rubric) + Socratic questioning taxonomy (the questioning side).",
+          "DUAL-CONSUMER FRAMING: grader-side (observable evidence in student work, per-dimension Capstone/Milestone/Benchmark descriptors) + audit-side (assignment-prompt demands + rubric criterion gap signals). One file, two lenses.",
+          "Surfaces two audit tags for the toolkit's tag stack: critical_thinking_prompt {prompts, neutral, suppresses} and critical_thinking_demand_level {capstone, milestone3, milestone2, benchmark, absent}.",
+          "Wired into canvas_grader.md + canvas_course_expert.md cross_references with v0.1 untested caveat. Not catalogued in knowledge/README.md until v1.0 (per the 0.x convention)."
+        ]
+      }
+    ]
+  }
+}
