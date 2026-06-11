@@ -64,7 +64,7 @@ All standards 🔁 BOTH modalities. This category is where outcome quality + ali
 |---|---|---|---|---|
 | **2.1** | 🔁 BOTH | Course outcomes match the catalog. | ⚠️ Partial — `clo_quality_audit.py` | Pulls outcomes via Canvas API; comparing against the catalog requires a catalog source (Kuali or scraped). Standalone "outcomes present + well-formed" is covered; "matches catalog" is the gap. |
 | **2.2** | 🔁 BOTH | Syllabus includes all required elements and is in the Syllabus section of Canvas. | ✅ `syllabus_audit.py` | Exact match — the audit reads `GET /courses/:id?include[]=syllabus_body` and runs the 9-section + 25-item rubric check. |
-| **2.3** | 🔁 BOTH | Outcomes, department-approved key assessments, activities, and instructional content align. | ❌ **OPEN gap** | The "alignment chain" — see Open Gaps below. Combines `clo_quality_audit` outputs with `rubric_coverage_audit` + a new activity-to-outcome map. |
+| **2.3** | 🔁 BOTH | Outcomes, department-approved key assessments, activities, and instructional content align. | ✅ **`course_alignment_audit.py`** (shipped 2026-06-10) | The "alignment chain." Uses Canvas's `learning_outcome_id` field on rubric criteria as the deterministic outcome↔criterion link; module-overview text overlap as a soft "is this outcome taught" signal. Tag: `alignment_chain` ∈ {complete, partial, unverified}. |
 | **2.4** | 🔁 BOTH | Assessment design facilitates consistent results and transparency for students. | ✅ `rubric_quality_audit.py` | Rubric quality framework covers this — observable ratings, criterion clarity, weight distribution. |
 
 ### Category 3 — Course activities and materials promote learning and engagement
@@ -141,9 +141,9 @@ Mixed scope. 3.1, 3.4, 3.5 are 🌐 ONLINE (tab 1 only); 3.2, 3.3 are 🔁 BOTH.
 
 | Coverage | Count | Standards |
 |---|---|---|
-| ✅ **Fully covered today** | 8 | 2.2, 2.4, 4.1, 4.3, 4.6, 4.11, 5.7, 5.8, 7.1 |
+| ✅ **Fully covered today** | 9 | 2.2, **2.3** ← new (`course_alignment_audit.py` 2026-06-10), 2.4, 4.1, 4.3, 4.6, 4.11, 5.7, 5.8, 7.1 |
 | ⚠️ **Partially covered today** | 9 | 1.2, 2.1, 3.2, 3.5, 4.7, 5.5, 6.2, 6.4 |
-| ❌ **Open gaps** (worth new audit tools) | 5 | 2.3, 3.1, 3.3, 6.3, 7.3 |
+| ❌ **Open gaps** (worth new audit tools) | 4 | 3.1, 3.3, 6.3, 7.3 |
 | ❌ **Human-judgment-only** | ~14 | 1.1, 1.3, 3.4, 4.2, 4.4, 4.5, 4.8, 4.9, 4.10, 4.12, 5.1, 5.2, 5.3, 5.4, 5.6, 5.9, 6.1, 7.2 |
 
 The audit fleet covers roughly **40%** of the institutional standards deterministically. The 5 open-gap items would push that to ~55%. The remaining ~45% are inherently human judgment + process — not failures of the audit framework, just out of deterministic scope by design.

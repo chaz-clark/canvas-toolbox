@@ -35,7 +35,7 @@
     {
       "id": "audit_coverage_summary",
       "term": "Audit Coverage Summary (40% deterministic today, 55% with proposed gaps closed)",
-      "definition": "FULLY COVERED today (8 standards): 2.2 syllabus completeness → syllabus_audit.py; 2.4 rubric design → rubric_quality_audit.py; 4.1 student load → workload_audit.py; 4.3 consistent structure → module_structure_diff.py; 4.6 instructor contact → syllabus_audit umbrella; 4.11 due dates in setup notes → canvas_schedule_auditor.py; 5.7 setup notes complete → canvas_schedule_auditor.py; 5.8 instructor contract fit → workload_audit.py; 7.1 instructor load → workload_audit.py. PARTIALLY COVERED (9): 1.2, 2.1, 3.2, 3.5, 4.7, 5.5, 6.2, 6.4. OPEN GAPS (5 — worth new audit tools): 2.3 alignment chain, 3.1 Learning Model, 3.3 formative variety, 6.3 web accessibility, 7.3 grading load. HUMAN-JUDGMENT-ONLY (~14): 1.1, 1.3, 3.4, 4.2, 4.4, 4.5, 4.8, 4.9, 4.10, 4.12, 5.1, 5.2, 5.3, 5.4, 5.6, 5.9, 6.1, 7.2. The 45% human-judgment slice is by design — out of deterministic scope.",
+      "definition": "FULLY COVERED today (9 standards as of 2026-06-10): 2.2 syllabus completeness → syllabus_audit.py; 2.3 alignment chain → course_alignment_audit.py (NEW — shipped 2026-06-10); 2.4 rubric design → rubric_quality_audit.py; 4.1 student load → workload_audit.py; 4.3 consistent structure → module_structure_diff.py; 4.6 instructor contact → syllabus_audit umbrella; 4.11 due dates in setup notes → canvas_schedule_auditor.py; 5.7 setup notes complete → canvas_schedule_auditor.py; 5.8 instructor contract fit → workload_audit.py; 7.1 instructor load → workload_audit.py. PARTIALLY COVERED (9): 1.2, 2.1, 3.2, 3.5, 4.7, 5.5, 6.2, 6.4. OPEN GAPS (4 remaining — worth new audit tools): 3.1 Learning Model, 3.3 formative variety, 6.3 web accessibility, 7.3 grading load. HUMAN-JUDGMENT-ONLY (~14): 1.1, 1.3, 3.4, 4.2, 4.4, 4.5, 4.8, 4.9, 4.10, 4.12, 5.1, 5.2, 5.3, 5.4, 5.6, 5.9, 6.1, 7.2. The 45% human-judgment slice is by design — out of deterministic scope.",
       "citations": [
         "byui_course_design_standards_2026.xlsx cross-walked to lib/tools/* (this knowledge file's per-standard tables)"
       ]
@@ -85,11 +85,11 @@
       ]
     },
     {
-      "id": "open_gap_23_alignment_chain",
-      "term": "OPEN GAP — Standard 2.3 (alignment chain)",
-      "definition": "Standard 2.3 BOTH: 'Outcomes, department-approved key assessments, activities, and instructional content align.' Currently NO single audit tool produces the full alignment chain. Tool sketch: course_alignment_audit.py — combines clo_quality_audit.py outputs (course-level outcomes) with rubric_coverage_audit.py (assignment → rubric criteria) + a new activity-to-outcome map (module overview pages + assignment descriptions matched against outcome verbs). Output: per-outcome → assessments[] → rubric-criteria[] → activities[] chain with broken-link flagging. Companion knowledge: backwards_design_knowledge.md (UbD 3-stage) is the design framework this would operationalize.",
+      "id": "covered_alignment_23",
+      "term": "Standard 2.3 (alignment chain) → course_alignment_audit.py (shipped 2026-06-10)",
+      "definition": "Standard 2.3 BOTH: 'Outcomes, department-approved key assessments, activities, and instructional content align.' COVERED as of 2026-06-10 by course_alignment_audit.py. Uses Canvas's native `learning_outcome_id` field on rubric criteria as the deterministic outcome↔criterion link; module-overview text overlap as a soft 'is this outcome taught' signal (heuristic — never drives the verdict). Output: per-outcome chain + orphan-outcome flagging (no assessment evidence) + orphan-criterion flagging (no upstream outcome) + untaught-outcome soft signals. Tag: `alignment_chain` ∈ {complete, partial, unverified}. Exit codes: 0 complete / 1 partial / 2 unverified-or-config-error. Companion knowledge consulted: backwards_design_knowledge.md (the design framework), outcomes_quality_knowledge.md, rubrics_knowledge.md.",
       "citations": [
-        "byui_course_design_standards_2026.xlsx standard 2.3",
+        "lib/tools/course_alignment_audit.py (shipped 2026-06-10)",
         "lib/agents/knowledge/backwards_design_knowledge.md"
       ]
     },
