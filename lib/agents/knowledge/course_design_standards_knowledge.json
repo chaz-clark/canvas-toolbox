@@ -25,6 +25,14 @@
       ]
     },
     {
+      "id": "short_titles_index",
+      "term": "Short Titles Index (per the BYUI HTML canonical)",
+      "definition": "Each standard has BOTH a number (the universal anchor used in audit-tool output) AND a short-form title (operator-facing for readability). Audit tools should emit findings as 'standard 4.3 (Consistency)' rather than just 'standard 4.3'. THE 40 SHORT TITLES (from content.byui.edu/.../course-design-standards.html): 1.1 Discipleship and Leadership; 1.2 Enrollment Capacity; 1.3 Identity Verification; 2.1 Outcome Alignment; 2.2 Syllabus Requirements; 2.3 Coherence; 2.4 Assessment Transparency; 3.1 Learning Model Integration; 3.2 Timely Feedback; 3.3 Activity Variety; 3.4 Synchronous Flexibility; 3.5 Interaction Opportunities; 4.1 Workload Distribution; 4.2 Clear Instructions; 4.3 Consistency; 4.4 Flexible Groupwork; 4.5 Remote Accessibility; 4.6 Instructor Contact; 4.7 Grade Access; 4.8 Home Page Design; 4.9 Visual Consistency; 4.10 Writing Quality; 4.11 Due Dates and Requirements; 4.12 Cultural Sensitivity; 5.1 Access Management; 5.2 Copyright Compliance; 5.3 Internal Resources; 5.4 External Resource Approval; 5.5 Link Verification; 5.6 Mobile Optimization; 5.7 Setup Documentation; 5.8 Workload Feasibility; 5.9 Feedback Mechanisms; 6.1 External Resource Support; 6.2 Support Links; 6.3 Web Accessibility; 6.4 Technology Requirements; 7.1 Instructor Workload; 7.2 Support Materials; 7.3 Grading Load. Source: BYUI HTML public canonical fetched 2026-06-10.",
+      "citations": [
+        "BYUI Course Design Standards public canonical: content.byui.edu/file/25dac126-7189-40a4-9781-4351263e7d25/1/course-design-standards.html (fetched 2026-06-10)"
+      ]
+    },
+    {
       "id": "nwccu_categories",
       "term": "7 NWCCU-Mapped Categories",
       "definition": "All standards belong to one of 7 categories tied to NWCCU accreditation: (1) Course aligns with BYU-Idaho's mission and values [ONLINE only]; (2) Course uses and measures appropriate learning outcomes [BOTH]; (3) Course activities and materials promote learning and engagement [mixed]; (4) Course employs organizational and delivery strategies for student success [BOTH except 4.5]; (5) Course is maintainable and scalable [BOTH except 5.1, 5.7]; (6) Course provides resources to help students overcome roadblocks [BOTH]; (7) The Course promotes successful facilitation [BOTH except 7.3]. The leftmost column of the source xlsx maps each standard to specific NWCCU codes (1.0, 2.0, 6.0, 7.0, etc.).",
@@ -172,7 +180,8 @@
   ],
   "provenance": {
     "sources": [
-      "BYU-Idaho Campus Online team — Course Design Standards (2026), 2-tab xlsx, operator-supplied 2026-06-10. Parked at lib/agents/pre_knowledge/byui_learning_teaching/byui_course_design_standards_2026.xlsx (gitignored) with paired transcript .md",
+      "BYU-Idaho Campus Online team — Course Design Standards (2026), PUBLIC CANONICAL HTML at content.byui.edu/file/25dac126-7189-40a4-9781-4351263e7d25/1/course-design-standards.html. Contains the short-form titles per standard + one set (no modality tab). Fetched 2026-06-10; verbatim text matches the xlsx tracking-template tab 1.",
+      "BYU-Idaho Campus Online team — Course Design Standards (2026), 2-tab xlsx tracking template, operator-supplied 2026-06-10. Parked at lib/agents/pre_knowledge/byui_learning_teaching/byui_course_design_standards_2026.xlsx (gitignored) with paired transcript .md. The HTML canonical references this xlsx as its companion tracking tool.",
       "NWCCU accreditation framework (the xlsx column A maps to NWCCU codes)",
       "Cross-walk derived 2026-06-10 from canvas-toolbox's existing audit tools (lib/tools/syllabus_audit.py, workload_audit.py, rubric_quality_audit.py, module_structure_diff.py, canvas_schedule_auditor.py, etc.)"
     ],

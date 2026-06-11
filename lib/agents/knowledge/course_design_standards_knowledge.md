@@ -2,7 +2,9 @@
 
 > Reference. The BYUI Campus Online institutional course-design checklist mapped to NWCCU accreditation codes. ~40 standards across 7 categories. This is the **master checklist** the canvas-toolbox audit tools should be measuring against; many existing audits already cover specific standards, several gaps are named here for future tools.
 
-**Source:** BYUI Campus Online team (2026 release) — `byui_course_design_standards_2026.xlsx` parked in `pre_knowledge/byui_learning_teaching/` with paired transcript [`byui_course_design_standards_2026.md`](../pre_knowledge/byui_learning_teaching/byui_course_design_standards_2026.md). Two tabs in the original split by modality: tab 1 = online (full set with online-specific items), tab 2 = the common-core subset that applies to both online and in-person.
+**Sources:**
+- **Public canonical (HTML):** `content.byui.edu/file/25dac126-7189-40a4-9781-4351263e7d25/1/course-design-standards.html` — the BYUI Campus Online team's public-facing standards page. Contains the **short-form titles** per standard (see §Short titles index below) + one set (no modality tab). Verbatim text matches the xlsx tracking template tab 1.
+- **Tracking template (xlsx):** `byui_course_design_standards_2026.xlsx` parked in `pre_knowledge/byui_learning_teaching/` with paired transcript [`byui_course_design_standards_2026.md`](../pre_knowledge/byui_learning_teaching/byui_course_design_standards_2026.md). Two tabs split by modality: tab 1 = online (full set with online-specific items — matches the HTML canonical), tab 2 = the common-core subset that applies to both online and in-person. The HTML references "A Google Sheets tracking template is available" — the xlsx IS that companion tracking tool.
 
 **Used by:** `canvas_course_expert.md`, `ira_program_alignment.md`, any future course-design audit tool.
 
@@ -41,6 +43,37 @@ Throughout this file, each standard is tagged with its scope:
 Operators auditing an **in-person** course should ignore the 🌐 ONLINE standards. Operators auditing an **online** course apply all.
 
 **Online is the higher standard.** The online bar is a strict superset of the in-person bar — online courses face additional design considerations (identity verification, synchronous-session flexibility, off-campus completion, etc.) that in-person courses get for free by virtue of physical presence. A course meeting the online standard automatically meets the in-person standard too; the inverse isn't true. **Implication:** if a course audit isn't sure of the modality, audit against the online standard (the safer bar). If the course turns out to be in-person, the extra ONLINE findings are surfaced as "advisory — not strictly required" rather than missed.
+
+---
+
+## Short titles index (from the BYUI HTML canonical)
+
+Each standard has both a number and a short-form title. The number is the universal anchor (used in audit-tool output); the title is operator-facing for readability. Audit tools should emit findings as `standard 4.3 (Consistency)` rather than just `standard 4.3`.
+
+| # | Short title | # | Short title |
+|---|---|---|---|
+| 1.1 | Discipleship and Leadership | 4.7 | Grade Access |
+| 1.2 | Enrollment Capacity | 4.8 | Home Page Design |
+| 1.3 | Identity Verification | 4.9 | Visual Consistency |
+| 2.1 | Outcome Alignment | 4.10 | Writing Quality |
+| 2.2 | Syllabus Requirements | 4.11 | Due Dates and Requirements |
+| 2.3 | Coherence | 4.12 | Cultural Sensitivity |
+| 2.4 | Assessment Transparency | 5.1 | Access Management |
+| 3.1 | Learning Model Integration | 5.2 | Copyright Compliance |
+| 3.2 | Timely Feedback | 5.3 | Internal Resources |
+| 3.3 | Activity Variety | 5.4 | External Resource Approval |
+| 3.4 | Synchronous Flexibility | 5.5 | Link Verification |
+| 3.5 | Interaction Opportunities | 5.6 | Mobile Optimization |
+| 4.1 | Workload Distribution | 5.7 | Setup Documentation |
+| 4.2 | Clear Instructions | 5.8 | Workload Feasibility |
+| 4.3 | Consistency | 5.9 | Feedback Mechanisms |
+| 4.4 | Flexible Groupwork | 6.1 | External Resource Support |
+| 4.5 | Remote Accessibility | 6.2 | Support Links |
+| 4.6 | Instructor Contact | 6.3 | Web Accessibility |
+| | | 6.4 | Technology Requirements |
+| | | 7.1 | Instructor Workload |
+| | | 7.2 | Support Materials |
+| | | 7.3 | Grading Load |
 
 ---
 
