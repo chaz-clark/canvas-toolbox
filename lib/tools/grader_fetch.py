@@ -121,9 +121,8 @@ except ImportError:
     __version__ = "0.0.0+unknown"
 
 try:
-    from dotenv import load_dotenv
-    load_dotenv(Path.cwd() / ".env")
-    load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+    from _env_loader import load_env
+    load_env()
 except ImportError:
     pass
 

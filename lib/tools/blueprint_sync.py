@@ -56,12 +56,10 @@ from canvas_pages import page_in_module, upsert_page
 from __toolbox_version__ import __version__
 from canvas_course_guard import enforce as _course_guard
 
-# Load .env from repo root
+# Load .env via the shared helper (issue #43)
 try:
-    from dotenv import load_dotenv
-    _env_path = Path(__file__).parent.parent / ".env"
-    if _env_path.exists():
-        load_dotenv(_env_path)
+    from _env_loader import load_env
+    load_env()
 except ImportError:
     pass
 

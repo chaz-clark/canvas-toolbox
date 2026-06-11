@@ -58,10 +58,8 @@ from pathlib import Path
 import requests
 
 try:
-    from dotenv import load_dotenv
-    _env = Path(__file__).parent.parent / ".env"
-    if _env.exists():
-        load_dotenv(_env)
+    from _env_loader import load_env
+    load_env()
 except ImportError:
     pass
 

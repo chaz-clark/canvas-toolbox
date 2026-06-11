@@ -56,12 +56,11 @@ import requests
 from __toolbox_version__ import __version__
 from canvas_course_guard import enforce as _course_guard
 
-# Load .env from repo root if python-dotenv is available (optional dependency)
+# Load .env via the shared helper — finds .env regardless of where the tool
+# is invoked from (issue #43). Walks up from CWD, then __file__ as fallback.
 try:
-    from dotenv import load_dotenv
-    _env_path = Path(__file__).parent.parent / ".env"
-    if _env_path.exists():
-        load_dotenv(_env_path)
+    from _env_loader import load_env
+    load_env()
 except ImportError:
     pass
 

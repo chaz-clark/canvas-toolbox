@@ -54,10 +54,8 @@ import requests
 from __toolbox_version__ import __version__
 
 try:
-    from dotenv import load_dotenv
-    _env_path = Path(__file__).parent.parent / ".env"
-    if _env_path.exists():
-        load_dotenv(_env_path)
+    from _env_loader import load_env
+    load_env()
 except ImportError:
     pass
 
