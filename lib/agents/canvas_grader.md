@@ -486,14 +486,14 @@ Subsequent cohorts of the same assignment skip Path C — the rubric persists.
 
 See `canvas_grader.json → validation` for full test cases mapping to the six acceptance bars in `grader_knowledge.md` §12:
 
-- [x] **BAR-1** — Handles both validated assignment types through config alone. *Deterministic spine PASS via ds460 Mid Review ghost-run; agent-step PASS by inference from BAR-6 (same code path).*
+- [x] **BAR-1** — Handles both validated assignment types through config alone. *PASS EMPIRICAL (ds460 Mid Review keyless ghost-run 2026-06-10: full multi-output flow, **zero tool-code edits**; the `feedback/<label>/` scoping fix + `band_to_score` map both work; multi-output artifacts coexist without clobbering).*
 - [ ] **BAR-2** — Setup interview takes an instructor with no rubric to a gradeable rubric. *Legitimately deferred — no fitting DS460 Path C case; re-confirms when a real no-rubric assignment arrives.*
 - [x] **BAR-3** — Reconciliation works (gradebook + Classic-quiz-mirror branches). *PASS empirically (ds460 Mid Review ghost-run: config-driven reconcile reproduced gradebook values exactly per user_id).*
-- [x] **BAR-4** — Wellbeing flags produced for reflective assignments. *GAP closed in commit `d33682e` (safety + financial categories added to SYSTEM_PROMPT); live-run on Mid Review confirms via keyless agent path.*
+- [x] **BAR-4** — Wellbeing flags produced for reflective assignments. *PASS EMPIRICAL (ds460 Mid Review keyless ghost-run: all 3 hardship keys caught; the new `safety` category correctly categorized the 25539C domestic-abuse disclosure that round-2's prompt couldn't; flags did NOT move any score — compassion overrides stayed off-band per design).*
 - [x] **BAR-5** — FERPA: outputs keyed, no name in any cloud artifact or console. *PASS empirically (ds460 Mid Review ghost-run: 23 de-id'd, 0 leaks, console clean).*
 - [x] **BAR-6** — ds460 reproduces its KC1 result calling this skill. *PASS empirically (ds460 alpha 2026-06-10: 20/22 within 0.5 on the medium criterion; cohort mean within 0.09 of original push).*
 
-**v0.1 → v1.0 PROMOTED** on 2026-06-10 based on the math above: BAR-1 (deterministic spine + inference) / BAR-3 / BAR-5 / BAR-6 all PASS; BAR-4 GAP closed in code; BAR-2 legitimately deferred. The remaining confirmation-pending bars (BAR-1 agent-step + BAR-4 live-run on Mid Review) ride on the keyless agent path and don't gate v1.0 per the API-key institutional constraint. Knowledge files catalogued in [`knowledge/README.md`](knowledge/README.md).
+**v0.1 → v1.0 PROMOTED** on 2026-06-10 based on the math above. As of the post-fix Mid Review keyless ghost-run (also 2026-06-10), **5 of 6 bars are EMPIRICAL PASS** (1, 3, 4, 5, 6) + BAR-2 legitimately deferred. The earlier "by inference" language on BAR-1 + the "GAP-closed-in-code" framing on BAR-4 are now empirically backed. Knowledge files catalogued in [`knowledge/README.md`](knowledge/README.md). Same-day Mid Review run also confirmed the calibration-anchor finding across a 2nd assignment type — see `grader_knowledge.md` §4 (the ~1-named-band top-boundary strictness is now a 2-data-point pattern, not a single-course observation; baked first-class into `grader_setup_knowledge.md` §6b).
 
 ### Regression Guard
 

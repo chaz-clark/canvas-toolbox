@@ -203,9 +203,15 @@ def main() -> int:
         summary_path = fb / "_summary.csv"
         write_summary(summary_path, summary_rows)
         copied = sum(1 for k in only if copy_winner_per_student(fb, k, pn))
+        missing = len(only) - copied
         print(f"Single-grader calibration mode (--expected 1): no consensus to compute.")
         print(f"  -> {summary_path}  ({len(summary_rows)} rows, copy of _grader{pn}.csv)")
-        print(f"  -> {fb}/<KEY>.md   ({copied} per-student files copied from _pass{pn}/)")
+        if missing == len(only) and copied == 0:
+            print(f"  -> {fb}/<KEY>.md   (no per-student files to copy — "
+                  f"grade-only output expected)")
+        else:
+            print(f"  -> {fb}/<KEY>.md   ({copied} per-student files copied from _pass{pn}/"
+                  + (f"; ⚠ {missing} missing source — partial)" if missing > 0 else ")"))
         return 0
 
     # Multi-pass: majority + spread + flag
@@ -291,8 +297,19 @@ def main() -> int:
     # 3. Per-student file copies — what push reads (feedback/<KEY>.md from the winner's pass)
     copied = sum(1 for k in keys if copy_winner_per_student(fb, k, winners[k]))
     missing = len(keys) - copied
-    print(f"-> {fb}/<KEY>.md  ({copied} copied from winning pass; "
-          f"{missing} missing _pass<n>/<KEY>.md source)")
+    # Grade-only outputs don't produce per-student .md files (no comment to write).
+    # If ALL winners are missing their source file, that's the signal — treat as
+    # expected (grade-only output) rather than surfacing as a partial-missing error.
+    # (Per the ds460 Mid Review ghost-run feedback 2026-06-10.)
+    if missing == len(keys) and copied == 0:
+        print(f"-> {fb}/<KEY>.md  (no per-student files to copy — "
+              f"grade-only output expected; consensus + summary still emitted)")
+    elif missing > 0:
+        print(f"-> {fb}/<KEY>.md  ({copied} copied from winning pass; "
+              f"⚠ {missing} missing _pass<n>/<KEY>.md source — "
+              f"partial output, expected if grade-only)")
+    else:
+        print(f"-> {fb}/<KEY>.md  ({copied} copied from winning pass)")
 
     return 0
 

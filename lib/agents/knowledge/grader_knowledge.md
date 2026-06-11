@@ -178,7 +178,14 @@ The generic skill is built **80/20** — close out of the box across courses + s
 
 **Operator default:** don't expect a fresh-cohort 100% match on day one. Expect the 80% — a band distribution close to the instructor's mental anchor — and use the calibration cohort to tune the remaining ~20%. The setup interview's §6b confirmation step is where the top-band boundary question is surfaced explicitly (e.g. "what does flawless look like, and what tips it down a quarter-point?"). Same question recurs at every band boundary; the calibration anchors converge after the roundtrip.
 
-**Concrete example (alpha-test 2026-06-10):** KC1's first generic-skill run came back ~80% on the local 0-4 scale (20/22 within 0.5, cohort mean 0.09 lower than the original push). The remaining 0.09 mean delta concentrated on three flawless-4s that came back 3.5 because passes docked for sparse prose / a minor Q5 display issue. The instructor's local anchor tolerates sparse prose on a flawless-both-portions submission; the generic passes didn't. Resolution path: a calibration confirmation on the top-band boundary + the corresponding voice-file update — exactly the mechanism this skill is built around. Not a defect.
+**Concrete examples (now confirmed across 2 assignment types — 2026-06-10):**
+
+- **KC1 alpha (code take-home, 0-4 numeric scale)** — 20/22 within 0.5; cohort mean 0.09 lower than the original push. Delta concentrated on three flawless-4s that came back 3.5 because passes docked for sparse prose / a minor Q5 display issue.
+- **Mid Review keyless ghost-run (prose self-review, A-F named tiers)** — 4/23 exact band, **17/23 within 1 band**. Same pattern: generic skill runs **~1 named-band stricter at the top boundary** (A→A-, A-→B+). The instructor's local anchor tolerates thin reflection / unverified self-reported hours for an A; the generic passes don't.
+
+**This is now a 2-data-point confirmed pattern, not a single-course anomaly.** Per the "wait for a second course/assignment before promoting" rule baked here on 2026-06-10, the boundary-anchor question moves from soft to **first-class** in `grader_setup_knowledge.md` §6b. The setup interview now explicitly surfaces it: *"what does a flawless-top-band submission look like? what can be thin or imperfect and still land in the top band?"* — captured as anchor descriptors in the rubric file, operationalized via the calibration cohort + voice roundtrip.
+
+Not a defect. The mechanism working — twice — exactly as designed.
 
 ---
 

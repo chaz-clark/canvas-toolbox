@@ -153,7 +153,11 @@ This is where the **course-flavor** decisions go.
 
 a. **Whole points or quarter-points?** `0,1,2,3,4` or `0,0.25,0.5,...,4`. Quarter-points are finer placement within a band, NOT new bands (`grader_knowledge.md` §11). Capture.
 
-b. **What are the named bands?** Default: `Meets / Developing / Does Not Yet Meet`. Industry variants: INL's `Leading / Strong / Solid / Building / Insufficient`. Capture.
+b. **What are the named bands?** Default: `Meets / Developing / Does Not Yet Meet`. Industry variants: INL's `Leading / Strong / Solid / Building / Insufficient`; letter scales `A / B / C / D / F`. Capture.
+
+   **Boundary-anchor question (now first-class — empirically confirmed across 2 assignment types 2026-06-10):** for the **top band**, walk through specifically what counts and what doesn't. The generic skill consistently runs **~1 named-band stricter at the top boundary** than an instructor's local anchor (KC1 alpha: three local 4.0s came back 3.5; Mid Review keyless ghost-run: 4/23 exact band, 17/23 within 1 band, with the same A→A- / A-→B+ pattern). Surface the question explicitly: *"What does a flawless-top-band submission look like for THIS assignment? What can be thin or imperfect and still land in the top band? Is sparse prose / a minor display issue / an unverified self-report acceptable at the top?"* Capture the instructor's answers as anchor descriptors in the rubric file (or in the `band_to_score` map's tolerance notes). The calibration cohort + voice roundtrip then operationalize those anchors so subsequent cohorts converge.
+
+   **Why this matters:** the ~1-band top-boundary delta isn't a defect — it's the design intent (`grader_knowledge.md` §4 "Calibration is the tool's design intent, not a defect to fix"). The 80/20 principle holds: ~80% of bands land where the instructor would; the calibration cohort tunes the remaining ~20%, concentrated at the top boundary. **Skipping this question = the delta surfaces in the first real cohort as a "the AI is too strict on As" complaint that no amount of grader-prompt tweaking fixes (it's a rubric-anchor problem, not a prompt problem).**
 
 c. **Course-specific equivalences?** "Are there approaches you treat as equivalent for grading?" e.g. `Spark SQL == DataFrame API` for ds460. Capture as `policies.language_equivalence[]`.
 
