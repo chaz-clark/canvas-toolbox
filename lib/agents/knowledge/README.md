@@ -17,6 +17,7 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 | Whether the course covers more than just thinking (cognitive vs. affective vs. psychomotor) | [`three_domains_knowledge.md`](three_domains_knowledge.md) *(academic framing)* or [`taxonomy_explorer_knowledge.md`](taxonomy_explorer_knowledge.md) *(BYUI tool framing)* |
 | Whether the module sequence is brain-aligned (experience before explanation) | [`experiential_learning_knowledge.md`](experiential_learning_knowledge.md) |
 | Whether the course was designed backward from outcomes (vs. assembled forward from content) | [`backwards_design_knowledge.md`](backwards_design_knowledge.md) *(Wiggins/McTighe UbD — academic framing)* or [`designer_thinking_knowledge.md`](designer_thinking_knowledge.md) *(BYUI five-stage descendant)* |
+| Whether each module exercises task-centered / activation / demonstration / application / integration (Merrill) | [`merrill_first_principles_knowledge.md`](merrill_first_principles_knowledge.md) |
 | Whether the course's learning outcomes are well-formed (precedes alignment) | [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md) |
 | Whether a rubric is well-formed (4-criterion backbone, typology, alignment-to-CLOs) | [`rubrics_knowledge.md`](rubrics_knowledge.md) |
 | Whether a specific assessment is the right type (formative vs. summative) and AI-resistant | [`assessments_knowledge.md`](assessments_knowledge.md) |
@@ -87,6 +88,17 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 **When to use:** When auditing whether a course was *designed backward* from intended results or *assembled forward* from content. The academic / research-lineage framing of the same principle BYUI's "designer thinking" implements institutionally.
 **Audit tag:** none yet (reference-shape; consumed via fact lookup).
 **Pairs with:** `designer_thinking_knowledge.md` (BYUI five-stage descendant), `assessments_knowledge.md` (Stage 2 evidence), `outcomes_quality_knowledge.md` (Stage 1 quality gate).
+
+---
+
+### [`merrill_first_principles_knowledge.md`](merrill_first_principles_knowledge.md)
+
+**Sources:** Merrill, M.D. (2002). *First Principles of Instruction* (ETR&D). Merrill, M.D. (2013). *First Principles of Instruction: Identifying and Designing Effective, Efficient, and Engaging Instruction*. Frick, Chadha, Watson, Wang & Green (2010) replication. Margaryan, Bianco & Littlejohn (2015) MOOC audit. Mayer (2017) Multimedia Learning Principles overlap.
+**Core idea:** Five cross-theory principles that predict effective instruction: (1) **Task-centered** — learning is anchored in real-world problems, not abstract topics; (2) **Activation** — prior experience is recalled before new content; (3) **Demonstration** — concepts are shown (worked examples), not just told; (4) **Application** — learners do the task with coaching and feedback; (5) **Integration** — learners transfer to their own context, reflect, and share. Sequenced as the *pebble-in-the-pond* progression (whole task → unpacked components → reassembled).
+**When to use:** When auditing whether a module/course follows research-validated design principles that cut across Hattie / Kolb / UbD. Generalizes across institutions — institution-agnostic by design. Available as the `merrill` preset in `learning_model_audit.py` alongside `byui`, `kolb`, and `bloom-3`.
+**Audit tag:** `learning_model_integration` ∈ {`complete`, `partial`, `unverified`} (shared with `learning_model_audit` — Merrill is a preset, not a separate tag namespace).
+**Status:** ⚠️ **v0.1** — knowledge file + audit preset built same-day (2026-06-10); calibration against real courses pending.
+**Consumed by:** `learning_model_audit.py` (as `--preset merrill`), `canvas_course_expert`. **Pairs with:** [`hattie_3phase_knowledge.md`](hattie_3phase_knowledge.md) (Surface/Deep/Transfer maps to Demonstration/Application/Integration), [`experiential_learning_knowledge.md`](experiential_learning_knowledge.md) (Kolb cycle overlaps Activation/Application), [`backwards_design_knowledge.md`](backwards_design_knowledge.md) (UbD Stage 3 = task-centered framing), [`assessments_knowledge.md`](assessments_knowledge.md) (Application/Integration are formative→summative bridge).
 
 ---
 

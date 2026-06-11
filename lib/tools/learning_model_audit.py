@@ -43,6 +43,15 @@ PRESETS
     - Deep (apply/analyze)          keywords: analyze, compare, apply, examine, interpret
     - Transfer (evaluate/create)    keywords: evaluate, create, design, defend, synthesize
 
+  --preset merrill
+    Five principles (Merrill's First Principles of Instruction — see
+    lib/agents/knowledge/merrill_first_principles_knowledge.md for full reference):
+    - Task-centered    keywords: real-world, scenario, case, project, deliverable, challenge, whole task, client, stakeholder
+    - Activation       keywords: recall, review, prior, before this, build on, connect to, based on what you learned
+    - Demonstration    keywords: example, demonstration, model, exemplar, worked example, watch this, here's how
+    - Application      keywords: practice, try, apply, your turn, now you do it, exercise, draft
+    - Integration      keywords: transfer, integrate, real-world apply, your own context, capstone, synthesize, reflect on, share with
+
   --phases-config <path>
     JSON config that overrides the preset entirely. Shape:
       {"phases": [{"name": "...", "keywords": ["...", "..."]}, ...]}
@@ -178,6 +187,52 @@ PRESETS = {
                 "name": "Transfer",
                 "keywords": ["evaluate", "create", "design", "defend", "synthesize",
                              "judge", "critique", "produce", "construct", "develop"],
+            },
+        ],
+    },
+    "merrill": {
+        "name": "Merrill's First Principles of Instruction",
+        "phases": [
+            {
+                "name": "Task-centered",
+                "keywords": [
+                    "real-world", "real world", "scenario", "case study", "case:",
+                    "project", "deliverable", "challenge", "whole task",
+                    "client", "stakeholder", "authentic problem", "real problem",
+                ],
+            },
+            {
+                "name": "Activation",
+                "keywords": [
+                    "recall", "review", "prior", "before this", "build on", "build upon",
+                    "connect to", "based on what you learned", "previously",
+                    "last week", "earlier in the course", "as you saw", "you already know",
+                ],
+            },
+            {
+                "name": "Demonstration",
+                "keywords": [
+                    "example", "demonstration", "model", "exemplar", "worked example",
+                    "watch this", "here's how", "for instance", "shown below",
+                    "demonstrated", "walk through",
+                ],
+            },
+            {
+                "name": "Application",
+                "keywords": [
+                    "practice", "your turn", "now you do it", "exercise", "draft",
+                    "try this", "your turn", "you'll apply", "you will apply",
+                    "submit a draft", "self-check", "self check",
+                ],
+            },
+            {
+                "name": "Integration",
+                "keywords": [
+                    "transfer", "integrate", "real-world apply", "your own context",
+                    "capstone", "synthesize", "reflect on", "share with",
+                    "apply to your", "your own job", "your own community",
+                    "showcase", "publish", "audience",
+                ],
             },
         ],
     },

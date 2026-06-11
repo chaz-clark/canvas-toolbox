@@ -1,0 +1,184 @@
+{
+  "_metadata": {
+    "template_version": "1.0",
+    "generated_by": "manual (synthesis of Merrill 2002 + Merrill 2013 + Frick et al 2010 + Margaryan et al 2015 + Mayer 2017)",
+    "knowledge_id": "merrill_first_principles_knowledge",
+    "last_updated": "2026-06-10",
+    "description": "M. David Merrill's First Principles of Instruction (2002, 2013) — a synthesis across effective instructional-design theories. Five prescriptive design principles: Task-centered, Activation, Demonstration, Application, Integration. Plus the pebble-in-the-pond instructional sequence. Used by learning_model_audit.py (merrill preset) + canvas_course_expert. Sits at the design-principle layer between empirical mechanisms (cognitive_load_theory + hattie_3phase) and design process (backwards_design + designer_thinking).",
+    "owner": "Chaz Clark (BYUI course-design audit framework)",
+    "runtime_strategy": "read_at_runtime",
+    "runtime_strategy_rationale": "Large reference file (~500 lines, ~22k chars). learning_model_audit selects merrill preset; canvas_course_expert loads when reasoning about design quality. Selective-load."
+  },
+  "shape": "reference",
+  "scope": "Five prescriptive design principles (Task-centered, Activation, Demonstration, Application, Integration) + the pebble-in-the-pond instructional sequence + audit signals per principle + gap signals + cross-walk to Hattie / Kolb / Bloom / UbD. Out of scope: the upstream question of WHICH task to design around (backwards_design UbD territory); the downstream cognitive-load mechanics (cognitive_load_theory); the empirical effect-size research (citations point to it; this file summarizes operational vocabulary).",
+  "consumed_by": [
+    "learning_model_audit.py",
+    "canvas_course_expert.md"
+  ],
+  "facts": [
+    {
+      "id": "principle_1_task_centered",
+      "term": "Principle 1 — Task-centered (Problem-centered)",
+      "definition": "Learning is promoted when students engage with WHOLE REAL-WORLD TASKS, not isolated drills. The course should present progressively more complex whole tasks, not isolated skill components. AUDIT SIGNAL: module overviews frame a real problem the student will solve (not just topics to cover); major assignments are whole tasks integrating skills (case studies, projects, design tasks); the course has a sequence of progressively complex tasks rather than topical chapters. KEYWORD MARKERS: real-world, scenario, case, project, deliverable, challenge, whole task, client, stakeholder. COMMON GAP: all-quiz courses with no whole-task assignments; 'this week we'll cover X' framing in every module; capstone-only structure where weeks 1-13 are isolated drills. CROSS-WALK: Hattie Transfer phase; UbD Stage 2 authentic performance task; Bloom upper levels (Apply / Analyze / Evaluate / Create).",
+      "citations": [
+        "Merrill, M. D. (2002). First Principles of Instruction. ETR&D 50(3), 43-59.",
+        "Merrill, M. D. (2013). First Principles of Instruction. Pfeiffer/Wiley."
+      ]
+    },
+    {
+      "id": "principle_2_activation",
+      "term": "Principle 2 — Activation",
+      "definition": "Learning is promoted when EXISTING KNOWLEDGE IS ACTIVATED as a foundation for new knowledge. Learners draw on previous experiences — relevant prior schemas are brought to working memory before new material loads. AUDIT SIGNAL: module overviews open with a connection to prior learning ('last week you learned X; this week we'll build on that to Y'); pre-work that recalls prior material; per-module quizzes that bridge previous concepts to new; vocabulary or prerequisite-checklist sections that surface prior knowledge. KEYWORD MARKERS: recall, review, prior, before this, build on, connect to, based on what you learned. COMMON GAP: modules drop new content cold with no scaffolding from prior modules; self-contained silos with no narrative arc across the term. CROSS-WALK: Hattie Surface phase (foundation); cognitive load theory (Activation reduces extraneous load by priming relevant schemas); Kolb Concrete Experience + Reflective Observation start.",
+      "citations": [
+        "Merrill 2002, 2013",
+        "Mayer, R. E. (2017). Using multimedia for e-learning (consistent with Activation)."
+      ]
+    },
+    {
+      "id": "principle_3_demonstration",
+      "term": "Principle 3 — Demonstration ('Show me')",
+      "definition": "Learning is promoted when new knowledge is DEMONSTRATED to the learner. Direct instruction with worked examples — the student sees the skill / concept enacted, not just described. AUDIT SIGNAL: worked examples in module materials (step-by-step solved problems with reasoning shown, not just final answers); video demonstrations of skills (instructor performing the task, narrating choices); model solutions / exemplars for assignments; module pages that show before they tell ('Here's how a contractor approaches this estimation:' vs. 'Estimation involves...'); Mayer multimedia principles applied (text + diagrams together, signaling, segmenting). KEYWORD MARKERS: example, demonstration, model, exemplar, worked example, watch this, here's how. COMMON GAP: lecture-only content without modeling; 'read chapter 7' with no worked examples; assignments that ask students to do something they've never seen modeled; rubrics describing good work without examples of good work. CROSS-WALK: Hattie Surface → Deep transition; Bloom Apply / Analyze (exercised in the model, scaffold for student practice); Mayer multimedia learning principles.",
+      "citations": [
+        "Merrill 2002, 2013",
+        "Mayer, R. E. (2017). Using multimedia for e-learning."
+      ]
+    },
+    {
+      "id": "principle_4_application",
+      "term": "Principle 4 — Application ('Let me')",
+      "definition": "Learning is promoted when new knowledge is APPLIED BY THE LEARNER WITH FEEDBACK. Practice activities, formative checks, iterative feedback loops — the student gets to try, fail, and adjust before high-stakes assessment. AUDIT SIGNAL: formative practice activities in each module (low-stakes, opportunity to try); feedback loops (autograded quiz feedback, peer review, instructor formative comments); iterative drafts for major assignments; practice problems / 'try this' / 'your turn' sections; self-check / self-assessment opportunities. KEYWORD MARKERS: practice, try, apply, your turn, now you do it, exercise, draft. COMMON GAP: modules with no application activity; 'read this, then take the exam' structure with no in-between practice; application activities exist but have NO feedback (students do practice problems with no answer key, no instructor response, no peer review). CROSS-WALK: Hattie Deep phase (relating, extending, transferring within the topic); formative_variety_audit operationalizes this at the count level; assessments_knowledge formative side.",
+      "citations": [
+        "Merrill 2002, 2013",
+        "Frick et al. 2010 (Application most-correlated with student-perceived learning)."
+      ]
+    },
+    {
+      "id": "principle_5_integration",
+      "term": "Principle 5 — Integration",
+      "definition": "Learning is promoted when new knowledge is INTEGRATED INTO THE LEARNER'S WORLD. Transfer to real settings — the student takes the skill outside the course, applies it to their own context, reflects on the integration. AUDIT SIGNAL: capstone-type assignments that synthesize the term's skills into one integrative performance; reflection prompts that ask students to articulate what they've learned + how they'll use it; real-world transfer activities ('apply this to your own job / community / interest'); showcasing (students publish or present their work to an audience beyond the instructor); self-authored extensions (students propose how they'd apply the learning to a domain of their choosing). KEYWORD MARKERS: transfer, integrate, real-world, your own context, capstone, synthesize, reflect on, apply to your, share with. COMMON GAP: course ends with a high-stakes exam and no integration activity; capstone exists but is structurally identical to weekly assignments; reflection prompts are perfunctory ('what did you learn this week?') rather than substantive (how will you use it?); no transfer-to-domain step. CROSS-WALK: Hattie Transfer phase (IS Integration); Bloom Create level (synthesizing, applying to new contexts); BYUI Course Design Standards 3.5 + 2.3 partial overlap.",
+      "citations": [
+        "Merrill 2002, 2013",
+        "Margaryan, Bianco & Littlejohn 2015 (76 MOOCs sample — most failed Integration)."
+      ]
+    },
+    {
+      "id": "pebble_in_the_pond_sequence",
+      "term": "The Pebble-in-the-Pond Instructional Sequence",
+      "definition": "Merrill's 2013 book formalizes the principles into a DESIGN METHOD. The metaphor: drop a pebble (a whole-task problem) into the pond; the ripples expand outward to teach the supporting skills. THE SEQUENCE: (1) Start with a whole task (Principle 1) — identify the real problem the course will help students solve. (2) For each task, identify component skills the student needs. (3) For each component skill, design instruction including Activation (P2) + Demonstration (P3) + Application (P4) + Integration (P5). (4) Sequence tasks from less to more complex — each subsequent task subsumes prior skills + adds new ones (compounding). IN A CANVAS COURSE: course-level — term opens with a guiding problem/question/project; each week contributes; the term culminates in a whole-task deliverable. Module-level — each module structured A→D→Ap→I around its component skills. Compounding sequence — task complexity grows; later tasks require earlier skills + new. WITHOUT THE SEQUENCE: each module is structurally isolated; the 'capstone' is just a longer weekly assignment; component skills are taught topic-by-topic without a binding task.",
+      "citations": [
+        "Merrill, M. D. (2013). First Principles of Instruction. Pfeiffer/Wiley. Chapters on Pebble-in-the-Pond method."
+      ]
+    },
+    {
+      "id": "merrill_strong_claim_caveat",
+      "term": "Merrill's Strong Claim (Contested) + The Empirical Caveat",
+      "definition": "Merrill's 2002 paper claims the five principles are NECESSARY AND SUFFICIENT for effective instruction. EMPIRICAL CAVEAT: research supports the principles' correlation with effective instruction (Frick et al. 2010 found courses scoring higher on Merrill correlated with higher student-perceived learning + satisfaction; Margaryan et al. 2015 found 76 MOOCs scored low on Application + Integration) but research has NOT established SUFFICIENCY. TREAT THE PRINCIPLES AS: a checklist of conditions that tend to co-occur with effective courses, not a guarantee. Same evidence-based stance as the rest of the canvas-toolbox knowledge layer — frameworks describe correlated conditions; the empirical mechanism literature (cognitive_load, hattie_3phase) explains WHY they correlate. OPERATIONAL POSTURE: present the principles as design conditions to satisfy; never claim a course is 'effective' because it scores well on Merrill — that's a step beyond what the research supports.",
+      "citations": [
+        "Frick, T. W., Chadha, R., Watson, C., & Zlatkovska, E. (2010). Empirical validation correlating Merrill scores with student-perceived learning.",
+        "Margaryan, A., Bianco, M., & Littlejohn, A. (2015). Instructional quality of MOOCs, Computers & Education 80, 77-83."
+      ]
+    },
+    {
+      "id": "online_courses_typical_gaps",
+      "term": "Online Courses Typically Fail Application + Integration (empirical baseline)",
+      "definition": "Per Margaryan, Bianco & Littlejohn 2015 (76 MOOC sample), online courses MOST COMMONLY satisfy Activation (faculty know to scaffold) + Demonstration (faculty know to model) but FAIL Application + Integration. The asymmetry: Activation + Demonstration are content-delivery moves the instructor controls; Application + Integration require ongoing feedback loops + course-arc design that's harder to retrofit. WHEN AUDITING: expect to find Activation + Demonstration covered (modules typically open with review + show worked examples) but Application + Integration thinner. Specifically: Application gaps are usually 'practice with no feedback' (students do problems but get no response); Integration gaps are usually 'perfunctory reflection' (asking students to summarize rather than transfer to their own context). SURFACE THIS ASYMMETRY in the audit output — operators can prioritize Application + Integration fixes.",
+      "citations": [
+        "Margaryan, A., Bianco, M., & Littlejohn, A. (2015). Instructional quality of Massive Open Online Courses (MOOCs). Computers & Education 80, 77-83."
+      ]
+    },
+    {
+      "id": "task_centered_anti_patterns",
+      "term": "Task-centered Anti-patterns (the most-skipped principle)",
+      "definition": "Task-centered is the principle most-skipped in topic-driven course designs. A course that's 'Chapter 1 in week 1, Chapter 2 in week 2...' is topic-driven by construction. AUDIT MOVE: look for the whole task — if there isn't one, that's the gap. THREE COMMON ANTI-PATTERNS: (1) ALL-QUIZ COURSE — every assessment is a quiz testing isolated skills; student demonstrates each skill once but never integrates them. (2) TOPIC-DRIVEN COURSE — 'this week we'll cover X' framing in every module; module overviews list topics, not problems. (3) CAPSTONE-ONLY STRUCTURE — weeks 1-13 are isolated drills + the only whole task is in week 14; too late for the task-centered scaffolding Merrill prescribes (the whole task should be visible from week 1 and progressively built toward). RESOLUTION: introduce a course-spanning whole task early; have weekly assignments contribute pieces; redesign the capstone to integrate skills rather than add one more.",
+      "citations": [
+        "Merrill 2013 — the pebble-in-the-pond chapter explicitly contrasts task-centered vs. topic-driven designs.",
+        "Frick et al. 2010 — empirical: courses with explicit task-centered design score higher."
+      ]
+    },
+    {
+      "id": "integration_anti_patterns",
+      "term": "Integration Anti-patterns (the perfunctory-reflection trap)",
+      "definition": "Integration is the principle most-OFTEN PERFORMATIVE. The most common anti-pattern: a perfunctory final reflection ('what did you learn this week?') that asks the student to SUMMARIZE rather than TRANSFER. Real Integration asks the student to apply the learning to a domain of THEIR OWN CHOOSING. SUBSTANTIVE INTEGRATION PROMPTS look like: 'identify one problem in your current workplace / community / hobby where this skill applies; propose how you'd use what you learned this term to address it; identify 3 implications for someone in that domain who's not in this course.' PERFUNCTORY INTEGRATION PROMPTS look like: 'summarize what you learned'; 'what was the most important concept'; 'reflect on your growth this term.' AUDIT SIGNAL for substantive integration: presence of student-self-authored transfer (student names the domain, not the instructor) + named implications/consequences + audience-extension (showcasing beyond the instructor). AUDIT SIGNAL for performative integration: reflection prompts using only summary verbs (summarize, describe, list) + no transfer-to-domain step.",
+      "citations": [
+        "Merrill 2013 (Integration chapter — explicit on what real transfer demands).",
+        "course_design_language_knowledge.md (Architect's Reflection — the closing-card pattern that Merrill's Integration prescribes the substance of)."
+      ]
+    },
+    {
+      "id": "cross_walk_to_frameworks",
+      "term": "Cross-walk to Other Frameworks in the Knowledge Stack",
+      "definition": "Merrill's 5 principles align with adjacent frameworks (not redundant — complementary): (1) TASK-CENTERED → Hattie Transfer + Kolb Concrete Experience + Bloom upper levels + UbD Stage 2; (2) ACTIVATION → Hattie Surface + Kolb Reflective Observation + Bloom Remember/Understand + (UbD precondition); (3) DEMONSTRATION → Hattie Surface→Deep + Kolb Abstract Conceptualization + Bloom Apply/Analyze + UbD Stage 3; (4) APPLICATION → Hattie Deep + Kolb Active Experimentation + Bloom Apply/Analyze/Evaluate + UbD Stage 3; (5) INTEGRATION → Hattie Transfer + Kolb cycle-closes-with-new-Concrete-Experience + Bloom Evaluate/Create + UbD Stage 1+3. A WELL-DESIGNED COURSE SATISFIES ALL FOUR FRAMEWORKS SIMULTANEOUSLY — Merrill prescribes the design conditions; Hattie describes the empirical phases; Kolb describes the learning cycle; Bloom names the cognitive level. They're different lenses on the same well-designed instruction.",
+      "citations": [
+        "Merrill 2002, 2013 (Merrill explicitly notes alignment with multiple frameworks).",
+        "hattie_3phase_knowledge.md / experiential_learning_knowledge.md / backwards_design_knowledge.md (the companion files)."
+      ]
+    },
+    {
+      "id": "audit_tool_integration",
+      "term": "Audit-Tool Integration — learning_model_audit.py --preset merrill",
+      "definition": "The audit's `merrill` preset scans each module's overview text for the 5 principles' keyword markers (Task-centered, Activation, Demonstration, Application, Integration). Per-module status: COMPLETE (all 5 detected), PARTIAL (1-4 detected), MISSING (0 detected). Cohort-wide aggregate names which principles are most-commonly missing. EXPECTED PATTERN per Margaryan 2015 baseline: Activation + Demonstration most-commonly present; Application + Integration most-commonly missing. The audit surfaces that asymmetry. RECOMMENDED COMPANION AUDITS: run alongside course_alignment_audit (confirms outcomes/assessment chain — Task-centered requires alignment), formative_variety_audit (confirms formative practice exists — Application), workload_audit (confirms the term has room for Integration; cramming Integration into week 14 is the failure mode). Together these four audits give an operator a complete read on whether the course's design embodies Merrill's principles AND scaffolds them across the term. CAVEAT (same evidence-based stance as the other audits): 'principle not detected' means review, not proven absent. The audit catches keyword markers; the principles can be present without those exact words.",
+      "citations": [
+        "lib/tools/learning_model_audit.py (the consuming tool — merrill preset)",
+        "lib/tools/course_alignment_audit.py + formative_variety_audit.py + workload_audit.py (companion audits)"
+      ]
+    },
+    {
+      "id": "operator_default_expectations",
+      "term": "Operator Default Expectations (set the right bar before running)",
+      "definition": "Before running learning_model_audit --preset merrill on a real course, set the right expectations: (1) MOST COURSES will score Activation + Demonstration COMPLETE and Application + Integration PARTIAL or MISSING. This is the empirical baseline, not a defect of the specific course (Margaryan 2015 baseline). (2) THE MERRILL PRINCIPLES ARE DESIGN CONDITIONS, not a guarantee of effective instruction — a course scoring all 5 COMPLETE is not magically effective, and a course scoring 3/5 is not necessarily ineffective. (3) THE PRINCIPLES ARE COURSE-LEVEL OR MODULE-LEVEL design choices, not week-level — a course might satisfy Task-centered at the course level (whole-course project) while individual modules look topic-driven; check both. (4) INSTRUCTOR INTENT MATTERS — a module overview that says 'this week we'll cover X' may still embed Task-centered design in the assignment; the audit can miss the principle when it's present in non-overview content. Always treat the audit as a review prompt, never a verdict.",
+      "citations": [
+        "Margaryan et al. 2015 (the empirical baseline for online-course Merrill scores).",
+        "Frick et al. 2010 (the correlation-not-causation finding)."
+      ]
+    },
+    {
+      "id": "quick_reference",
+      "term": "Quick Reference Table (the 5 principles at a glance)",
+      "definition": "TASK-CENTERED: look for whole tasks, real-world problems, scenario language. Common gap: topic-driven modules with no integrative task. ACTIVATION: look for 'recall', 'build on', prior-knowledge connections. Common gap: modules drop new content cold. DEMONSTRATION: look for worked examples, video demonstrations, exemplars. Common gap: lecture-only without modeling. APPLICATION: look for practice activities, feedback loops, drafts. Common gap: no application, or application without feedback. INTEGRATION: look for capstone, transfer, 'apply to your own', reflection-with-substance. Common gap: perfunctory reflection, capstone-as-larger-weekly-assignment.",
+      "citations": [
+        "Merrill 2002 — the source paper with all 5 principles named.",
+        "Merrill 2013 — the operational design method (pebble-in-the-pond)."
+      ]
+    }
+  ],
+  "provenance": {
+    "sources": [
+      "Merrill, M. D. (2002). First Principles of Instruction. Educational Technology Research and Development, 50(3), 43-59. The canonical synthesis paper.",
+      "Merrill, M. D. (2013). First Principles of Instruction: Identifying and Designing Effective, Efficient, and Engaging Instruction. Pfeiffer/Wiley. Book-length treatment + the pebble-in-the-pond design method.",
+      "Frick, T. W., Chadha, R., Watson, C., & Zlatkovska, E. (2010). Improving course evaluations to improve instruction: A new system that hears the student voice. Empirical validation correlating Merrill scores with student-perceived learning.",
+      "Margaryan, A., Bianco, M., & Littlejohn, A. (2015). Instructional quality of Massive Open Online Courses (MOOCs). Computers & Education, 80, 77-83. Used Merrill's principles to evaluate 76 MOOCs; found most failed Application and Integration.",
+      "Mayer, R. E. (2017). Using multimedia for e-learning. Journal of Computer Assisted Learning, 33(5), 403-423. Mayer's multimedia principles are consistent with + supportive of Merrill's Demonstration."
+    ],
+    "last_reviewed": "2026-06-10"
+  },
+  "validation": {
+    "pre_run_checklist": [
+      "knowledge/ folder exists",
+      "Each entry in consumed_by[] resolves to an existing agent or tool",
+      "Companion knowledge files exist: hattie_3phase, backwards_design, assessments, cognitive_load_theory, experiential_learning, designer_thinking, course_design_standards"
+    ],
+    "post_run_checklist": [
+      "knowledge/merrill_first_principles_knowledge.md exists",
+      "knowledge/merrill_first_principles_knowledge.json exists with shape=reference and facts[] present",
+      "_metadata.runtime_strategy is set",
+      "consumed_by[] is non-empty",
+      "provenance.sources[] is non-empty"
+    ],
+    "real_course_validation": "PENDING (v0.1). The knowledge file has not yet been consumed by a live audit run. Promotion path: learning_model_audit.py --preset merrill runs against a real course and the operator confirms per-principle keyword detection lands at faculty-actionable accuracy (matches the empirical baseline pattern from Margaryan 2015: Activation + Demonstration commonly present; Application + Integration commonly thin).",
+    "test_cases": []
+  },
+  "changelog": {
+    "versions": [
+      {
+        "version": "0.1",
+        "date": "2026-06-10",
+        "changes": [
+          "Created from parking-lot entry (handoffs/parkinglot.md line 44). Synthesized from Merrill 2002 (canonical) + Merrill 2013 (pebble-in-the-pond method) + Frick et al 2010 (empirical correlation) + Margaryan et al 2015 (MOOC baseline showing Application + Integration commonly fail) + Mayer 2017 (multimedia principles consistent with Demonstration).",
+          "Captures 14 named facts: 5 per-principle definitions + audit signals, the pebble-in-the-pond sequence, the necessary-AND-sufficient strong claim + empirical caveat, the online-course-typical-gap pattern (Application + Integration), Task-centered anti-patterns, Integration anti-patterns (perfunctory reflection), cross-walk to Hattie/Kolb/Bloom/UbD, audit-tool integration with learning_model_audit --preset merrill, operator default expectations, quick reference.",
+          "Wired into learning_model_audit.py as the `merrill` preset (5 phases corresponding to the 5 principles, with keyword markers per principle).",
+          "Catalogued status: v0.1 untested per the canvas-toolbox 0.x convention. Promotes when learning_model_audit.py --preset merrill runs against a real course and the per-principle keyword detection lands at faculty-actionable accuracy."
+        ]
+      }
+    ]
+  }
+}
