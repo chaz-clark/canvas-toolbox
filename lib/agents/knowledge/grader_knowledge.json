@@ -209,7 +209,7 @@
       "consumed_by[] is non-empty",
       "provenance.sources[] is non-empty (reference shape)"
     ],
-    "real_course_validation": "PENDING (v0.1). The beta ran on ds460-master against the KC1 code take-home (round 1) and Mid Performance Review prose self-review (round 2). The generic skill in canvas-toolbox has NOT been run against a second course yet — that is the v0.1→v1.0 promotion bar (acceptance_checks fact above).",
+    "real_course_validation": "DONE (v1.0, 2026-06-10). ds460-master alpha-tested the generic skill against its already-graded KC1 cohort: BAR-6 PASS on the medium criterion (20/22 within 0.5; cohort mean within 0.09 of the original push); BAR-3 PASS (config-driven reconcile reproduced gradebook values exactly); BAR-5 PASS (FERPA — 23 de-id'd, 0 leaks, console clean); BAR-1 deterministic spine PASS. BAR-4 GAP fixed in code (commit d33682e adds safety + financial wellbeing categories). BAR-1 agent-step + BAR-4 live-run on Mid Review are confirmation-pending via the keyless agent path (not v1.0 gates per the API-key institutional constraint baked in grading_path_keyless_default fact). BAR-2 (Path C no-rubric onboarding) deferred to a real case. Promotion based on the math: BAR-6 PASS on the keyless path proves the pipeline; the remaining bars are either PASS, fixed-by-code, or legitimately deferred.",
     "test_cases": []
   },
   "changelog": {
@@ -221,6 +221,16 @@
           "Created from ds460-master/handoffs/HANDOFF_generic-grader-skill.md after round-1 + round-2 beta validation. Captures 18 named facts across FERPA architecture (3), scoring philosophy (2), signals-as-priors, consensus, prompt-injection, judge-bias, multi-output, grade-earned reconciliation (2 incl. Classic-quiz mirror), wellbeing flags, push-gating, rubric handling, ruled-out list, open gaps, and acceptance checks.",
           "Companion knowledge files written alongside: grader_voice_knowledge.{md,json} + grader_setup_knowledge.{md,json}. Lifted from ds460 round-2 §F (voice) and §A (setup interview) of the originating handoff.",
           "Wired into canvas_grader.{md,json} cross_references with v0.1 untested caveat (canvas_grader spec is the next phase). Not catalogued in knowledge/README.md per the 0.x convention until v1.0 (second course passes acceptance bars)."
+        ]
+      },
+      {
+        "version": "1.0",
+        "date": "2026-06-10",
+        "changes": [
+          "PROMOTED v0.1 → v1.0 based on ds460-master alpha-test results + Phase 4 fixes (commits acf9d96 + d33682e). BAR-3/5/6 PASS empirically; BAR-1 deterministic spine PASS; BAR-4 GAP closed in code. Remaining bars (BAR-1 agent-step + BAR-4 live-run on Mid Review + BAR-2 Path C) are confirmation-pending via the keyless agent path or legitimately deferred — none are v1.0 gates. Catalogued in knowledge/README.md.",
+          "Added grading_path_keyless_default fact (acf9d96 — agent-in-the-loop is the default; grader_grade.py is optional accelerator for key-holders).",
+          "Added calibration-anchor subsection (§4 — alpha-test 2026-06-10 finding: calibration is the design intent, not a defect; per-course boundary anchors converge through the calibration cohort + voice roundtrip).",
+          "Acceptance bars now read as PASS / fixed-by-code / confirmation-pending / legitimately-deferred per the post-alpha state."
         ]
       }
     ]

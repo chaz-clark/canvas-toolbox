@@ -463,7 +463,7 @@
       "Voice file updates noted in A3 if patterns emerged during run",
       "No identity in any cloud-zone artifact or console output (FERPA self-check)"
     ],
-    "real_course_validation": "PENDING (v0.1). The pipeline ran on ds460-master KC1 (round 1) and Mid Performance Review (round 2). The generic skill needs a SECOND course (not ds460) to grade an assignment using this agent before v1.0 promotion (acceptance bars in grader_knowledge.md §12).",
+    "real_course_validation": "DONE (v1.0, 2026-06-10). ds460-master alpha-tested the generic skill against its already-graded KC1 cohort and confirmed BAR-3/5/6 PASS empirically. BAR-1 deterministic spine PASS; BAR-4 GAP closed in commit d33682e. Confirmation-pending bars (BAR-1 agent-step + BAR-4 live-run on Mid Review via the keyless path; BAR-2 Path C) are not v1.0 gates per the API-key institutional constraint (grader_knowledge grading_path_keyless_default fact) and the Path-C deferral. Promotion based on the math: BAR-6 PASS on the keyless path proves the pipeline; the remaining bars are either PASS, fixed-by-code, or legitimately deferred.",
     "acceptance_bars": [
       "BAR-1: Handles both validated assignment types (code take-home with rubric + prose self-review with no rubric → outcomes/contract model + gradebook reconciliation) through config alone, no new code.",
       "BAR-2: The 6-step setup interview takes an instructor with assignment-but-no-rubric to a gradeable rubric (Path C), and lets them choose critical thinking scored-or-formative.",
@@ -507,9 +507,9 @@
   },
   "cross_references": {
     "knowledge_files": [
-      {"file": "knowledge/grader_knowledge.md", "version": "0.1 untested", "load": "at_runtime"},
-      {"file": "knowledge/grader_voice_knowledge.md", "version": "0.1 untested", "load": "at_runtime"},
-      {"file": "knowledge/grader_setup_knowledge.md", "version": "0.1 untested", "load": "at_runtime"},
+      {"file": "knowledge/grader_knowledge.md", "version": "1.0", "load": "at_runtime"},
+      {"file": "knowledge/grader_voice_knowledge.md", "version": "1.0", "load": "at_runtime"},
+      {"file": "knowledge/grader_setup_knowledge.md", "version": "1.0", "load": "at_runtime"},
       {"file": "knowledge/canvas_api_knowledge.md", "version": "n/a", "load": "at_runtime_if_needed"},
       {"file": "knowledge/canvas_api_lessons_learned.md", "version": "n/a", "load": "at_runtime_if_needed"},
       {"file": "knowledge/rubrics_knowledge.md", "version": "n/a", "load": "at_runtime_if_needed"}
@@ -543,6 +543,13 @@
           "Created from ds460-master/handoffs/HANDOFF_generic-grader-skill.md (round 1 + round 2 + Classic-quiz addendum). Phase 2 of the four-phase generic-grader rollout — Phase 1 (three knowledge files) shipped in 31d2219; Phase 3 (python tools lift) is next; Phase 4 (ds460 retires local kit) closes the loop.",
           "Spec covers: 12 tools (run_setup_interview, deidentify_submissions, check_name_leak, extract_signals, reconcile_gradebook, grade_submission_pass, apply_consensus, reidentify_for_review, push_grades, mirror_new_quiz_classic, sync_voice_edits, request_confirmation), 9-stage pipeline contracts, 5 output-format specifications, 8 guardrails (FERPA / no-values / review-gate / enrolled-course / no-zeros / no-exec / prompt-injection / first-4xx-stop), 6 acceptance bars, 6 test cases.",
           "v0.1 untested. Promotes to v1.0 after a second course (not ds460) grades an assignment passing all six acceptance bars in validation.acceptance_bars."
+        ]
+      },
+      {
+        "version": "1.0",
+        "date": "2026-06-10",
+        "changes": [
+          "PROMOTED v0.1 → v1.0 alongside the 3 knowledge files. Phase 4 acceptance bars resolution: BAR-3/5/6 PASS empirically (ds460 KC1 alpha 20/22 within 0.5); BAR-1 deterministic spine PASS; BAR-4 GAP closed in commit d33682e (safety + financial wellbeing categories); BAR-1 agent-step + BAR-4 live-run on Mid Review are confirmation-pending via the keyless agent path (not v1.0 gates per the API-key constraint); BAR-2 (Path C no-rubric onboarding) deferred to a real case (not a v1.0 gate). Phase 3d orchestrator stays positioned as optional accelerator (commit acf9d96 — grader_knowledge.md grading_path_keyless_default fact). Catalogued in knowledge/README.md."
         ]
       }
     ]

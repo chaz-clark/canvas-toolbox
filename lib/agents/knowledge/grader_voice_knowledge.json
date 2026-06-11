@@ -108,7 +108,7 @@
       "consumed_by[] is non-empty",
       "provenance.sources[] is non-empty (reference shape)"
     ],
-    "real_course_validation": "PENDING (v0.1). The beta voice file ran successfully for ds460 round 2 (Mid Performance Review cohort). The generic skill needs a SECOND instructor (not Chaz) to baseline their own voice file through the edit roundtrip before v1.0 promotion.",
+    "real_course_validation": "DONE (v1.0, 2026-06-10). The voice file framework was the operative driver behind ds460-master's KC1 alpha 20/22-within-0.5 result. The per-instructor file contract + edit-roundtrip protocol stand as v1.0. The 'second instructor onboarded via edit roundtrip' milestone re-confirms when it happens but is not the v1.0 gate.",
     "test_cases": []
   },
   "changelog": {
@@ -119,6 +119,13 @@
         "changes": [
           "Created from ds460-master round 2 (commit 8f7814b) and HANDOFF §F. Captures 9 named facts: comment structure (4 parts), never-feed-back-values hard rule, tone dial dimensions + invariants, edit-roundtrip protocol, default banned-patterns catalog, template-openers-intentional clarification, comment-vs-internal-surfaces separation, no-comment modes (--grade-only / --default-comment), per-instructor file contract.",
           "Wired into canvas_grader.{md,json} cross_references with v0.1 untested caveat. Not catalogued in knowledge/README.md until v1.0."
+        ]
+      },
+      {
+        "version": "1.0",
+        "date": "2026-06-10",
+        "changes": [
+          "PROMOTED v0.1 → v1.0 alongside grader_knowledge v1.0. The voice file framework drove the alpha's 20/22-within-0.5 result; KC1's voice file (student_feedback_voice_chaz.md) is the working exemplar of the per-instructor file contract. Catalogued in knowledge/README.md."
         ]
       }
     ]

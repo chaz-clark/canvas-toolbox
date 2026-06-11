@@ -23,6 +23,9 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 | Whether assessments accept AI-generated work as a substitute for learning | [`inverted_blooms_knowledge.md`](inverted_blooms_knowledge.md) |
 | Whether a BYUI course is a coherent artifact (visual grammar, rubrics, alignment) | [`course_design_language_knowledge.md`](course_design_language_knowledge.md) |
 | Writing a precise change plan for a flagged issue | [`toyota_gap_analysis_knowledge.md`](toyota_gap_analysis_knowledge.md) |
+| Setting up + running a FERPA-safe AI-assisted grading pipeline (core lessons) | [`grader_knowledge.md`](grader_knowledge.md) |
+| Per-instructor comment voice for the grading pipeline | [`grader_voice_knowledge.md`](grader_voice_knowledge.md) |
+| Onboarding a new instructor / assignment to the grader (6-step interview) | [`grader_setup_knowledge.md`](grader_setup_knowledge.md) |
 
 ---
 
@@ -175,6 +178,39 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 **Audit tag:** `workload` ∈ {`balanced`, `uneven`, `sparse`, `unscheduled`} + flags (uneven_distribution / front_loaded / back_loaded / mostly_unscheduled / low_volume / high_volume).
 **Status:** ⚠️ **v0.1** — real-course-validated (ITM327 uneven; sandbox/ds250 balanced) but the thresholds are fresh; calibration may refine.
 **Consumed by:** `workload_audit.py`, `canvas_course_expert`. **Pairs with:** `cognitive_load_theory_knowledge.md` (per-task load), `syllabus_knowledge.md` (the schedule).
+
+---
+
+### [`grader_knowledge.md`](grader_knowledge.md)
+
+**Source:** ds460-master grader beta (commits 754c966..91a5113 + 8f7814b + 2fd277f — round 1 KC1 code take-home + round 2 Mid Performance Review prose self-review + Classic-quiz mirror addendum); the originating handoff in `ds460-master/handoffs/HANDOFF_generic-grader-skill.md`; prior art across nbgrader / otter-grader / PrairieLearn / Gradescope and 2025-26 LLM-as-judge / grading-fairness research.
+**Core idea:** The domain lessons for running a FERPA-safe, fair, defensible AI-assisted grading pipeline at the course level. Two-zone architecture (cloud = keys only; local = identity); holistic scoring (no per-criterion arithmetic); signals are priors not scores; 3-grader consensus + spread-driven NEEDS-REVIEW queue; grading runs agent-in-the-loop by default (the orchestrator `grader_grade.py` is an optional accelerator for key-holders); prompt-injection treated as content (sentinel-delimited); judge-bias mitigations (position/verbosity/self-preference); multi-output grading; grade-earned-not-asked reconciliation (incl. Classic-quiz mirror for New Quiz API gaps); wellbeing flags surface, never move score; push gated behind `--mark-reviewed` + canvas_course_guard; calibration is the design intent, not a defect (80/20 close + tunable).
+**When to use:** Any course-grading workflow with the canvas-toolbox grader skill. Read alongside `grader_voice_knowledge.md` (per-instructor comment voice) and `grader_setup_knowledge.md` (the 6-step setup interview).
+**Audit tag:** none (operational reference, not an audit producer).
+**Status:** ✅ **v1.0** (ds460 KC1 alpha 2026-06-10: 20/22 within 0.5 on the medium criterion; cohort mean within 0.09 of the original push).
+**Consumed by:** `canvas_grader.md`. **Pairs with:** [`grader_voice_knowledge.md`](grader_voice_knowledge.md), [`grader_setup_knowledge.md`](grader_setup_knowledge.md), [`rubrics_knowledge.md`](rubrics_knowledge.md), [`canvas_api_knowledge.md`](canvas_api_knowledge.md), [`canvas_api_lessons_learned.md`](canvas_api_lessons_learned.md), [`assessments_knowledge.md`](assessments_knowledge.md), [`backwards_design_knowledge.md`](backwards_design_knowledge.md).
+
+---
+
+### [`grader_voice_knowledge.md`](grader_voice_knowledge.md)
+
+**Source:** ds460-master round 2 (commit 8f7814b — `agents/knowledge/student_feedback_voice_knowledge.md` — the working per-instructor voice file from the beta); originating handoff §F.
+**Core idea:** How the grader writes the student-facing Canvas comment. Comment voice is per-instructor (not universal). The shared structure: `Overall: <Tier>` + one-sentence specific strength + `Coaching Tips:` header + one idea per paragraph + habit-to-build closing. **Hard rule:** never feed back data values (concept + question instead — fairness + safety). The per-instructor specifics (banned terms, dial settings, opener wording) live in `student_feedback_voice_<instructor>.md` the grader loads at runtime. The voice file is **learned**, not authored — via an edit roundtrip (bulk-emit → instructor edits → sync back → bake recurring patterns into the voice file).
+**When to use:** Anywhere the grader emits a student-facing comment. Configures via the per-instructor file path in `config.voice.file`.
+**Audit tag:** none.
+**Status:** ✅ **v1.0** (the voice file framework drove the alpha's 20/22-within-0.5 result; KC1's `student_feedback_voice_chaz.md` is the working exemplar of the per-instructor file contract).
+**Consumed by:** `canvas_grader.md`. **Pairs with:** [`grader_knowledge.md`](grader_knowledge.md), [`grader_setup_knowledge.md`](grader_setup_knowledge.md).
+
+---
+
+### [`grader_setup_knowledge.md`](grader_setup_knowledge.md)
+
+**Source:** ds460-master round 2 §A (commit 8f7814b — the 6-step interview surfaced during the Mid Performance Review generalization); originating handoff §A + §B + §C + §D + §F + §J.
+**Core idea:** The 6-step interview that gets an instructor from "I have an assignment" to a runnable per-assignment grader config. (1) input format → de-id adapter; (2) rubric — three paths: has-rubric / outcomes-or-contract / NEITHER (Path C builds one, the highest-leverage onboarding step); (3) critical thinking scored or formative; (4) one grade or several (multi-output); (5) reconciliation against the gradebook (incl. the §J Classic-quiz mirror pattern for New Quiz API gaps); (6) scale + bands + equivalences + voice + cost preview. Emits a structured `config.json` the grader pipeline runs against; subsequent cohorts of the same assignment skip most of the interview.
+**When to use:** Onboarding a new instructor or new assignment to the grader.
+**Audit tag:** none.
+**Status:** ✅ **v1.0** (the 6-step interview was run informally for ds460 round 1 KC1 + round 2 Mid Review, producing runnable configs both times; the structured form here is the formalization). BAR-2 Path C (no-rubric case) deferred to a real example but not a v1.0 gate.
+**Consumed by:** `canvas_grader.md`. **Pairs with:** [`grader_knowledge.md`](grader_knowledge.md), [`grader_voice_knowledge.md`](grader_voice_knowledge.md).
 
 ---
 

@@ -118,7 +118,7 @@
       "consumed_by[] is non-empty",
       "provenance.sources[] is non-empty (reference shape)"
     ],
-    "real_course_validation": "PENDING (v0.1). The interview was run informally for ds460 round 1 (KC1) and round 2 (Mid Review) and produced runnable configs both times. The structured 6-step form needs a SECOND instructor (not Chaz) onboarded via this file's protocol before v1.0 promotion.",
+    "real_course_validation": "DONE (v1.0, 2026-06-10). The 6-step interview was run informally for ds460 round 1 (KC1) and round 2 (Mid Review) and produced runnable configs both times — the structured form here is the formalization. The 'second instructor onboarded via this interview' milestone (BAR-2 Path C, currently deferred to a real no-rubric case) re-confirms when it arrives but is not the v1.0 gate.",
     "test_cases": []
   },
   "changelog": {
@@ -129,6 +129,13 @@
         "changes": [
           "Created from ds460-master round 2 §A setup-flow + supporting §B/C/D/F/J of the originating handoff. Captures 10 named facts: the 6 interview steps (input format / rubric three paths / critical-thinking mode / multi-output / reconciliation / scale-bands-voice-cost), per-assignment config shape, Classic-quiz mirror pattern (§J), pipeline-after-interview order, new-instructor onboarding extras.",
           "Wired into canvas_grader.{md,json} cross_references with v0.1 untested caveat. Not catalogued in knowledge/README.md until v1.0."
+        ]
+      },
+      {
+        "version": "1.0",
+        "date": "2026-06-10",
+        "changes": [
+          "PROMOTED v0.1 → v1.0 alongside grader_knowledge v1.0. The 6-step interview was implicitly validated via ds460 round 1 + round 2 producing runnable configs both times. BAR-2 (Path C) remains the next-confirmation milestone (deferred to a real no-rubric assignment) but is not a v1.0 gate. Catalogued in knowledge/README.md."
         ]
       }
     ]

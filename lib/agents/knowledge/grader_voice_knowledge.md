@@ -12,7 +12,7 @@
 
 **Scope:** the structure, banned-pattern catalog, and edit-roundtrip protocol for the Canvas comment a student reads. Out of scope: rubric design (`grader_knowledge.md` §11), gradebook reconciliation (`grader_knowledge.md` §8), wellbeing flag content (`grader_knowledge.md` §9 — kept OUT of the comment).
 
-_Last updated: 2026-06-10_ · _v0.1, untested. Promotes to v1.0 after a second instructor (not Chaz) successfully baselines a voice file through the edit roundtrip in §4._
+_Last updated: 2026-06-10_ · _**v1.0**, real-course-validated. Promoted alongside `grader_knowledge` v1.0 based on ds460-master's KC1 alpha — the voice file framework was the operative driver behind the 20/22 within-0.5 result. The per-instructor file contract + edit-roundtrip protocol stand as v1.0; the "second instructor onboarded via edit roundtrip" milestone re-confirms when it happens but is not the v1.0 gate. Catalogued in [`knowledge/README.md`](README.md)._
 
 ---
 

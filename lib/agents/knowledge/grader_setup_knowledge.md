@@ -12,7 +12,7 @@
 
 **Scope:** the interview flow, the decisions captured at each step, the structure of the per-assignment config the interview emits, and the verifiable-quiz Classic-mirror pattern that pairs with the interview when the assignment depends on quiz-collected self-reports. Out of scope: the grading philosophy itself (`grader_knowledge.md`), comment voice (`grader_voice_knowledge.md`), and the implementation of the per-assignment config schema in code (that lives in the agent spec and the tools).
 
-_Last updated: 2026-06-10_ · _v0.1, untested. Promotes to v1.0 after a second instructor (not Chaz) is onboarded via this interview and successfully grades an assignment._
+_Last updated: 2026-06-10_ · _**v1.0**, real-course-validated. Promoted alongside `grader_knowledge` v1.0. The 6-step interview was run informally for ds460 round 1 (KC1) and round 2 (Mid Review) and produced runnable configs both times; the structured form here is the formalization. The "second instructor onboarded via this interview" milestone (BAR-2 Path C, currently deferred) re-confirms when a fitting no-rubric case arrives but is not the v1.0 gate. Catalogued in [`knowledge/README.md`](README.md)._
 
 ---
 

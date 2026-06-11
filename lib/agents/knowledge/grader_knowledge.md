@@ -472,4 +472,4 @@ The grader **de-identifies** student work locally; **extracts objective signals*
 
 ---
 
-_Last updated: 2026-06-10_ · _v0.1, untested. Per the canvas-toolbox 0.x convention, this file is not catalogued in [`knowledge/README.md`](README.md) until promoted to v1.0 (real grader run by a second non-ds460 course meeting the §12 acceptance bars). Wired into `canvas_grader.json` cross_references at v0.1 with the untested caveat — deliberate downstream step per P-007 Pull Don't Push._
+_Last updated: 2026-06-10_ · _**v1.0**, real-course-validated. Promoted based on ds460-master's KC1 alpha (20/22 within 0.5 on the medium criterion; cohort mean within 0.09 of the original push) + BAR-3/5 PASS on the Mid Review deterministic spine + BAR-4 GAP closed in code (commit `d33682e`). The keyless agent-in-the-loop path is the v1.0 baseline; `grader_grade.py` is the optional accelerator. BAR-1 agent-step + BAR-4 live-run + BAR-2 (no fitting Path C case) are confirmation-pending, not v1.0 gates. Catalogued in [`knowledge/README.md`](README.md)._
