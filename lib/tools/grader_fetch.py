@@ -255,35 +255,55 @@ def write_body_file(body: str, out_path: Path) -> int:
 
 def detect_adapter(raw_dir: Path) -> str:
     """Sniff submissions_raw/ and pick the right de-id adapter.
-    Returns 'docx', 'databricks', or 'mixed_or_unknown'.
+    Returns one of: 'docx', 'databricks', 'text', 'pdf', 'xlsx',
+    'mixed_or_unknown'.
 
-    Rules (in order):
-      - any .docx → 'docx' (unless .html also present → mixed)
-      - all .html with __DATABRICKS_NOTEBOOK_MODEL marker → 'databricks'
-      - any other case → 'mixed_or_unknown'
+    Rules (homogeneous extensions only; mixed types → mixed_or_unknown):
+      - all .docx → 'docx'
+      - all .pdf  → 'pdf'
+      - all .xlsx → 'xlsx'
+      - all .txt or .md (or a mix of these two) → 'text'
+      - all .html:
+          * if EVERY .html file has __DATABRICKS_NOTEBOOK_MODEL → 'databricks'
+          * if NO .html file has the marker → 'text' (online_text_entry bodies)
+          * mixed (some have marker, some don't) → 'mixed_or_unknown'
+      - any extension mix that doesn't fit above → 'mixed_or_unknown'
     """
     files = [p for p in raw_dir.iterdir() if p.is_file() and not p.name.startswith(".")]
     if not files:
         return "mixed_or_unknown"
+
     exts = {p.suffix.lower() for p in files}
-    has_docx = ".docx" in exts
-    has_html = ".html" in exts
-    if has_docx and has_html:
-        return "mixed_or_unknown"
-    if has_docx:
+
+    # Pure single-extension cases first
+    if exts == {".docx"}:
         return "docx"
-    if has_html:
-        # Confirm at least one file actually has the Databricks marker
-        for p in files:
-            if p.suffix.lower() != ".html":
-                continue
+    if exts == {".pdf"}:
+        return "pdf"
+    if exts == {".xlsx"}:
+        return "xlsx"
+    if exts <= {".txt", ".md"}:  # subset — accepts pure .txt, pure .md, or mix
+        return "text"
+
+    # HTML — disambiguate databricks vs. text by sniffing each file
+    if exts == {".html"} or exts == {".html", ".htm"}:
+        html_files = [p for p in files if p.suffix.lower() in (".html", ".htm")]
+        marker_count = 0
+        for p in html_files:
             try:
                 head = p.read_text(encoding="utf-8", errors="replace")[:200_000]
             except Exception:
                 continue
             if "__DATABRICKS_NOTEBOOK_MODEL" in head:
-                return "databricks"
-        return "mixed_or_unknown"
+                marker_count += 1
+        if marker_count == len(html_files):
+            return "databricks"
+        if marker_count == 0:
+            return "text"
+        return "mixed_or_unknown"  # some have marker, some don't
+
+    # Heterogeneous extensions (e.g. .docx + .pdf in one cohort) — operator
+    # must split or pick explicitly.
     return "mixed_or_unknown"
 
 
@@ -356,11 +376,12 @@ def main() -> int:
                     help="Skip the default chain into deidentify + name_leak_check after "
                          "download. Default: chain ON — a single grader_fetch.py call "
                          "lands at a fully-de-identified, leak-verified state.")
-    ap.add_argument("--deid-adapter", choices=("auto", "databricks", "docx", "none"),
+    ap.add_argument("--deid-adapter",
+                    choices=("auto", "databricks", "docx", "text", "pdf", "xlsx", "none"),
                     default="auto",
                     help="De-id adapter to chain into. Default 'auto' sniffs the file "
-                         "types in submissions_raw/ and picks docx OR databricks. "
-                         "'none' skips de-id even when --no-chain is not set.")
+                         "types in submissions_raw/ and picks docx / databricks / text / "
+                         "pdf / xlsx. 'none' skips de-id even when --no-chain is not set.")
     args = ap.parse_args()
 
     tok, cid, base = _env_canvas(args.course_id)
@@ -573,14 +594,19 @@ def main() -> int:
     adapter = args.deid_adapter if args.deid_adapter != "auto" else detect_adapter(raw_dir)
     if adapter == "mixed_or_unknown":
         print("\nChain: could not auto-detect a single de-id adapter for "
-              f"{raw_dir.name}/. Mixed file types or no Databricks marker found. "
-              "Pass --deid-adapter databricks | docx to choose, or --no-chain to "
-              "skip and run the right adapter manually.", file=sys.stderr)
+              f"{raw_dir.name}/. Mixed file types, mixed HTML (some Databricks, "
+              "some bare), or an extension we don't handle. "
+              "Pass --deid-adapter databricks | docx | text | pdf | xlsx to "
+              "choose, or --no-chain to skip and run the right adapter manually.",
+              file=sys.stderr)
         return 4
 
     tool_for_adapter = {
         "databricks": "grader_deidentify_databricks.py",
         "docx": "grader_deidentify_docx.py",
+        "text": "grader_deidentify_text.py",
+        "pdf": "grader_deidentify_pdf.py",
+        "xlsx": "grader_deidentify_xlsx.py",
     }[adapter]
     deid_cmd = [
         sys.executable, str(_TOOLS_DIR / tool_for_adapter),

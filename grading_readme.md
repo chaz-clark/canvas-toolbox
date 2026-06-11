@@ -134,11 +134,23 @@ Everything that is FERPA-sensitive is **gitignored by default** via
                           ├─ downloads submissions keyed by user_id (no name in filename)
                           └─ chains by default into Steps 2 + 3 (--no-chain opts out)
 
-2. De-identify          grader_deidentify_databricks.py    (auto-picked from file types)
-                        or grader_deidentify_docx.py
-                          ├─ strips names, emails, paths, hardcoded secrets
-                          ├─ writes keyed .md files to submissions_deid/
-                          └─ writes .keymap.json (key → filename bridge)
+2. De-identify          grader_deidentify_<adapter>.py    (auto-picked by file types)
+                          ├─ Adapters by submission type:
+                          │    .docx              → grader_deidentify_docx.py
+                          │    .html (Databricks) → grader_deidentify_databricks.py
+                          │    .html (bare body)  → grader_deidentify_text.py
+                          │      OR .txt / .md       (online_text_entry case)
+                          │    .pdf               → grader_deidentify_pdf.py
+                          │      (warns + writes placeholder on image-only PDFs;
+                          │       operator OCRs or skips)
+                          │    .xlsx              → grader_deidentify_xlsx.py
+                          │      (workbook audit pattern: structure, formulas,
+                          │       formatting, charts — NOT the raw binary;
+                          │       file properties scrubbed)
+                          ├─ All adapters: strip names, emails, paths, hardcoded
+                          │  secrets; honor .known_names.txt for peer-mention scrub
+                          ├─ Writes keyed .md files to submissions_deid/
+                          └─ Writes .keymap.json (key → filename bridge)
 
 3. Name-leak check      grader_name_leak_check.py
                           └─ FAILS NON-ZERO if any name from .known_names.txt
@@ -583,7 +595,7 @@ All grader tools live in `lib/tools/grader_*.py`. They share the
 flag list:
 
 - `grader_fetch.py` — Step 0 (fetch + roster + chain to deid + leak-check)
-- `grader_deidentify_databricks.py` · `grader_deidentify_docx.py` — de-id adapters by file type
+- `grader_deidentify_databricks.py` · `grader_deidentify_docx.py` · `grader_deidentify_text.py` · `grader_deidentify_pdf.py` · `grader_deidentify_xlsx.py` — de-id adapters by file type. `grader_fetch.py`'s auto-chain picks the right adapter automatically; `--deid-adapter` overrides.
 - `grader_name_leak_check.py` — name-leak verifier (FERPA gate)
 - `grader_prep_answer_key.py` — secret-scrub instructor answer keys for code/notebook assignments
 - `grader_signals.py` — static-analysis priors (not scores)
