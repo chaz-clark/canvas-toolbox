@@ -180,6 +180,14 @@ def name_aware_subn(text: str, term: str) -> tuple[str, int]:
     return pat.subn("[REDACTED]", text)
 
 
+def name_aware_count(text: str, term: str) -> int:
+    """Count word-bounded matches of `term` in `text` (case-insensitive). Same
+    regex as name_aware_subn; used by grader_name_leak_check.py where the
+    substituted text isn't needed (issue #49 fix — counts only, no scrub)."""
+    pat = re.compile(rf"(?<![A-Za-z]){re.escape(term)}(?![A-Za-z])", re.IGNORECASE)
+    return len(pat.findall(text))
+
+
 def build_scrub_terms(stem: str, decoded_blob: str, extra_names: list[str] = ()) -> list[str]:
     """Terms to redact from cell text: emails, /Users paths, filename tokens, and
     operator-supplied names (decomposed into full + parts via expand_name_terms)."""
