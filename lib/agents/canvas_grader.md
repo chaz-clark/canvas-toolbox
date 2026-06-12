@@ -58,13 +58,66 @@ The pipeline tools (de-id, signals, consensus, reidentify, push) are **identical
 
 ### Pipeline run order
 
-1. **De-identify** — pick adapter from config; produce keyed `<KEY>.md` + local `.keymap.csv`. Run `check_name_leak.py` self-check.
-2. **Reconcile** (if config.yml `reconciliation.enabled`) — resolve `key → user_id` via local keymap; pull gradebook actuals via Canvas API; emit keyed actuals sheet.
-3. **Grade** — run N grading passes (N = `outputs[].grader_count`). Each pass reads the de-id'd work + rubric/outcomes + per-class course context + per-instructor voice file + calibration anchors.
-4. **Consensus** — majority + spread; auto-flag `spread ≥ threshold` to NEEDS-REVIEW queue (default threshold 0.5 on a 0–4 scale; tune per scale).
-5. **Re-identify locally** — instructor reviews per-student `<KEY>.md` files (re-id'd) and the all-comments overview.
-6. **Wellbeing flags reach the instructor** — keyed `_checkin_flags.md` is part of step 5's review surface.
-7. **Push gate** — `--mark-reviewed` after instructor eyeball; gate auto-invalidates if any comment changed since. Validate on Test Student first. Real push: per-assignment idempotent, never duplicates, never pushes a 0 for a no-show.
+The default invocation is **`grader_fetch.py`** — one command runs steps 0–2
+(fetch + de-identify + leak-check) for ANY supported Canvas `submission_type`.
+The auto-chain can be opted out with `--no-chain` if the operator wants
+manual control of each step.
+
+0. **Fetch** (`grader_fetch.py`) — the new Step 0. One up-front call to
+   `/api/v1/courses/:cid/assignments/:aid` surfaces the `submission_types`
+   and branches:
+   - **Attachment-based** (`online_upload` / `online_text_entry` /
+     `online_url`) — paginates `/submissions`, downloads attachments
+     **keyed by `user_id`** (NO student name in the filename), writes
+     `submissions_raw/<prefix>_<userid>.<ext>`. Also handles
+     `online_text_entry` (body wrapped to .html) and `online_url`
+     (URL text to `.url.txt`).
+   - **`discussion_topic`** — pulls `/discussion_topics/:tid/view` (the
+     threaded view), flattens per-user (top-level posts + nested replies,
+     sorted chronologically), writes bare HTML per student.
+   - **`online_quiz`** — pulls quiz questions once + submissions w/
+     `submission_history`, joins question_id to question text, renders
+     each student's Q+A as Markdown per student.
+   - **Default ON** — pre-populates `.known_names.txt` from the FULL
+     enrolled roster (catches peer mentions of non-submitters too).
+     `--no-roster` opts out.
+1. **De-identify** — `grader_fetch.py` auto-detects file types in
+   `submissions_raw/` and chains to the right adapter (see Existing
+   Tooling table below). All adapters: produce keyed `<KEY>.md` in
+   `submissions_deid/` + update `.keymap.json`. Strips names/emails/
+   userpaths + format-specific identity (PDF metadata, xlsx file
+   properties, ipynb notebook metadata, Databricks identity keys).
+   `--no-chain` skips this and the next step.
+2. **Name-leak check** — `grader_name_leak_check.py` runs against
+   `submissions_deid/`. **FAILS NON-ZERO** if any name from
+   `.known_names.txt` survived. Chain stops; operator must investigate
+   before the AI sees `submissions_deid/`.
+3. **Reconcile** (if config.yml `reconciliation.enabled`) — resolve
+   `key → user_id` via local keymap; pull gradebook actuals via Canvas
+   API; emit keyed actuals sheet to `feedback/_gradebook_actuals.csv`.
+4. **Grade** — run N grading passes (N = `outputs[].grader_count`).
+   Default agent-in-the-loop (keyless); orchestrator (`grader_grade.py`)
+   is the optional accelerator for key-holders. Each pass reads the
+   de-id'd work + rubric/outcomes + per-class context + per-instructor
+   voice file + calibration anchors. Per-pass artifacts:
+   `feedback/_grader<n>.csv` + `feedback/_pass<n>/<KEY>.md`.
+5. **Consensus** (`grader_consensus.py`) — majority + spread; auto-flag
+   `spread ≥ threshold` to NEEDS-REVIEW queue (default 0.5 on a 0–4
+   scale; tune per scale via `--flag`). MAJORITY rule: score ≥2/N agree
+   wins, else median. Emits `_consensus.csv` + `_summary.csv` + winner
+   `feedback/<KEY>.md` per submission + `_all_comments.md` (the
+   compiled review document for instructor edit-and-sync).
+6. **Re-identify locally** (`grader_reidentify.py`) — instructor reviews
+   the per-student `<KEY>.md` files (re-id'd) and the `_all_comments.md`
+   overview. Wellbeing flags reach the instructor via
+   `feedback/_checkin_flags.md` (categories: health / family / stuck /
+   ask_for_help / safety / financial).
+7. **Push gate** (`grader_push.py`) — `--mark-reviewed` after instructor
+   eyeball; gate auto-invalidates if any comment changed since.
+   `canvas_course_guard` refuses live-course writes without
+   `--allow-enrolled`. Per-assignment idempotency via `.push_log.md`
+   (skips already-pushed keys; `--force` overrides). Validate on Test
+   Student first (`grader_fetch.py --test-student-only`).
 
 For structured data — config schema, pipeline stage contracts, output formats, test cases — see `canvas_grader.json`.
 
@@ -207,19 +260,48 @@ For the full principle definitions, see `make-ai-agents/knowledge/behavioral_dis
 
 ## Existing Tooling
 
-> **Phase 3 note**: The python tools in the table below are being lifted-and-generalized from `ds460-master/grading/*.py`. Once Phase 3 lands, this table will resolve to real `lib/tools/grader_*.py` paths. Until then, the agent's pipeline references the ds460 prototype as the working code-of-record.
+All tools shipped at v1.0+ as of 2026-06-11. The path column lists the
+real `lib/tools/` location; the When-to-use column maps to the
+Pipeline-run-order steps above.
 
-| Tool / File | Purpose | Generic-form expected at | When to use |
+### Fetch (Step 0) — the new default entry point
+
+| Tool | Purpose | Path | When to use |
 |---|---|---|---|
-| de-id adapters | Strip identity + secrets; key + cap submissions | `lib/tools/grader_deidentify_*.py` | Step 1 of pipeline; one per format |
-| `check_name_leak.py` | Local FERPA self-check on de-id outputs | `lib/tools/grader_name_leak_check.py` | Before any cloud step |
-| `checks.py` | Objective signal extraction (priors only) | `lib/tools/grader_signals.py` | Step 2 of pipeline |
-| `consensus.py` | Majority + spread + auto-flag NEEDS-REVIEW | `lib/tools/grader_consensus.py` | Step 4 of pipeline |
-| `reconcile_gradebook.py` | Pull gradebook actuals via keymap (anonymous) | `lib/tools/grader_reconcile.py` | Step 2 alt; if reconciliation enabled |
-| `reidentify.py` | Local-only join keys → names → instructor review sheet | `lib/tools/grader_reidentify.py` | Step 5 of pipeline; instructor-only |
-| `push_grades.py` | Local grade+comment push to Canvas + idempotency log | `lib/tools/grader_push.py` | Step 7 of pipeline; behind `--mark-reviewed` |
-| `mirror_standups_classic.py` | Classic-quiz mirror for verifiable self-reports | `lib/tools/grader_quiz_mirror.py` | §J branch of step 5 setup |
-| `sync_voice_edits.py` | Sync instructor's all-comments edits into per-student files | `lib/tools/grader_sync_voice.py` | After voice edit roundtrip |
+| `grader_fetch.py` | Fetch submissions FROM CANVAS keyed by user_id (no name in any filename/console/AI surface) + roster pre-fetch into `.known_names.txt` + auto-chain to deidentify + leak-check. Branches by `submission_type`: attachment / discussion_topic / online_quiz. | `lib/tools/grader_fetch.py` | **Step 0** — the default entry point. One command lands at a leak-verified `submissions_deid/`. |
+| `grader_prep_answer_key.py` | Secret-scrub instructor `.ipynb` answer keys into `key_clean.md` for grading reference (tokens / PATs / API keys redacted; NOT student data, so only secrets are scrubbed, not names). | `lib/tools/grader_prep_answer_key.py` | Once per assignment — only for code/notebook assignments where the grader needs an instructor reference. |
+
+### De-id adapters (Step 1) — one per format; `grader_fetch.py` auto-detects which to chain
+
+| Adapter | Handles | Path | When auto-detect picks it |
+|---|---|---|---|
+| `grader_deidentify_databricks.py` | Databricks HTML notebook exports (cell-aware extraction via base64-encoded notebook model) | `lib/tools/grader_deidentify_databricks.py` | All `.html` files have `__DATABRICKS_NOTEBOOK_MODEL` marker |
+| `grader_deidentify_docx.py` | Word documents (paragraphs + table cells in document order; `Name:` / `Signature:` form fields stripped) | `lib/tools/grader_deidentify_docx.py` | All files are `.docx` |
+| `grader_deidentify_text.py` | Plain text / Markdown / online_text_entry (HTML-wrapped) / generic bare HTML. UTF-8 → CP1252 → Latin-1 encoding fallback. | `lib/tools/grader_deidentify_text.py` | All files are `.txt` / `.md` (or mix) OR all `.html` WITHOUT Databricks marker |
+| `grader_deidentify_pdf.py` | PDF submissions via pdfplumber text-layer extraction. Image-only PDFs: warn + write placeholder explaining operator must OCR. PDF metadata (Author / Title / Creator / Producer) scrubbed. | `lib/tools/grader_deidentify_pdf.py` | All files are `.pdf` |
+| `grader_deidentify_xlsx.py` | Excel via the workbook-audit pattern: sheets / freeze-panes / column formatting / cell details (first 10 rows × 20 cols) / formulas grouped by column-run / charts / named tables. File properties NEVER in output. | `lib/tools/grader_deidentify_xlsx.py` | All files are `.xlsx` |
+| `grader_deidentify_jupyter.py` | Jupyter `.ipynb` per-cell extraction (markdown + code + text outputs; base64 images dropped; notebook metadata scrubbed). | `lib/tools/grader_deidentify_jupyter.py` | All files are `.ipynb` |
+
+### FERPA gate (Step 2) + downstream pipeline
+
+| Tool | Purpose | Path | When to use |
+|---|---|---|---|
+| `grader_name_leak_check.py` | Local FERPA self-check on `submissions_deid/`. Greps for any name in `.known_names.txt`. Non-zero exit if leak detected. | `lib/tools/grader_name_leak_check.py` | **Step 2** — automatic in the chain. Stops pipeline non-zero on leak. |
+| `grader_signals.py` | Objective signal extraction (priors only — NEVER scores). | `lib/tools/grader_signals.py` | Optional Step 4 prep — provides context to grading passes. |
+| `grader_reconcile.py` | Anonymous gradebook reconciliation via local keymap. | `lib/tools/grader_reconcile.py` | Step 3 — if `reconciliation.enabled`. |
+| `grader_grade.py` | N-pass LLM grading orchestrator. **Requires `ANTHROPIC_API_KEY`**. Optional accelerator for key-holders; agent-in-the-loop is the keyless default. | `lib/tools/grader_grade.py` | Step 4 — when a key is available. |
+| `grader_consensus.py` | Majority + spread + auto-flag NEEDS-REVIEW + `_all_comments.md` compile. | `lib/tools/grader_consensus.py` | Step 5 — after all grader passes complete. |
+| `grader_reidentify.py` | Local-only join keys → names → instructor review sheet. | `lib/tools/grader_reidentify.py` | Step 6 — instructor-only. |
+| `grader_push.py` | Local grade+comment push to Canvas. Gated behind `--mark-reviewed`. Per-assignment idempotency via `.push_log.md`. | `lib/tools/grader_push.py` | Step 7 — final write. |
+| `grader_quiz_mirror.py` | Classic-quiz mirror for verifiable self-reports (NWQ API doesn't expose per-item responses; Classic does). | `lib/tools/grader_quiz_mirror.py` | §J branch of setup interview — once per assignment that depends on a quiz. |
+
+### When the agent picks an adapter manually
+
+The default is `grader_fetch.py` auto-detect. The operator only needs to
+override when the cohort has a MIXED file-type set (auto-detect returns
+`mixed_or_unknown`), via `--deid-adapter <choice>`. Choices:
+`{auto, databricks, docx, text, pdf, xlsx, jupyter, none}`. `none`
+disables the chain even when `--no-chain` is not set.
 
 | Existing canvas-toolbox tool | Purpose | Role here |
 |---|---|---|

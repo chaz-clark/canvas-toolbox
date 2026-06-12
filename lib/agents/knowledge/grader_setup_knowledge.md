@@ -28,23 +28,41 @@ A second finding: instructors also vary on **what should be scored** (especially
 
 ### Step 1 — Input format → which de-id adapter to use
 
-**Ask:** "What file format do students submit in?"
+**Ask:** "What file format do students submit in?" — and behind that, "what's
+the Canvas `submission_type` on the assignment?" (Edit Assignment UI →
+Submission Type field; the API field is `submission_types`).
 
-**Capture:**
+In v0.33+ the operator almost never has to pick the adapter manually —
+`grader_fetch.py` auto-detects the file extensions in `submissions_raw/`
+after download and chains to the right adapter automatically. Step 1
+is now primarily about **confirming the path** before running the
+interview's remaining steps + flagging edge cases.
 
-| Answer | Adapter |
-|---|---|
-| Databricks notebook export (`.html`) | `databricks_html` |
-| Jupyter notebook (`.ipynb`) | `ipynb` |
-| Word document (`.docx`) | `docx_form` (handles `Name:` / `Signature:` form-field patterns) |
-| Plain markdown / text | `markdown` |
-| PDF | `pdf` (extract text; warn that figures don't reach the grader) |
-| Multiple formats in one cohort | `multi` — adapter chosen per file by extension |
+**Capture by Canvas `submission_type`:**
+
+| Canvas `submission_type` + file ext | Adapter (`grader_fetch.py` auto-chains) | Notes |
+|---|---|---|
+| `online_text_entry` (Canvas wraps to .html bare body) | `text` | Most common low-effort case — student types into the box |
+| `online_upload` `.docx` | `docx` | Form-field-aware (`Name:` / `Signature:` patterns stripped) |
+| `online_upload` `.pdf` | `pdf` | Warns + writes placeholder for image-only PDFs (operator OCRs or skips) |
+| `online_upload` `.xlsx` | `xlsx` | Workbook audit pattern (structure / formulas / formatting / charts; file properties scrubbed) |
+| `online_upload` `.html` w/ `__DATABRICKS_NOTEBOOK_MODEL` marker | `databricks` | Cell-aware extraction from the encoded notebook model |
+| `online_upload` `.html` bare (no Databricks marker) | `text` | Bare HTML body — flat tag-strip via BeautifulSoup |
+| `online_upload` `.ipynb` | `jupyter` | Per-cell extraction; metadata + base64 images dropped |
+| `online_upload` `.txt` / `.md` | `text` | UTF-8 → CP1252 → Latin-1 encoding fallback |
+| `online_upload` `.csv` / `.py` / `.js` / `.r` / `.sql` (and other plain-text code) | `text` | Falls through cleanly — code is already plain text |
+| `online_upload` mixed extensions (e.g. some students submit .docx, others .pdf) | `mixed_or_unknown` — operator picks via `--deid-adapter <choice>` | Auto-detect refuses to guess; operator splits the cohort or runs adapters manually |
+| `discussion_topic` (graded discussion) | `text` (downstream — `grader_fetch.py` fetches threaded entries first via `/discussion_topics/:tid/view`) | Aggregates each student's top-level posts + nested replies chronologically; downstream text adapter handles the rendered HTML |
+| `online_quiz` (Classic; including NWQ → Classic mirror via `grader_quiz_mirror.py`) | `text` (downstream — `grader_fetch.py` joins quiz questions to `submission_data` first) | Renders each student's Q+A as Markdown; text adapter handles |
+| `online_upload` `.pptx` / `.mp3` / `.mp4` / `.zip` / `student_annotation` | **Not yet built** — see `grading_readme.md §"Canvas submission-type coverage"` for the file-an-issue CTA | Park-with-trigger — explicit operator request lands the adapter |
+| `online_url` | `grader_fetch.py` writes the URL to a `.url.txt` file; no content fetch (FERPA-risky for arbitrary external URLs) | Operator follows the link manually |
+| `on_paper` / `none` / `external_tool` | n/a | Operator grades in the gradebook UI; LTI tools handle their own grading |
 
 **Sub-questions if the answer is one of the structured formats:**
 
-- "Do students submit through Canvas, or sometimes via Slack/email?" → captures the **out-of-band** path (`grader_knowledge.md` §10): if yes, the operator pre-stages those files with `<prefix>_<userid>.<ext>` naming and adds the student's name to `.known_names.txt`.
-- "Are there typical hardcoded secrets in this assignment type?" → captures token-scrub patterns for the de-id adapter (e.g. Databricks tokens for ds460, AWS keys for an infra course).
+- "Do students submit through Canvas, or sometimes via Slack/email?" → captures the **out-of-band** path (`grader_knowledge.md` §10): if yes, the operator pre-stages those files with `<prefix>_<userid>.<ext>` naming and adds the student's name to `.known_names.txt`. (Less common since `grader_fetch.py` makes API fetch the default.)
+- "Are there typical hardcoded secrets in this assignment type?" → captures token-scrub patterns for the de-id adapter (e.g. Databricks tokens for ds460, AWS keys for an infra course). All adapters share the same `SECRET_PREFIX_RE` / `SECRET_ASSIGN_RE` patterns from `grader_deidentify_databricks.py` (single source of truth).
+- "Is this a graded discussion, a quiz, or a regular submission?" → `grader_fetch.py` auto-detects via the assignment metadata, but the operator should know which branch will run so they validate the right submissions surface.
 
 ### Step 2 — Rubric or no rubric → THREE paths
 

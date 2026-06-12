@@ -66,6 +66,41 @@ A single click leaked a name via the IDE's "open file" notice in the round-1 coh
 
 A `check_name_leak.py` style tool runs against the de-id outputs and flags any line that contains a known roster name. Run it before any cloud step. It prints counts only.
 
+### The full FERPA chain — what's automatic and what's not (v0.33+)
+
+The default invocation is `grader_fetch.py` — one command lands at a fully-de-identified, leak-verified state. The chain runs as **defense in depth**: every step has a non-bypassable gate, and any non-zero exit STOPS the pipeline before the AI sees `submissions_deid/`.
+
+```
+grader_fetch.py --challenge-dir grading/<asg> --assignment-id <aid>
+  ├─ STEP A: Roster pre-fetch (DEFAULT ON; --no-roster opts out)
+  │     GET /courses/:cid/users?enrollment_type[]=student
+  │     → .known_names.txt populated with ALL enrolled students
+  │     (not just submitters — catches peer mentions of non-submitters)
+  │
+  ├─ STEP B: Submission fetch (per submission_type)
+  │     ├─ attachment: download keyed by user_id → <prefix>_<userid>.<ext>
+  │     ├─ discussion_topic: /discussion_topics/:tid/view → per-user HTML
+  │     └─ online_quiz: questions × submission_data → per-user Markdown
+  │     NO student name in any filename, console line, or AI surface.
+  │     user_id is Canvas's internal DB row (not SIS) — FERPA-safe to log.
+  │
+  ├─ STEP C: De-identify (auto-chain; --no-chain opts out)
+  │     detect_adapter() picks docx / databricks / text / pdf / xlsx /
+  │     jupyter from file extensions in submissions_raw/
+  │     → writes submissions_deid/<KEY>.md + .keymap.json (gitignored)
+  │
+  └─ STEP D: Name-leak check (auto-chain; same opt-out as Step C)
+        grader_name_leak_check.py against submissions_deid/
+        FAILS NON-ZERO if any name from .known_names.txt survived
+        → chain STOPS; operator MUST investigate before AI reads deid/
+```
+
+**Why the roster pre-fetch is non-negotiable.** Round-1 KC1 surfaced cases where a submitter referenced a non-submitting peer by name (e.g., "I worked on this with Alex" where Alex didn't submit). The submitter-only roster missed Alex; the peer-mention scrub had nothing to redact. Pre-fetching the full enrolled roster closes that gap.
+
+**Why the auto-chain stops on non-zero.** If `grader_name_leak_check` exits non-zero, a name slipped through the deid adapter. The chain refuses to continue — the AI must NOT see `submissions_deid/` until the operator has added the missing name to `.known_names.txt` and re-run deid until leak_check exits 0. This is enforced by the chain logic (non-zero return code propagates and `grader_fetch.py` exits non-zero), not by trust.
+
+**Test Student validation discipline.** Every new assignment's first run should use `grader_fetch.py --test-student-only`. This downloads only the standard Canvas "Test Student" submission, validates the keyed-filename + no-name-in-console contract on a known-fake-student, then exits — the chain is skipped on test-student-only runs. After Test Student validates clean, re-run without the flag to fetch the cohort.
+
 ---
 
 ## 2 — Scoring philosophy: holistic, not additive; reasoning, not exact-match
