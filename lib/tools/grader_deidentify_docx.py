@@ -63,6 +63,7 @@ from grader_deidentify_databricks import (  # noqa: E402
     SECRET_PREFIX_RE,
     SECRET_ASSIGN_RE,
     key_for,
+    expand_name_terms,  # issue #47 — decompose roster names into parts
 )
 
 NAME_RE = re.compile(r"^\s*name\s*[:\-]\s*(.+?)\s*$", re.I | re.M)
@@ -108,7 +109,10 @@ def extract_name(lines: list[str]) -> str | None:
 
 
 def scrub(text: str, name: str | None, extra_names: list[str]) -> tuple[str, int]:
-    terms = set(extra_names)
+    # issue #47 — decompose roster names too (not just the extracted Name: field).
+    # Free-form prose in a docx can still reference peers/students by first
+    # name only, so the full-name-only matching pre-#47 missed those.
+    terms = set(expand_name_terms(extra_names))
     if name:
         terms.add(name)
         for part in re.split(r"[^A-Za-z]+", name):

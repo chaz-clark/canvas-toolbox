@@ -68,6 +68,8 @@ from grader_deidentify_databricks import (  # noqa: E402
     SECRET_PREFIX_RE,
     SECRET_ASSIGN_RE,
     key_for,
+    expand_name_terms,  # issue #47 — decompose roster names into parts
+    name_aware_subn,    # issue #47 — word-boundary scrub
 )
 
 _MAX_PAGES = 200  # safety cap — a 200pp student submission is already extreme
@@ -107,7 +109,7 @@ def build_scrub_terms(stem: str, body: str, metadata: dict, extra_names: list[st
     (Author/Title/Subject/Creator/Producer often carry the student's name),
     emails + userpaths harvested from the body, and (when filename matches
     Canvas's name-in-filename pattern) name halves."""
-    terms = set(extra_names)
+    terms = set(expand_name_terms(extra_names))  # issue #47 — decompose roster names
     # Metadata values are the strongest name signal in a PDF — Word/Pages
     # writes the document author's name into /Author by default.
     for v in metadata.values():
@@ -133,8 +135,8 @@ def build_scrub_terms(stem: str, body: str, metadata: dict, extra_names: list[st
 def scrub(text: str, terms: list[str]) -> tuple[str, int]:
     n = 0
     for t in terms:
-        pat = re.compile(re.escape(t), re.IGNORECASE)
-        text, k = pat.subn("[REDACTED]", text)
+        # issue #47 — word-boundary lookarounds so 'Sam' doesn't match 'Samsung'
+        text, k = name_aware_subn(text, t)
         n += k
     text, k1 = EMAIL_RE.subn("[REDACTED]", text)
     text, k2 = USERPATH_RE.subn("[REDACTED]", text)

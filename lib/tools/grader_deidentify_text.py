@@ -69,11 +69,15 @@ from grader_deidentify_databricks import (  # noqa: E402
     SECRET_PREFIX_RE,
     SECRET_ASSIGN_RE,
     key_for,
+    expand_name_terms,  # issue #47 — decompose roster names into parts
+    name_aware_subn,    # issue #47 — word-boundary scrub
 )
 
-# File extensions this adapter accepts. .html is here because Canvas wraps
-# online_text_entry bodies in HTML (grader_fetch writes them as .html).
-_ACCEPT_EXTS = (".txt", ".md", ".html", ".htm")
+# File extensions this adapter accepts.
+#   .html  — Canvas wraps online_text_entry bodies in HTML (grader_fetch writes them as .html)
+#   .qmd   — Quarto markdown (issue #47 follow-up; functionally markdown + YAML frontmatter +
+#            code chunks; faculty-friendly path so .qmd doesn't need renaming to .md)
+_ACCEPT_EXTS = (".txt", ".md", ".qmd", ".html", ".htm")
 _ENCODINGS = ("utf-8", "cp1252", "latin-1")
 
 
@@ -106,11 +110,12 @@ def strip_html(text: str) -> str:
 
 
 def build_scrub_terms(stem: str, body: str, extra_names: list[str]) -> list[str]:
-    """Terms to redact: operator-supplied names, emails harvested from the body,
-    userpaths, and (when filename matches Canvas's name-in-filename pattern)
-    name halves split from the lastnamefirstname token. Mirrors the Databricks
-    adapter's logic so peer-mention scrubbing is consistent across formats."""
-    terms = set(extra_names)
+    """Terms to redact: operator-supplied names DECOMPOSED into full + parts
+    (issue #47), emails harvested from the body, userpaths, and (when filename
+    matches Canvas's name-in-filename pattern) name halves split from the
+    lastnamefirstname token. Mirrors the Databricks adapter's logic so
+    peer-mention scrubbing is consistent across formats."""
+    terms = set(expand_name_terms(extra_names))  # issue #47 — decompose roster names
     terms.update(EMAIL_RE.findall(body))
     terms.update(USERPATH_RE.findall(body))
     # If the file came in via the OLD manual-download workflow, the filename
@@ -120,7 +125,7 @@ def build_scrub_terms(stem: str, body: str, extra_names: list[str]) -> list[str]
     # matches in the body — defense in depth.
     name_field = stem.split("_", 1)[0].lower()
     body_l = body.lower()
-    if len(name_field) >= 4 and name_field not in {"html", "txt", "md", "late", "new"}:
+    if len(name_field) >= 4 and name_field not in {"html", "txt", "md", "qmd", "late", "new"}:
         terms.add(name_field)
         for i in range(3, len(name_field) - 2):
             left, right = name_field[:i], name_field[i:]
@@ -132,12 +137,12 @@ def build_scrub_terms(stem: str, body: str, extra_names: list[str]) -> list[str]
 
 
 def scrub(text: str, terms: list[str]) -> tuple[str, int]:
-    """Apply name-term scrub + the same belt-and-suspenders email/userpath/secret
-    sweep used by the Databricks adapter."""
+    """Apply name-term scrub with word-boundary lookarounds (issue #47) + the
+    belt-and-suspenders email/userpath/secret sweep."""
     n = 0
     for t in terms:
-        pat = re.compile(re.escape(t), re.IGNORECASE)
-        text, k = pat.subn("[REDACTED]", text)
+        # issue #47 — word-boundary lookarounds so 'Sam' doesn't match 'Samsung'
+        text, k = name_aware_subn(text, t)
         n += k
     text, k1 = EMAIL_RE.subn("[REDACTED]", text)
     text, k2 = USERPATH_RE.subn("[REDACTED]", text)

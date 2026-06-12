@@ -69,6 +69,8 @@ from grader_deidentify_databricks import (  # noqa: E402
     SECRET_PREFIX_RE,
     SECRET_ASSIGN_RE,
     key_for,
+    expand_name_terms,  # issue #47 — decompose roster names into parts
+    name_aware_subn,    # issue #47 — word-boundary scrub
 )
 
 _MAX_HEAD_ROWS = 10   # cell-level detail for the first N rows of each sheet
@@ -229,8 +231,9 @@ def build_scrub_terms(stem: str, audit: str, cell_values: list[str],
                       extra_names: list[str]) -> list[str]:
     """Names in xlsx submissions live in: file properties (already scrubbed by
     omission from the audit), cell values (Name: header cells), and the
-    filename. We also scrub the operator-supplied .known_names.txt."""
-    terms = set(extra_names)
+    filename. We also scrub the operator-supplied .known_names.txt
+    (decomposed into full + parts via expand_name_terms — issue #47)."""
+    terms = set(expand_name_terms(extra_names))  # issue #47 — decompose roster names
     # Any cell value that looks name-like — alpha + spaces, 3-80 chars
     for v in cell_values:
         v = v.strip()
@@ -247,8 +250,8 @@ def build_scrub_terms(stem: str, audit: str, cell_values: list[str],
 def scrub(text: str, terms: list[str]) -> tuple[str, int]:
     n = 0
     for t in terms:
-        pat = re.compile(re.escape(t), re.IGNORECASE)
-        text, k = pat.subn("[REDACTED]", text)
+        # issue #47 — word-boundary lookarounds so 'Sam' doesn't match 'Samsung'
+        text, k = name_aware_subn(text, t)
         n += k
     text, k1 = EMAIL_RE.subn("[REDACTED]", text)
     text, k2 = USERPATH_RE.subn("[REDACTED]", text)

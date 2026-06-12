@@ -413,7 +413,7 @@ def detect_adapter(raw_dir: Path) -> str:
         return "xlsx"
     if exts == {".ipynb"}:
         return "jupyter"
-    if exts <= {".txt", ".md"}:  # subset — accepts pure .txt, pure .md, or mix
+    if exts <= {".txt", ".md", ".qmd"}:  # .qmd = Quarto, structurally markdown + YAML + code chunks
         return "text"
 
     # HTML — disambiguate databricks vs. text by sniffing each file

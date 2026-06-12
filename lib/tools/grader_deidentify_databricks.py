@@ -142,9 +142,48 @@ def extract_cells(model: dict) -> list[dict]:
     return cells
 
 
+# ---------------------------------------------------------------------------
+# Shared scrub helpers — used by every grader_deidentify_* adapter.
+#
+# expand_name_terms(): the fix for issue #47 (ds250-onln-master 2026-06-12 —
+#   free-form prose Quarto letters slipped name mentions past the deid scrub
+#   because .known_names.txt has FULL display names but students often sign
+#   off with FIRST NAME ONLY). For each roster entry, decompose into the
+#   full name + each individual part (first/last/middle) ≥3 chars so prose
+#   mentions of either token alone get caught. The 3-char floor prevents
+#   collateral damage on ordinary words ('Li' matching 'climate' / 'plus').
+#
+# name_aware_subn(): word-boundary lookaround scrub — '(?<![A-Za-z]){term}(?![A-Za-z])'
+#   so 'Sam' doesn't corrupt 'same'/'Samsung' and 'Liu' doesn't corrupt 'plus'.
+#   Case-insensitive (matches title/upper/lower-case variants in prose).
+# ---------------------------------------------------------------------------
+
+def expand_name_terms(extra_names) -> list[str]:
+    """Decompose roster names into [full name + each part ≥3 chars]. For
+    free-form prose where a student signs 'Best, Sarah' but the roster has
+    'Sarah Wilson'."""
+    out = set()
+    for n in (extra_names or ()):
+        n = (n or "").strip()
+        if not n:
+            continue
+        out.add(n)
+        for part in re.split(r"[^A-Za-z]+", n):
+            if len(part) >= 3:
+                out.add(part)
+    return sorted(out, key=len, reverse=True)
+
+
+def name_aware_subn(text: str, term: str) -> tuple[str, int]:
+    """One name-term scrub with word-boundary lookarounds. Case-insensitive."""
+    pat = re.compile(rf"(?<![A-Za-z]){re.escape(term)}(?![A-Za-z])", re.IGNORECASE)
+    return pat.subn("[REDACTED]", text)
+
+
 def build_scrub_terms(stem: str, decoded_blob: str, extra_names: list[str] = ()) -> list[str]:
-    """Terms to redact from cell text: emails, /Users paths, filename tokens, and operator-supplied names."""
-    terms = set(extra_names)
+    """Terms to redact from cell text: emails, /Users paths, filename tokens, and
+    operator-supplied names (decomposed into full + parts via expand_name_terms)."""
+    terms = set(expand_name_terms(extra_names))  # issue #47 — decompose roster names
     terms.update(EMAIL_RE.findall(decoded_blob))
     terms.update(USERPATH_RE.findall(decoded_blob))
     # Canvas download names are "{lastname}{firstname}_{subid}_{attid}_{title}.html" — the name
@@ -166,8 +205,8 @@ def build_scrub_terms(stem: str, decoded_blob: str, extra_names: list[str] = ())
 def scrub(text: str, terms: list[str]) -> tuple[str, int]:
     n = 0
     for t in terms:
-        pat = re.compile(re.escape(t), re.IGNORECASE)
-        text, k = pat.subn("[REDACTED]", text)
+        # issue #47 — word-boundary lookarounds so 'Sam' doesn't match 'Samsung'
+        text, k = name_aware_subn(text, t)
         n += k
     # belt-and-suspenders: any residual email/userpath
     text, k1 = EMAIL_RE.subn("[REDACTED]", text)

@@ -574,7 +574,7 @@ what to ask for if your assignment uses a format we haven't built yet.
 | `online_upload` `.html` w/ Databricks marker | Databricks notebook export (cell-aware extraction) | ✅ `grader_deidentify_databricks.py` |
 | `online_upload` `.html` bare | Generic HTML body | ✅ `grader_deidentify_text.py` (flat tag-strip) |
 | `online_upload` `.ipynb` | Jupyter notebook (per-cell extraction; metadata + base64 images dropped) | ✅ `grader_deidentify_jupyter.py` |
-| `online_upload` `.txt` / `.md` | Plain text / Markdown | ✅ `grader_deidentify_text.py` (encoding fallback: UTF-8 → CP1252 → Latin-1) |
+| `online_upload` `.txt` / `.md` / `.qmd` | Plain text / Markdown / Quarto markdown | ✅ `grader_deidentify_text.py` (encoding fallback: UTF-8 → CP1252 → Latin-1; `.qmd` accepted natively — no rename to `.md` needed) |
 | `online_upload` `.csv` | CSV data | ✅ falls through `grader_deidentify_text.py` (CSV is just text) |
 | `online_upload` code (`.py` / `.js` / `.r` / `.sql` / `.java` / `.cpp` etc.) | Raw source code | ✅ falls through `grader_deidentify_text.py` (code is already plain text) |
 | `discussion_topic` | Student's discussion-thread posts + replies | ✅ `grader_fetch.py` detects via assignment metadata + fetches `/discussion_topics/:tid/view`; aggregates per-user chronologically to bare HTML; text adapter handles |
