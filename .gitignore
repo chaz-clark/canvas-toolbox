@@ -57,3 +57,29 @@ course_ref/
 
 # Local Agent to Agent Handoff files — local only
 handoffs/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FERPA defense-in-depth — issue #44 (2026-06-11 ds250-onln-master incident)
+#
+# Mirrors scaffold/grading/.gitignore (the consumer-side gate) so that if an
+# operator misconfigures cwd (e.g. `uv run --directory canvas-toolbox`),
+# relative `--challenge-dir grading/...` lands inside the toolkit clone, and
+# PII files cannot be `git add -A`ed into the public canvas-toolbox repo.
+#
+# This is BELT — the SUSPENDERS is `_challenge_dir_guard.py` which refuses
+# to write inside the toolkit install dir in the first place. Both together
+# make the FERPA leak surface defense in depth.
+# ─────────────────────────────────────────────────────────────────────────────
+/grading/
+**/submissions_raw/
+**/submissions_deid/
+**/_raw/
+**/_deid/
+**/.keymap.json
+**/.known_names.txt
+**/.fetch_log.json
+**/feedback/
+**/.review.csv
+**/.review*.csv
+**/.push_log.md
+**/.mark_reviewed

@@ -71,6 +71,7 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
+from _challenge_dir_guard import resolve_challenge_dir  # issue #44 FERPA guard
 
 import requests
 
@@ -302,7 +303,7 @@ def main() -> int:
     if guard_enforce:
         guard_enforce(base, headers, cid, mode="read")
 
-    base_dir = Path(args.challenge_dir)
+    base_dir = resolve_challenge_dir(args.challenge_dir, verb="reconciling in")
     mapfile = base_dir / ".keymap.json"
     if not mapfile.exists():
         print(f"No {mapfile} — run a grader_deidentify_* tool first.", file=sys.stderr)

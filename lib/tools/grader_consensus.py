@@ -66,6 +66,7 @@ import statistics
 import sys
 from collections import Counter
 from pathlib import Path
+from _challenge_dir_guard import resolve_challenge_dir  # issue #44 FERPA guard
 
 try:
     from __toolbox_version__ import __version__
@@ -244,7 +245,7 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.challenge_dir:
-        cd = Path(args.challenge_dir)
+        cd = resolve_challenge_dir(args.challenge_dir, verb="computing consensus in")
         args.feedback_dir = args.feedback_dir or str(cd / "feedback")
 
     if not args.feedback_dir:

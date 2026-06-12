@@ -118,6 +118,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from _challenge_dir_guard import resolve_challenge_dir  # issue #44 FERPA guard
 
 try:
     from __toolbox_version__ import __version__
@@ -491,7 +492,7 @@ def main() -> int:
     ap.add_argument("--yes", action="store_true", help="Skip confirmation prompts.")
     args = ap.parse_args()
 
-    challenge = Path(args.challenge_dir)
+    challenge = resolve_challenge_dir(args.challenge_dir, verb="grading in")
     if not challenge.is_dir():
         print(f"--challenge-dir {challenge} does not exist.", file=sys.stderr)
         return 1

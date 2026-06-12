@@ -41,6 +41,7 @@ import csv
 import json
 import sys
 from pathlib import Path
+from _challenge_dir_guard import resolve_challenge_dir  # issue #44 FERPA guard
 
 try:
     from __toolbox_version__ import __version__
@@ -67,7 +68,7 @@ def main() -> int:
         print("Missing --challenge-dir.", file=sys.stderr)
         return 1
 
-    base = Path(args.challenge_dir)
+    base = resolve_challenge_dir(args.challenge_dir, verb="reidentifying in")
     mapfile = Path(args.mapfile) if args.mapfile else base / ".keymap.json"
     summary = base / args.summary
     out = base / args.out

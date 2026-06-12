@@ -110,6 +110,7 @@ import subprocess
 import sys
 import urllib.parse
 from pathlib import Path
+from _challenge_dir_guard import resolve_challenge_dir  # issue #44 FERPA guard
 
 import requests
 
@@ -570,7 +571,7 @@ def main() -> int:
               file=sys.stderr)
         return 1
 
-    cd = Path(args.challenge_dir)
+    cd = resolve_challenge_dir(args.challenge_dir, verb="fetching to")
     raw_dir = cd / "submissions_raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
     names_file = cd / ".known_names.txt"

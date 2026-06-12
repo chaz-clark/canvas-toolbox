@@ -65,6 +65,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from _challenge_dir_guard import resolve_challenge_dir  # issue #44 FERPA guard
 
 import requests
 
@@ -170,7 +171,7 @@ def main() -> int:
                     help="Push the grade with NO comment (e.g. the consequential layer in a multi-output flow).")
     args = ap.parse_args()
 
-    challenge = Path(args.challenge_dir)
+    challenge = resolve_challenge_dir(args.challenge_dir, verb="pushing from")
     if not challenge.is_dir():
         print(f"--challenge-dir {challenge} does not exist.", file=sys.stderr)
         return 1
@@ -180,11 +181,43 @@ def main() -> int:
     reviewed = challenge / ".reviewed"
 
     # --- mark-reviewed mode (no Canvas call) ---
+    # Issue #46: detect value-only / human-graded mode (no per-student comment
+    # files exist — typical for the dual-push pattern's value-only output, or
+    # any TA-graded run where the instructor only posts the consequential
+    # number). Switch the review surface to .review*.csv + _gradebook_actuals.csv
+    # instead of pointing at _all_comments.md + per-student .md files that
+    # don't exist.
     if args.mark_reviewed:
-        n = len(list(fbdir.glob(f"{prefix}-*.md")))
-        print(f"You are confirming you reviewed all {n} comments + scores in {fbdir}/")
-        print(f"(the overall {fbdir}/_all_comments.md and each per-student {prefix}-*.md justification).")
-        if not args.yes and input("Type 'reviewed' to confirm: ").strip().lower() != "reviewed":
+        comment_files = list(fbdir.glob(f"{prefix}-*.md"))
+        review_csvs = sorted(challenge.glob(".review*.csv"))
+        actuals = fbdir / "_gradebook_actuals.csv"
+
+        if comment_files:
+            # LLM-comment run — original messaging
+            n = len(comment_files)
+            print(f"You are confirming you reviewed all {n} comments + scores in {fbdir}/")
+            print(f"(the overall {fbdir}/_all_comments.md and each per-student {prefix}-*.md justification).")
+        elif review_csvs:
+            # Value-only / human-graded run — point at the actual review surface
+            print(f"You are confirming you reviewed the value-only push surface for {fbdir.parent.name}:")
+            for csv in review_csvs:
+                print(f"  • {csv.name}  ({csv.stat().st_size} bytes)")
+            if actuals.exists():
+                print(f"  • {actuals.relative_to(challenge)}  (reconcile evidence)")
+            print("\n  (No per-student comment files in this run — this is the "
+                  "value-only / human-graded push path. The mtime auto-invalidation "
+                  "gate will watch these CSV files instead of comment .md files.)")
+        else:
+            # Neither comment .md files nor .review*.csv — operator may have
+            # skipped reidentify. Refuse loudly so they don't accidentally
+            # mark-reviewed an empty review surface.
+            print(f"\n⛔ Nothing to review. Neither comment files ({prefix}-*.md) "
+                  f"nor .review*.csv exist in {challenge}/.", file=sys.stderr)
+            print("   Run grader_consensus + grader_reidentify first to produce "
+                  "a review surface.", file=sys.stderr)
+            return 1
+
+        if not args.yes and input("\nType 'reviewed' to confirm: ").strip().lower() != "reviewed":
             print("Not marked.")
             return 1
         reviewed.write_text("reviewed\n", encoding="utf-8")
@@ -287,17 +320,38 @@ def main() -> int:
         return 1
 
     # --- REQUIRED REVIEW GATE: --mark-reviewed must exist + not be stale ---
+    # Issue #46: the watch list is the union of EVERYTHING the operator might
+    # have reviewed — comment files (LLM-comment runs), the all-comments
+    # overview, AND the value-only review surface (.review*.csv +
+    # _gradebook_actuals.csv). The mtime auto-invalidation fires if ANY of
+    # these post-dates the .reviewed marker, regardless of which subset
+    # actually exists in this run. So value-only pushes keep a real
+    # "edited-after-review re-locks" guarantee.
     if not reviewed.exists():
+        comment_files = list(fbdir.glob(f"{prefix}-*.md"))
+        review_csvs = sorted(challenge.glob(".review*.csv"))
         print("\n⛔ Review required before pushing.")
-        print(f"   Review {fbdir}/_all_comments.md and the per-student {prefix}-*.md justifications,")
+        if comment_files:
+            print(f"   Review {fbdir}/_all_comments.md and the per-student {prefix}-*.md justifications,")
+        elif review_csvs:
+            print(f"   Review the .review*.csv files in {challenge}/ + "
+                  f"{fbdir.name}/_gradebook_actuals.csv (value-only / human-graded path),")
+        else:
+            print(f"   Produce a review surface first (per-student {prefix}-*.md OR "
+                  f".review*.csv), then review it,")
         print("   then run:  uv run python lib/tools/grader_push.py --challenge-dir "
               f"{args.challenge_dir} --mark-reviewed")
         return 1
     rmt = reviewed.stat().st_mtime
-    watch = list(fbdir.glob(f"{prefix}-*.md")) + [fbdir / "_all_comments.md"]
+    watch = (
+        list(fbdir.glob(f"{prefix}-*.md"))
+        + [fbdir / "_all_comments.md"]
+        + list(challenge.glob(".review*.csv"))
+        + [fbdir / "_gradebook_actuals.csv"]
+    )
     stale = [p.name for p in watch if p.exists() and p.stat().st_mtime > rmt]
     if stale:
-        print(f"\n⛔ {len(stale)} comment file(s) changed since you marked reviewed "
+        print(f"\n⛔ {len(stale)} review-surface file(s) changed since you marked reviewed "
               f"(e.g. {stale[0]}). Re-review, then re-run --mark-reviewed.")
         return 1
 

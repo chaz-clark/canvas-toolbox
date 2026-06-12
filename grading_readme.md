@@ -201,6 +201,24 @@ for grading.
 
 ---
 
+## The value-only / human-graded push path
+
+Not every push needs an LLM-generated comment. Common case: a **TA already graded** the assignment, and the instructor only needs to **post the consequential number** (e.g., the Layer-2 "Your Grade" in a Mid-Review-style dual-push, or any flat numeric grade the human computed). In that case the pipeline runs as:
+
+```
+grader_reconcile  →  grader_reidentify --summary  →  review .review*.csv + _gradebook_actuals.csv  →  grader_push --mark-reviewed  →  grader_push --grade-only --push
+```
+
+Two important differences from the LLM-comment path:
+
+1. **No per-student `<KEY>.md` files exist.** The grader didn't write comments — the instructor (or a TA) graded out-of-band. `grader_push --mark-reviewed` detects this (issue #46 fix) and switches the review surface from "per-student `<KEY>.md` + `_all_comments.md`" to **`.review*.csv` + `feedback/_gradebook_actuals.csv`**. The confirmation prompt names the actual files; the mtime auto-invalidation gates on those CSVs instead.
+
+2. **`grader_push --grade-only`** is the actual write. Suppresses the comment-field write entirely — only the grade value posts to Canvas. (Pair with `--default-comment "<text>"` if you want a fixed comment on every push, e.g. *"See Mid Review for detailed feedback."*)
+
+The mtime auto-invalidation still applies: if you edit a `.review*.csv` after marking reviewed, the gate detects the change and forces re-review. Same trust guarantee as the LLM-comment path.
+
+**Building the `key,score` summary by hand.** When no LLM grader ran, the operator builds `feedback/_summary.csv` (or `_summary_<output>.csv` for multi-output) from the syllabus's competencies table, a counts→grade mapping, or just direct judgment. The CSV shape is `key,score,one_line_reason` — same as what `grader_consensus` would emit. `grader_reidentify --summary <path>` reads it and emits the keyed `.review*.csv` for human review.
+
 ## The two grading paths
 
 There are **two grading paths** in step 6, with the same downstream

@@ -46,6 +46,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from _challenge_dir_guard import resolve_challenge_dir  # issue #44 FERPA guard
 
 try:
     from __toolbox_version__ import __version__
@@ -173,7 +174,7 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.challenge_dir:
-        cd = Path(args.challenge_dir)
+        cd = resolve_challenge_dir(args.challenge_dir, verb="scanning")
         args.deid_dir = args.deid_dir or str(cd / "submissions_deid")
         args.outfile = args.outfile or str(cd / "feedback" / "_signals.json")
 

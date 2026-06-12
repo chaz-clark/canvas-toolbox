@@ -46,6 +46,7 @@ import re
 import sys
 import urllib.parse
 from pathlib import Path
+from _challenge_dir_guard import resolve_challenge_dir  # issue #44 FERPA guard
 
 try:
     from __toolbox_version__ import __version__
@@ -204,7 +205,7 @@ def main() -> int:
 
     # Resolve conventional paths from --challenge-dir if not explicitly set
     if args.challenge_dir:
-        cd = Path(args.challenge_dir)
+        cd = resolve_challenge_dir(args.challenge_dir, verb="deidentifying (databricks) to")
         args.indir = args.indir or str(cd / "submissions_raw")
         args.outdir = args.outdir or str(cd / "submissions_deid")
         args.mapfile = args.mapfile or str(cd / ".keymap.json")

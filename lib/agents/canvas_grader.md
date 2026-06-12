@@ -195,6 +195,14 @@ For structured data — config schema, pipeline stage contracts, output formats,
 
 **How**: `push_grades.py` defaults to dry-run. `--push` requires the marker. Marker mtime is checked against every per-student comment file's mtime. The canvas_course_guard live-course block requires `--allow-enrolled` to bypass on enrolled courses. The Test Student push is the proof-of-config step; clear and run the real batch.
 
+### 7a. Value-Only / Human-Graded Push (issue #46)
+
+**Description**: Not every push has an LLM-generated comment. When a TA already graded out-of-band (or the instructor is posting a value-only consequential grade in a dual-push setup), the pipeline runs `grader_reconcile → grader_reidentify --summary → review .review*.csv + _gradebook_actuals.csv → --mark-reviewed → grader_push --grade-only --push`. `grader_push --mark-reviewed` auto-detects this (no per-student `<KEY>.md` files exist) and switches the review surface to the CSV files + actuals; the mtime auto-invalidation gates on those instead.
+
+**Why**: The pre-#46 review gate assumed an LLM comment artifact and printed *"reviewed all 0 comments / read _all_comments.md"* (a file that didn't exist) when run in value-only mode. The `.reviewed` marker still wrote, but the gate was effectively bypassed because the watched files didn't exist. That's not a real review surface. The fix gates on whatever review artifact actually exists in this run.
+
+**How**: `grader_push --mark-reviewed` checks `fbdir.glob(f"{prefix}-*.md")` first; if empty, falls back to `challenge.glob(".review*.csv")` + `feedback/_gradebook_actuals.csv`. The push-gate's `watch` list is the UNION of all four (`<KEY>.md` files + `_all_comments.md` + `.review*.csv` + `_gradebook_actuals.csv`) so the mtime check fires no matter which subset exists. Use `grader_push --grade-only` to suppress comment writes; pair with `--default-comment "<text>"` for a fixed comment on every push.
+
 ### 7. Non-Submitters Are the LMS's Job
 
 **Description**: The grader processes actual submissions only. It never pushes a 0 for a no-show. The course's missing/late policy in Canvas auto-assigns 0; the assignment's graded count will exceed the pushed count BY DESIGN.
