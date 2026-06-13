@@ -461,7 +461,8 @@ def _maybe_follow_share_urls(mode: str, cd: Path) -> int:
                 text = f.read_text(encoding="utf-8", errors="replace")
                 if ("chatgpt.com/share/" in text
                         or "gemini.google.com/share/" in text
-                        or "bard.google.com/share/" in text):
+                        or "bard.google.com/share/" in text
+                        or "share.google/aimode/" in text):  # issue #52
                     has_share = True
                     break
             except Exception:

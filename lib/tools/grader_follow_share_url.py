@@ -105,13 +105,30 @@ _CHATGPT_RE = re.compile(
 _GEMINI_RE = re.compile(
     r"https?://(?:bard|gemini)\.google\.com/share/[a-z0-9-]{8,}/?", re.IGNORECASE,
 )
+# Gemini AI Mode shares (issue #52) — different surface from gemini.google.com/share.
+# AI Mode is the "Gemini-with-search-and-tools" experience; share URL lives on
+# share.google/aimode/<base62-hash>. Real-world m119 SP26 P1T2 cohort surfaced one
+# (uid 415951). Hash is short (15-20 chars) and uses base62 alphabet.
+_AIMODE_RE = re.compile(
+    r"https?://share\.google/aimode/[A-Za-z0-9_-]{8,}/?",
+)
 
 
 @dataclass
 class ShareURL:
-    service: str        # "chatgpt" | "gemini"
+    service: str        # "chatgpt" | "gemini" | "aimode"
     url: str
     hash_short: str     # first 8 chars of hash, for FERPA-safe console
+
+
+def _pretty_url(service: str, hash_short: str) -> str:
+    """FERPA-safe URL-shape preview: '<host>/<path>/<hash-8>…' for console/log.
+    Avoids the v0.35.1 bug where aimode rendered as 'aimode.com/share/…'."""
+    return {
+        "chatgpt": f"chatgpt.com/share/{hash_short}…",
+        "gemini":  f"gemini.google.com/share/{hash_short}…",
+        "aimode":  f"share.google/aimode/{hash_short}…",
+    }.get(service, f"{service}/{hash_short}…")
 
 
 def detect_share_urls(text: str) -> list[ShareURL]:
@@ -124,6 +141,10 @@ def detect_share_urls(text: str) -> list[ShareURL]:
         url = m.group(0).rstrip("/")
         h = url.rsplit("/", 1)[-1][:8]
         out.append(ShareURL("gemini", url, h))
+    for m in _AIMODE_RE.finditer(text):
+        url = m.group(0).rstrip("/")
+        h = url.rsplit("/", 1)[-1][:8]
+        out.append(ShareURL("aimode", url, h))
     return out
 
 
@@ -139,12 +160,31 @@ def detect_share_urls(text: str) -> list[ShareURL]:
 _SERVICE_SELECTORS = {
     "chatgpt": ["#thread", "main", "body"],
     "gemini":  ["main", "body"],
+    # AI Mode (issue #52) — share.google/aimode/<hash> redirects to a Google
+    # Search results page with AI Mode active. Body fallback gets the AI
+    # response + some search-results chrome; downstream deid handles it.
+    "aimode":  ["main", "[role='main']", "body"],
 }
 
 _PLAYWRIGHT_UA = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) "
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/120.0.0.0 Safari/537.36"
+    "Chrome/130.0.0.0 Safari/537.36"
+)
+
+# Issue #52 — Google's bot detection redirects share.google/* URLs to
+# google.com/sorry/index when it sees a default headless-Chromium fingerprint.
+# These flags + context settings + webdriver masking get us past detection
+# WITHOUT crossing into adversarial territory: the student already chose to
+# make the share public; we're just rendering the same page a faculty member's
+# regular browser would render. The flags below are the standard
+# anti-anti-bot-detection layer that Playwright users add for legitimate
+# scraping; they don't bypass auth, paywall, or any actual security boundary.
+_LAUNCH_ARGS = ["--disable-blink-features=AutomationControlled"]
+# Webdriver detection: many sites check navigator.webdriver. Override at page
+# context creation so it returns undefined like in a real browser.
+_WEBDRIVER_MASK = (
+    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
 )
 
 
@@ -204,12 +244,19 @@ def fetch_share(url: str, service: str, *, timeout: float, hydration_wait_ms: in
 
     with sync_playwright() as p:
         try:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=_LAUNCH_ARGS)
         except Exception as e:
             return FetchResult(0, "", 0, error=f"chromium launch: {type(e).__name__}: {e}")
         try:
-            page = browser.new_page(user_agent=_PLAYWRIGHT_UA,
-                                    viewport={"width": 1280, "height": 800})
+            ctx = browser.new_context(
+                user_agent=_PLAYWRIGHT_UA,
+                viewport={"width": 1440, "height": 900},
+                locale="en-US",
+                timezone_id="America/Boise",
+            )
+            page = ctx.new_page()
+            # Mask navigator.webdriver so we look like a real browser
+            page.add_init_script(_WEBDRIVER_MASK)
             try:
                 # `domcontentloaded` is forgiving; `networkidle` was too strict
                 # for ChatGPT (which keeps long-poll connections open).
@@ -222,6 +269,22 @@ def fetch_share(url: str, service: str, *, timeout: float, hydration_wait_ms: in
             page.wait_for_timeout(hydration_wait_ms)  # let the SPA hydrate
 
             title = page.title()
+
+            # Issue #52 defense-in-depth: detect Google's bot-detection
+            # redirect (google.com/sorry/index). The stealth flags above
+            # usually prevent this, but if Google's heuristics tighten and
+            # we get redirected, the page LOOKS like content (the sorry
+            # page has ~800 chars) — we'd index the captcha instead of the
+            # transcript. Catch it loud.
+            final_url = page.url
+            if "/sorry/index" in final_url or "google.com/sorry/" in final_url:
+                return FetchResult(0, "", 0,
+                                   error="Google bot-detection wall (google.com/sorry/index). "
+                                         "Stealth flags didn't suffice. Operator may need to "
+                                         "fetch manually OR run with a real browser "
+                                         "(headless=False) once — not yet exposed via CLI.",
+                                   title=title)
+
             # Revoked / blocked-page heuristic
             content_lower = page.content()[:10000].lower()
             for marker in ("the conversation has been deleted", "this share is no longer available",
@@ -257,7 +320,7 @@ def emit_markdown(*, service: str, hash_short: str, status: int, body: str,
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
     lines = [
         f"# External share — fetched {now}",
-        f"_Source: {service}.com/share/{hash_short}… (status {status})_",
+        f"_Source: {_pretty_url(service, hash_short)} (status {status})_",
     ]
     if title:
         lines.append(f"_Title: {title.strip()}_")
@@ -276,7 +339,7 @@ def emit_revoked_stub(*, service: str, hash_short: str, status: int,
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
     return (
         f"# External share — fetched {now}\n"
-        f"_Source: {service}.com/share/{hash_short}…_\n"
+        f"_Source: {_pretty_url(service, hash_short)}_\n"
         f"_REVOKED: share returned HTTP {status} — student likely revoked "
         f"the share, or the URL was incorrect. Operator review needed._\n"
         + (f"_Error detail: {error}_\n" if error else "")
@@ -287,7 +350,7 @@ def emit_error_stub(*, service: str, hash_short: str, error: str) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
     return (
         f"# External share — fetch failed {now}\n"
-        f"_Source: {service}.com/share/{hash_short}…_\n"
+        f"_Source: {_pretty_url(service, hash_short)}_\n"
         f"_Error: {error}_\n"
         f"_Operator review needed. If this persists, the share may have moved to a "
         f"new format. File an issue against canvas-toolbox._\n"
@@ -394,22 +457,21 @@ def main() -> int:
                 "fetched_at": datetime.now(timezone.utc).isoformat(),
             }
 
+            pretty = _pretty_url(share.service, share.hash_short)
             if result.revoked:
                 sections.append(emit_revoked_stub(
                     service=share.service, hash_short=share.hash_short,
                     status=result.status, error=result.error))
                 meta["revoked"] = True
                 revoked += 1
-                print(f"  {userid}: {share.service}.com/share/{share.hash_short}… "
-                      f"→ REVOKED (HTTP {result.status})")
+                print(f"  {userid}: {pretty} → REVOKED (HTTP {result.status})")
             elif result.status != 200 or not result.body:
                 err = result.error or f"status {result.status}"
                 sections.append(emit_error_stub(
                     service=share.service, hash_short=share.hash_short, error=err))
                 meta["error"] = err
                 failed += 1
-                print(f"  {userid}: {share.service}.com/share/{share.hash_short}… "
-                      f"→ FAILED ({err})")
+                print(f"  {userid}: {pretty} → FAILED ({err})")
             else:
                 sections.append(emit_markdown(
                     service=share.service, hash_short=share.hash_short,
@@ -418,8 +480,7 @@ def main() -> int:
                 fetched += 1
                 # FERPA: counts only, never content. Chars is a non-identifying
                 # operator-facing metric (how much was extracted).
-                print(f"  {userid}: {share.service}.com/share/{share.hash_short}… "
-                      f"→ {result.bytes_total} chars extracted "
+                print(f"  {userid}: {pretty} → {result.bytes_total} chars extracted "
                       f"(selector: {result.used_selector})")
 
             per_url_meta.append(meta)
