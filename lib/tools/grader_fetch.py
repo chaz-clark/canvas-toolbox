@@ -438,6 +438,42 @@ def detect_adapter(raw_dir: Path) -> str:
     return "mixed_or_unknown"
 
 
+def _maybe_follow_share_urls(mode: str, cd: Path) -> int:
+    """Issue #51 — run grader_follow_share_url.py if a share URL is present
+    (mode='auto') or unconditionally (mode='always'). Returns exit code.
+
+    Detects ChatGPT / Gemini share URL patterns in any non-hidden, non-
+    _external.md file in submissions_raw/. If none found in 'auto' mode,
+    skips silently (no-op, exit 0). Returns the subprocess exit code on
+    actual invocation; non-zero propagates to stop the chain."""
+    if mode == "never":
+        return 0
+    raw_dir = cd / "submissions_raw"
+    if not raw_dir.exists():
+        return 0
+
+    has_share = (mode == "always")
+    if not has_share:
+        for f in raw_dir.iterdir():
+            if not f.is_file() or f.name.startswith(".") or f.name.endswith("_external.md"):
+                continue
+            try:
+                text = f.read_text(encoding="utf-8", errors="replace")
+                if ("chatgpt.com/share/" in text
+                        or "gemini.google.com/share/" in text
+                        or "bard.google.com/share/" in text):
+                    has_share = True
+                    break
+            except Exception:
+                continue
+    if not has_share:
+        return 0
+
+    cmd = [sys.executable, str(_TOOLS_DIR / "grader_follow_share_url.py"),
+           "--challenge-dir", str(cd)]
+    return run_chain_step("follow_share_url", cmd)
+
+
 def _run_chain(adapter: str, cd: Path, prefix: str) -> int:
     """Run deidentify → name_leak_check for the given adapter. Returns the
     subprocess exit code; non-zero on any step failure (caller propagates).
@@ -560,6 +596,15 @@ def main() -> int:
                     help="De-id adapter to chain into. Default 'auto' sniffs the file "
                          "types in submissions_raw/ and picks docx / databricks / text / "
                          "pdf / xlsx / jupyter. 'none' skips de-id even when --no-chain is not set.")
+    ap.add_argument("--follow-share-urls",
+                    choices=("auto", "never", "always"),
+                    default="auto",
+                    help="Issue #51 — when submissions_raw/ contains ChatGPT/Gemini "
+                         "share URLs (e.g. AI Log assignments where students submit a "
+                         "single link), run grader_follow_share_url.py before deid to "
+                         "fetch the transcript. 'auto' (default) detects URL-only "
+                         "submissions and chains the follow step transparently. "
+                         "'never' skips. 'always' runs the follow step regardless.")
     args = ap.parse_args()
 
     tok, cid, base = _env_canvas(args.course_id)
@@ -1002,6 +1047,16 @@ def main() -> int:
     if ok == 0 and skipped == 0:
         # Nothing fetched and nothing pre-existing — no de-id work to do.
         return fetch_exit
+
+    # Issue #51 — follow share URLs BEFORE deid. The follow step writes
+    # <prefix>_<userid>_external.md files into submissions_raw/, which the
+    # downstream text adapter then deids alongside the original files.
+    if args.follow_share_urls != "never":
+        share_rc = _maybe_follow_share_urls(args.follow_share_urls, cd)
+        if share_rc != 0:
+            print(f"\nChain stopped — grader_follow_share_url exited {share_rc}.",
+                  file=sys.stderr)
+            return share_rc
 
     adapter = args.deid_adapter if args.deid_adapter != "auto" else detect_adapter(raw_dir)
     if adapter == "mixed_or_unknown":

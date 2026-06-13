@@ -584,6 +584,7 @@ what to ask for if your assignment uses a format we haven't built yet.
 | `online_upload` `.zip` | Archive | ❌ Not built (extract + delegate per inner file) — ask if your assignment needs it |
 | `student_annotation` | Annotations on instructor-uploaded doc | ❌ Not built (Canvas DocViewer API) — ask if your assignment needs it |
 | `online_url` | Student submits a URL | ⚠ `grader_fetch.py` writes the URL to a file; no content fetch (arbitrary external URLs are FERPA-risky to cache locally) |
+| `online_text_entry` with a ChatGPT/Gemini share URL (AI Log) | ✅ `grader_follow_share_url.py` v1.0 — detects + fetches with rate-limit + idempotency + structured-stub output. Parsing of current ChatGPT/Gemini share pages is stub-only (both moved to client-side hydration); v1.1 uses Playwright for headless-browser turn extraction. Auto-chained from `grader_fetch.py --follow-share-urls auto` (default). |
 | `external_tool` | LTI tool (Pearson, McGraw-Hill, etc.) | ⚠ Vendor handles grading; NWQ has the Classic-mirror pattern (`grader_quiz_mirror.py`). Other LTIs return scores only |
 | `on_paper` | Physical submission | n/a — operator grades in the gradebook UI |
 | `none` | No submission | n/a |
