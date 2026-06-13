@@ -629,7 +629,35 @@ The stub file at `submissions_raw/<prefix>_<userid>_external.md` shows the
 same error plus the full URL (for operator use only — that file is in
 `submissions_raw/`, which the AI never reads).
 
-**Operator manual rescue (Option C in #53 — the documented immediate path):**
+**The wall is intermittent, not stuck-on. Empirical data
+(2026-06-13, 5 sequential fetches of one fixture):**
+
+| Run | Outcome |
+|---|---|
+| 1 | ✅ Succeeded (10,229 chars) |
+| 2 | ❌ Bot-walled |
+| 3 | ❌ Bot-walled |
+| 4 | ✅ Succeeded |
+| 5 | ✅ Succeeded |
+
+**3 of 5 succeeded on first try (~60%). Consecutive failures cluster in
+a ~30-second window, then clear.** With 2-3 retries spaced 30 sec apart,
+success rate extrapolates to ~94%. So: **retry before going manual.**
+
+### Step 0 — Retry first (almost always works)
+
+The single most effective rescue is to just re-run the same command:
+
+```bash
+uv run python lib/tools/grader_follow_share_url.py \
+    --challenge-dir grading/<assignment> --force
+```
+
+Run it 1-3 times, ~30 seconds apart. If a retry succeeds (console shows
+"chars extracted" for the previously-failed key), the stub file gets
+overwritten with the real conversation. No manual paste needed.
+
+### Step 1+ — Operator manual paste (only if retries don't clear)
 
 1. Open the URL in your normal browser. (You're a human; Google's bot
    detection lets you through.)

@@ -368,9 +368,19 @@ def emit_error_stub(*, service: str, hash_short: str, error: str, url: str = "")
     is_botwall = "sorry/index" in (error or "").lower() or "bot-detection" in (error or "").lower()
     if is_botwall:
         out += (
-            "## OPERATOR MANUAL RESCUE\n\n"
-            "Google's bot detection blocked this fetch. The headless browser\n"
-            "can't get past the captcha. To rescue this submission:\n\n"
+            "## OPERATOR RESCUE — try retry first\n\n"
+            "Google's bot detection is INTERMITTENT, not stuck-on. Empirical\n"
+            "data (2026-06-13, 5 sequential fetches of one fixture): 3 of 5\n"
+            "succeeded on first try (~60%). Consecutive failures cluster in a\n"
+            "~30-second window, then clear. With 2-3 retries spaced 30 sec apart,\n"
+            "success rate extrapolates to ~94%.\n\n"
+            "### Step 0 — RETRY FIRST (do this before going manual)\n\n"
+            "    uv run python lib/tools/grader_follow_share_url.py \\\n"
+            "        --challenge-dir <this dir> --force\n\n"
+            "Re-run that command 1-3 times, ~30 seconds apart. If a retry\n"
+            "succeeds (console shows 'chars extracted'), this stub gets overwritten\n"
+            "with the real conversation and you're done — no manual paste needed.\n\n"
+            "### Step 1+ — Manual paste (only if retries don't clear)\n\n"
             f"1. Open the URL above in your normal browser.\n"
             "2. Copy the rendered conversation text from the page.\n"
             "3. REPLACE this entire file's content with the conversation text,\n"
