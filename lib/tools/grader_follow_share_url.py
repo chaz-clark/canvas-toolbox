@@ -4,80 +4,73 @@ grader_follow_share_url.py — fetch transcripts behind chatgpt.com/share +
 gemini.google.com/share URLs so URL-only AI Log submissions become
 gradeable.
 
-Part of the canvas-toolbox generic grader skill (v1.0). See:
+Part of the canvas-toolbox generic grader skill (v1.1, Playwright-based).
+See:
   - grading_readme.md (faculty-facing pipeline + canonical layout)
   - lib/agents/canvas_grader.md (agent-facing pipeline)
   - lib/agents/knowledge/grader_knowledge.md (FERPA two-zone architecture)
 
 WHAT IT DOES (issue #51)
   Students submitting an AI Log assignment in courses with permissive AI
-  policies often submit a SINGLE SHARE URL instead of pasting the chat.
-  Pre-#51 the toolkit wrote the URL as a tiny text body; the per-turn-
-  mixture classifier had nothing to classify; per-student verdict was
-  'Unable to classify (link-only AI Log)'.
+  policies often submit a SINGLE SHARE URL instead of pasting the chat
+  (~23% of submissions in real cohorts — m119 SP26 P1T1 + P2T1). Pre-#51
+  the toolkit wrote the URL as a tiny text body; the per-turn-mixture
+  classifier had nothing to classify; per-student verdict was 'Unable
+  to classify (link-only AI Log)'.
 
-  This tool (v1.0):
-    1. Scans submissions_raw/<prefix>_<userid>.<ext> for share URLs
-       matching:
+  This tool (v1.1):
+    1. Scans submissions_raw/<prefix>_<userid>.<ext> for share URLs:
          chatgpt.com/share/<hash>
          gemini.google.com/share/<hash>  (and bard.google.com legacy)
-    2. Fetches each URL via plain HTTPS GET (no auth — public shares).
-    3. Attempts to parse the conversation into ordered USER / ASSISTANT
-       turns. PARSING SUCCESS DEPENDS ON THE SERVICE'S CURRENT HYDRATION
-       SHAPE — see "Parsing limitations" below.
-    4. Emits the parsed transcript (or a clearly-marked stub if parsing
-       failed) as Markdown to:
+    2. For each URL, launches a headless Chromium browser via Playwright,
+       navigates to the share page, WAITS for the client-side SPA to
+       hydrate (~4s), then dumps the rendered text from a service-
+       specific container (with body fallback).
+    3. Emits the rendered conversation as Markdown to:
          submissions_raw/<prefix>_<userid>_external.md
-       (NOT submissions_deid/ — fetched content still goes through the
-        existing deid + leak-check chain.)
-    5. Records per-URL fetch metadata to:
+       Per operator direction (2026-06-12): no per-turn role parsing.
+       The rendered conversation is dumped as flat text — the downstream
+       deid + leak-check chain treats it like any other submission.
+       Future versions can layer structured per-turn extraction on top
+       if a real grading workflow requires it.
+    4. Records per-URL fetch metadata to:
          submissions_raw/_external_fetch_log.json (gitignored)
 
   Output files are then ingestible by grader_deidentify_text.py (already
-  accepts .md via v0.34.2's _ACCEPT_EXTS).
+  accepts .md via v0.34.2's _ACCEPT_EXTS). The two-zone FERPA gate stays
+  intact: fetched content lands in submissions_raw/ (NOT submissions_deid/),
+  still routes through deid + leak check before any AI read.
 
-PARSING LIMITATIONS (v1.0 — important)
-  Both ChatGPT and Gemini have moved their share pages to fully
-  client-side-hydrated SPAs since this tool was scoped:
-    - ChatGPT currently hydrates via React Router's turbo-stream format
-      (window.__reactRouterContext.streamController.enqueue(...)) — a
-      backreference-graph serialization that requires a real JS engine
-      OR a turbo-stream decoder to parse.
-    - Gemini hydrates via Google's WIZ AF_initDataCallback pattern with
-      data inside server-rendered base64 payloads — also requires JS or
-      a custom decoder.
-  Static HTML parsing of either service's current pages returns 0 turns.
-  The tool detects this case, writes a STRUCTURED STUB output (URL +
-  status + parse_error noted in the file header), and continues. The
-  agent pipeline can then flag the URL-only submissions for operator
-  manual review.
-  v1.1 will likely integrate Playwright for headless-browser fetching —
-  parked with the trigger "operator wants automated transcript parsing
-  beyond detection+stub" (see parking-lot entry).
-  Even at v1.0, this is a meaningful improvement over pre-#51 — the URL
-  is captured with metadata, the output file is clearly labeled, and
-  the operator has a structured path to manual review instead of
-  cohort-wide "Unable to classify (link-only AI Log)" verdicts.
+WHY PLAYWRIGHT
+  Both ChatGPT and Gemini moved their share pages to fully client-side
+  hydrated SPAs (2026-06):
+    - ChatGPT: React Router turbo-stream serialization
+    - Gemini: Google's WIZ AF_initDataCallback pattern
+  Static HTML parsing returns 0 turns. Writing format decoders is brittle
+  (both services refactor quarterly). Headless Chromium is robust — it
+  runs the real JS, so the same code keeps working across format changes.
+
+FIRST-TIME SETUP (per machine, one-time)
+  After `uv sync`, install Chromium for Playwright:
+      uv run playwright install chromium
+  ~92 MB download. Tool prints a clear error if Chromium is missing.
 
 FERPA / SAFETY DISCIPLINE
-  * Console output: <userid>: chatgpt.com/share/<hash-8>… → N turns
+  * Console output: <userid>: chatgpt.com/share/<hash-8>… → N chars extracted
     Truncated hash; never the full URL; never the conversation content.
-  * Image attachments in shares are STRIPPED (v1.0). Count noted in
-    output header. v1.1 may OCR — parked.
-  * Revoked / expired shares (HTTP 404/410): write a stub .md with a
-    _REVOKED: marker, continue. Don't fail the whole run.
-  * Rate-limited by default to 1.0 req/sec. Both services serve public
-    shares without auth but DO rate-limit.
-  * Idempotent: skip files that already exist in submissions_raw/
+  * Revoked / expired shares (HTTP 404/410 / navigation error): write a
+    stub .md with a _REVOKED: marker, continue. Don't fail the whole run.
+  * Rate-limited by default to 1.0 sec between requests.
+  * Idempotent: skip if <prefix>_<userid>_external.md already exists
     unless --force.
 
 USAGE
   uv run python lib/tools/grader_follow_share_url.py \\
-    --challenge-dir grading/<assignment>
+    --challenge-dir grading/<asg>
 
   uv run python lib/tools/grader_follow_share_url.py \\
     --challenge-dir grading/<asg> \\
-    --rate-limit 2.0 --timeout 30 --retry 2 --force
+    --rate-limit 2.0 --timeout 30 --force
 
 PIPELINE INTEGRATION
   grader_fetch.py auto-chains this step when --follow-share-urls auto
@@ -90,12 +83,9 @@ import json
 import re
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-
-import requests
-from bs4 import BeautifulSoup
 
 from _challenge_dir_guard import resolve_challenge_dir  # issue #44 FERPA guard
 
@@ -109,29 +99,22 @@ except ImportError:
 # URL detection
 # ---------------------------------------------------------------------------
 
-# Permissive hash length per fixtures-file note (some Gemini hashes are 12 chars,
-# ChatGPT hashes are 36+ chars). 8-char minimum prevents matching every
-# /share/X URL on the internet.
 _CHATGPT_RE = re.compile(
-    r"https?://chatgpt\.com/share/[a-z0-9-]{8,}/?",
-    re.IGNORECASE,
+    r"https?://chatgpt\.com/share/[a-z0-9-]{8,}/?", re.IGNORECASE,
 )
 _GEMINI_RE = re.compile(
-    r"https?://(?:bard|gemini)\.google\.com/share/[a-z0-9-]{8,}/?",
-    re.IGNORECASE,
+    r"https?://(?:bard|gemini)\.google\.com/share/[a-z0-9-]{8,}/?", re.IGNORECASE,
 )
 
 
 @dataclass
 class ShareURL:
-    service: str  # "chatgpt" | "gemini"
+    service: str        # "chatgpt" | "gemini"
     url: str
-    hash_short: str  # first 8 chars of the hash, for FERPA-safe console output
+    hash_short: str     # first 8 chars of hash, for FERPA-safe console
 
 
 def detect_share_urls(text: str) -> list[ShareURL]:
-    """Extract all share URLs from a text body. Order preserved (some
-    submissions may reference multiple chats)."""
     out: list[ShareURL] = []
     for m in _CHATGPT_RE.finditer(text):
         url = m.group(0).rstrip("/")
@@ -145,293 +128,169 @@ def detect_share_urls(text: str) -> list[ShareURL]:
 
 
 # ---------------------------------------------------------------------------
-# HTTP fetch
+# Playwright-based fetch (the v1.1 core)
 # ---------------------------------------------------------------------------
+
+# Service-specific selector lists. Tried in order; first non-empty match wins.
+# Sandbox-validated against the 5 SP26 fixtures (2026-06-12):
+#   ChatGPT: #thread gives 382 lines / 11.4K chars, clean conversation
+#   Gemini:  main gives 156 lines / 9.2K chars (mixes some chrome; downstream
+#            deid handles it like any other text)
+_SERVICE_SELECTORS = {
+    "chatgpt": ["#thread", "main", "body"],
+    "gemini":  ["main", "body"],
+}
+
+_PLAYWRIGHT_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
+
 
 @dataclass
 class FetchResult:
-    status: int            # HTTP status or 0 on error
-    body: str              # response body (may be empty on error)
-    bytes_total: int       # content-length / len(body)
+    status: int             # HTTP-ish status (200, 404, 0=error)
+    body: str               # rendered text (NOT raw HTML in v1.1)
+    bytes_total: int
+    used_selector: str = ""
     error: str | None = None
-    revoked: bool = False  # True for 404 / 410
+    revoked: bool = False
+    title: str = ""
 
 
-def fetch_share(url: str, *, user_agent: str, timeout: float, retry: int) -> FetchResult:
-    """GET a share URL. Retries on transient errors (5xx, timeouts). On
-    404/410 returns revoked=True (caller writes a stub, doesn't fail)."""
-    headers = {"User-Agent": user_agent, "Accept": "text/html,*/*"}
-    last_err: str | None = None
-    for attempt in range(retry + 1):
+def _playwright_available() -> tuple[bool, str]:
+    """Check whether Playwright + Chromium are installed. Returns
+    (ok, message). Run once at startup so the operator gets a clear error
+    before we waste time iterating submissions."""
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: F401
+    except ImportError:
+        return False, (
+            "Playwright not installed. Run:\n"
+            "  uv sync\n"
+            "to install the dependency, then:\n"
+            "  uv run playwright install chromium\n"
+            "to download the headless browser (~92 MB, one-time per machine)."
+        )
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            # Quick check: can we even reach the chromium executable?
+            exe = p.chromium.executable_path
+            if exe and Path(exe).exists():
+                return True, ""
+            return False, (
+                "Playwright is installed but Chromium isn't. Run:\n"
+                "  uv run playwright install chromium\n"
+                "to download it (~92 MB, one-time per machine)."
+            )
+    except Exception as e:
+        return False, (
+            f"Playwright preflight failed: {type(e).__name__}: {e}\n"
+            "Try:\n"
+            "  uv run playwright install chromium"
+        )
+
+
+def fetch_share(url: str, service: str, *, timeout: float, hydration_wait_ms: int = 4000) -> FetchResult:
+    """Launch Chromium, navigate to the share URL, wait for hydration,
+    extract rendered text. Returns FetchResult with body = rendered text.
+
+    Tries service-specific selectors in order (most-targeted first) and
+    falls back to `body` if all specific selectors fail. Detects revoked
+    shares (page title / content markers) and short-circuits."""
+    from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+
+    with sync_playwright() as p:
         try:
-            r = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
-            if r.status_code in (404, 410):
-                return FetchResult(r.status_code, "", 0, revoked=True)
-            if 500 <= r.status_code < 600 and attempt < retry:
-                last_err = f"HTTP {r.status_code}"
-                time.sleep(1.0 * (attempt + 1))
-                continue
-            r.raise_for_status()
-            body = r.text
-            return FetchResult(r.status_code, body, len(body.encode("utf-8")))
-        except (requests.Timeout, requests.ConnectionError) as e:
-            last_err = f"{type(e).__name__}"
-            if attempt < retry:
-                time.sleep(1.0 * (attempt + 1))
-                continue
-            return FetchResult(0, "", 0, error=last_err)
-        except requests.HTTPError as e:
-            return FetchResult(r.status_code, "", 0, error=f"HTTP {r.status_code}")
-    return FetchResult(0, "", 0, error=last_err or "unknown")
-
-
-# ---------------------------------------------------------------------------
-# Per-service parsers
-# ---------------------------------------------------------------------------
-
-@dataclass
-class Turn:
-    role: str   # "user" | "assistant" | "system" | "tool"
-    content: str
-
-
-@dataclass
-class ParseResult:
-    turns: list[Turn]
-    image_count: int = 0
-    parse_error: str | None = None
-
-
-def parse_chatgpt_share(html: str) -> ParseResult:
-    """Parse a chatgpt.com/share/<hash> HTML page.
-
-    HISTORICAL NOTE — ChatGPT has refactored the share-page hydration several
-    times:
-      - Early: server-rendered DOM with [data-message-author-role] divs
-      - Mid: Next.js __NEXT_DATA__ JSON blob, conversation in mapping/tree
-      - Mid: __NEXT_DATA__ with linear_conversation array
-      - Current (2026-06): React Router streaming via
-        window.__reactRouterContext.streamController.enqueue(...) using
-        turbo-stream backreference-graph serialization. Static HTML parsing
-        returns 0 turns; would need a turbo-stream decoder or headless
-        browser to extract.
-
-    This parser tries all three legacy paths in order. If none match, it
-    returns 0 turns + a parse_error noting the current SPA limitation; the
-    caller (main) writes a structured stub the operator can review.
-    """
-    soup = BeautifulSoup(html, "html.parser")
-    image_count = len(soup.find_all("img"))
-
-    # Path 1: __NEXT_DATA__ JSON
-    script = soup.find("script", id="__NEXT_DATA__")
-    if script and script.string:
+            browser = p.chromium.launch(headless=True)
+        except Exception as e:
+            return FetchResult(0, "", 0, error=f"chromium launch: {type(e).__name__}: {e}")
         try:
-            data = json.loads(script.string)
-            page_props = data.get("props", {}).get("pageProps", {})
+            page = browser.new_page(user_agent=_PLAYWRIGHT_UA,
+                                    viewport={"width": 1280, "height": 800})
+            try:
+                # `domcontentloaded` is forgiving; `networkidle` was too strict
+                # for ChatGPT (which keeps long-poll connections open).
+                page.goto(url, wait_until="domcontentloaded", timeout=int(timeout * 1000))
+            except PWTimeout:
+                return FetchResult(0, "", 0, error="navigation timeout")
+            except Exception as e:
+                return FetchResult(0, "", 0, error=f"navigation: {type(e).__name__}")
 
-            # Try the linear conversation shape first
-            linear = (page_props.get("linear_conversation")
-                      or page_props.get("conversation", {}).get("linear_conversation"))
-            if isinstance(linear, list) and linear:
-                turns = _chatgpt_turns_from_linear(linear)
-                if turns:
-                    return ParseResult(turns, image_count)
+            page.wait_for_timeout(hydration_wait_ms)  # let the SPA hydrate
 
-            # Then the mapping/tree shape
-            mapping = (page_props.get("serverResponse", {}).get("data", {}).get("mapping")
-                       or page_props.get("conversation", {}).get("mapping")
-                       or page_props.get("mapping"))
-            if isinstance(mapping, dict) and mapping:
-                turns = _chatgpt_turns_from_mapping(mapping)
-                if turns:
-                    return ParseResult(turns, image_count)
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
-            # Fall through to DOM scrape
-            pass
+            title = page.title()
+            # Revoked / blocked-page heuristic
+            content_lower = page.content()[:10000].lower()
+            for marker in ("the conversation has been deleted", "this share is no longer available",
+                           "page not found", "404"):
+                if marker in content_lower:
+                    return FetchResult(404, "", 0, revoked=True, title=title)
 
-    # Path 2: DOM scrape — render-time containers
-    turns: list[Turn] = []
-    for div in soup.find_all(attrs={"data-message-author-role": True}):
-        role = div.get("data-message-author-role", "").strip().lower()
-        text = div.get_text(separator="\n", strip=True)
-        if role and text:
-            turns.append(Turn(role, text))
-    if turns:
-        return ParseResult(turns, image_count)
+            selectors = _SERVICE_SELECTORS.get(service, ["body"])
+            for sel in selectors:
+                try:
+                    text = page.locator(sel).first.inner_text(timeout=3000)
+                except Exception:
+                    continue
+                # Reject obviously-empty / blocked results; insist on
+                # meaningful content (≥200 chars from the conversation area).
+                if text and len(text.strip()) >= 200:
+                    return FetchResult(200, text, len(text.encode("utf-8")),
+                                        used_selector=sel, title=title)
 
-    return ParseResult([], image_count,
-                       parse_error="ChatGPT share now hydrates via React Router "
-                                   "turbo-stream (window.__reactRouterContext); "
-                                   "static-HTML parsing returns no turns. "
-                                   "Operator must review the URL manually OR wait "
-                                   "for v1.1 (Playwright-based fetch).")
-
-
-def _chatgpt_turns_from_linear(linear: list) -> list[Turn]:
-    """Extract turns from a 'linear_conversation' list shape (newer OpenAI shape)."""
-    turns: list[Turn] = []
-    for entry in linear:
-        msg = entry.get("message") if isinstance(entry, dict) else None
-        if not isinstance(msg, dict):
-            continue
-        author = msg.get("author") or {}
-        role = (author.get("role") or "").lower().strip()
-        if role not in ("user", "assistant", "system", "tool"):
-            continue
-        content = msg.get("content") or {}
-        parts = content.get("parts")
-        if isinstance(parts, list):
-            text = "\n\n".join(p for p in parts if isinstance(p, str) and p.strip())
-        else:
-            text = ""
-        if text:
-            turns.append(Turn(role, text))
-    return turns
-
-
-def _chatgpt_turns_from_mapping(mapping: dict) -> list[Turn]:
-    """Extract turns from a mapping {id → {message, parent, children}} tree.
-    Walk from a root (parent=None / 'client-created-root') depth-first via children;
-    each node carries a `message` with author.role + content.parts."""
-    # Find root(s) — nodes whose parent is None or not in the mapping
-    roots = [nid for nid, node in mapping.items()
-             if not node.get("parent") or node.get("parent") not in mapping]
-    # If there's no obvious root but exactly one node, walk from there
-    if not roots and mapping:
-        roots = [next(iter(mapping))]
-
-    visited: set[str] = set()
-    turns: list[Turn] = []
-
-    def _walk(node_id: str) -> None:
-        if node_id in visited or node_id not in mapping:
-            return
-        visited.add(node_id)
-        node = mapping[node_id]
-        msg = node.get("message") or {}
-        if isinstance(msg, dict):
-            author = msg.get("author") or {}
-            role = (author.get("role") or "").lower().strip()
-            content = msg.get("content") or {}
-            parts = content.get("parts")
-            text = ""
-            if isinstance(parts, list):
-                text = "\n\n".join(p for p in parts if isinstance(p, str) and p.strip())
-            if role in ("user", "assistant", "system", "tool") and text:
-                turns.append(Turn(role, text))
-        for child_id in (node.get("children") or []):
-            _walk(child_id)
-
-    for root in roots:
-        _walk(root)
-    return turns
-
-
-def parse_gemini_share(html: str) -> ParseResult:
-    """Parse a gemini.google.com/share/<hash> HTML page.
-
-    Gemini share pages are server-rendered with Material Web Components.
-    The conversation is typically inside <user-query> and <model-response>
-    custom elements, with text in nested .query-content / .markdown
-    containers. The exact selectors shift occasionally; this parser tries
-    the structured selectors first then falls back to scanning the
-    document for any element with role-style markers.
-    """
-    soup = BeautifulSoup(html, "html.parser")
-    image_count = len(soup.find_all("img"))
-
-    turns: list[Turn] = []
-
-    # Path 1: structured custom elements (most reliable when present)
-    for el in soup.find_all(["user-query", "model-response"]):
-        role = "user" if el.name == "user-query" else "assistant"
-        text = el.get_text(separator="\n", strip=True)
-        if text:
-            turns.append(Turn(role, text))
-    if turns:
-        return ParseResult(turns, image_count)
-
-    # Path 2: aria-label / data-role hints
-    for el in soup.find_all(attrs={"data-role": True}):
-        role = el.get("data-role", "").strip().lower()
-        if role in ("user", "assistant", "model"):
-            if role == "model":
-                role = "assistant"
-            text = el.get_text(separator="\n", strip=True)
-            if text:
-                turns.append(Turn(role, text))
-    if turns:
-        return ParseResult(turns, image_count)
-
-    # Path 3: class-name heuristic (most fragile; last resort)
-    for el in soup.select(".user-query-bubble-with-background, .model-response-text"):
-        cls = " ".join(el.get("class", []))
-        role = "user" if "user-query" in cls else "assistant"
-        text = el.get_text(separator="\n", strip=True)
-        if text:
-            turns.append(Turn(role, text))
-    if turns:
-        return ParseResult(turns, image_count)
-
-    return ParseResult([], image_count,
-                       parse_error="Gemini share now hydrates via Google's WIZ "
-                                   "AF_initDataCallback pattern; static-HTML "
-                                   "parsing returns no turns. Operator must review "
-                                   "the URL manually OR wait for v1.1 "
-                                   "(Playwright-based fetch).")
+            # Nothing rendered — likely bot wall or unloaded SPA
+            return FetchResult(0, "", 0, error="no rendered content (possible bot wall)",
+                               title=title)
+        finally:
+            browser.close()
 
 
 # ---------------------------------------------------------------------------
 # Markdown emission
 # ---------------------------------------------------------------------------
 
-def emit_markdown(
-    *,
-    service: str,
-    hash_short: str,
-    status: int,
-    turns: list[Turn],
-    image_count: int,
-    parse_error: str | None,
-) -> str:
-    """Build the markdown body for the saved _external.md file."""
+def emit_markdown(*, service: str, hash_short: str, status: int, body: str,
+                  used_selector: str, title: str) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
-    header = [
+    lines = [
         f"# External share — fetched {now}",
         f"_Source: {service}.com/share/{hash_short}… (status {status})_",
-        "_Note: persisted locally; the live URL may expire or be revoked._",
     ]
-    if image_count:
-        header.append(f"_Image attachments: {image_count} stripped (count noted; not OCR'd in v1.0)_")
-    if parse_error:
-        header.append(f"_Parse warning: {parse_error}_")
-    header.append("")  # blank line before body
-
-    if not turns:
-        header.append("_(No turns extracted — see parse warning above. Operator review needed.)_")
-        return "\n".join(header) + "\n"
-
-    body_lines: list[str] = []
-    for t in turns:
-        role_label = {"user": "USER", "assistant": "ASSISTANT",
-                      "system": "SYSTEM", "tool": "TOOL"}.get(t.role, t.role.upper())
-        body_lines.append(f"## {role_label}:")
-        body_lines.append("")
-        body_lines.append(t.content)
-        body_lines.append("")
-
-    return "\n".join(header + body_lines) + "\n"
+    if title:
+        lines.append(f"_Title: {title.strip()}_")
+    if used_selector:
+        lines.append(f"_Method: Playwright headless Chromium, selector: {used_selector}_")
+    lines.append("_Note: persisted locally; the live URL may expire or be revoked. "
+                 "Rendered conversation may include some UI chrome (nav labels, "
+                 "button text); deid + leak check handle it like any text submission._")
+    lines.append("")  # blank line before body
+    lines.append(body.strip())
+    return "\n".join(lines) + "\n"
 
 
-def emit_revoked_stub(*, service: str, hash_short: str, status: int) -> str:
-    """For revoked/404 shares — write a marker the operator can see."""
+def emit_revoked_stub(*, service: str, hash_short: str, status: int,
+                       error: str | None = None) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
     return (
         f"# External share — fetched {now}\n"
         f"_Source: {service}.com/share/{hash_short}…_\n"
         f"_REVOKED: share returned HTTP {status} — student likely revoked "
-        f"or the URL was incorrect. Operator review needed._\n"
+        f"the share, or the URL was incorrect. Operator review needed._\n"
+        + (f"_Error detail: {error}_\n" if error else "")
+    )
+
+
+def emit_error_stub(*, service: str, hash_short: str, error: str) -> str:
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
+    return (
+        f"# External share — fetch failed {now}\n"
+        f"_Source: {service}.com/share/{hash_short}…_\n"
+        f"_Error: {error}_\n"
+        f"_Operator review needed. If this persists, the share may have moved to a "
+        f"new format. File an issue against canvas-toolbox._\n"
     )
 
 
@@ -439,29 +298,24 @@ def emit_revoked_stub(*, service: str, hash_short: str, status: int) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
-_DEFAULT_UA = f"canvas-toolbox/{__version__} (instructor grading; +https://github.com/chaz-clark/canvas-toolbox)"
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Fetch transcripts behind chatgpt.com/share + "
-                    "gemini.google.com/share URLs so URL-only AI Log "
-                    "submissions become gradeable. Output lands in "
-                    "submissions_raw/ (still routes through deid + leak check).")
+        description="Follow ChatGPT/Gemini share URLs in submissions_raw/ and "
+                    "render their transcripts via headless Chromium so the "
+                    "downstream grader can read them as text.")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     ap.add_argument("--challenge-dir", required=True,
                     help="Convention base path (e.g. grading/p1t1_ai_log).")
     ap.add_argument("--rate-limit", type=float, default=1.0,
-                    help="Seconds between successive HTTP requests (default 1.0).")
+                    help="Seconds between successive URL fetches (default 1.0).")
     ap.add_argument("--timeout", type=float, default=30.0,
-                    help="Per-request timeout in seconds (default 30).")
-    ap.add_argument("--retry", type=int, default=2,
-                    help="Retries per URL on 5xx / timeout (default 2).")
-    ap.add_argument("--user-agent", default=_DEFAULT_UA,
-                    help="User-Agent header (default identifies as canvas-toolbox).")
+                    help="Per-request navigation timeout in seconds (default 30).")
+    ap.add_argument("--hydration-wait", type=int, default=4000,
+                    help="Milliseconds to wait after domcontentloaded for SPA "
+                         "hydration (default 4000).")
     ap.add_argument("--force", action="store_true",
-                    help="Re-fetch even if <prefix>_<userid>_external.md already "
-                         "exists. Default is idempotent skip.")
+                    help="Re-fetch even if <prefix>_<userid>_external.md exists. "
+                         "Default is idempotent skip.")
     args = ap.parse_args()
 
     cd = resolve_challenge_dir(args.challenge_dir, verb="following share URLs in")
@@ -471,6 +325,12 @@ def main() -> int:
               file=sys.stderr)
         return 1
 
+    # Preflight: Playwright + Chromium available?
+    ok, msg = _playwright_available()
+    if not ok:
+        print(f"\n⛔ Playwright preflight failed:\n{msg}", file=sys.stderr)
+        return 3
+
     log_path = raw_dir / "_external_fetch_log.json"
     fetch_log: dict = {}
     if log_path.exists():
@@ -479,43 +339,31 @@ def main() -> int:
         except Exception:
             fetch_log = {}
 
-    # Scan every file in submissions_raw/ for share URLs.
-    # Skip files that are themselves _external.md outputs (avoid infinite loops).
-    candidates: list[tuple[Path, ShareURL]] = []
+    # Scan submissions_raw/ for share URLs
+    by_file: dict[Path, list[ShareURL]] = {}
     for f in sorted(raw_dir.iterdir()):
-        if not f.is_file():
-            continue
-        if f.name.endswith("_external.md"):
-            continue
-        if f.name.startswith("."):
+        if not f.is_file() or f.name.startswith(".") or f.name.endswith("_external.md"):
             continue
         try:
             text = f.read_text(encoding="utf-8", errors="replace")
         except Exception:
             continue
         urls = detect_share_urls(text)
-        for u in urls:
-            candidates.append((f, u))
+        if urls:
+            by_file[f] = urls
 
-    if not candidates:
+    if not by_file:
         print(f"No share URLs detected in {raw_dir}/. Nothing to follow.")
         return 0
 
-    # Group by source file. If a file has multiple share URLs, we fetch each
-    # and concatenate into ONE _external.md keyed on the source file's
-    # <prefix>_<userid> stem.
-    by_file: dict[Path, list[ShareURL]] = {}
-    for f, u in candidates:
-        by_file.setdefault(f, []).append(u)
-
-    print(f"Detected {len(candidates)} share URL(s) across {len(by_file)} "
-          f"submission(s). Rate-limit: {args.rate_limit}s.", file=sys.stderr)
+    total_urls = sum(len(v) for v in by_file.values())
+    print(f"Detected {total_urls} share URL(s) across {len(by_file)} submission(s). "
+          f"Rate-limit: {args.rate_limit}s.", file=sys.stderr)
 
     fetched = skipped = revoked = failed = 0
 
     for f, urls in by_file.items():
         stem = f.stem
-        # If filename is <prefix>_<userid>[.<ext>], userid is the second underscore field
         parts = stem.split("_")
         userid = parts[1] if len(parts) >= 2 and parts[1].isdigit() else stem
         out_name = f"{stem}_external.md"
@@ -531,81 +379,64 @@ def main() -> int:
 
         for i, share in enumerate(urls):
             if i > 0:
-                # Rate-limit between successive URLs in the SAME submission
                 time.sleep(args.rate_limit)
-            # And between submissions (this fetch is always after at least one prior loop iteration)
-            result = fetch_share(share.url,
-                                 user_agent=args.user_agent,
+
+            result = fetch_share(share.url, share.service,
                                  timeout=args.timeout,
-                                 retry=args.retry)
+                                 hydration_wait_ms=args.hydration_wait)
+
             meta: dict = {
                 "service": share.service,
                 "hash_short": share.hash_short,
                 "status": result.status,
                 "bytes": result.bytes_total,
+                "selector": result.used_selector,
                 "fetched_at": datetime.now(timezone.utc).isoformat(),
             }
 
             if result.revoked:
                 sections.append(emit_revoked_stub(
                     service=share.service, hash_short=share.hash_short,
-                    status=result.status))
+                    status=result.status, error=result.error))
                 meta["revoked"] = True
                 revoked += 1
                 print(f"  {userid}: {share.service}.com/share/{share.hash_short}… "
                       f"→ REVOKED (HTTP {result.status})")
             elif result.status != 200 or not result.body:
-                err = result.error or f"HTTP {result.status}"
-                sections.append(
-                    f"# External share — fetch failed\n"
-                    f"_Source: {share.service}.com/share/{share.hash_short}…_\n"
-                    f"_Error: {err}_\n"
-                )
+                err = result.error or f"status {result.status}"
+                sections.append(emit_error_stub(
+                    service=share.service, hash_short=share.hash_short, error=err))
                 meta["error"] = err
                 failed += 1
                 print(f"  {userid}: {share.service}.com/share/{share.hash_short}… "
                       f"→ FAILED ({err})")
             else:
-                if share.service == "chatgpt":
-                    pr = parse_chatgpt_share(result.body)
-                else:
-                    pr = parse_gemini_share(result.body)
-                meta["turns"] = len(pr.turns)
-                meta["images"] = pr.image_count
-                if pr.parse_error:
-                    meta["parse_warning"] = pr.parse_error
                 sections.append(emit_markdown(
                     service=share.service, hash_short=share.hash_short,
-                    status=result.status, turns=pr.turns,
-                    image_count=pr.image_count, parse_error=pr.parse_error))
+                    status=result.status, body=result.body,
+                    used_selector=result.used_selector, title=result.title))
                 fetched += 1
+                # FERPA: counts only, never content. Chars is a non-identifying
+                # operator-facing metric (how much was extracted).
                 print(f"  {userid}: {share.service}.com/share/{share.hash_short}… "
-                      f"→ {len(pr.turns)} turns extracted"
-                      + (f" ({pr.image_count} images stripped)" if pr.image_count else ""))
+                      f"→ {result.bytes_total} chars extracted "
+                      f"(selector: {result.used_selector})")
 
             per_url_meta.append(meta)
 
-        # Stitch multiple shares into one file (rare case but possible)
         out_path.write_text("\n\n---\n\n".join(sections), encoding="utf-8")
-        fetch_log[out_name] = {
-            "source_file": f.name,
-            "urls": per_url_meta,
-        }
+        fetch_log[out_name] = {"source_file": f.name, "urls": per_url_meta}
 
-        # Rate-limit between submissions
         time.sleep(args.rate_limit)
 
     log_path.write_text(json.dumps(
-        {"_warning": "FERPA — do NOT commit; metadata only, no transcript content "
-                     "or full URLs beyond the 8-char hash prefix.",
+        {"_warning": "FERPA — do NOT commit; metadata only.",
          "fetched_at": datetime.now(timezone.utc).isoformat(),
          "entries": fetch_log}, indent=2), encoding="utf-8")
 
     print(f"\n{fetched} fetched, {skipped} skipped (existing), "
           f"{revoked} revoked, {failed} failed. "
           f"Per-URL log -> {log_path.name}")
-    # Non-zero on parse failure or fetch failure — operator must investigate
-    # before grading. Revoked is informational (student's choice; not a tool error).
     return 0 if failed == 0 else 2
 
 

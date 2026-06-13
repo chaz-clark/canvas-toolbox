@@ -1,6 +1,6 @@
 [project]
 name = "canvas-toolbox"
-version = "0.35.0"
+version = "0.35.1"
 description = "Canvas LMS course-design audits + safe sync paths + AoL course-map generation. Read-only audits cover rubric coverage/quality, syllabus completeness (BYU-I 25-item rubric), CLO quality, content representation, and workload distribution. Sync paths cover master→Blueprint, Page-level orphan cleanup, and per-resource pulls. Agent-facing knowledge surfaces in `lib/agents/`."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -16,6 +16,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "python-docx>=1.1.2",
     "requests>=2.33.1",
+    "playwright>=1.60.0",
 ]
 
 [tool.pytest.ini_options]
