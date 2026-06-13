@@ -84,10 +84,29 @@ grader_fetch.py --challenge-dir grading/<asg> --assignment-id <aid>
   │     NO student name in any filename, console line, or AI surface.
   │     user_id is Canvas's internal DB row (not SIS) — FERPA-safe to log.
   │
+  ├─ STEP B.5: Follow share URLs (issue #51, v0.35.x)
+  │     grader_follow_share_url.py (--follow-share-urls auto, default)
+  │     Detects chatgpt.com/share/, gemini.google.com/share/,
+  │     share.google/aimode/. Renders each via Playwright headless
+  │     Chromium → <prefix>_<userid>_external.md alongside the original.
+  │     Bot-walled URLs (Google) fail loud with an OPERATOR RESCUE
+  │     runbook in the stub itself — retry-first (intermittent block,
+  │     ~60% first-try success; ~94% by third retry), manual paste
+  │     as fallback. Setup once per machine:
+  │       uv run playwright install chromium  (~92 MB)
+  │
   ├─ STEP C: De-identify (auto-chain; --no-chain opts out)
   │     detect_adapter() picks docx / databricks / text / pdf / xlsx /
   │     jupyter from file extensions in submissions_raw/
   │     → writes submissions_deid/<KEY>.md + .keymap.json (gitignored)
+  │
+  │     QUARANTINE PATH (issue #50, v0.34.4 — grader_deidentify_docx):
+  │     If a letter has no Name: header, no From: letterhead, and no
+  │     recognized sign-off-then-name pattern, the file is written to
+  │     submissions_deid/_REVIEW/ instead of submissions_deid/. The
+  │     agent chain stops (non-zero exit) until the operator hand-clears.
+  │     Roster-completeness warning also fires when .known_names.txt
+  │     is empty or short (<80% of submission count).
   │
   └─ STEP D: Name-leak check (auto-chain; same opt-out as Step C)
         grader_name_leak_check.py against submissions_deid/

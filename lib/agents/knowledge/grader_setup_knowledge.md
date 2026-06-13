@@ -43,7 +43,8 @@ interview's remaining steps + flagging edge cases.
 | Canvas `submission_type` + file ext | Adapter (`grader_fetch.py` auto-chains) | Notes |
 |---|---|---|
 | `online_text_entry` (Canvas wraps to .html bare body) | `text` | Most common low-effort case — student types into the box |
-| `online_upload` `.docx` | `docx` | Form-field-aware (`Name:` / `Signature:` patterns stripped) |
+| `online_text_entry` containing a ChatGPT/Gemini share URL (AI Log) | `text` (after `grader_follow_share_url.py` renders the share — auto-chained) | Issue #51, v0.35.x. Detects `chatgpt.com/share/`, `gemini.google.com/share/`, `share.google/aimode/`. Renders via headless Chromium (Playwright). Bot-walled fetches (#53) emit a retry-first OPERATOR RESCUE runbook in the stub. **Setup once per machine:** `uv run playwright install chromium` (~92 MB). |
+| `online_upload` `.docx` | `docx` | Form-field-aware (`Name:` / `Signature:` patterns stripped). **v0.34.4 (#50):** also detects sign-offs (`Sincerely,\n<name>`), letterheads (`From: <name>`); quarantines letters with no structural name into `submissions_deid/_REVIEW/` + non-zero exit. Roster-completeness warning when `.known_names.txt` is empty or short. |
 | `online_upload` `.pdf` | `pdf` | Warns + writes placeholder for image-only PDFs (operator OCRs or skips) |
 | `online_upload` `.xlsx` | `xlsx` | Workbook audit pattern (structure / formulas / formatting / charts; file properties scrubbed) |
 | `online_upload` `.html` w/ `__DATABRICKS_NOTEBOOK_MODEL` marker | `databricks` | Cell-aware extraction from the encoded notebook model |

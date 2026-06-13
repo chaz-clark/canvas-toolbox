@@ -81,12 +81,29 @@ manual control of each step.
    - **Default ON** — pre-populates `.known_names.txt` from the FULL
      enrolled roster (catches peer mentions of non-submitters too).
      `--no-roster` opts out.
+0.5. **Follow share URLs** (`grader_follow_share_url.py`) — between fetch
+   and deid, the chain detects ChatGPT/Gemini/Gemini-AI-Mode share URLs in
+   `submissions_raw/` and renders them via headless Chromium (Playwright).
+   Rendered transcripts saved as `<prefix>_<userid>_external.md` alongside
+   the original submissions. Default ON via `--follow-share-urls auto`
+   (issue #51, v0.35.x). Patterns matched: `chatgpt.com/share/<hash>`,
+   `gemini.google.com/share/<hash>`, `share.google/aimode/<hash>` (issue
+   #52). Google bot-detection occasionally blocks share.google URLs —
+   the tool fails LOUD with an OPERATOR RESCUE runbook in the stub
+   itself (retry-first; manual paste as fallback — issue #53).
+   **Setup per machine (one-time):** `uv run playwright install chromium`
+   (~92 MB).
 1. **De-identify** — `grader_fetch.py` auto-detects file types in
    `submissions_raw/` and chains to the right adapter (see Existing
    Tooling table below). All adapters: produce keyed `<KEY>.md` in
    `submissions_deid/` + update `.keymap.json`. Strips names/emails/
    userpaths + format-specific identity (PDF metadata, xlsx file
    properties, ipynb notebook metadata, Databricks identity keys).
+   **`grader_deidentify_docx` (v0.34.4) quarantines** any letter
+   with no structural name (no `Name:` header, no `From:` letterhead,
+   no recognized sign-off-then-name) into `submissions_deid/_REVIEW/`
+   + exits non-zero. The agent chain STOPS until the operator
+   hand-clears each quarantined file (issue #50).
    `--no-chain` skips this and the next step.
 2. **Name-leak check** — `grader_name_leak_check.py` runs against
    `submissions_deid/`. **FAILS NON-ZERO** if any name from
@@ -276,7 +293,8 @@ Pipeline-run-order steps above.
 
 | Tool | Purpose | Path | When to use |
 |---|---|---|---|
-| `grader_fetch.py` | Fetch submissions FROM CANVAS keyed by user_id (no name in any filename/console/AI surface) + roster pre-fetch into `.known_names.txt` + auto-chain to deidentify + leak-check. Branches by `submission_type`: attachment / discussion_topic / online_quiz. | `lib/tools/grader_fetch.py` | **Step 0** — the default entry point. One command lands at a leak-verified `submissions_deid/`. |
+| `grader_fetch.py` | Fetch submissions FROM CANVAS keyed by user_id (no name in any filename/console/AI surface) + roster pre-fetch into `.known_names.txt` + auto-chain to deidentify + leak-check. Branches by `submission_type`: attachment / discussion_topic / online_quiz. New flag (v0.35.x): `--follow-share-urls {auto, never, always}` auto-chains the share-URL follower below. | `lib/tools/grader_fetch.py` | **Step 0** — the default entry point. One command lands at a leak-verified `submissions_deid/`. |
+| `grader_follow_share_url.py` | Issue #51 / v0.35.x. Detects ChatGPT / Gemini / Gemini-AI-Mode share URLs in `submissions_raw/`, renders each in headless Chromium (Playwright), saves the rendered transcript as `<prefix>_<userid>_external.md`. Bot-wall aware (issue #53 — fails loud with retry-first runbook in the stub when Google blocks). Patterns: `chatgpt.com/share/`, `gemini.google.com/share/`, `share.google/aimode/`. | `lib/tools/grader_follow_share_url.py` | **Step 0.5** — auto-chained by `grader_fetch.py --follow-share-urls auto`. Setup once per machine: `uv run playwright install chromium`. |
 | `grader_prep_answer_key.py` | Secret-scrub instructor `.ipynb` answer keys into `key_clean.md` for grading reference (tokens / PATs / API keys redacted; NOT student data, so only secrets are scrubbed, not names). | `lib/tools/grader_prep_answer_key.py` | Once per assignment — only for code/notebook assignments where the grader needs an instructor reference. |
 
 ### De-id adapters (Step 1) — one per format; `grader_fetch.py` auto-detects which to chain
@@ -284,7 +302,7 @@ Pipeline-run-order steps above.
 | Adapter | Handles | Path | When auto-detect picks it |
 |---|---|---|---|
 | `grader_deidentify_databricks.py` | Databricks HTML notebook exports (cell-aware extraction via base64-encoded notebook model) | `lib/tools/grader_deidentify_databricks.py` | All `.html` files have `__DATABRICKS_NOTEBOOK_MODEL` marker |
-| `grader_deidentify_docx.py` | Word documents (paragraphs + table cells in document order; `Name:` / `Signature:` form fields stripped) | `lib/tools/grader_deidentify_docx.py` | All files are `.docx` |
+| `grader_deidentify_docx.py` | Word documents (paragraphs + table cells in document order; `Name:` / `Signature:` form fields stripped). **v0.34.4 (#50):** also detects sign-offs (`Sincerely,\n<name>`), letterheads (`From: <name>`), and quarantines letters with no structural name into `submissions_deid/_REVIEW/` (non-zero exit so the agent chain stops). Also warns when `.known_names.txt` roster is empty or short relative to submission count. | `lib/tools/grader_deidentify_docx.py` | All files are `.docx` |
 | `grader_deidentify_text.py` | Plain text / Markdown / online_text_entry (HTML-wrapped) / generic bare HTML. UTF-8 → CP1252 → Latin-1 encoding fallback. | `lib/tools/grader_deidentify_text.py` | All files are `.txt` / `.md` (or mix) OR all `.html` WITHOUT Databricks marker |
 | `grader_deidentify_pdf.py` | PDF submissions via pdfplumber text-layer extraction. Image-only PDFs: warn + write placeholder explaining operator must OCR. PDF metadata (Author / Title / Creator / Producer) scrubbed. | `lib/tools/grader_deidentify_pdf.py` | All files are `.pdf` |
 | `grader_deidentify_xlsx.py` | Excel via the workbook-audit pattern: sheets / freeze-panes / column formatting / cell details (first 10 rows × 20 cols) / formulas grouped by column-run / charts / named tables. File properties NEVER in output. | `lib/tools/grader_deidentify_xlsx.py` | All files are `.xlsx` |
