@@ -335,26 +335,61 @@ def emit_markdown(*, service: str, hash_short: str, status: int, body: str,
 
 
 def emit_revoked_stub(*, service: str, hash_short: str, status: int,
-                       error: str | None = None) -> str:
+                       url: str = "", error: str | None = None) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
-    return (
+    out = (
         f"# External share — fetched {now}\n"
         f"_Source: {_pretty_url(service, hash_short)}_\n"
+    )
+    if url:
+        out += f"_Full URL (operator use only — not for AI read): {url}_\n"
+    out += (
         f"_REVOKED: share returned HTTP {status} — student likely revoked "
         f"the share, or the URL was incorrect. Operator review needed._\n"
-        + (f"_Error detail: {error}_\n" if error else "")
     )
+    if error:
+        out += f"_Error detail: {error}_\n"
+    return out
 
 
-def emit_error_stub(*, service: str, hash_short: str, error: str) -> str:
+def emit_error_stub(*, service: str, hash_short: str, error: str, url: str = "") -> str:
+    """For fetch failures. Issue #53: when the failure is the Google bot-wall
+    (detected via 'sorry/index' in the error), include OPERATOR MANUAL RESCUE
+    instructions so the operator has a clear runbook in the stub itself."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
-    return (
+    out = (
         f"# External share — fetch failed {now}\n"
         f"_Source: {_pretty_url(service, hash_short)}_\n"
-        f"_Error: {error}_\n"
-        f"_Operator review needed. If this persists, the share may have moved to a "
-        f"new format. File an issue against canvas-toolbox._\n"
     )
+    if url:
+        out += f"_Full URL (operator use only — not for AI read): {url}_\n"
+    out += f"_Error: {error}_\n\n"
+
+    is_botwall = "sorry/index" in (error or "").lower() or "bot-detection" in (error or "").lower()
+    if is_botwall:
+        out += (
+            "## OPERATOR MANUAL RESCUE\n\n"
+            "Google's bot detection blocked this fetch. The headless browser\n"
+            "can't get past the captcha. To rescue this submission:\n\n"
+            f"1. Open the URL above in your normal browser.\n"
+            "2. Copy the rendered conversation text from the page.\n"
+            "3. REPLACE this entire file's content with the conversation text,\n"
+            "   keeping a short header so the grader knows the source:\n\n"
+            "       # External share — manually fetched <date>\n"
+            f"       _Source: {_pretty_url(service, hash_short)} (manual paste; bot-wall bypassed)_\n\n"
+            "       <paste the conversation text here>\n\n"
+            "4. Re-run the deid + leak-check chain from this challenge-dir:\n"
+            "       uv run python lib/tools/grader_deidentify_text.py --challenge-dir <this dir>\n"
+            "       uv run python lib/tools/grader_name_leak_check.py --challenge-dir <this dir>\n\n"
+            "See `grading_readme.md` section \"When `grader_follow_share_url.py` is "
+            "bot-walled\" for full operator runbook + FERPA context.\n"
+        )
+    else:
+        out += (
+            "_Operator review needed. If this persists, the share may have moved "
+            "to a new format. File an issue against canvas-toolbox._\n"
+        )
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -461,14 +496,15 @@ def main() -> int:
             if result.revoked:
                 sections.append(emit_revoked_stub(
                     service=share.service, hash_short=share.hash_short,
-                    status=result.status, error=result.error))
+                    status=result.status, url=share.url, error=result.error))
                 meta["revoked"] = True
                 revoked += 1
                 print(f"  {userid}: {pretty} → REVOKED (HTTP {result.status})")
             elif result.status != 200 or not result.body:
                 err = result.error or f"status {result.status}"
                 sections.append(emit_error_stub(
-                    service=share.service, hash_short=share.hash_short, error=err))
+                    service=share.service, hash_short=share.hash_short,
+                    url=share.url, error=err))
                 meta["error"] = err
                 failed += 1
                 print(f"  {userid}: {pretty} → FAILED ({err})")

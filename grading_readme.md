@@ -584,7 +584,7 @@ what to ask for if your assignment uses a format we haven't built yet.
 | `online_upload` `.zip` | Archive | ❌ Not built (extract + delegate per inner file) — ask if your assignment needs it |
 | `student_annotation` | Annotations on instructor-uploaded doc | ❌ Not built (Canvas DocViewer API) — ask if your assignment needs it |
 | `online_url` | Student submits a URL | ⚠ `grader_fetch.py` writes the URL to a file; no content fetch (arbitrary external URLs are FERPA-risky to cache locally) |
-| `online_text_entry` with a ChatGPT/Gemini share URL (AI Log) | ✅ `grader_follow_share_url.py` v1.1 — detects + Playwright-rendered fetch + extracts rendered conversation text. Validated against 5 real SP26 fixtures (8K–14K chars extracted per fixture). Auto-chained from `grader_fetch.py --follow-share-urls auto` (default). **First-time setup per machine:** `uv run playwright install chromium` (~92 MB, one-time). |
+| `online_text_entry` with a ChatGPT/Gemini share URL (AI Log) | ✅ `grader_follow_share_url.py` v1.1 — detects + Playwright-rendered fetch + extracts rendered conversation text. Validated against 5 real SP26 fixtures (8K–14K chars extracted per fixture). Auto-chained from `grader_fetch.py --follow-share-urls auto` (default). Supports `chatgpt.com/share/`, `gemini.google.com/share/` (+ legacy bard), and `share.google/aimode/`. **First-time setup per machine:** `uv run playwright install chromium` (~92 MB, one-time). **When bot-walled by Google:** see "When `grader_follow_share_url.py` is bot-walled" below. |
 | `external_tool` | LTI tool (Pearson, McGraw-Hill, etc.) | ⚠ Vendor handles grading; NWQ has the Classic-mirror pattern (`grader_quiz_mirror.py`). Other LTIs return scores only |
 | `on_paper` | Physical submission | n/a — operator grades in the gradebook UI |
 | `none` | No submission | n/a |
@@ -607,6 +607,78 @@ with:
 Each new adapter ports in 150-300 lines once a real consumer signal lands —
 the canonical layout + the FERPA two-zone architecture stay the same,
 only the file-format parser changes.
+
+## When `grader_follow_share_url.py` is bot-walled
+
+Issue #53 — Google's bot detection sometimes blocks headless Chromium on
+`share.google/aimode/` URLs (and may extend to other share-services). When
+blocked, the tool fails LOUDLY with a clear error stub at
+`submissions_raw/<prefix>_<userid>_external.md` instead of indexing the
+captcha page as if it were transcript content. The stub itself contains
+the recovery runbook; this section is the long-form context.
+
+**What "bot-walled" looks like:**
+
+```
+  415951: share.google/aimode/OkBUB9ct… → FAILED (Google bot-detection
+    wall (google.com/sorry/index). Stealth flags didn't suffice.
+    Operator may need to fetch manually …)
+```
+
+The stub file at `submissions_raw/<prefix>_<userid>_external.md` shows the
+same error plus the full URL (for operator use only — that file is in
+`submissions_raw/`, which the AI never reads).
+
+**Operator manual rescue (Option C in #53 — the documented immediate path):**
+
+1. Open the URL in your normal browser. (You're a human; Google's bot
+   detection lets you through.)
+2. Wait for the share page to render fully (any conversation/AI Mode UI).
+3. Select-all + copy the rendered conversation text.
+4. **Replace the entire stub file's content** with the copied text, keeping
+   a short header so the grader knows the source:
+
+   ```markdown
+   # External share — manually fetched <date>
+   _Source: share.google/aimode/<hash-prefix>… (manual paste; bot-wall bypassed)_
+
+   <paste the conversation text here>
+   ```
+
+5. Re-run the deid + leak-check chain from this challenge-dir:
+
+   ```bash
+   uv run python lib/tools/grader_deidentify_text.py --challenge-dir grading/<assignment>
+   uv run python lib/tools/grader_name_leak_check.py --challenge-dir grading/<assignment>
+   ```
+
+The deid + leak-check work the same on manually-pasted content as on
+auto-fetched content. Same FERPA two-zone gate applies.
+
+**Why this isn't automated:**
+
+Three options were considered in #53. The toolkit went with documented-
+manual (this section) because:
+
+- **Cookie reuse from operator's real browser profile** — declined. Real
+  cookies = real browser fingerprint, but the operator's full cookie jar
+  adjacent to a student-data pipeline is a FERPA-adjacent risk that needs
+  a careful scoping story we don't have yet. Parking lot.
+- **`--headless=False` interactive flag** — parked. Conceptually simple
+  (open a visible browser, click past the wall, then continue), but only
+  works on a desktop session (breaks CI/batch grading on a server) and
+  cookie persistence depends on Chromium profile setup. Trigger to pull:
+  faculty workflows where the manual-paste step is happening more than a
+  handful of times per cohort.
+- **Documented-manual** — chose this. Zero new code, zero new attack
+  surface, works for any future bot-walled service (LinkedIn, Twitter
+  shares, etc.). Operator cost is one paste per blocked URL.
+
+**Rate observation:** bot-walls appear intermittent. The same URL sometimes
+fetches cleanly, sometimes hits the wall — Google's heuristics are
+session/IP/time-dependent. **Retry once or twice** before going manual; if
+the retry succeeds, the tool's idempotent skip-if-exists means subsequent
+runs won't re-fetch.
 
 ## Backlog (parked items, surfaced as they're needed)
 
