@@ -70,6 +70,37 @@ NAME_RE = re.compile(r"^\s*name\s*[:\-]\s*(.+?)\s*$", re.I | re.M)
 # Signatures are a name by definition — redact the value regardless of spelling.
 SIG_RE = re.compile(r"^(\s*signature\s*[:\-]\s*).+$", re.I | re.M)
 
+# issue #50 — sign-off + letterhead name detection (free-form letters with no Name: header)
+# The ds250 mid-letter leak case: letter ends "From,\n<Firstname Lastname>" or opens
+# with a "To: <prof> / From: <name>" letterhead. Old code missed both → silent leak.
+
+# Sign-off keyword as the ENTIRE line (with optional trailing comma/period). The typed
+# name is on the following line. Single-line "Sincerely, Jane" doesn't match (since the
+# name is on the same line); FROM_RE / NAME_RE handle that shape via value extraction.
+SIGN_OFF_RE = re.compile(
+    r"^\s*(sincerely|sincerely yours|regards|best regards|best wishes|best|"
+    r"thanks|thank you|thanks again|from|respectfully|respectfully yours|"
+    r"warm regards|kind regards|cheers|yours truly|yours)\s*[,.]?\s*$",
+    re.I,
+)
+
+# "From: <name>" letterhead line — value-bearing, treat like NAME_RE.
+FROM_RE = re.compile(r"^\s*from\s*[:\-]\s*(.+?)\s*$", re.I | re.M)
+
+# A name candidate looks like 1-4 alpha tokens (with optional hyphen/apostrophe).
+# Used to filter what the sign-off / letterhead heuristics emit so we don't add
+# arbitrary prose ("Best regards to my classmates") as a scrub term.
+_NAME_CANDIDATE_RE = re.compile(r"^[A-Za-z][A-Za-z\-'. ]{1,79}$")
+
+
+def _looks_like_name(s: str) -> bool:
+    s = s.strip()
+    if not s:
+        return False
+    if not _NAME_CANDIDATE_RE.match(s):
+        return False
+    return 1 <= len(s.split()) <= 4
+
 
 def docx_lines(path: Path) -> list[str]:
     """Text from paragraphs + table cells, in document order."""
@@ -101,6 +132,7 @@ def docx_lines(path: Path) -> list[str]:
 
 
 def extract_name(lines: list[str]) -> str | None:
+    """Find the canonical `Name: <value>` header (the template-form path)."""
     for ln in lines[:20]:  # the Name: header is near the top
         m = NAME_RE.match(ln)
         if m and len(m.group(1).strip()) >= 2:
@@ -108,14 +140,65 @@ def extract_name(lines: list[str]) -> str | None:
     return None
 
 
-def scrub(text: str, name: str | None, extra_names: list[str]) -> tuple[str, int]:
+def extract_letterhead_names(lines: list[str]) -> list[str]:
+    """Find names following 'From: <name>' letterhead lines. Issue #50 —
+    letters that open with a To:/From: block put the student name on the From line."""
+    names: list[str] = []
+    for ln in lines[:30]:  # letterheads are near the top
+        m = FROM_RE.match(ln)
+        if m:
+            candidate = m.group(1).strip()
+            if _looks_like_name(candidate):
+                names.append(candidate)
+    return names
+
+
+def extract_sign_off_names(lines: list[str]) -> list[str]:
+    """Find names following common sign-offs. Issue #50 — a letter that ends
+    'Sincerely,\\n<Firstname Lastname>' or 'From,\\n<name>' lands the typed
+    name on the line AFTER the sign-off keyword. docx_lines() already filters
+    empty lines, so lines[i+1] IS the next non-empty content line."""
+    names: list[str] = []
+    for i, ln in enumerate(lines):
+        if SIGN_OFF_RE.match(ln) and i + 1 < len(lines):
+            candidate = lines[i + 1].strip()
+            if _looks_like_name(candidate):
+                names.append(candidate)
+    return names
+
+
+def collect_structural_names(lines: list[str]) -> list[str]:
+    """Union of all structural name-detection paths. Used by main() to (a) feed
+    the scrub-term list AND (b) decide whether to quarantine the file: if NO
+    structural path catches a name, confidence is too low to ship without
+    operator review (issue #50 quarantine trigger)."""
+    out: list[str] = []
+    header = extract_name(lines)
+    if header:
+        out.append(header)
+    out.extend(extract_letterhead_names(lines))
+    out.extend(extract_sign_off_names(lines))
+    # Dedup while preserving order (insertion order)
+    seen = set()
+    uniq = []
+    for n in out:
+        if n.lower() not in seen:
+            seen.add(n.lower())
+            uniq.append(n)
+    return uniq
+
+
+def scrub(text: str, structural_names: list[str], extra_names: list[str]) -> tuple[str, int]:
     # issue #47 — decompose roster names too (not just the extracted Name: field).
     # Free-form prose in a docx can still reference peers/students by first
     # name only, so the full-name-only matching pre-#47 missed those.
+    # issue #50 — structural_names now includes ALL detected names (Name: header,
+    # From: letterhead, sign-off-then-next-line). Each gets decomposed too so
+    # 'Jane Smith' caught from a sign-off also scrubs 'Jane' alone elsewhere.
     terms = set(expand_name_terms(extra_names))
-    if name:
-        terms.add(name)
-        for part in re.split(r"[^A-Za-z]+", name):
+    for n in structural_names:
+        terms.add(n)
+        for part in re.split(r"[^A-Za-z]+", n):
             if len(part) >= 3:
                 terms.add(part)  # first/last individually, for prose mentions
     # Structured identifiers FIRST — a name inside an email must be caught as a whole email before
@@ -124,13 +207,13 @@ def scrub(text: str, name: str | None, extra_names: list[str]) -> tuple[str, int
     text, k2 = USERPATH_RE.subn("[REDACTED]", text)
     text, k3 = SECRET_PREFIX_RE.subn("[REDACTED-SECRET]", text)
     text, k4 = SECRET_ASSIGN_RE.subn(r"\1=[REDACTED-SECRET]", text)
-    n = 0
+    n_count = 0
     for t in sorted((t for t in terms if t), key=len, reverse=True):
         # word-boundary lookarounds so a short name (e.g. "Sam"/"Den") doesn't corrupt
         # ordinary words ("same"/"evidence").
         text, k = re.compile(rf"(?<![A-Za-z]){re.escape(t)}(?![A-Za-z])", re.I).subn("[REDACTED]", text)
-        n += k
-    return text, n + k1 + k2 + k3 + k4
+        n_count += k
+    return text, n_count + k1 + k2 + k3 + k4
 
 
 def main() -> int:
@@ -167,6 +250,12 @@ def main() -> int:
 
     indir, outdir, mapfile = Path(args.indir), Path(args.outdir), Path(args.mapfile)
     outdir.mkdir(parents=True, exist_ok=True)
+    # issue #50 — quarantine directory for files with no structural name detected.
+    # The agent's pipeline reads submissions_deid/<KEY>.md; quarantined files land
+    # in submissions_deid/_REVIEW/<KEY>.md so they're isolated from the agent's
+    # read path until the operator hand-clears them.
+    review_dir = outdir / "_REVIEW"
+
     files = sorted(indir.glob("*.docx"))
     if not files:
         print(f"No .docx files in {indir}/ — drop the uploaded reviews there first.")
@@ -178,8 +267,24 @@ def main() -> int:
         extra = [ln.strip() for ln in nf.read_text(encoding="utf-8").splitlines()
                  if ln.strip() and not ln.lstrip().startswith("#")]
 
+    # issue #50 — roster-completeness warning. The .known_names.txt roster is the
+    # safety net for the no-structural-name case; if it's missing or short
+    # relative to submission count, names will leak through for unlisted students.
+    if not extra:
+        print(f"  ⚠  WARNING: .known_names.txt is empty or missing. The "
+              f"roster-based peer-mention scrub is OFF. If any submission lacks "
+              f"a structural name (Name:/From:/sign-off), names of unlisted "
+              f"students WILL leak. Run grader_fetch.py with roster pre-fetch "
+              f"(default ON) or populate {nf} manually.", file=sys.stderr)
+    elif len(extra) < len(files) * 0.8:
+        print(f"  ⚠  WARNING: .known_names.txt has {len(extra)} name(s) but "
+              f"{len(files)} submission(s) — roster may be incomplete. Names of "
+              f"unlisted students will leak through if their submissions lack a "
+              f"structural name header. Consider re-running grader_fetch.py with "
+              f"--no-roster removed (default ON).", file=sys.stderr)
+
     keymap = json.loads(mapfile.read_text(encoding="utf-8")).get("map", {}) if mapfile.exists() else {}
-    ok = fail = no_name = 0
+    ok = fail = quarantined = 0
     for f in files:
         key = key_for(f.name, args.prefix)
         try:
@@ -190,27 +295,55 @@ def main() -> int:
             print(f"  {key}: SKIP — could not read .docx ({type(e).__name__})")
             fail += 1
             continue
-        name = extract_name(lines)
-        if not name:
-            no_name += 1
+
+        # issue #50 — collect ALL structural names: Name: header + From: letterhead
+        # + sign-off-then-next-line. Any non-empty result = "we caught at least one
+        # structural name path"; empty = quarantine.
+        structural_names = collect_structural_names(lines)
+        header_name = extract_name(lines)  # for the NAME_RE.sub key-replacement below
+
         body = "\n".join(lines)
-        if name:  # show the key where the name was
+        if header_name:  # show the key where the Name: header was
             body = NAME_RE.sub(f"Name: {key}", body, count=1)
         body = SIG_RE.sub(r"\1[REDACTED]", body)  # blank any signature value
-        scrubbed, redactions = scrub(body, name, extra)
-        out = outdir / f"{key}.md"
+        scrubbed, redactions = scrub(body, structural_names, extra)
+
+        # Decide output path: normal vs. quarantine
+        if structural_names:
+            out = outdir / f"{key}.md"
+            ok += 1
+            status = f"name found ({len(structural_names)} structural)"
+        else:
+            review_dir.mkdir(parents=True, exist_ok=True)
+            out = review_dir / f"{key}.md"
+            quarantined += 1
+            status = "NO STRUCTURAL NAME → QUARANTINED"
+
         out.write_text(f"# Submission {key}\n\n{scrubbed}\n", encoding="utf-8")
         keymap[key] = f.name  # the ONLY place the real filename is stored
-        ok += 1
-        # FERPA: print key + counts + whether Name header was found — NEVER the name
-        print(f"  {key}: {len(lines)} lines, name {'found' if name else 'NOT FOUND'}, "
-              f"{redactions} redactions -> {out.name}")
+        # FERPA: print key + counts + structural-name status — NEVER the name
+        print(f"  {key}: {len(lines)} lines, {status}, {redactions} redactions "
+              f"-> {out.relative_to(outdir.parent) if out.is_relative_to(outdir.parent) else out.name}")
 
     mapfile.write_text(json.dumps(
         {"_warning": "FERPA — do NOT commit, do NOT let an AI read this. Local re-identification only.",
          "map": keymap}, indent=2), encoding="utf-8")
-    print(f"\n{ok} de-identified, {fail} skipped, {no_name} with NO 'Name:' header (check those). "
-          f"Map ({len(keymap)} keys) -> {mapfile} (gitignored, never read by AI).")
+
+    print(f"\n{ok} de-identified, {fail} skipped, {quarantined} quarantined to "
+          f"_REVIEW/. Map ({len(keymap)} keys) -> {mapfile} (gitignored, never read by AI).")
+
+    if quarantined:
+        print(f"\n⛔ {quarantined} file(s) lack any structural name pattern "
+              f"(Name:/From:/sign-off). They have been written to:", file=sys.stderr)
+        print(f"     {review_dir}", file=sys.stderr)
+        print(f"   These files HAVE been scrubbed against the roster but might "
+              f"still contain inline name mentions the roster missed. The "
+              f"operator MUST manually review each before moving it to "
+              f"{outdir} for grading. The agent pipeline (grader_fetch.py "
+              f"chain) will STOP here because this exit is non-zero.",
+              file=sys.stderr)
+        return 2
+
     return 0 if fail == 0 else 2
 
 
