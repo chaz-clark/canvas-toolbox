@@ -112,6 +112,24 @@ grader_fetch.py --challenge-dir grading/<asg> --assignment-id <aid>
         grader_name_leak_check.py against submissions_deid/
         FAILS NON-ZERO if any name from .known_names.txt survived
         → chain STOPS; operator MUST investigate before AI reads deid/
+
+  SIDE CHANNEL — Canvas submission_comments threads (issue #65)
+        Submission CONTENT goes through STEP C above. Submission COMMENT
+        THREADS (the dialogue attached to each submission) are a separate
+        Canvas API surface that returns `author_name` raw. Any agent-facing
+        tool that needs to read those threads (collision-guard before
+        pushing comments — #62; retract/update a prior comment — #63; audit
+        a TA exchange) MUST go through grader_deidentify_comments.py:
+
+          drops    author_name      (never written, never printed)
+          maps     author_id → role (self / instructor / ta / peer / unknown)
+                                    via course's Teacher/TA enrollment list
+          scrubs   comment body     using the same scrub as STEP C
+          refuses  to write the     output if any roster-name leak survives
+                   _comments.json   (mirrors STEP D's discipline)
+
+        Output: submissions_deid/_comments.json (keyed) + _comments_summary.md.
+        The raw `submission_comments` payload never reaches AI context.
 ```
 
 **Why the roster pre-fetch is non-negotiable.** Round-1 KC1 surfaced cases where a submitter referenced a non-submitting peer by name (e.g., "I worked on this with Alex" where Alex didn't submit). The submitter-only roster missed Alex; the peer-mention scrub had nothing to redact. Pre-fetching the full enrolled roster closes that gap.

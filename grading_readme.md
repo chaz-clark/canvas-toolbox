@@ -73,6 +73,13 @@ The whole architecture is built on a **two-zone** principle:
 - If a name slips past de-identification, the chain stops at
   `grader_name_leak_check.py` with a non-zero exit code. Investigate before
   letting any AI read `submissions_deid/`.
+- **Comment threads have their own de-id path** (issue #65). Canvas
+  `submission_comments` returns `author_name` raw — any tool that needs to
+  read the comment thread (collision guard before pushing comments, retract
+  / update of a prior comment, audit of a TA exchange) must go through
+  `grader_deidentify_comments.py`, which drops `author_name`, converts
+  `author_id` to a role (`self`/`instructor`/`ta`/`peer`), scrubs the body,
+  and refuses to write if any roster name survives the scrub.
 
 ---
 
@@ -793,6 +800,7 @@ flag list:
 
 - `grader_fetch.py` — Step 0 (fetch + roster + chain to deid + leak-check)
 - `grader_deidentify_databricks.py` · `grader_deidentify_docx.py` · `grader_deidentify_text.py` · `grader_deidentify_pdf.py` · `grader_deidentify_xlsx.py` · `grader_deidentify_jupyter.py` — de-id adapters by file type. `grader_fetch.py`'s auto-chain picks the right adapter automatically; `--deid-adapter` overrides.
+- `grader_deidentify_comments.py` — FERPA de-id layer for Canvas submission_comments threads (issue #65). Drops `author_name`, converts `author_id` to role (`self`/`instructor`/`ta`/`peer`/`unknown`), scrubs body, refuses to write on post-scrub leak. Prerequisite for any tool that reads comment threads (#62 collision guard, #63 retract/update).
 - `grader_fetch.py` also branches by Canvas `submission_type`: graded discussions (`/discussion_topics/:tid/view`) and Classic quizzes (`submission_data` + question join) get their own fetch paths — output routes to the text adapter downstream.
 - `grader_name_leak_check.py` — name-leak verifier (FERPA gate)
 - `grader_prep_answer_key.py` — secret-scrub instructor answer keys for code/notebook assignments
