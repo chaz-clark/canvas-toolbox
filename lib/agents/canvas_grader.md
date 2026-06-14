@@ -158,6 +158,17 @@ manual control of each step.
    `--allow-collisions`. `--skip-if-student-replied` drops rows where the
    latest comment is the student's reply. `--grade-only` and
    `--no-collision-check` opt out.
+   **v0.42+ (#63):** availability awareness + first-class retract. Before
+   posting, the tool checks the assignment's `lock_at`/`unlock_at` and
+   warns when a pushable comment contains resubmit-style language
+   (resubmit/redo/new template/wrong file/...) on a locked assignment
+   — students can't act on instructions they can't reach. Operator types
+   `locked` to ack, or passes `--allow-locked-resubmit` / `--no-lock-check`.
+   **Retract:** `--retract` (optionally `--retract-keys K1,K2`) reads the
+   per-assignment comment-id ledger that grader_push now writes on every
+   comment push, and DELETEs those comments via the Canvas API.
+   Idempotent (each retract appends a `retracted` line; subsequent runs
+   skip already-retracted ids).
 
 For structured data — config schema, pipeline stage contracts, output formats, test cases — see `canvas_grader.json`.
 
@@ -345,7 +356,7 @@ Pipeline-run-order steps above.
 | `grader_grade.py` | N-pass LLM grading orchestrator. **Requires `ANTHROPIC_API_KEY`**. Optional accelerator for key-holders; agent-in-the-loop is the keyless default. | `lib/tools/grader_grade.py` | Step 4 — when a key is available. |
 | `grader_consensus.py` | Majority + spread + auto-flag NEEDS-REVIEW + `_all_comments.md` compile. | `lib/tools/grader_consensus.py` | Step 5 — after all grader passes complete. |
 | `grader_reidentify.py` | Local-only join keys → names → instructor review sheet. | `lib/tools/grader_reidentify.py` | Step 6 — instructor-only. |
-| `grader_push.py` | Local grade+comment push to Canvas. Gated behind `--mark-reviewed`. Per-assignment idempotency via `.push_log.md`. **v0.40+ (#61):** push surface excludes Test Student + inactive/withdrawn/completed/rejected enrollments by default (`--include-inactive` to revert). **v0.41+ (#62):** pre-push comment-collision guard — warns on non-self comments within `--collision-window-days` (default 14) via the FERPA-safe deid layer (#65); `--skip-if-student-replied` drops rows where the latest thread comment is from the student; `--grade-only` and `--no-collision-check` opt out. | `lib/tools/grader_push.py` | Step 7 — final write. |
+| `grader_push.py` | Local grade+comment push to Canvas. Gated behind `--mark-reviewed`. Per-assignment idempotency via `.push_log.md`. **v0.40+ (#61):** push surface excludes Test Student + inactive/withdrawn/completed/rejected enrollments by default (`--include-inactive` to revert). **v0.41+ (#62):** pre-push comment-collision guard — warns on non-self comments within `--collision-window-days` (default 14) via the FERPA-safe deid layer (#65); `--skip-if-student-replied` drops rows where the latest thread comment is from the student; `--grade-only` and `--no-collision-check` opt out. **v0.42+ (#63):** availability awareness (warn on resubmit-style comment on a locked assignment, `--allow-locked-resubmit` / `--no-lock-check` opt out) + first-class `--retract [--retract-keys K1,K2]` that DELETEs previously-pushed comments via the per-assignment ledger written automatically on every push. | `lib/tools/grader_push.py` | Step 7 — final write. |
 | `grader_quiz_mirror.py` | Classic-quiz mirror for verifiable self-reports (NWQ API doesn't expose per-item responses; Classic does). | `lib/tools/grader_quiz_mirror.py` | §J branch of setup interview — once per assignment that depends on a quiz. |
 
 ### When the agent picks an adapter manually

@@ -34,6 +34,37 @@ GUARDRAILS (no override on the first three)
      withdrawn/completed/rejected enrollments by default. Excluded user_ids
      are printed before the plan. `--include-inactive` reverts to the
      unfiltered behavior for the rare intentional case.
+  6. **Issue #62** — pre-push comment-collision guard. For each pushable
+     row that ships a comment, peek at existing `submission_comments`
+     through the FERPA-safe deid layer (#65) and warn on non-self
+     comments within `--collision-window-days` (default 14). Operator
+     must type `collisions` to ack OR pass `--allow-collisions`.
+     `--skip-if-student-replied` drops rows where the latest comment is
+     from the student. `--grade-only` / `--no-collision-check` opt out.
+  7. **Issue #63** — availability awareness. Pre-fetch
+     `/assignments/:aid` for `lock_at`/`unlock_at`; if the assignment is
+     locked AND a pushable comment contains resubmit-style language
+     (resubmit/redo/new template/wrong file/...), surface a warning.
+     Operator types `locked` to ack OR passes `--allow-locked-resubmit`.
+     `--no-lock-check` / `--grade-only` opt out.
+
+RETRACT MODE (issue #63)
+  Every comment push records `- <KEY>: comment <ID> pushed to assignment
+  <AID>` to `.push_log.md`. `--retract` reads that ledger for THIS
+  assignment, optionally scoped via `--retract-keys K1,K2,...`, and
+  DELETEs each comment via /comments/:id. Idempotent: a `- KEY: comment
+  ID retracted from assignment AID` line is appended on success, and
+  subsequent retract runs skip the already-retracted entries.
+
+  Dry-run by default (same as the push path):
+    uv run python lib/tools/grader_push.py --challenge-dir grading/kc1 \\
+      --assignment-id 12345 --retract --retract-keys KC1-A1B2C3,KC1-DEF456
+
+  Real retract (--push is the verb; --mark-reviewed is NOT required —
+  retract is a corrective action, not a fresh review surface):
+    uv run python lib/tools/grader_push.py --challenge-dir grading/kc1 \\
+      --assignment-id 12345 --retract --retract-keys KC1-A1B2C3 \\
+      --push --allow-enrolled
 
 MULTI-OUTPUT SUPPORT
   --grade-only suppresses the comment (e.g. the consequential grade in a two-
@@ -239,6 +270,84 @@ def _parse_iso(s: str | None):
     return d
 
 
+# Issue #63 part 1: availability awareness. The pushable comment text is
+# scanned for resubmit-style language; if the assignment's lock_at has
+# passed (or unlock_at hasn't), pushing such guidance creates instructions
+# students literally cannot act on. Pattern list is conservative — false
+# positives (a benign mention of "redo") are cheap (one extra warning);
+# false negatives (a real "resubmit using the template" slipping past) are
+# the actual harm.
+_RESUBMIT_PATTERNS = [
+    r"\bresubmit\b",
+    r"\bre-?submit\b",
+    r"\bre-?upload\b",
+    r"\bupload\s+again\b",
+    r"\bsubmit\s+again\b",
+    r"\bredo\b",
+    r"\bre-?do\b",
+    r"\btry\s+again\b",
+    r"\bnew\s+template\b",
+    r"\bright\s+template\b",
+    r"\bwrong\s+template\b",
+    r"\bwrong\s+file\b",
+    r"\bnew\s+version\b",
+    r"\bright\s+version\b",
+    r"\bwrong\s+version\b",
+    r"\bcorrect\s+version\b",
+]
+_RESUBMIT_RE = re.compile("|".join(_RESUBMIT_PATTERNS), re.IGNORECASE)
+
+
+def fetch_assignment_lock_state(
+    base: str, cid: str, headers: dict, aid: str, now=None,
+) -> dict:
+    """Return {'locked_now', 'lock_at', 'unlock_at', 'reason'}.
+
+    locked_now is True if (a) lock_at is in the past, or (b) unlock_at is
+    in the future. reason is a short human string. Reads /assignments/:aid
+    once; cheap."""
+    from datetime import datetime, timezone
+    if now is None:
+        now = datetime.now(tz=timezone.utc)
+    r = requests.get(
+        f"{base}/api/v1/courses/{cid}/assignments/{aid}",
+        headers=headers, timeout=_TIMEOUT,
+    )
+    r.raise_for_status()
+    a = r.json() or {}
+    lock_at = a.get("lock_at")
+    unlock_at = a.get("unlock_at")
+
+    def _iso(s):
+        if not s:
+            return None
+        try:
+            d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d
+
+    lock_dt = _iso(lock_at)
+    unlock_dt = _iso(unlock_at)
+    locked_now = False
+    reason = ""
+    if lock_dt is not None and now > lock_dt:
+        locked_now = True
+        reason = f"lock_at={lock_dt.date()} has passed"
+    elif unlock_dt is not None and now < unlock_dt:
+        locked_now = True
+        reason = f"unlock_at={unlock_dt.date()} is in the future"
+    return {"locked_now": locked_now, "lock_at": lock_at, "unlock_at": unlock_at,
+            "reason": reason}
+
+
+def comment_has_resubmit_language(text: str) -> bool:
+    """True if `text` contains any resubmit-style instruction pattern."""
+    if not text:
+        return False
+    return bool(_RESUBMIT_RE.search(text))
+
+
 def collision_warnings_for_submission(
     deid_comments: list[dict], *, window_days: int, now=None,
 ) -> tuple[list[dict], dict | None]:
@@ -281,6 +390,131 @@ def resolve_user_id(filename: str, subs: list[dict]) -> int | None:
         return cand[0]["user_id"]
     cand2 = [s for s in cand if str(s["id"]) in nums]
     return cand2[0]["user_id"] if len(cand2) == 1 else None
+
+
+# Issue #63 part 2: retract previously-pushed comments. Comment ids are
+# captured in .push_log.md on every comment push (one line per push:
+# `- <KEY>: comment <ID> pushed to assignment <AID>`). --retract reads
+# that ledger for THIS assignment, optionally scoped to --retract-keys,
+# and DELETEs each via the comments API. The ledger is updated with a
+# retract line so a subsequent re-push has a clean slate.
+_PUSH_LOG_COMMENT_RE = re.compile(
+    r"^- (\S+): comment (\d+) pushed to assignment (\S+)", re.M
+)
+_PUSH_LOG_RETRACT_RE = re.compile(
+    r"^- (\S+): comment (\d+) retracted from assignment (\S+)", re.M
+)
+
+
+def _read_comment_ledger(log: Path, assignment_id: str) -> list[tuple[str, int]]:
+    """Return [(key, comment_id)] for every still-active comment recorded
+    against `assignment_id`. A 'retracted' line cancels the matching push."""
+    if not log.exists():
+        return []
+    text = log.read_text(encoding="utf-8")
+    pushed = [(k, int(cid)) for k, cid, aid in _PUSH_LOG_COMMENT_RE.findall(text)
+              if aid == str(assignment_id)]
+    retracted = {(k, int(cid)) for k, cid, aid in _PUSH_LOG_RETRACT_RE.findall(text)
+                 if aid == str(assignment_id)}
+    return [(k, c) for (k, c) in pushed if (k, c) not in retracted]
+
+
+def _resolve_uid_from_log_or_subs(
+    base: str, cid: str, headers: dict, aid: str, key: str, subs: list[dict],
+) -> int | None:
+    """Best-effort uid resolution for retract. The push log has the key but
+    not the uid; we need the uid for the DELETE URL. Strategy: scan the
+    challenge's review.csv if present, otherwise fall back to the user
+    passing keys + we look up by matching submission filenames."""
+    # The grade-push log line is `- KEY: grade GRADE pushed to assignment AID`.
+    # That also doesn't carry the uid. So we rebuild from the submissions
+    # listing + the keymap-aware filename match.
+    # For retract, this is best-effort: if we can't resolve, we report and skip.
+    return None  # delegated to caller via subs-and-keymap match
+
+
+def _retract_main(base: str, cid: str, headers: dict, args,
+                  log: Path, prefix: str) -> int:
+    """--retract entry. DELETEs previously-pushed comment ids for this
+    assignment (scope: all keys in the ledger, or --retract-keys subset)."""
+    # Read the comment ledger first — fail fast if there's nothing to retract.
+    ledger = _read_comment_ledger(log, str(args.assignment_id))
+    if args.retract_keys:
+        wanted = {k.strip() for k in args.retract_keys.split(",") if k.strip()}
+        ledger = [(k, c) for (k, c) in ledger if k in wanted]
+    if not ledger:
+        print(f"Nothing to retract for assignment {args.assignment_id}"
+              f"{' (no matching keys in --retract-keys)' if args.retract_keys else ''}.")
+        return 0
+
+    # Map key → user_id via the assignment's submission list + the
+    # challenge's keymap (.keymap.json holds key→filename; resolve_user_id
+    # matches filename to uid via the numeric ids embedded in Canvas-format
+    # filenames).
+    import json as _json
+    challenge = resolve_challenge_dir(args.challenge_dir, verb="retracting from")
+    keymap_file = challenge / ".keymap.json"
+    keymap = (_json.loads(keymap_file.read_text(encoding="utf-8")).get("map", {})
+              if keymap_file.exists() else {})
+    subs = fetch_submissions(base, cid, headers, args.assignment_id)
+    key_to_uid: dict[str, int | None] = {
+        k: resolve_user_id(fname, subs) for k, fname in keymap.items()
+    }
+
+    # canvas_course_guard: retract IS a write — gate it.
+    if guard_enforce and args.push:
+        guard_enforce(base, headers, cid, mode="write", allow_override=args.allow_enrolled)
+
+    print(f"Retract plan for assignment {args.assignment_id} "
+          f"({len(ledger)} comment(s) recorded):")
+    rows_to_delete: list[tuple[str, int, int]] = []  # (key, uid, comment_id)
+    for key, comment_id in ledger:
+        uid = key_to_uid.get(key)
+        if uid is None:
+            print(f"  [SKIP] {key} comment={comment_id}  (uid not resolvable from .keymap.json)")
+            continue
+        rows_to_delete.append((key, uid, comment_id))
+        print(f"  [OK]   {key} comment={comment_id} → DELETE /submissions/{uid}/comments/{comment_id}")
+
+    if not args.push:
+        print(f"\nDry run — nothing deleted. Re-run with --push to actually retract.")
+        return 0
+    if not rows_to_delete:
+        print("\nNothing to delete after resolution.")
+        return 1
+    if not args.yes:
+        if input(f"\nType 'retract' to delete {len(rows_to_delete)} comment(s) "
+                 f"on LIVE course {cid}: ").strip().lower() != "retract":
+            print("Aborted.")
+            return 1
+
+    retracted = 0
+    failed: list[str] = []
+    with log.open("a", encoding="utf-8") as lg:
+        for key, uid, comment_id in rows_to_delete:
+            resp = requests.delete(
+                f"{base}/api/v1/courses/{cid}/assignments/{args.assignment_id}"
+                f"/submissions/{uid}/comments/{comment_id}",
+                headers=headers, timeout=_TIMEOUT,
+            )
+            if resp.status_code < 400:
+                print(f"  retracted {key} comment={comment_id}")
+                lg.write(f"- {key}: comment {comment_id} retracted from assignment "
+                         f"{args.assignment_id}\n")
+                retracted += 1
+            else:
+                print(f"  ERROR {key} comment={comment_id}: {resp.status_code} {resp.text[:120]}")
+                failed.append(f"{key}/{comment_id}")
+                if 400 <= resp.status_code < 500:
+                    print(f"\n⛔ 4xx on {key}. STOP (P-003). Don't retry blindly. "
+                          f"Investigate, then re-run; ledger updates only on success.")
+                    break
+
+    print(f"\nRetracted {retracted}/{len(rows_to_delete)}.")
+    if failed:
+        print(f"Failed: {failed}")
+        return 2
+    return 0
 
 
 def main() -> int:
@@ -336,6 +570,25 @@ def main() -> int:
                     help="Issue #62: bypass the collision-confirmation prompt. The plan still prints "
                          "the warnings; this flag just skips the explicit 'type collisions to confirm' "
                          "interactive step.")
+    ap.add_argument("--no-lock-check", action="store_true",
+                    help="Issue #63: skip the availability-aware warning. By default, grader_push "
+                         "fetches the assignment's lock_at + unlock_at and warns if a comment "
+                         "contains resubmit-style language (resubmit / redo / use the new "
+                         "template / wrong file / etc.) while the assignment is locked or has not "
+                         "yet unlocked — students can't act on the guidance.")
+    ap.add_argument("--allow-locked-resubmit", action="store_true",
+                    help="Issue #63: bypass the lock-check confirmation. The warnings still print; "
+                         "this flag just skips the interactive 'type locked to confirm' step.")
+    ap.add_argument("--retract", action="store_true",
+                    help="Issue #63: DELETE previously-pushed comments for this assignment via "
+                         "/courses/:cid/assignments/:aid/submissions/:uid/comments/:cid. Reads the "
+                         "tracked comment_ids from .push_log.md (recorded automatically on every "
+                         "push). Use --retract-keys to scope. WRITE path — same gates apply "
+                         "(--mark-reviewed not required for retract; canvas_course_guard still "
+                         "enforces; default is dry-run unless --push is also passed).")
+    ap.add_argument("--retract-keys", default=None,
+                    help="Issue #63: comma-separated list of keys to retract (default: all keys "
+                         "for this assignment in .push_log.md). Has no effect without --retract.")
     args = ap.parse_args()
 
     challenge = resolve_challenge_dir(args.challenge_dir, verb="pushing from")
@@ -448,6 +701,12 @@ def main() -> int:
     pushed_keys = set(re.findall(
         rf"^- (\S+): grade \S+ pushed to assignment {args.assignment_id}\b", _logtext, re.M))
 
+    # Issue #63 retract mode: parse the per-assignment comment-id log and
+    # DELETE matching submission_comments. Runs BEFORE the normal push
+    # plan-build so the operator can retract + re-push in two passes.
+    if args.retract:
+        return _retract_main(base, cid, headers, args, log, prefix)
+
     rows = list(csv.DictReader(review.open(encoding="utf-8")))
     subs = fetch_submissions(base, cid, headers, args.assignment_id)
 
@@ -515,6 +774,28 @@ def main() -> int:
         print(f"  [{mark}] {key}: grade={grade or '—'}  matched={'yes' if uid else 'NO'}  "
               f"comment=\"{comment[:50].replace(chr(10), ' ')}…\"{why}")
 
+    # ---- Issue #63 part 1: availability awareness ------------------------
+    # If the assignment is locked (lock_at passed, or unlock_at not yet
+    # reached) AND a pushable row's comment text contains resubmit-style
+    # language, the comment asks the student to do something they
+    # literally can't. Warn loudly; require explicit ack before push.
+    locked_resubmit_keys: list[tuple[str, str]] = []
+    lock_state: dict = {}
+    if not args.no_lock_check and not args.grade_only:
+        try:
+            lock_state = fetch_assignment_lock_state(base, cid, headers, args.assignment_id)
+        except requests.HTTPError as e:
+            print(f"WARN: lock-state check disabled — assignment metadata fetch failed "
+                  f"({type(e).__name__}: {e}).", file=sys.stderr)
+            lock_state = {"locked_now": False}
+        if lock_state.get("locked_now"):
+            for r in rows:
+                key = r.get("key", "")
+                comment = comment_for(r.get("feedback_file", "")) or args.default_comment
+                if comment and comment_has_resubmit_language(comment):
+                    locked_resubmit_keys.append((key, comment))
+    # ---- end availability awareness --------------------------------------
+
     # ---- Issue #62: pre-push comment-collision guard --------------------
     # Only run when comments will actually be posted. --grade-only pushes
     # are objective + safe (per the issue: "the grade is safe; qualitative
@@ -559,6 +840,20 @@ def main() -> int:
                     collisions[key] = {"others": others, "latest": latest}
                 if latest is not None and latest.get("author_role") == "self":
                     student_replied_keys.add(key)
+
+    if locked_resubmit_keys:
+        print(f"\n  ⚠️  availability guard (issue #63): assignment is locked "
+              f"({lock_state.get('reason', 'unknown')}); {len(locked_resubmit_keys)} comment(s) "
+              f"contain resubmit-style language students can't act on:")
+        for key, comment in locked_resubmit_keys[:5]:
+            snippet = comment.replace("\n", " ").strip()
+            if len(snippet) > 80:
+                snippet = snippet[:77] + "…"
+            print(f"    [{key}] \"{snippet}\"")
+        if len(locked_resubmit_keys) > 5:
+            print(f"    … +{len(locked_resubmit_keys) - 5} more")
+        print("    Fix: extend the assignment's lock_at in Canvas, OR retract resubmit guidance "
+              "from these rows' feedback files before --push.")
 
     if collisions:
         print(f"\n  ⚠️  comment-collision guard (issue #62; window={args.collision_window_days}d):")
@@ -630,6 +925,16 @@ def main() -> int:
               f"(e.g. {stale[0]}). Re-review, then re-run --mark-reviewed.")
         return 1
 
+    if locked_resubmit_keys and not args.allow_locked_resubmit and not args.yes:
+        pushable_set = {p[0] for p in pushable}
+        affected = [k for k, _ in locked_resubmit_keys if k in pushable_set]
+        if affected:
+            print(f"\n⚠️  {len(affected)} pushable row(s) ask the student to resubmit/redo while "
+                  f"the assignment is locked ({lock_state.get('reason', 'unknown')}).")
+            if input("Type 'locked' to acknowledge + continue: ").strip().lower() != "locked":
+                print("Aborted (lock guard).")
+                return 1
+
     if collisions and not args.allow_collisions and not args.yes:
         pushable_with_collisions = sorted(k for k in collisions if k in {p[0] for p in pushable})
         if pushable_with_collisions:
@@ -658,6 +963,20 @@ def main() -> int:
             if resp.status_code < 400:
                 print(f"  pushed {key}: {grade}")
                 lg.write(f"- {key}: grade {grade} pushed to assignment {args.assignment_id}\n")
+                # Issue #63: capture the new comment_id (if any) so --retract
+                # can DELETE it later. Canvas's PUT response includes
+                # submission_comments[] — pick the LAST entry as the one we
+                # just appended (ordered ASC by created_at).
+                if comment:
+                    try:
+                        sc_list = (resp.json() or {}).get("submission_comments") or []
+                        new_comment = sc_list[-1] if sc_list else None
+                        new_id = (new_comment or {}).get("id")
+                    except (ValueError, TypeError):
+                        new_id = None
+                    if new_id is not None:
+                        lg.write(f"- {key}: comment {new_id} pushed to assignment "
+                                 f"{args.assignment_id}\n")
                 pushed += 1
             else:
                 # P-003 stop on first 4xx — surface and abort rather than retry blindly

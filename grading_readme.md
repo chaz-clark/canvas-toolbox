@@ -601,6 +601,20 @@ Three gates stand between it and a destructive push:
    drops rows where the latest comment is from the student. `--grade-only`
    pushes (objective grade, no comment) skip this check entirely.
    `--no-collision-check` opts out.
+6. **Availability awareness (issue #63).** Pulls the assignment's
+   `lock_at` / `unlock_at` and warns when a pushable comment contains
+   resubmit-style language (resubmit / redo / new template / wrong
+   file / try again) on a locked assignment — students literally can't
+   act on the guidance. Operator types `locked` to ack OR passes
+   `--allow-locked-resubmit`. `--no-lock-check` / `--grade-only` opt out.
+
+**Retract mode (issue #63).** Every comment push records a
+`- KEY: comment ID pushed to assignment AID` line in `.push_log.md`.
+`grader_push --retract [--retract-keys K1,K2]` reads that ledger and
+DELETEs the matching comments via Canvas's
+`/submissions/:uid/comments/:id`. Same dry-run-by-default + canvas_course_guard
++ confirmation discipline as the push path. Idempotent: a `retracted`
+ledger line is appended on success so repeat retracts no-op.
 
 Validate the Canvas PUT on the **Test Student first** (Canvas's standard
 test-user, display name "Test Student") — `grader_fetch.py
