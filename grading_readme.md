@@ -807,6 +807,7 @@ flag list:
 - `grader_prep_answer_key.py` — secret-scrub instructor answer keys for code/notebook assignments
 - `grader_signals.py` — static-analysis priors (not scores)
 - `grader_config_audit.py` — pre-flight config sanity check (issue #58): resolves assignment_ids in `reconciliation.dimensions[]` / `competency.elements{}`, flags 404s + group/due-cutoff mismatches before any grading run
+- `grader_pull_ta_grades.py` — symmetric PULL counterpart to `grader_grade.py` (issue #56): pulls `[{user_id, grade, score}]` for an assignment, skipping `unsubmitted`/`deleted`. FERPA-safe; feeds `_userid_key_grade_join.json` for calibration cohorts.
 - `grader_reconcile.py` — anonymous gradebook reconciliation (self-review assignments)
 - `grader_grade.py` — optional N-pass LLM orchestrator (requires API key)
 - `grader_consensus.py` — N-grader majority + spread + `_all_comments.md` compile
