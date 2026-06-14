@@ -30,6 +30,10 @@ GUARDRAILS (no override on the first three)
      (one submission → N grades → N Canvas items) don't shadow each other.
   4. Test Student first (operator-explicit). Run with --test-user <id> before
      the real batch.
+  5. **Issue #61** — push surface excludes Canvas's Test Student + inactive/
+     withdrawn/completed/rejected enrollments by default. Excluded user_ids
+     are printed before the plan. `--include-inactive` reverts to the
+     unfiltered behavior for the rare intentional case.
 
 MULTI-OUTPUT SUPPORT
   --grade-only suppresses the comment (e.g. the consequential grade in a two-
@@ -126,6 +130,76 @@ def fetch_submissions(base: str, cid: str, headers: dict, aid: str) -> list[dict
     return subs
 
 
+# Issue #61: by default, the push surface excludes the Test Student (always)
+# and inactive/withdrawn/completed/rejected enrollments. The default Canvas
+# /submissions endpoint surfaces all three — easy footgun if you don't
+# filter. `--include-inactive` reverts to the unfiltered behavior for the
+# rare intentional case.
+def fetch_active_filter(
+    base: str, cid: str, headers: dict,
+) -> tuple[set[int], dict[int, str], int | None]:
+    """Return (active_user_ids, inactive_user_id_to_state, test_student_id).
+
+    - active_user_ids: StudentEnrollment with state in {active, invited}.
+      These are the rows safe to push to by default.
+    - inactive_user_id_to_state: StudentEnrollment with state in
+      {inactive, completed, rejected}. Surfaced in the excluded report so
+      the operator sees who got dropped and why.
+    - test_student_id: the course's `student_view_student` user_id, or None
+      if the API doesn't expose one. ALWAYS excluded by default.
+    """
+    active_set: set[int] = set()
+    inactive: dict[int, str] = {}
+
+    page = 1
+    while True:
+        r = requests.get(
+            f"{base}/api/v1/courses/{cid}/enrollments",
+            headers=headers,
+            params=[
+                ("per_page", 100), ("page", page),
+                ("type[]", "StudentEnrollment"),
+                ("state[]", "active"), ("state[]", "invited"),
+                ("state[]", "inactive"), ("state[]", "completed"),
+                ("state[]", "rejected"),
+            ],
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        batch = r.json()
+        if not batch:
+            break
+        for e in batch:
+            uid = e.get("user_id")
+            state = (e.get("enrollment_state") or "").lower()
+            if uid is None:
+                continue
+            uid = int(uid)
+            if state in {"active", "invited"}:
+                active_set.add(uid)
+            elif state in {"inactive", "completed", "rejected"}:
+                # Don't downgrade if the user is also enrolled actively elsewhere
+                if uid not in active_set:
+                    inactive[uid] = state
+        page += 1
+
+    test_id: int | None = None
+    tr = requests.get(
+        f"{base}/api/v1/courses/{cid}/student_view_student",
+        headers=headers, timeout=_TIMEOUT,
+    )
+    if tr.status_code < 400:
+        try:
+            test_id = int(tr.json().get("id"))
+        except (TypeError, ValueError, AttributeError):
+            test_id = None
+
+    if test_id is not None:
+        active_set.discard(test_id)
+        inactive.pop(test_id, None)
+    return active_set, inactive, test_id
+
+
 def resolve_user_id(filename: str, subs: list[dict]) -> int | None:
     """Match the Canvas download filename's numeric IDs to a submission (user_id [+ submission_id])."""
     nums = set(NUM_RE.findall(filename))
@@ -169,6 +243,10 @@ def main() -> int:
                          "(e.g. a short line for a completion-only output).")
     ap.add_argument("--grade-only", action="store_true",
                     help="Push the grade with NO comment (e.g. the consequential layer in a multi-output flow).")
+    ap.add_argument("--include-inactive", action="store_true",
+                    help="Issue #61: by default the push surface excludes Canvas's Test Student + "
+                         "inactive/withdrawn/completed/rejected enrollments. Pass this flag for the "
+                         "rare intentional case (e.g. posting a final grade to a student who withdrew).")
     args = ap.parse_args()
 
     challenge = resolve_challenge_dir(args.challenge_dir, verb="pushing from")
@@ -283,10 +361,50 @@ def main() -> int:
 
     rows = list(csv.DictReader(review.open(encoding="utf-8")))
     subs = fetch_submissions(base, cid, headers, args.assignment_id)
+
+    # Issue #61: default-exclude Test Student + inactive/withdrawn enrollments.
+    excluded_test: list[int] = []
+    excluded_inactive: list[tuple[int, str]] = []
+    if not args.include_inactive:
+        active_set, inactive_map, test_id = fetch_active_filter(base, cid, headers)
+        kept: list[dict] = []
+        for s in subs:
+            uid = int(s["user_id"])
+            if test_id is not None and uid == test_id:
+                excluded_test.append(uid)
+                continue
+            if uid in inactive_map:
+                excluded_inactive.append((uid, inactive_map[uid]))
+                continue
+            if uid not in active_set:
+                # Not Test Student, not currently inactive — but also not an
+                # active StudentEnrollment (could be observer / designer / a
+                # dropped enrollment not yet propagated). Skip and report.
+                excluded_inactive.append((uid, "no_active_student_enrollment"))
+                continue
+            kept.append(s)
+        subs = kept
+
     extra = (f"; {len(pushed_keys)} already pushed (skip unless --force)"
              if pushed_keys and not args.force else "")
     print(f"Assignment {args.assignment_id}: {len(subs)} Canvas submissions, "
           f"{len(rows)} review rows{extra}\n")
+
+    # Surface what was filtered so the operator sees it BEFORE the plan.
+    if excluded_test or excluded_inactive:
+        print(f"  excluded by default (issue #61; pass --include-inactive to keep):")
+        if excluded_test:
+            print(f"    Test Student:           user_id={excluded_test[0]} (1 row)")
+        if excluded_inactive:
+            by_state: dict[str, list[int]] = {}
+            for uid, state in excluded_inactive:
+                by_state.setdefault(state, []).append(uid)
+            for state in sorted(by_state):
+                ids = by_state[state]
+                preview = ", ".join(str(u) for u in ids[:5])
+                more = f", +{len(ids) - 5} more" if len(ids) > 5 else ""
+                print(f"    {state:<22} user_ids=[{preview}{more}]  ({len(ids)} row{'s' if len(ids) != 1 else ''})")
+        print()
 
     plan = []
     for r in rows:

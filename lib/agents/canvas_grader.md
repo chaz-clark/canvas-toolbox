@@ -146,6 +146,10 @@ manual control of each step.
    `--allow-enrolled`. Per-assignment idempotency via `.push_log.md`
    (skips already-pushed keys; `--force` overrides). Validate on Test
    Student first (`grader_fetch.py --test-student-only`).
+   **v0.40+ (#61):** the push surface excludes Canvas's Test Student +
+   inactive/withdrawn/completed/rejected enrollments by default; excluded
+   user_ids print before the plan. `--include-inactive` reverts for the
+   rare intentional case (e.g. final grade for a student who withdrew).
 
 For structured data — config schema, pipeline stage contracts, output formats, test cases — see `canvas_grader.json`.
 
@@ -333,7 +337,7 @@ Pipeline-run-order steps above.
 | `grader_grade.py` | N-pass LLM grading orchestrator. **Requires `ANTHROPIC_API_KEY`**. Optional accelerator for key-holders; agent-in-the-loop is the keyless default. | `lib/tools/grader_grade.py` | Step 4 — when a key is available. |
 | `grader_consensus.py` | Majority + spread + auto-flag NEEDS-REVIEW + `_all_comments.md` compile. | `lib/tools/grader_consensus.py` | Step 5 — after all grader passes complete. |
 | `grader_reidentify.py` | Local-only join keys → names → instructor review sheet. | `lib/tools/grader_reidentify.py` | Step 6 — instructor-only. |
-| `grader_push.py` | Local grade+comment push to Canvas. Gated behind `--mark-reviewed`. Per-assignment idempotency via `.push_log.md`. | `lib/tools/grader_push.py` | Step 7 — final write. |
+| `grader_push.py` | Local grade+comment push to Canvas. Gated behind `--mark-reviewed`. Per-assignment idempotency via `.push_log.md`. **v0.40+ (#61):** push surface excludes Test Student + inactive/withdrawn/completed/rejected enrollments by default (`--include-inactive` to revert). | `lib/tools/grader_push.py` | Step 7 — final write. |
 | `grader_quiz_mirror.py` | Classic-quiz mirror for verifiable self-reports (NWQ API doesn't expose per-item responses; Classic does). | `lib/tools/grader_quiz_mirror.py` | §J branch of setup interview — once per assignment that depends on a quiz. |
 
 ### When the agent picks an adapter manually

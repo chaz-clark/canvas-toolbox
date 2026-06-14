@@ -583,6 +583,12 @@ Three gates stand between it and a destructive push:
 3. **Per-assignment idempotency.** `.push_log.md` records every successful
    push by `<key, user_id, assignment_id, score>`. A subsequent re-run
    skips already-pushed entries (one-line log + skip) unless `--force`.
+4. **Test Student + inactive exclusion (issue #61).** The push surface
+   defaults to active `StudentEnrollment` only — Canvas's `student_view`
+   Test Student and any `inactive`/`completed`/`rejected` enrollments are
+   filtered out before the plan prints (with the excluded user_ids
+   surfaced for review). Pass `--include-inactive` to revert for the rare
+   intentional case (e.g. posting a final grade to a withdrawn student).
 
 Validate the Canvas PUT on the **Test Student first** (Canvas's standard
 test-user, display name "Test Student") — `grader_fetch.py
