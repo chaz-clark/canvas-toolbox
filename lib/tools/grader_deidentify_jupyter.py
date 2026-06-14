@@ -75,6 +75,7 @@ from grader_deidentify_databricks import (  # noqa: E402
     SECRET_PREFIX_RE,
     SECRET_ASSIGN_RE,
     key_for,
+    check_stale_prefix_files,
     expand_name_terms,  # issue #47 — decompose roster names into parts
     name_aware_subn,    # issue #47 — word-boundary scrub
 )
@@ -198,6 +199,9 @@ def main() -> int:
                     help="Optional gitignored file of known names (default: <challenge-dir>/.known_names.txt)")
     ap.add_argument("--prefix", default=None,
                     help="Key prefix. Default: uppercased basename of --challenge-dir.")
+    ap.add_argument("--cleanup-legacy", action="store_true",
+                    help="Issue #54 sub-D: when stale `<OTHER-PREFIX>-HASH.md` files from a prior run "
+                         "live in the output dir, remove them instead of refusing to run.")
     args = ap.parse_args()
 
     if args.challenge_dir:
@@ -218,6 +222,9 @@ def main() -> int:
     outdir = Path(args.outdir)
     mapfile = Path(args.mapfile)
     outdir.mkdir(parents=True, exist_ok=True)
+
+    # Issue #54 sub-D: refuse to write a second prefix family into this dir.
+    check_stale_prefix_files(outdir, args.prefix, cleanup=args.cleanup_legacy)
 
     extra_names: list[str] = []
     nf = Path(args.namesfile) if args.namesfile else None

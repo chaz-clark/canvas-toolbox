@@ -231,6 +231,58 @@ def key_for(filename: str, prefix: str) -> str:
     return f"{prefix}-{h}"
 
 
+# Issue #54 sub-D: re-run prefix duality. If a prior deid pass on the same
+# submissions_raw/ used a different prefix shape (legacy underscore vs new
+# hyphen, or a renamed challenge dir), both prefix families end up in the
+# same submissions_deid/ + .keymap.json. Leak check then mis-flags the
+# legacy filenames. This helper scans the output dir for files NOT matching
+# the current prefix and exits non-zero with a clean cleanup message. Each
+# deid adapter imports + calls it before any write.
+_STALE_KEY_RE = re.compile(r"^(?P<prefix>.+)-[0-9A-F]{6}\.md$")
+
+
+def check_stale_prefix_files(outdir, current_prefix: str, *, cleanup: bool = False):
+    """Scan `outdir` for `<PREFIX>-<6 HEX>.md` files whose prefix doesn't
+    match `current_prefix`. If found:
+      - cleanup=False → print stale list + raise SystemExit(3) (caller's
+        adapter exits cleanly with code 3 so the chain stops)
+      - cleanup=True  → remove the stale files (operator opted in)
+
+    Issue #54 sub-D. Idempotent: no stale files → no-op."""
+    from pathlib import Path as _Path
+    p = _Path(outdir)
+    if not p.is_dir():
+        return
+    stale: list[_Path] = []
+    for f in p.glob("*.md"):
+        m = _STALE_KEY_RE.match(f.name)
+        if not m:
+            continue
+        if m.group("prefix") != current_prefix:
+            stale.append(f)
+    if not stale:
+        return
+    if cleanup:
+        for f in stale:
+            f.unlink()
+            print(f"  removed stale file from prior prefix: {f.name}")
+        return
+    print(f"\n🔴 Stale deid output from a prior run with a different prefix.", file=sys.stderr)
+    print(f"   {len(stale)} file(s) in {outdir} don't match current prefix "
+          f"'{current_prefix}':", file=sys.stderr)
+    for f in stale[:5]:
+        print(f"     {f.name}", file=sys.stderr)
+    if len(stale) > 5:
+        print(f"     ... +{len(stale) - 5} more", file=sys.stderr)
+    print(f"\n   Re-running deid here would leave BOTH prefix families in the "
+          f"keymap, and grader_name_leak_check would mis-flag the legacy "
+          f"filenames as roster hits.", file=sys.stderr)
+    print(f"\n   Fix:  uv run python lib/tools/grader_deidentify_<adapter>.py "
+          f"--challenge-dir <dir> --cleanup-legacy", file=sys.stderr)
+    print(f"   (or delete the stale files by hand, then re-run.)\n", file=sys.stderr)
+    raise SystemExit(3)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="FERPA de-identify Databricks HTML submissions.")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
@@ -248,6 +300,9 @@ def main() -> int:
                          "(default: <challenge-dir>/.known_names.txt)")
     ap.add_argument("--prefix", default=None,
                     help="Key prefix (e.g. KC1, MR). Default: uppercased basename of --challenge-dir.")
+    ap.add_argument("--cleanup-legacy", action="store_true",
+                    help="Issue #54 sub-D: when stale `<OTHER-PREFIX>-HASH.md` files from a prior run "
+                         "live in the output dir, remove them instead of refusing to run.")
     args = ap.parse_args()
 
     # Resolve conventional paths from --challenge-dir if not explicitly set
@@ -268,6 +323,9 @@ def main() -> int:
     indir, outdir = Path(args.indir), Path(args.outdir)
     mapfile = Path(args.mapfile)
     outdir.mkdir(parents=True, exist_ok=True)
+
+    # Issue #54 sub-D: refuse to write a second prefix family into this dir.
+    check_stale_prefix_files(outdir, args.prefix, cleanup=args.cleanup_legacy)
 
     extra_names: list[str] = []
     nf = Path(args.namesfile) if args.namesfile else None

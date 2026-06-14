@@ -63,6 +63,7 @@ from grader_deidentify_databricks import (  # noqa: E402
     SECRET_PREFIX_RE,
     SECRET_ASSIGN_RE,
     key_for,
+    check_stale_prefix_files,
     expand_name_terms,  # issue #47 — decompose roster names into parts
 )
 
@@ -232,6 +233,9 @@ def main() -> int:
                     help="Optional gitignored full-roster file (default: <challenge-dir>/.known_names.txt)")
     ap.add_argument("--prefix", default=None,
                     help="Key prefix (e.g. MR). Default: uppercased basename of --challenge-dir.")
+    ap.add_argument("--cleanup-legacy", action="store_true",
+                    help="Issue #54 sub-D: when stale `<OTHER-PREFIX>-HASH.md` files from a prior run "
+                         "live in the output dir, remove them instead of refusing to run.")
     args = ap.parse_args()
 
     if args.challenge_dir:
@@ -250,6 +254,9 @@ def main() -> int:
 
     indir, outdir, mapfile = Path(args.indir), Path(args.outdir), Path(args.mapfile)
     outdir.mkdir(parents=True, exist_ok=True)
+
+    # Issue #54 sub-D: refuse to write a second prefix family into this dir.
+    check_stale_prefix_files(outdir, args.prefix, cleanup=args.cleanup_legacy)
     # issue #50 — quarantine directory for files with no structural name detected.
     # The agent's pipeline reads submissions_deid/<KEY>.md; quarantined files land
     # in submissions_deid/_REVIEW/<KEY>.md so they're isolated from the agent's
