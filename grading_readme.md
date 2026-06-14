@@ -589,6 +589,18 @@ Three gates stand between it and a destructive push:
    filtered out before the plan prints (with the excluded user_ids
    surfaced for review). Pass `--include-inactive` to revert for the rare
    intentional case (e.g. posting a final grade to a withdrawn student).
+5. **Pre-push comment-collision guard (issue #62).** Before posting a
+   comment, the tool peeks at the existing `submission_comments` thread
+   through the FERPA-safe de-id layer (issue #65) and warns when a
+   non-self author posted within `--collision-window-days` (default 14).
+   The principle is: **the grade is objective and safe; qualitative
+   comments are where harm happens** — a stale TA exchange or a student
+   who already replied means an LLM comment risks duplicating or
+   contradicting active human coaching. Operator must type `collisions`
+   to acknowledge OR pass `--allow-collisions`. `--skip-if-student-replied`
+   drops rows where the latest comment is from the student. `--grade-only`
+   pushes (objective grade, no comment) skip this check entirely.
+   `--no-collision-check` opts out.
 
 Validate the Canvas PUT on the **Test Student first** (Canvas's standard
 test-user, display name "Test Student") — `grader_fetch.py

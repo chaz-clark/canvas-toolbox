@@ -113,19 +113,35 @@ def comment_for(feedback_file: str) -> str:
     return t.split("## Comment to student", 1)[1].strip()
 
 
-def fetch_submissions(base: str, cid: str, headers: dict, aid: str) -> list[dict]:
-    """All submissions for the assignment — user_id + submission id only (no names)."""
+def fetch_submissions(base: str, cid: str, headers: dict, aid: str,
+                      include_comments: bool = False) -> list[dict]:
+    """All submissions for the assignment.
+
+    Default: returns lean {user_id, id} per submission (the existing
+    behavior).
+    If `include_comments`, paginates with include[]=submission_comments
+    and returns the full Canvas submission payloads (each dict has a
+    `submission_comments` list of raw comments — caller MUST pass that
+    list through grader_deidentify_comments.deidentify_submission_comments
+    before logging anywhere). Issue #62 collision-guard uses this path.
+    """
     subs: list[dict] = []
     page = 1
     while True:
+        params: dict[str, object] = {"per_page": 100, "page": page}
+        if include_comments:
+            params["include[]"] = "submission_comments"
         r = requests.get(
             f"{base}/api/v1/courses/{cid}/assignments/{aid}/submissions",
-            headers=headers, params={"per_page": 100, "page": page}, timeout=_TIMEOUT)
+            headers=headers, params=params, timeout=_TIMEOUT)
         r.raise_for_status()
         batch = r.json()
         if not batch:
             break
-        subs += [{"user_id": s["user_id"], "id": s["id"]} for s in batch]
+        if include_comments:
+            subs += batch
+        else:
+            subs += [{"user_id": s["user_id"], "id": s["id"]} for s in batch]
         page += 1
     return subs
 
@@ -200,6 +216,63 @@ def fetch_active_filter(
     return active_set, inactive, test_id
 
 
+# ---------------------------------------------------------------------------
+# Issue #62 — pre-push comment-collision guard
+#
+# Before posting a comment that could contradict / duplicate / overwrite a
+# human grader's recent activity, peek at the existing submission_comments
+# thread for each pushable row. Surface collisions through the FERPA-safe
+# de-id layer (issue #65) — author_name never reaches grader_push state.
+# ---------------------------------------------------------------------------
+
+def _parse_iso(s: str | None):
+    """Datetime-or-None for collision-window comparisons. Operates in UTC."""
+    from datetime import datetime, timezone
+    if not s:
+        return None
+    try:
+        d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=timezone.utc)
+    return d
+
+
+def collision_warnings_for_submission(
+    deid_comments: list[dict], *, window_days: int, now=None,
+) -> tuple[list[dict], dict | None]:
+    """Return (recent_other_author_comments, latest_comment_overall).
+
+    - recent_other_author_comments: rows from `deid_comments` whose
+      author_role is NOT 'self' AND whose created_at is within
+      `window_days`. These are the comments grader_push warns about
+      before posting (the operator may be duplicating / contradicting).
+    - latest_comment_overall: the most-recent comment in the thread by
+      created_at, regardless of role. Used by --skip-if-student-replied
+      (if this is role='self', the student has already replied — skipping
+      avoids noise on a thread where the student already acted).
+    """
+    from datetime import datetime, timedelta, timezone
+    if now is None:
+        now = datetime.now(tz=timezone.utc)
+    cutoff = now - timedelta(days=window_days)
+
+    others_recent: list[dict] = []
+    latest: dict | None = None
+    latest_dt = None
+    for c in deid_comments or []:
+        dt = _parse_iso(c.get("created_at"))
+        if dt is None:
+            continue
+        if c.get("author_role") != "self" and dt >= cutoff:
+            others_recent.append(c)
+        if latest_dt is None or dt > latest_dt:
+            latest = c
+            latest_dt = dt
+    return others_recent, latest
+
+
 def resolve_user_id(filename: str, subs: list[dict]) -> int | None:
     """Match the Canvas download filename's numeric IDs to a submission (user_id [+ submission_id])."""
     nums = set(NUM_RE.findall(filename))
@@ -247,6 +320,22 @@ def main() -> int:
                     help="Issue #61: by default the push surface excludes Canvas's Test Student + "
                          "inactive/withdrawn/completed/rejected enrollments. Pass this flag for the "
                          "rare intentional case (e.g. posting a final grade to a student who withdrew).")
+    ap.add_argument("--no-collision-check", action="store_true",
+                    help="Issue #62: SKIP the pre-push comment-collision guard. By default, grader_push "
+                         "checks each pushable row's existing submission_comments and warns if any "
+                         "comment from a different author exists within --collision-window-days. The "
+                         "guard runs through the FERPA-safe deid layer (#65) — no author_name reaches "
+                         "console. --grade-only pushes always skip the check (no comment risk).")
+    ap.add_argument("--collision-window-days", type=int, default=14,
+                    help="Issue #62: how many days back the collision guard looks. Default: 14.")
+    ap.add_argument("--skip-if-student-replied", action="store_true",
+                    help="Issue #62: if the LATEST comment in a thread is from the student (author "
+                         "role 'self'), drop that row from the push plan — the student has already "
+                         "responded to prior feedback; new comments here add noise.")
+    ap.add_argument("--allow-collisions", action="store_true",
+                    help="Issue #62: bypass the collision-confirmation prompt. The plan still prints "
+                         "the warnings; this flag just skips the explicit 'type collisions to confirm' "
+                         "interactive step.")
     args = ap.parse_args()
 
     challenge = resolve_challenge_dir(args.challenge_dir, verb="pushing from")
@@ -426,6 +515,74 @@ def main() -> int:
         print(f"  [{mark}] {key}: grade={grade or '—'}  matched={'yes' if uid else 'NO'}  "
               f"comment=\"{comment[:50].replace(chr(10), ' ')}…\"{why}")
 
+    # ---- Issue #62: pre-push comment-collision guard --------------------
+    # Only run when comments will actually be posted. --grade-only pushes
+    # are objective + safe (per the issue: "the grade is safe; qualitative
+    # comments cause harm"). --no-collision-check opts out explicitly.
+    collisions: dict[str, dict] = {}
+    student_replied_keys: set[str] = set()
+    if not args.no_collision_check and not args.grade_only and any(p[4] for p in plan):
+        try:
+            # Lazy import — keeps grader_push standalone if a vendoring user
+            # ships the toolkit without the comments adapter for some reason.
+            from grader_deidentify_comments import (
+                build_role_map,
+                deidentify_submission_comments,
+            )
+        except ImportError as e:
+            print(f"WARN: collision guard disabled — couldn't import grader_deidentify_comments "
+                  f"({e}). Re-run with --no-collision-check to silence.", file=sys.stderr)
+        else:
+            full_subs = fetch_submissions(base, cid, headers, args.assignment_id,
+                                          include_comments=True)
+            full_by_uid = {int(s["user_id"]): s for s in full_subs if s.get("user_id") is not None}
+            role_map = build_role_map(base, headers, cid)
+            namesfile = challenge / ".known_names.txt"
+            roster = ([ln.strip() for ln in namesfile.read_text(encoding="utf-8").splitlines() if ln.strip()]
+                      if namesfile.exists() else [])
+
+            for key, uid, _grade, _comment, ok in plan:
+                if not ok or uid is None:
+                    continue
+                sub = full_by_uid.get(int(uid))
+                if not sub:
+                    continue
+                deid_list = deidentify_submission_comments(
+                    sub.get("submission_comments") or [],
+                    owner_user_id=uid,
+                    role_map=role_map,
+                    roster=roster,
+                )
+                others, latest = collision_warnings_for_submission(
+                    deid_list, window_days=args.collision_window_days)
+                if others:
+                    collisions[key] = {"others": others, "latest": latest}
+                if latest is not None and latest.get("author_role") == "self":
+                    student_replied_keys.add(key)
+
+    if collisions:
+        print(f"\n  ⚠️  comment-collision guard (issue #62; window={args.collision_window_days}d):")
+        for key in sorted(collisions):
+            info = collisions[key]
+            print(f"    [{key}] {len(info['others'])} recent comment(s) from non-self authors:")
+            for c in info["others"][:3]:
+                snippet = (c.get("scrubbed_text") or "").replace("\n", " ").strip()
+                if len(snippet) > 80:
+                    snippet = snippet[:77] + "…"
+                print(f"        role={c.get('author_role'):<10} created_at={c.get('created_at')}  "
+                      f"comment_id={c.get('comment_id')}  text=\"{snippet}\"")
+            if len(info["others"]) > 3:
+                print(f"        … +{len(info['others']) - 3} more in window")
+
+    if args.skip_if_student_replied and student_replied_keys:
+        print(f"\n  --skip-if-student-replied: dropping {len(student_replied_keys)} row(s) where "
+              f"the latest comment is from the student:")
+        for k in sorted(student_replied_keys):
+            print(f"    [{k}] latest comment role=self → skipped")
+        plan = [(k, u, g, c, (ok and k not in student_replied_keys))
+                for (k, u, g, c, ok) in plan]
+    # ---- end collision guard --------------------------------------------
+
     pushable = [p for p in plan if p[4]]
     extra2 = (f" ({len(pushed_keys)} already done, skipped)"
               if pushed_keys and not args.force else "")
@@ -472,6 +629,15 @@ def main() -> int:
         print(f"\n⛔ {len(stale)} review-surface file(s) changed since you marked reviewed "
               f"(e.g. {stale[0]}). Re-review, then re-run --mark-reviewed.")
         return 1
+
+    if collisions and not args.allow_collisions and not args.yes:
+        pushable_with_collisions = sorted(k for k in collisions if k in {p[0] for p in pushable})
+        if pushable_with_collisions:
+            print(f"\n⚠️  {len(pushable_with_collisions)} pushable row(s) have a comment collision "
+                  f"(see warnings above). Re-read those before continuing.")
+            if input("Type 'collisions' to acknowledge + continue: ").strip().lower() != "collisions":
+                print("Aborted (collision guard).")
+                return 1
 
     if not args.yes:
         print(f"\nThis writes {len(pushable)} grades + comments to the LIVE course {cid}.")

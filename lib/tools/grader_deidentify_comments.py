@@ -232,6 +232,40 @@ def fetch_submissions(base: str, headers: dict, cid: str, aid: int,
     return _get_paged(base, headers, f"/courses/{cid}/assignments/{aid}/submissions", params=params)
 
 
+def deidentify_submission_comments(
+    submission_comments: list[dict],
+    *,
+    owner_user_id: int | None,
+    role_map: dict[int, str],
+    roster: list[str],
+) -> list[dict]:
+    """In-memory helper: take a raw `submission_comments` payload + the
+    course role map + the local roster, and return the deid'd comment list
+    in the canonical record shape (`{comment_id, author_role, created_at,
+    scrubbed_text, n_scrubs}`).
+
+    Used by:
+      - this tool's main() (paired with fetch + write)
+      - grader_push.py's #62 collision guard (in-memory only, no disk write)
+
+    FERPA: author_name is read off the payload by Canvas but NEVER reaches
+    this function's output — we only consult `author_id` for the role
+    lookup, then drop it. Caller MUST NOT log the original `submission_comments`
+    raw payload (call this helper first, then operate on the return value)."""
+    out: list[dict] = []
+    for c in submission_comments or []:
+        raw = c.get("comment") or ""
+        scrubbed, n_scrubs = scrub_comment(raw, roster)
+        out.append({
+            "comment_id": c.get("id"),
+            "author_role": classify_author(c.get("author_id"), owner_user_id, role_map),
+            "created_at": c.get("created_at"),
+            "scrubbed_text": scrubbed,
+            "n_scrubs": n_scrubs,
+        })
+    return out
+
+
 def resolve_user_id_from_filename(filename: str, primary_subs: dict[int, dict]) -> int | None:
     """Same approach as grader_reconcile.resolve_user_id: numeric tokens in
     the Canvas-format filename narrow to one submitter."""
@@ -341,26 +375,22 @@ def main() -> int:
     for sub in rows:
         owner_uid = sub.get("user_id")
         key = uid_to_key.get(int(owner_uid)) if owner_uid is not None else None
-        comments = sub.get("submission_comments") or []
-        for c in comments:
-            raw_body = c.get("comment") or ""
-            role = classify_author(c.get("author_id"), owner_uid, role_map)
-            scrubbed, n_scrubs = scrub_comment(raw_body, roster)
-            leak_here = leak_count(scrubbed, roster) if roster else 0
+        deid_list = deidentify_submission_comments(
+            sub.get("submission_comments") or [],
+            owner_user_id=owner_uid,
+            role_map=role_map,
+            roster=roster,
+        )
+        for rec in deid_list:
+            leak_here = leak_count(rec["scrubbed_text"], roster) if roster else 0
             if leak_here:
                 leak_total += leak_here
                 if key and key not in leaked_keys:
                     leaked_keys.append(key)
-            records.append({
-                "key": key or "<UNRESOLVED>",
-                "comment_id": c.get("id"),
-                "author_role": role,
-                "created_at": c.get("created_at"),
-                "scrubbed_text": scrubbed,
-                "n_scrubs": n_scrubs,
-            })
-            role_counts[role] = role_counts.get(role, 0) + 1
-            total_scrubs += n_scrubs
+            row = {"key": key or "<UNRESOLVED>", **rec}
+            records.append(row)
+            role_counts[rec["author_role"]] = role_counts.get(rec["author_role"], 0) + 1
+            total_scrubs += rec["n_scrubs"]
 
     records.sort(key=lambda r: (str(r["key"]), str(r.get("created_at") or "")))
 
