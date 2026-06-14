@@ -847,4 +847,5 @@ flag list:
 - `grader_consensus.py` — N-grader majority + spread + `_all_comments.md` compile
 - `grader_reidentify.py` — LOCAL re-identification (key → user_id)
 - `grader_push.py` — Canvas write (gated behind `--mark-reviewed`)
+- `grader_push_comments.py` — comments-only push (issue #57): walks `feedback/_pass1/uid-<N>.md`, extracts the `## Suggested Canvas Comment` H2, posts each via the Canvas submissions API. Reuses #61/#62/#63 guards from `grader_push`; idempotent (skips uids whose thread already has the exact comment).
 - `grader_quiz_mirror.py` — Classic-quiz mirror for self-report verification
