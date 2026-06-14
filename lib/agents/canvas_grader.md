@@ -63,6 +63,17 @@ The default invocation is **`grader_fetch.py`** — one command runs steps 0–2
 The auto-chain can be opted out with `--no-chain` if the operator wants
 manual control of each step.
 
+**Pre-flight (run once per config, before Step 0)** —
+   `grader_config_audit.py --config <path>` resolves every `assignment_id`
+   in `reconciliation.dimensions[]` (and the `competency.elements{}` shape
+   from #60 when present) against the live course and prints a table:
+   name, group, points, due_at, plus flags for 404s / explicit group or
+   due-cutoff rule mismatches / heuristic group-mismatch warnings. **The
+   #1 silent grading bug** is a wrong-but-syntactically-valid assignment
+   id — the pipeline runs and grades everyone wrong. This audit makes
+   the misconfig visible before any grading. Read-only; touches assignment
+   metadata only (no student data). Exit 1 on any FAIL flag. Issue #58.
+
 0. **Fetch** (`grader_fetch.py`) — the new Step 0. One up-front call to
    `/api/v1/courses/:cid/assignments/:aid` surfaces the `submission_types`
    and branches:
@@ -314,6 +325,7 @@ Pipeline-run-order steps above.
 |---|---|---|---|
 | `grader_name_leak_check.py` | Local FERPA self-check on `submissions_deid/`. Greps for any name in `.known_names.txt`. Non-zero exit if leak detected. | `lib/tools/grader_name_leak_check.py` | **Step 2** — automatic in the chain. Stops pipeline non-zero on leak. |
 | `grader_signals.py` | Objective signal extraction (priors only — NEVER scores). | `lib/tools/grader_signals.py` | Optional Step 4 prep — provides context to grading passes. |
+| `grader_config_audit.py` | Issue #58. Read-only audit: resolves each `assignment_id` in the reconcile/competency config against the live course, prints metadata + flags 404s / `expected_group_regex` mismatches / `due_before`/`due_after` busts / heuristic group-mismatch warnings. Catches the silent-misconfig "graded everyone wrong" failure mode (real DS250 instance) before any grading. Exit 1 on FAIL. | `lib/tools/grader_config_audit.py` | **Pre-flight** — once per config, before Step 0. |
 | `grader_reconcile.py` | Anonymous gradebook reconciliation via local keymap. | `lib/tools/grader_reconcile.py` | Step 3 — if `reconciliation.enabled`. |
 | `grader_grade.py` | N-pass LLM grading orchestrator. **Requires `ANTHROPIC_API_KEY`**. Optional accelerator for key-holders; agent-in-the-loop is the keyless default. | `lib/tools/grader_grade.py` | Step 4 — when a key is available. |
 | `grader_consensus.py` | Majority + spread + auto-flag NEEDS-REVIEW + `_all_comments.md` compile. | `lib/tools/grader_consensus.py` | Step 5 — after all grader passes complete. |

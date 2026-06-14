@@ -128,6 +128,30 @@ Everything that is FERPA-sensitive is **gitignored by default** via
 
 ## The 8-step pipeline (default)
 
+### Pre-flight: audit your reconcile/competency config (issue #58)
+
+Before Step 1, if you have a reconcile config (`reconciliation.dimensions[]`)
+or a competency config (`competency.elements{}`, from issue #60), run:
+
+```
+uv run python lib/tools/grader_config_audit.py \
+    --config grading/<task>/config.json
+```
+
+Resolves every `assignment_id` against the live course and prints a table
+(name, group, points, due_at) with flags for 404s, group mismatches, and
+due-date busts. The **#1 silent grading bug** is a wrong-but-valid
+assignment id — the pipeline runs cleanly and grades everyone wrong. This
+audit catches it once, up front. Read-only; touches assignment metadata
+only (no student data).
+
+Optional per-dim rules (add to the config to escalate WARNs to FAILs):
+- `expected_group_regex: "DS Community"` — assignment group must match
+- `due_before: "2026-03-15"` — flag IDs whose due_at is later
+- `due_after: "2026-02-01"` — flag IDs whose due_at is earlier
+
+Exit 1 on any FAIL — wire this into a CI gate if you grade frequently.
+
 ```
 1. Fetch                grader_fetch.py
                           ├─ pre-populates .known_names.txt from FULL course roster
@@ -773,6 +797,7 @@ flag list:
 - `grader_name_leak_check.py` — name-leak verifier (FERPA gate)
 - `grader_prep_answer_key.py` — secret-scrub instructor answer keys for code/notebook assignments
 - `grader_signals.py` — static-analysis priors (not scores)
+- `grader_config_audit.py` — pre-flight config sanity check (issue #58): resolves assignment_ids in `reconciliation.dimensions[]` / `competency.elements{}`, flags 404s + group/due-cutoff mismatches before any grading run
 - `grader_reconcile.py` — anonymous gradebook reconciliation (self-review assignments)
 - `grader_grade.py` — optional N-pass LLM orchestrator (requires API key)
 - `grader_consensus.py` — N-grader majority + spread + `_all_comments.md` compile
