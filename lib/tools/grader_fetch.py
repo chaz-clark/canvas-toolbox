@@ -416,7 +416,13 @@ def detect_adapter(raw_dir: Path) -> str:
     if exts <= {".txt", ".md", ".qmd"}:  # .qmd = Quarto, structurally markdown + YAML + code chunks
         return "text"
 
-    # HTML — disambiguate databricks vs. text by sniffing each file
+    # HTML — disambiguate databricks vs. text by sniffing each file.
+    # Issue #66: a strict "EVERY file has the marker" gate fired
+    # `mixed_or_unknown` on cohorts with even one un-marker'd outlier
+    # (an undecodable export, a partial download), silently disabling
+    # the deid auto-chain. Relax to majority: if MOST files have the
+    # marker, pick databricks and let the databricks adapter skip the
+    # outlier (it already handles markerless files gracefully).
     if exts == {".html"} or exts == {".html", ".htm"}:
         html_files = [p for p in files if p.suffix.lower() in (".html", ".htm")]
         marker_count = 0
@@ -427,11 +433,17 @@ def detect_adapter(raw_dir: Path) -> str:
                 continue
             if "__DATABRICKS_NOTEBOOK_MODEL" in head:
                 marker_count += 1
-        if marker_count == len(html_files):
-            return "databricks"
+        n = len(html_files)
         if marker_count == 0:
             return "text"
-        return "mixed_or_unknown"  # some have marker, some don't
+        # Majority rule (more than half). A 50/50 split is genuinely
+        # mixed content and warrants the operator picking explicitly.
+        if marker_count * 2 > n:
+            if marker_count < n:
+                print(f"  note: {n - marker_count} of {n} .html file(s) lack the Databricks "
+                      f"marker; the databricks adapter will skip those.", file=sys.stderr)
+            return "databricks"
+        return "mixed_or_unknown"  # genuinely heterogeneous — operator picks
 
     # Heterogeneous extensions (e.g. .docx + .pdf in one cohort) — operator
     # must split or pick explicitly.
@@ -1017,10 +1029,21 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    # Final summary — FERPA: counts only, never a name
+    # Final summary — FERPA: counts only, never a name. Issue #66: also
+    # report the TOTAL roster size (not just `added`), since the
+    # roster-pre-fetch path can populate `.known_names.txt` to a non-zero
+    # size while this run added 0 NEW submitter names — operators were
+    # reading "0 appended" as "empty roster".
+    roster_total = 0
+    if names_file.exists():
+        roster_total = sum(
+            1 for ln in names_file.read_text(encoding="utf-8").splitlines()
+            if ln.strip() and not ln.lstrip().startswith("#")
+        )
     print(f"\n{ok} downloaded, {skipped} skipped (existing — use --force), "
           f"{failed} failed. {added} new submitter-name(s) appended to "
-          f"{names_file.name} (gitignored, never read by AI).")
+          f"{names_file.name} (roster total: {roster_total}; gitignored, "
+          f"never read by AI).")
     if args.test_student_only:
         if test_student_count == 0:
             print("WARNING: --test-student-only set but no Test Student submission "

@@ -187,6 +187,16 @@ def collect_matrix(task_dirs: list[Path], score_file: str, score_col: str) -> di
         "by_uid":  {uid: {task_label: {key, score, flagged}}},
         "missing_score_tasks": [...],  # tasks that lacked a score CSV
       }
+
+    Layout handling (issue #69, Path B):
+      - A task with surface subdirs AND a task-level feedback CSV (e.g.
+        m119's `<task>_combined/feedback/_grader1.csv`) emits ONE entry
+        per task. Keys in the task-level CSV are resolved against the
+        UNION of all surface keymaps. The synthesis IS at task level.
+      - A task with surface subdirs and per-surface feedback CSVs emits
+        one entry per surface (existing behavior).
+      - A single-surface task (keymap at task root) emits one entry per
+        task (existing behavior).
     """
     tasks: list[str] = []
     by_uid: dict[int, dict[str, dict]] = defaultdict(dict)
@@ -197,6 +207,33 @@ def collect_matrix(task_dirs: list[Path], score_file: str, score_col: str) -> di
         if not surfaces:
             print(f"WARN: no .keymap.json in {task} or any subdir; skipping.", file=sys.stderr)
             continue
+
+        # Issue #69 Path B: prefer task-level feedback when surface-level
+        # is absent (or empty) AND the task has surface subdirs.
+        task_level_rows: list[dict] = []
+        if not (len(surfaces) == 1 and surfaces[0] == task):
+            # Multi-surface task — check for task-level CSV first
+            task_level_rows = _read_score_rows(task, score_file, score_col)
+
+        if task_level_rows:
+            label = task.name
+            tasks.append(label)
+            # Union of all surface keymaps for key→uid lookup
+            key_to_uid: dict[str, int] = {}
+            for sd in surfaces:
+                key_to_uid.update(_read_keymap_uid_index(sd))
+            for row in task_level_rows:
+                key = (row.get("key") or "").strip()
+                uid = key_to_uid.get(key)
+                if uid is None:
+                    continue
+                by_uid[uid][label] = {
+                    "key": key,
+                    "score": (row.get(score_col) or "").strip(),
+                    "flagged": _looks_flagged(row, score_col),
+                }
+            continue
+
         for sd in surfaces:
             label = task.name if sd == task else f"{task.name}/{sd.name}"
             tasks.append(label)

@@ -82,13 +82,25 @@ try:
 except ImportError:
     __version__ = "0.0.0+unknown"
 
-# `<prefix>_<uid>.<ext>` — last numeric segment before extension.
-_UID_FROM_FILENAME = re.compile(r"_(\d+)\.[A-Za-z0-9]+$")
+# Issue #68: `<prefix>_<uid>.<ext>` is the canonical shape, AND the
+# Playwright-rendered share-URL transcripts (#51 grader_follow_share_url)
+# write `<prefix>_<uid>_external.<ext>` — a legitimate part of the deid
+# pipeline. The optional `_external` suffix between uid and extension
+# means both shapes resolve to the same uid.
+_UID_FROM_FILENAME = re.compile(r"_(\d+)(?:_external)?\.[A-Za-z0-9]+$")
 
 
-def extract_uid(filename: str) -> int | None:
+def extract_uid(filename: str) -> tuple[int, bool] | None:
+    """Return (user_id, is_external) for a filename, or None if the
+    `<prefix>_<uid>[_external].<ext>` convention doesn't match. The
+    `is_external` flag surfaces the follow-share-url origin (#51) so
+    downstream callers can see which keys came from a rendered transcript
+    vs. the original submission file."""
     m = _UID_FROM_FILENAME.search(filename or "")
-    return int(m.group(1)) if m else None
+    if not m:
+        return None
+    is_external = "_external." in (filename or "").lower()
+    return (int(m.group(1)), is_external)
 
 
 def find_surface_dirs(task_dir: Path) -> list[tuple[str, Path]]:
@@ -136,27 +148,39 @@ def build_join(task_dir: Path) -> list[dict]:
 
     # uid → {surface: key}  AND  uid → {surface: ta_grade}
     keys_by_uid: dict[int, dict[str, str]] = {}
+    external_by_uid_surface: dict[tuple[int, str], bool] = {}
     ta_by_uid: dict[int, dict[str, dict]] = {}
     unresolved: list[tuple[str, str]] = []  # (surface, filename)
 
     for surface_name, sdir in surfaces:
         keymap = load_keymap(sdir)
         for key, filename in keymap.items():
-            uid = extract_uid(filename)
-            if uid is None:
+            parsed = extract_uid(filename)
+            if parsed is None:
                 unresolved.append((surface_name, filename))
                 continue
+            uid, is_external = parsed
             slot = keys_by_uid.setdefault(uid, {})
             if surface_name in slot and slot[surface_name] != key:
-                # Multiple keys for the same uid+surface (legacy prefix
-                # duality; #54-D prevents new instances, but old keymaps
-                # may still have it). Pick the first; warn.
+                # Multiple keys for the same uid+surface. Prefer the
+                # NON-external key (original submission) over the
+                # _external.md key (Playwright-rendered transcript), and
+                # otherwise keep the first seen. Issue #54-D / #68.
+                prior_was_external = external_by_uid_surface.get((uid, surface_name), False)
+                if prior_was_external and not is_external:
+                    slot[surface_name] = key
+                    external_by_uid_surface[(uid, surface_name)] = False
+                    continue
+                if not prior_was_external and is_external:
+                    continue  # keep the original; ignore the external
+                # Same flavor on both → legacy prefix duality
                 print(f"WARN: uid={uid} has multiple keys for surface "
                       f"'{surface_name}': kept '{slot[surface_name]}', "
                       f"ignored '{key}'. Run --cleanup-legacy on the deid "
                       f"adapter to fix.", file=sys.stderr)
                 continue
             slot[surface_name] = key
+            external_by_uid_surface[(uid, surface_name)] = is_external
 
         ta_grades = load_ta_grades(sdir, surface_name)
         for uid, grade in ta_grades.items():
@@ -165,11 +189,24 @@ def build_join(task_dir: Path) -> list[dict]:
     all_uids = set(keys_by_uid) | set(ta_by_uid)
     rows: list[dict] = []
     for uid in sorted(all_uids):
-        rows.append({
+        # Issue #68: surface which surfaces came from a follow-share-url
+        # rendered transcript (the `_external.md` files). Downstream
+        # tools can use this to decide whether to weight a key
+        # differently (a rendered transcript is the AI Log's
+        # `link-only` submission path, not the original turn-by-turn
+        # paste — same student, same task, slightly different shape).
+        external_surfaces = sorted(
+            s for (u, s), ext in external_by_uid_surface.items()
+            if u == uid and ext
+        )
+        row = {
             "user_id": uid,
             "keys": keys_by_uid.get(uid, {}),
             "ta_grades": ta_by_uid.get(uid, {}),
-        })
+        }
+        if external_surfaces:
+            row["external_surfaces"] = external_surfaces
+        rows.append(row)
 
     if unresolved:
         print(f"\nWARN: {len(unresolved)} filename(s) didn't match the "

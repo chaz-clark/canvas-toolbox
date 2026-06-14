@@ -198,24 +198,27 @@ def fetch_active_filter(
     active_set: set[int] = set()
     inactive: dict[int, str] = {}
 
-    page = 1
-    while True:
+    # Issue #67: follow Canvas's `Link: rel="next"` header instead of
+    # blindly incrementing page numbers. Several Canvas endpoints return
+    # HTTP 400 (not an empty list) when you ask for a page beyond the
+    # last — `/enrollments` is one. Cohorts <= per_page hit this every
+    # call.
+    url: str | None = f"{base}/api/v1/courses/{cid}/enrollments"
+    initial_params = [
+        ("per_page", 100),
+        ("type[]", "StudentEnrollment"),
+        ("state[]", "active"), ("state[]", "invited"),
+        ("state[]", "inactive"), ("state[]", "completed"),
+        ("state[]", "rejected"),
+    ]
+    while url:
         r = requests.get(
-            f"{base}/api/v1/courses/{cid}/enrollments",
-            headers=headers,
-            params=[
-                ("per_page", 100), ("page", page),
-                ("type[]", "StudentEnrollment"),
-                ("state[]", "active"), ("state[]", "invited"),
-                ("state[]", "inactive"), ("state[]", "completed"),
-                ("state[]", "rejected"),
-            ],
+            url, headers=headers,
+            params=initial_params if "?" not in url else None,
             timeout=_TIMEOUT,
         )
         r.raise_for_status()
-        batch = r.json()
-        if not batch:
-            break
+        batch = r.json() or []
         for e in batch:
             uid = e.get("user_id")
             state = (e.get("enrollment_state") or "").lower()
@@ -228,7 +231,10 @@ def fetch_active_filter(
                 # Don't downgrade if the user is also enrolled actively elsewhere
                 if uid not in active_set:
                     inactive[uid] = state
-        page += 1
+        link = r.headers.get("Link", "")
+        m = re.search(r'<([^>]+)>;\s*rel="next"', link)
+        url = m.group(1) if m else None
+        initial_params = None  # subsequent pages are pre-parameterized in the next URL
 
     test_id: int | None = None
     tr = requests.get(
