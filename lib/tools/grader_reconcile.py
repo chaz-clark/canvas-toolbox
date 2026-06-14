@@ -45,7 +45,10 @@ CONFIG SHAPE (JSON; YAML supported if pyyaml is installed)
       "enabled": true,
       "dimensions": [
         {"dimension": "key_challenges", "source": "gradebook",
-         "assignment_ids": [40050, 40051, 40052], "zero_means": "not_submitted"},
+         "assignment_ids": [40050, 40051, 40052], "zero_means": "not_submitted",
+         "completion_basis": "nonzero"},
+        {"dimension": "methods", "source": "gradebook",
+         "assignment_ids": [40080, 40081], "completion_basis": "full_credit"},
         {"dimension": "hours", "source": "classic_quiz_submissions",
          "assignment_ids": [40060, 40061, 40062, 40063, 40064, 40065],
          "question_names": ["Hours"],
@@ -53,6 +56,16 @@ CONFIG SHAPE (JSON; YAML supported if pyyaml is installed)
       ]
     }
   }
+
+`completion_basis` (issue #59 — gradebook source only):
+  "submitted"   submitted_at is set                       (default; legacy)
+  "nonzero"     submitted AND score > 0                   (partial-credit work)
+  "full_credit" submitted AND score == points_possible    (1-pt complete /
+                                                           incomplete tasks;
+                                                           generalizes #47)
+Each row of the keyed actuals CSV now includes `<dim>_complete` alongside
+the existing `<dim>_sum`/`<dim>_submitted`/`<dim>_missing` columns. This
+is the input the competency grader (#60) consumes.
 
 GENERALIZED FROM: ds460-master/grading/reconcile_gradebook.py
 (commit 8f7814b + 2fd277f — round-2 + Classic-mirror addendum). The ds460 source
@@ -141,6 +154,52 @@ def submissions(base: str, cid: str, headers: dict, aid: int) -> dict[int, dict]
     return out
 
 
+# Issue #59: per-dimension completion_basis. "submitted" alone is a
+# dangerous default — a disengaged student can have 9 ungraded/incomplete
+# tasks marked submitted and the gradebook arithmetic still counts them.
+# `full_credit` (score == points_possible) cleanly handles 1-pt
+# complete/incomplete tasks; `nonzero` handles partial-credit work; the
+# legacy `submitted` remains the default for backward compatibility.
+_VALID_BASES = {"submitted", "nonzero", "full_credit"}
+
+
+def fetch_assignment_points_possible(base: str, cid: str, headers: dict, aid: int) -> float | None:
+    """One-call lookup of the assignment's points_possible. Cached at the
+    call site (per dimension)."""
+    try:
+        r = requests.get(f"{base}/api/v1/courses/{cid}/assignments/{aid}",
+                         headers=headers, timeout=_TIMEOUT)
+        r.raise_for_status()
+        pp = (r.json() or {}).get("points_possible")
+        return float(pp) if pp is not None else None
+    except (requests.HTTPError, ValueError, TypeError):
+        return None
+
+
+def _is_complete_under_basis(
+    submission: dict, points_possible: float | None, basis: str,
+) -> bool:
+    """True if this submission counts as 'complete' under the given basis.
+    None/missing scores never count as complete (submitted_at alone is
+    not enough for 'nonzero' / 'full_credit')."""
+    score = submission.get("score")
+    if basis == "submitted":
+        return bool(submission.get("submitted"))
+    if score is None:
+        return False
+    try:
+        score_f = float(score)
+    except (TypeError, ValueError):
+        return False
+    if basis == "nonzero":
+        return score_f > 0
+    if basis == "full_credit":
+        if points_possible is None:
+            return False
+        return abs(score_f - points_possible) < 1e-9
+    return False  # unknown basis
+
+
 def resolve_user_id(filename: str, primary_subs: dict[int, dict]) -> int | None:
     """Resolve a Canvas-format filename to its user_id by matching embedded numeric IDs.
 
@@ -203,16 +262,36 @@ def reconcile_dimension_gradebook(
     base: str, cid: str, headers: dict,
     dimension: dict, key_to_uid: dict[str, int | None],
 ) -> dict[str, dict]:
-    """Per-key totals for a gradebook-source dimension. Returns {key: {'sum': float, 'submitted': int, 'missing': int}}."""
+    """Per-key totals for a gradebook-source dimension. Returns
+    {key: {'sum': float, 'submitted': int, 'missing': int, 'complete': int}}.
+
+    `complete` is counted under `dimension['completion_basis']` (default
+    'submitted' for backward compatibility — same as the existing
+    `submitted` count). Issue #59."""
     per_aid_subs = {aid: submissions(base, cid, headers, aid) for aid in dimension["assignment_ids"]}
     zero_means = dimension.get("zero_means", "not_submitted")
+
+    basis = dimension.get("completion_basis", "submitted")
+    if basis not in _VALID_BASES:
+        print(f"  warn: dimension '{dimension['dimension']}' has unknown "
+              f"completion_basis '{basis}'; falling back to 'submitted'. "
+              f"Valid: {sorted(_VALID_BASES)}", file=sys.stderr)
+        basis = "submitted"
+
+    # Cache assignment.points_possible per-aid for full_credit basis only
+    # (skips the extra GET when not needed).
+    pp_by_aid: dict[int, float | None] = {}
+    if basis == "full_credit":
+        for aid in dimension["assignment_ids"]:
+            pp_by_aid[aid] = fetch_assignment_points_possible(base, cid, headers, aid)
+
     out: dict[str, dict] = {}
     for key, uid in key_to_uid.items():
         if uid is None:
-            out[key] = {"sum": None, "submitted": "?", "missing": "?"}
+            out[key] = {"sum": None, "submitted": "?", "missing": "?", "complete": "?"}
             continue
         total = 0.0
-        submitted = missing = 0
+        submitted = missing = complete = 0
         for aid, subs in per_aid_subs.items():
             s = subs.get(uid, {})
             score = s.get("score")
@@ -224,7 +303,10 @@ def reconcile_dimension_gradebook(
                 continue
             total += float(score)
             submitted += 1
-        out[key] = {"sum": total, "submitted": submitted, "missing": missing}
+            if _is_complete_under_basis(s, pp_by_aid.get(aid), basis):
+                complete += 1
+        out[key] = {"sum": total, "submitted": submitted, "missing": missing,
+                    "complete": complete}
     return out
 
 
@@ -339,7 +421,8 @@ def main() -> int:
     for dim in dims:
         name = dim["dimension"]
         if dim["source"] == "gradebook":
-            fieldnames += [f"{name}_sum", f"{name}_submitted", f"{name}_missing"]
+            fieldnames += [f"{name}_sum", f"{name}_submitted", f"{name}_missing",
+                           f"{name}_complete"]
         elif dim["source"] == "classic_quiz_submissions":
             for qn in (dim.get("question_names") or [name]):
                 fieldnames.append(f"{name}_{qn}")
@@ -359,6 +442,7 @@ def main() -> int:
                 row[f"{name}_sum"] = r.get("sum")
                 row[f"{name}_submitted"] = r.get("submitted")
                 row[f"{name}_missing"] = r.get("missing")
+                row[f"{name}_complete"] = r.get("complete")
             elif dim["source"] == "classic_quiz_submissions":
                 for qn in (dim.get("question_names") or [name]):
                     row[f"{name}_{qn}"] = r.get(qn)
