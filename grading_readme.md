@@ -831,6 +831,7 @@ All grader tools live in `lib/tools/grader_*.py`. They share the
 flag list:
 
 - `grader_list_assignments.py` — pre-flight discovery (issue #55): list a course's assignments with `--filter <regex>` / `--published-only` / `--include-unsubmitted-count`. Output `<id> | <name>` lines feed directly into `grader_fetch.py --assignment-id`.
+- `grader_submission_health.py` — pre-grade audit (issue #64): flag submissions that look broken (empty upload, wrong content-type, empty body) so a technical failure isn't graded as missing work. Read-only; FERPA-safe; pairs with the competency grader (#60) so a "0" that's really a broken upload doesn't flow straight into a final tier.
 - `grader_fetch.py` — Step 0 (fetch + roster + chain to deid + leak-check)
 - `grader_deidentify_databricks.py` · `grader_deidentify_docx.py` · `grader_deidentify_text.py` · `grader_deidentify_pdf.py` · `grader_deidentify_xlsx.py` · `grader_deidentify_jupyter.py` — de-id adapters by file type. `grader_fetch.py`'s auto-chain picks the right adapter automatically; `--deid-adapter` overrides.
 - `grader_deidentify_comments.py` — FERPA de-id layer for Canvas submission_comments threads (issue #65). Drops `author_name`, converts `author_id` to role (`self`/`instructor`/`ta`/`peer`/`unknown`), scrubs body, refuses to write on post-scrub leak. Prerequisite for any tool that reads comment threads (#62 collision guard, #63 retract/update).
