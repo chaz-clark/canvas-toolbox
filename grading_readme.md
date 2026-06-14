@@ -841,7 +841,8 @@ flag list:
 - `grader_signals.py` — static-analysis priors (not scores)
 - `grader_config_audit.py` — pre-flight config sanity check (issue #58): resolves assignment_ids in `reconciliation.dimensions[]` / `competency.elements{}`, flags 404s + group/due-cutoff mismatches before any grading run
 - `grader_pull_ta_grades.py` — symmetric PULL counterpart to `grader_grade.py` (issue #56): pulls `[{user_id, grade, score}]` for an assignment, skipping `unsubmitted`/`deleted`. FERPA-safe; feeds `_userid_key_grade_join.json` for calibration cohorts.
-- `grader_reconcile.py` — anonymous gradebook reconciliation (self-review assignments)
+- `grader_reconcile.py` — anonymous gradebook reconciliation (self-review assignments). v0.44+: per-dimension `completion_basis` (`submitted` / `nonzero` / `full_credit`) emits a `<dim>_complete` column (issue #59).
+- `grader_competency_grade.py` — deterministic "highest tier where all thresholds met" band (issue #60). Config-driven `{elements, tiers, below}`. Lifted from DS250's `calc_mid_grades.py`; reuses #59's completion_basis primitives. FERPA-safe; output is keyed for human review or push.
 - `grader_grade.py` — optional N-pass LLM orchestrator (requires API key)
 - `grader_consensus.py` — N-grader majority + spread + `_all_comments.md` compile
 - `grader_reidentify.py` — LOCAL re-identification (key → user_id)
