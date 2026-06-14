@@ -180,6 +180,23 @@ def _read_score_rows(surface_dir: Path, score_file: str, score_col: str) -> list
         return list(csv.DictReader(f))
 
 
+def _row_uid(row: dict, key_to_uid: dict[str, int]) -> int | None:
+    """Issue #70: bind a score-CSV row to a user_id. The toolkit's canonical
+    shape is `key`-keyed (output of grader_consensus / grader_grade), but
+    multi-surface synthesis CSVs (m119's `<task>_combined/feedback/
+    _grader1.csv`) are `user_id`-keyed because one row collapses both
+    surfaces. Try `key` first; fall back to `user_id` if present."""
+    key = (row.get("key") or "").strip()
+    if key:
+        uid = key_to_uid.get(key)
+        if uid is not None:
+            return uid
+    uid_str = (row.get("user_id") or "").strip()
+    if uid_str.isdigit():
+        return int(uid_str)
+    return None
+
+
 def collect_matrix(task_dirs: list[Path], score_file: str, score_col: str) -> dict:
     """Returns:
       {
@@ -218,17 +235,18 @@ def collect_matrix(task_dirs: list[Path], score_file: str, score_col: str) -> di
         if task_level_rows:
             label = task.name
             tasks.append(label)
-            # Union of all surface keymaps for key→uid lookup
+            # Union of all surface keymaps for key→uid lookup. Cohort
+            # synthesis CSVs (m119-style) are user_id-keyed; the
+            # _row_uid helper handles both shapes (#70).
             key_to_uid: dict[str, int] = {}
             for sd in surfaces:
                 key_to_uid.update(_read_keymap_uid_index(sd))
             for row in task_level_rows:
-                key = (row.get("key") or "").strip()
-                uid = key_to_uid.get(key)
+                uid = _row_uid(row, key_to_uid)
                 if uid is None:
                     continue
                 by_uid[uid][label] = {
-                    "key": key,
+                    "key": (row.get("key") or "").strip(),
                     "score": (row.get(score_col) or "").strip(),
                     "flagged": _looks_flagged(row, score_col),
                 }
@@ -243,12 +261,11 @@ def collect_matrix(task_dirs: list[Path], score_file: str, score_col: str) -> di
                 missing_score_tasks.append(label)
                 continue
             for row in rows:
-                key = (row.get("key") or "").strip()
-                uid = key_to_uid.get(key)
+                uid = _row_uid(row, key_to_uid)
                 if uid is None:
                     continue
                 by_uid[uid][label] = {
-                    "key": key,
+                    "key": (row.get("key") or "").strip(),
                     "score": (row.get(score_col) or "").strip(),
                     "flagged": _looks_flagged(row, score_col),
                 }
