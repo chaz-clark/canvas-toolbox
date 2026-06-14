@@ -127,6 +127,33 @@ grading/
         └── key_clean.md                   ← secret-scrubbed reference (grader_prep_answer_key)
 ```
 
+### Single-surface vs multi-surface tasks (#54 sub-E convention)
+
+m119 SP26 surfaced two layout shapes side-by-side: some tasks had ONE
+gradeable submission per student (just an AI Log) while others had TWO
+(AI Log + Cohesive Narrative for the same project task). The canonical
+convention as of v0.47+:
+
+- **Single-surface task** → `grading/<task>_<surface>/` (one assignment,
+  one keymap, one feedback tree). Example:
+  `grading/p2t1_ai_log/`.
+- **Multi-surface task** → `grading/<task>_combined/<surface>/` with
+  sibling surface subdirs (each holds its own keymap + feedback tree
+  for that surface). Example:
+  ```
+  grading/p1t1_combined/
+      ai_log/                 (.keymap.json, feedback/, ...)
+      cohesive_narrative/     (.keymap.json, feedback/, ...)
+      _userid_key_grade_join.json   ← built by grader_join.py (#54-B)
+      _meta_summary.csv             ← built by grader_meta_summary.py (#54-C)
+  ```
+
+`grader_scaffold.py` (#54 sub-A) auto-picks the right shape: one
+`--assignment-ids` → single-surface; comma-list OR `--combine` →
+combined. The downstream `grader_join.py` (#54-B) and
+`grader_meta_summary.py` (#54-C) auto-detect both layouts — operators
+don't need to pass a layout flag.
+
 Everything that is FERPA-sensitive is **gitignored by default** via
 `scaffold/grading/.gitignore`. Copy that file into your course repo's
 `grading/` folder once at setup time.
@@ -833,6 +860,8 @@ flag list:
 - `grader_list_assignments.py` — pre-flight discovery (issue #55): list a course's assignments with `--filter <regex>` / `--published-only` / `--include-unsubmitted-count`. Output `<id> | <name>` lines feed directly into `grader_fetch.py --assignment-id`.
 - `grader_submission_health.py` — pre-grade audit (issue #64): flag submissions that look broken (empty upload, wrong content-type, empty body) so a technical failure isn't graded as missing work. Read-only; FERPA-safe; pairs with the competency grader (#60) so a "0" that's really a broken upload doesn't flow straight into a final tier.
 - `grader_scaffold.py` — task scaffolder (issue #54 sub-A): given a Canvas assignment ID (or comma-list for multi-surface), lays down `grading/<task>[_combined]/<surface>/` with a starter `config.yml` + a `RUBRIC.md` copied from `scaffold/grading/rubric_templates/<surface>.md` (ai_log + cohesive_narrative shipped with #54 sub-F). Idempotent; replaces the manual `mkdir` + `cp RUBRIC.md` cycle.
+- `grader_join.py` — multi-surface FERPA-safe join (issue #54 sub-B): walks a `<task>_combined/<surface>/` tree, resolves each surface's `.keymap.json` → user_id, joins with `ta_grades_<surface>.json` (from #56), emits `<task>/_userid_key_grade_join.json`. The canonical input for cross-task analysis.
+- `grader_meta_summary.py` — cross-task summary (issue #54 sub-C): given multiple task dirs (`--cohort-glob 'grading/p*'` or `--task-dirs ...`), emits uid × task matrix + flag-streak detection + per-uid band distribution. Surfaces cross-task patterns that previously required eyeballing.
 - `grader_fetch.py` — Step 0 (fetch + roster + chain to deid + leak-check)
 - `grader_deidentify_databricks.py` · `grader_deidentify_docx.py` · `grader_deidentify_text.py` · `grader_deidentify_pdf.py` · `grader_deidentify_xlsx.py` · `grader_deidentify_jupyter.py` — de-id adapters by file type. `grader_fetch.py`'s auto-chain picks the right adapter automatically; `--deid-adapter` overrides.
 - `grader_deidentify_comments.py` — FERPA de-id layer for Canvas submission_comments threads (issue #65). Drops `author_name`, converts `author_id` to role (`self`/`instructor`/`ta`/`peer`/`unknown`), scrubs body, refuses to write on post-scrub leak. Prerequisite for any tool that reads comment threads (#62 collision guard, #63 retract/update).
