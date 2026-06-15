@@ -1,0 +1,34 @@
+# Cloudflare Workers config for the canvas-toolbox bug-intake endpoint.
+# Deploy with: wrangler deploy
+# See: ./README.md for the one-time setup walkthrough.
+
+name = "canvas-toolbox-bugs"
+main = "src/worker.ts"
+compatibility_date = "2025-01-01"
+
+# Non-secret repo config — safe to commit. The PAT (secret) is set via:
+#   wrangler secret put GITHUB_PAT
+# and is NEVER stored in this file.
+[vars]
+GITHUB_OWNER = "chaz-clark"
+GITHUB_REPO  = "canvas-toolbox"
+ISSUE_LABEL  = "agent-submitted"
+
+# Optional KV namespace for the per-IP rate limiter. If you skip this
+# step the worker still deploys + functions, with rate-limiting OFF
+# (RATE_LIMIT_KV unbound → `rateLimitOk` returns true). For the v1.0
+# adoption push, ship WITH the KV bound.
+#
+# To enable:
+#   wrangler kv:namespace create RATE_LIMIT_KV
+# then paste the returned `id` below and uncomment:
+#
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT_KV"
+# id = "<paste-from-wrangler-output>"
+
+# Observability — turn on the Workers Logs UI in dashboard so you can
+# tail issue traffic + 4xx/5xx counts. No code needed; just enable the
+# observability binding in wrangler.toml:
+[observability]
+enabled = true
