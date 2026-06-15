@@ -212,6 +212,35 @@ For repeated friction crossing the Hermes promotion threshold:
 
 Propose a specific title — that's the maintainer's primary triage signal. "test bug" is useless; "bug: grader_push 4xx on KC1 assignment 16958677" is actionable. Suggest `--from <log path>` when a log exists. The CLI auto-bundles toolkit version, Python version, platform, sanitized cwd, and the last 150 log lines; it opens `$EDITOR` for the operator's "what I expected vs what happened" detail before posting.
 
+### Adopter upgrade discoverability
+
+When you're working in a CONSUMER repo (m119-master, ds460-master,
+ds250-onln-master, itm327-master, aol-student, etc.) and you notice
+`canvas-toolbox/` is at an older version than the latest, surface
+[`UPDATE.md`](UPDATE.md) at the canvas-toolbox repo root. It carries
+the scenario-driven migration guide (vs. [`CHANGELOG.md`](CHANGELOG.md)
+which is the per-version mechanical record). One-line check:
+
+```bash
+uv run python canvas-toolbox/lib/tools/grader_fetch.py --version
+```
+
+If the printed version is behind the latest (currently **v0.50.1**),
+the upgrade is usually a clean `cd canvas-toolbox && git pull && uv sync`.
+UPDATE.md flags behavior changes the operator might notice (the
+v0.40+ Test Student exclusion, the v0.41-0.42 push guards, the
+v0.50 bug-intake CLI). The toolkit does not auto-upgrade; that's by
+design (operator control). But agents can and should notice the gap.
+
+### Security issues are NOT bugs
+
+If you find (or the operator surfaces) a path that LEAKS student PII,
+exposes the bug-intake worker's PAT, or otherwise bypasses a FERPA
+gate — **don't file via `cb_report_bug.py`** (it files publicly).
+Follow [`SECURITY.md`](SECURITY.md) instead: email the maintainer
+directly. The public intake channel is for bugs + enhancements; the
+private channel is for security.
+
 ## Active Context
 
 _Last updated: 2026-06-15_
