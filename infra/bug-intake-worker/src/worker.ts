@@ -82,24 +82,46 @@ async function rateLimitOk(env: Env, ip: string): Promise<boolean> {
   return true;
 }
 
+function githubHeaders(env: Env): HeadersInit {
+  return {
+    'Authorization': `Bearer ${env.GITHUB_PAT}`,
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Accept': 'application/vnd.github+json',
+    'User-Agent': 'canvas-toolbox-bug-intake-worker',
+    'Content-Type': 'application/json',
+  };
+}
+
 async function fileIssue(
   env: Env, title: string, body: string,
 ): Promise<{ status: number; payload: unknown }> {
+  // Create the issue WITHOUT labels.
+  //
+  // GitHub fine-grained PATs scoped to Issues:read+write empirically
+  // CANNOT mutate labels — verified 2026-06-15:
+  //   - POST /issues with `labels` in body  → silently drops the field
+  //   - POST /issues/:n/labels              → 403 "Resource not accessible"
+  //   - PATCH /issues/:n with `labels`       → 403 "Resource not accessible"
+  // All three are documented as requiring just Issues:write, but the
+  // runtime check is stricter than the docs. Adding broader scopes
+  // (Pull requests:write, Contents:write) would unlock label mutation
+  // but expands the PAT's blast radius — wrong trade for a one-way
+  // intake channel.
+  //
+  // Instead: the worker creates the issue cleanly; a tiny GitHub
+  // Actions workflow (`.github/workflows/agent-submitted-label.yml`)
+  // adds the `agent-submitted` label by matching the body footer
+  // "_Filed via canvas-toolbox bug-intake worker._". Actions tokens
+  // have the right scope by default.
+  //
+  // env.ISSUE_LABEL is kept for backward-compat / future use (e.g. if
+  // GitHub later loosens the permission check, or if the worker grows
+  // a GitHub-App auth path); it's no longer sent.
   const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/issues`;
   const resp = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.GITHUB_PAT}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-      'Accept': 'application/vnd.github+json',
-      'User-Agent': 'canvas-toolbox-bug-intake-worker',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      title,
-      body,
-      labels: [env.ISSUE_LABEL || 'agent-submitted'],
-    }),
+    headers: githubHeaders(env),
+    body: JSON.stringify({ title, body }),
   });
   const text = await resp.text();
   let payload: unknown;
