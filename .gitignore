@@ -12,6 +12,11 @@ course_src/
 .env
 .env.local
 .env.*.local
+# Per-user runbooks / local-only docs (e.g. PAT rotation log). Anything
+# ending in `.local.md` stays local. Use this for files that contain
+# specific dates / instance IDs / personal account references that
+# shouldn't be in the public repo.
+*.local.md
 
 # AI coding tool local memory / caches — per-user, never committed
 .gemini/
