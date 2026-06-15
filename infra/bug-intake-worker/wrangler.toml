@@ -19,13 +19,10 @@ ISSUE_LABEL  = "agent-submitted"
 # (RATE_LIMIT_KV unbound → `rateLimitOk` returns true). For the v1.0
 # adoption push, ship WITH the KV bound.
 #
-# To enable:
-#   wrangler kv:namespace create RATE_LIMIT_KV
-# then paste the returned `id` below and uncomment:
-#
-# [[kv_namespaces]]
-# binding = "RATE_LIMIT_KV"
-# id = "<paste-from-wrangler-output>"
+# Created 2026-06-15 via: wrangler kv namespace create RATE_LIMIT_KV
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "454254d5281f403ab0787fa269e60b3f"
 
 # Observability — turn on the Workers Logs UI in dashboard so you can
 # tail issue traffic + 4xx/5xx counts. No code needed; just enable the

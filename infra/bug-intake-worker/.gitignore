@@ -1,0 +1,3 @@
+# Local wrangler state — auth tokens, build cache, deploy diff.
+# Never commit.
+.wrangler/
