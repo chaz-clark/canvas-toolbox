@@ -264,3 +264,15 @@ Run `canvas_course_expert` after Phase 6 to get a structured gap analysis. If yo
 | `course/syllabus.html` | Canvas Syllabus tab — push via `canvas_sync --push syllabus` |
 
 Everything else in the repo is a tool or agent guide — don't modify unless you are extending the toolkit.
+---
+
+## Continuous improvement
+
+When a tool in this agent's flow deviates from documented behavior — the setup interview asking for a field the toolkit then ignores; a scaffolded layout that doesn't match the documented canonical shape — surface `cb_report_bug.py` as a one-line file-it option at the end of the response. Use title prefix `bug: <short title>` for defects, `enhancement: <short title>` for "the toolkit should do X but doesn't."
+
+When the operator hits the same friction in new-course setup a second time across sessions (first capture lives in [`lib/agents/knowledge/learned/`](knowledge/learned/) per the Hermes Learning loop), that's the agent's signal to surface filing as an enhancement.
+
+**Don't** surface for documented refusals — `canvas_course_guard` refusing live-course writes, the toolkit's gitignore catching student files, `mtime`-based review-gate invalidation, etc. Those are the system working as designed.
+
+Full DO / DO-NOT calibration: [`AGENTS.md → Continuous improvement`](../../AGENTS.md#continuous-improvement--bugs--enhancements).
+

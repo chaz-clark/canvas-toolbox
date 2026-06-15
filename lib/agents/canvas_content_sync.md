@@ -416,3 +416,15 @@ See `canvas_content_sync.json → cross_references.related_agents` for:
 | **Common Pitfall** | Using `page_id` instead of `slug` for module item insertion — silent failure, broken link |
 | **Dependencies** | `requests>=2.31.0`, Canvas MCP server (Docker), `canvas_api_tool.py` |
 | **Temperature** | 0.1 (all tool-use and write phases) |
+---
+
+## Continuous improvement
+
+When a tool in this agent's flow deviates from documented behavior — a `canvas_sync.py` run that down-synced different content than the dry-run preview showed — surface `cb_report_bug.py` as a one-line file-it option at the end of the response. Use title prefix `bug: <short title>` for defects, `enhancement: <short title>` for "the toolkit should do X but doesn't."
+
+When the operator hits the same friction in content sync a second time across sessions (first capture lives in [`lib/agents/knowledge/learned/`](knowledge/learned/) per the Hermes Learning loop), that's the agent's signal to surface filing as an enhancement.
+
+**Don't** surface for documented refusals — `canvas_course_guard` refusing live-course writes, the toolkit's gitignore catching student files, `mtime`-based review-gate invalidation, etc. Those are the system working as designed.
+
+Full DO / DO-NOT calibration: [`AGENTS.md → Continuous improvement`](../../AGENTS.md#continuous-improvement--bugs--enhancements).
+

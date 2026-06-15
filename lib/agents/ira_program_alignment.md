@@ -179,3 +179,15 @@ The taxonomy progression check (lower verbs at Introduce, higher verbs at Assess
 | Output | Program-level remediation plan | Course-level audit findings |
 
 These agents are complementary: run `ira_program_alignment` to validate the program-level scaffold, then run `canvas_course_expert` on the individual courses to validate that the CLOs are actually implemented inside Canvas.
+---
+
+## Continuous improvement
+
+When a tool in this agent's flow deviates from documented behavior — an alignment heuristic flagging a course that the operator can show is genuinely aligned, or missing one that isn't — surface `cb_report_bug.py` as a one-line file-it option at the end of the response. Use title prefix `bug: <short title>` for defects, `enhancement: <short title>` for "the toolkit should do X but doesn't."
+
+When the operator hits the same friction in IRA program alignment a second time across sessions (first capture lives in [`lib/agents/knowledge/learned/`](knowledge/learned/) per the Hermes Learning loop), that's the agent's signal to surface filing as an enhancement.
+
+**Don't** surface for documented refusals — `canvas_course_guard` refusing live-course writes, the toolkit's gitignore catching student files, `mtime`-based review-gate invalidation, etc. Those are the system working as designed.
+
+Full DO / DO-NOT calibration: [`AGENTS.md → Continuous improvement`](../../AGENTS.md#continuous-improvement--bugs--enhancements).
+

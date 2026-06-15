@@ -198,3 +198,15 @@ After pushing all updates, verify:
 ### Related Agents
 - `canvas_course_expert` — full course audit and content edits
 - `canvas_content_sync` — pushes page content changes
+---
+
+## Continuous improvement
+
+When a tool in this agent's flow deviates from documented behavior — a semester-rollover step that left an artifact behind, or skipped a step the runbook says should run — surface `cb_report_bug.py` as a one-line file-it option at the end of the response. Use title prefix `bug: <short title>` for defects, `enhancement: <short title>` for "the toolkit should do X but doesn't."
+
+When the operator hits the same friction in semester setup a second time across sessions (first capture lives in [`lib/agents/knowledge/learned/`](knowledge/learned/) per the Hermes Learning loop), that's the agent's signal to surface filing as an enhancement.
+
+**Don't** surface for documented refusals — `canvas_course_guard` refusing live-course writes, the toolkit's gitignore catching student files, `mtime`-based review-gate invalidation, etc. Those are the system working as designed.
+
+Full DO / DO-NOT calibration: [`AGENTS.md → Continuous improvement`](../../AGENTS.md#continuous-improvement--bugs--enhancements).
+

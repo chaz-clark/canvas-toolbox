@@ -42,3 +42,15 @@ Your **task** is to migrate content and assessments from this repository into th
 - **Concise** Canvas copy; avoid duplicating rubrics in the syllabus body when a rubric is attached.
 - **Timezone** due dates consistently (document the zone in `CANVAS_INDEX` when using human-readable labels).
 - After substantive changes, **spot-check** the course in Canvas (assignment group, points, module order) when the API returns something ambiguous (for example quiz assignment points before `PUT`).
+---
+
+## Continuous improvement
+
+When a tool in this agent's flow deviates from documented behavior — a sync that touches more files than expected, a PUT that returns 200 but the content didn't update — surface `cb_report_bug.py` as a one-line file-it option at the end of the response. Use title prefix `bug: <short title>` for defects, `enhancement: <short title>` for "the toolkit should do X but doesn't."
+
+When the operator hits the same friction in Canvas content migration a second time across sessions (first capture lives in [`lib/agents/knowledge/learned/`](knowledge/learned/) per the Hermes Learning loop), that's the agent's signal to surface filing as an enhancement.
+
+**Don't** surface for documented refusals — `canvas_course_guard` refusing live-course writes, the toolkit's gitignore catching student files, `mtime`-based review-gate invalidation, etc. Those are the system working as designed.
+
+Full DO / DO-NOT calibration: [`AGENTS.md → Continuous improvement`](../../AGENTS.md#continuous-improvement--bugs--enhancements).
+

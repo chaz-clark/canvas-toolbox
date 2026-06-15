@@ -370,3 +370,15 @@ After any correction run, re-run `uv run python lib/tools/canvas_sync.py --pull`
 ### External Documentation
 - Canvas LMS REST API: `/api/v1/courses/:id/assignments/:id` (PUT), `/api/v1/courses/:id/quizzes/:id` (PUT), `/api/v1/courses/:id/modules/:id` (PUT)
 - BYUI scheduling convention: 12:00 AM MT available, 11:59 PM MT due/until, MDT/MST offsets as documented above
+---
+
+## Continuous improvement
+
+When a tool in this agent's flow deviates from documented behavior — a due-date sanity check missing a real conflict, OR flagging a non-conflict as conflicting — surface `cb_report_bug.py` as a one-line file-it option at the end of the response. Use title prefix `bug: <short title>` for defects, `enhancement: <short title>` for "the toolkit should do X but doesn't."
+
+When the operator hits the same friction in schedule auditing a second time across sessions (first capture lives in [`lib/agents/knowledge/learned/`](knowledge/learned/) per the Hermes Learning loop), that's the agent's signal to surface filing as an enhancement.
+
+**Don't** surface for documented refusals — `canvas_course_guard` refusing live-course writes, the toolkit's gitignore catching student files, `mtime`-based review-gate invalidation, etc. Those are the system working as designed.
+
+Full DO / DO-NOT calibration: [`AGENTS.md → Continuous improvement`](../../AGENTS.md#continuous-improvement--bugs--enhancements).
+

@@ -274,3 +274,15 @@ Blueprint may have semester-specific dates from when it was first created (or ol
 | **Quickstart** | `--pull` then `--push` |
 | **Common Pitfall** | Stale mapping after Blueprint module changes — re-run `--pull` |
 | **Dependencies** | `requests`, `python-dotenv`, `BLUEPRINT_COURSE_ID` in `.env` |
+---
+
+## Continuous improvement
+
+When a tool in this agent's flow deviates from documented behavior — a Blueprint association that silently dropped a child course, a sync touching modules outside the intended set — surface `cb_report_bug.py` as a one-line file-it option at the end of the response. Use title prefix `bug: <short title>` for defects, `enhancement: <short title>` for "the toolkit should do X but doesn't."
+
+When the operator hits the same friction in Blueprint sync a second time across sessions (first capture lives in [`lib/agents/knowledge/learned/`](knowledge/learned/) per the Hermes Learning loop), that's the agent's signal to surface filing as an enhancement.
+
+**Don't** surface for documented refusals — `canvas_course_guard` refusing live-course writes, the toolkit's gitignore catching student files, `mtime`-based review-gate invalidation, etc. Those are the system working as designed.
+
+Full DO / DO-NOT calibration: [`AGENTS.md → Continuous improvement`](../../AGENTS.md#continuous-improvement--bugs--enhancements).
+
