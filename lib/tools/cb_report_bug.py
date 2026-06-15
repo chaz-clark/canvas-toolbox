@@ -41,14 +41,26 @@ USAGE
 
   # Auto-bundle a log file
   uv run python lib/tools/cb_report_bug.py \\
-      --from grading/<task>/feedback/error.log --title "grader_grade 4xx"
+      --from grading/<task>/feedback/error.log \\
+      --title "bug: grader_grade 4xx on KC1"
 
   # Headless / scripted
   uv run python lib/tools/cb_report_bug.py \\
-      --title "<title>" --body "<markdown body>"
+      --title "enhancement: <short title>" --body "<markdown body>"
 
   # Show what would be sent without posting
   uv run python lib/tools/cb_report_bug.py --dry-run
+
+TITLE-PREFIX CONVENTION
+  - `bug: ...`         — toolkit deviated from documented behavior, exit
+                         code surprised the agent, output looks wrong.
+  - `enhancement: ...` — operator wants something the tool doesn't yet
+                         do; or a recurring friction crossed the Hermes
+                         promotion threshold (captured twice in
+                         `lib/agents/knowledge/learned/`).
+  The maintainer triages on these prefixes. The CLI doesn't require
+  them, but agents calling this tool SHOULD include one. See
+  `AGENTS.md → Continuous improvement` for the DO / DO-NOT calibration.
 
 EXIT CODES
   0  filed (or printed in --dry-run)

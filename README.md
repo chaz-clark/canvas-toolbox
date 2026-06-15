@@ -28,6 +28,26 @@ Full knowledge base and agent framework references: [`lib/agents/knowledge/READM
 
 ---
 
+# Hit a bug? Hit a wish?
+
+The toolkit ships with a **zero-friction reporting path** — one command, no GitHub account, no `gh` CLI, no browser auth required:
+
+```bash
+uv run python lib/tools/cb_report_bug.py
+```
+
+It opens your editor for a description, scrubs PII locally (names, emails, /Users paths), bundles your toolkit version + last 150 log lines + sanitized cwd, and files an issue on `chaz-clark/canvas-toolbox` via a Cloudflare-fronted intake worker. Returns the issue URL in about 1 second.
+
+**For toolkit bugs**, prefix the title `bug:` — e.g. `bug: grader_push 4xx on KC1 assignment 16958677`.
+
+**For enhancement requests** (something the tool should do but doesn't), prefix `enhancement:` — e.g. `enhancement: grader_meta_summary should color-code FLAG streaks ≥ 3`.
+
+The maintainer triages from the `agent-submitted` label. If you'd rather file directly on GitHub, https://github.com/chaz-clark/canvas-toolbox/issues/new always works as a fallback.
+
+Worker design + maintainer ops: [`infra/bug-intake-worker/README.md`](infra/bug-intake-worker/README.md).
+
+---
+
 # Getting started
 
 Three small choices before the toolkit is yours:

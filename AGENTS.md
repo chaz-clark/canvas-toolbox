@@ -155,9 +155,98 @@ Session insight → durable knowledge.
 
 > Path note: this repo's canonical knowledge directory is `lib/agents/knowledge/` (not `knowledge/` at root, which the make_AGENTS template assumes). The learned lane sits alongside the other knowledge files at `lib/agents/knowledge/learned/`.
 
+## Continuous improvement — bugs + enhancements
+
+The toolkit ships with TWO complementary capture mechanisms; the agent's job is to recognize the moment and route appropriately.
+
+### Channel 1 — `cb_report_bug.py` (immediate, external)
+
+A one-command CLI that files a scrubbed report on `chaz-clark/canvas-toolbox` via the Cloudflare-fronted intake worker (`infra/bug-intake-worker/`). **No GitHub account needed on the operator's side.** Use for:
+
+- **Bugs** — something broke, something surprised you, something diverged from documented behavior. Title prefix: `bug:`.
+- **Enhancements** — operator articulated something the tool doesn't yet do, OR a recurring friction has been captured in `learned/` at least once already (the Hermes promotion threshold). Title prefix: `enhancement:`.
+
+The maintainer triages bug-vs-enhancement at the issue level. The CLI doesn't need a flag — the title's prefix is the signal. A GitHub Action auto-labels every filed issue `agent-submitted` for filtering.
+
+### Channel 2 — `lib/agents/knowledge/learned/` (patient, internal)
+
+The Hermes Learning loop (Sprint B, see above). When the friction is interesting but you're not sure it rises to "file it now" — capture it here as a durable lesson. The promotion rule applies: a learned entry that gets **referenced a second time** is the agent's signal to surface filing as an enhancement via Channel 1.
+
+### Bias: err toward surfacing
+
+A low-quality report costs the maintainer ~10s to close. A real bug or enhancement never filed costs much more (silent toolkit drift, hand-rolled workarounds in consumer repos, lost trust). **When in doubt, surface the option.** The operator decides whether to file.
+
+### Default — DO surface filing when
+
+- A tool exits non-zero and the message doesn't read like operator config.
+- A tool produces output that "feels off" — wrong band, over-aggressive scrub, an audit that flags everything or nothing, a sync that touches more than expected.
+- Documented behavior diverges from observed behavior.
+- A Canvas API call fails with a status you can't immediately attribute to operator action (a 4xx that isn't auth, a persistent 5xx, persistent timeouts).
+- The operator asked for something the tool doesn't do, or proposed a workflow that would benefit from new behavior.
+- Performance surprised you, or you had to stop and re-read the code to be sure it was doing the right thing.
+- A `learned/` entry is being referenced for the second time — that's the Hermes promotion threshold; surface the file-as-enhancement option.
+
+### Hard rules — do NOT suggest filing when
+
+These are the system working as designed, not bugs:
+
+- **FERPA gate refusing.** `grader_name_leak_check.py` finding a name; deid quarantining a docx into `submissions_deid/_REVIEW/`; `_challenge_dir_guard` refusing the toolkit clone path. The check fired correctly; the operator's roster or challenge dir needs fixing.
+- **Push gate refusing.** Missing `--mark-reviewed`; `canvas_course_guard` refusing live-course writes without `--allow-enrolled`; the collision / lock / hold guards (issues #62 / #63 / #72) blocking a push. Each is a documented guardrail.
+- **Operator config gaps** — missing env var, missing keymap, missing rubric. Tool message already says what to fix.
+- **The agent itself supplied bad inputs.** Wrong assignment id, wrong path, wrong flag. Re-try with the correction first; only suggest filing if the CORRECTED invocation also behaves wrong.
+
+### How to surface
+
+ONE line at the end of the agent's response, clear and skippable.
+
+For bugs:
+> _If this looks like a toolkit bug rather than a config issue, `uv run python lib/tools/cb_report_bug.py --from <log path> --title "bug: <short title>"` files it scrubbed + maintainer-routed. No GitHub account needed._
+
+For enhancements:
+> _This looks like an enhancement candidate. If the toolkit should grow this behavior, `uv run python lib/tools/cb_report_bug.py --title "enhancement: <short title>"` files it for the maintainer to triage._
+
+For repeated friction crossing the Hermes promotion threshold:
+> _This is the second time this friction has shown up (first capture at `lib/agents/knowledge/learned/<earlier>.md`). That's the Hermes promotion threshold — worth filing as an enhancement via `cb_report_bug.py` so the toolkit can grow to handle it natively._
+
+### Bundling discipline
+
+Propose a specific title — that's the maintainer's primary triage signal. "test bug" is useless; "bug: grader_push 4xx on KC1 assignment 16958677" is actionable. Suggest `--from <log path>` when a log exists. The CLI auto-bundles toolkit version, Python version, platform, sanitized cwd, and the last 150 log lines; it opens `$EDITOR` for the operator's "what I expected vs what happened" detail before posting.
+
 ## Active Context
 
-_Last updated: 2026-05-28_
+_Last updated: 2026-06-15_
+
+### Recent: grader sprint + bug-intake worker (2026-06-14 → 2026-06-15)
+
+The grader pipeline jumped from **v0.35.4 → v0.50.x** across one intense
+day of issue-driven work (issues #54-#74 closed; m119 + ds460 consumer
+repos as the testing surface). New tools shipped: `grader_config_audit`
+(#58), `grader_deidentify_comments` (#65, FERPA), `grader_list_assignments`
+(#55), `grader_pull_ta_grades` (#56), `grader_submission_health` (#64),
+`grader_competency_grade` (#60), `grader_push_comments` (#57),
+`grader_scaffold` (#54-A), `grader_join` (#54-B), `grader_meta_summary`
+(#54-C). Existing tools hardened: `grader_push` got default-exclude of
+Test Student + inactive (#61), pre-push comment-collision guard (#62),
+availability-aware comments + first-class `--retract` (#63), and the
+HOLD_<DIM> grade-hold pattern (#72). `grader_reconcile` got
+`completion_basis` per dimension (#59). All 6 deid adapters got
+re-run prefix duality guards (#54-D).
+
+### Recent: bug-intake worker (2026-06-15)
+
+The v1.0 readiness gate. `lib/tools/cb_report_bug.py` + the Cloudflare
+Worker at `infra/bug-intake-worker/` give faculty a one-command path
+to file bugs / enhancements with no GitHub account, no `gh` CLI, no
+browser auth, no PAT on their side. The maintainer's PAT lives in
+Cloudflare's encrypted secret store; rotation is ~5 min/quarter.
+Faculty-side: `uv run python lib/tools/cb_report_bug.py`. The
+`agent-submitted` label is applied by a GitHub Action (`.github/workflows/agent-submitted-label.yml`)
+that detects the worker's body footer — keeps the PAT scope at minimum
+(Issues:RW only). See `infra/bug-intake-worker/README.md` for the
+operations runbook and `MAINTENANCE.local.md` (gitignored) for the
+maintainer's instance-specific details + PAT rotation schedule.
+
+### Older: knowledge-base QC audit (2026-05-26) — done, came back clean
 
 - **Knowledge-base QC audit (2026-05-26) — done, came back clean.** Audited all 17 `knowledge/*.md`+`.json` pairs against the `make_agent_knowledge` KNW-QC standard + distilled-vs-pasted + bloat + cross-file redundancy. **Result: the two-layer architecture holds — no file is raw paste**; distillation discipline is real and consistent (the two largest, `assessments` 4.3k words and `rubrics` 4.3k words, are the most carefully structured, with explicit verbatim-vs-gloss labeling). Universal `read_at_runtime` is a documented `selective_load` choice, not a defect. **5 small fixes applied:** `syllabus_knowledge.json` brought onto the house schema (facts object → `facts[]` array per KNW-QC-003; provenance → `{sources:[]}`; added `runtime_strategy`); MD header spines completed on `designer_thinking` / `cognitive_load_theory` / `toyota_gap_analysis`; `three_domains` dangling `blooms_taxonomy_knowledge.md` refs resolved (point to `taxonomy_explorer` + `outcomes_quality` until the dedicated file exists). **Residual forward item:** `blooms_taxonomy_knowledge.md` is referenced as "forthcoming" by `three_domains` but not yet built — verb lists currently live in `taxonomy_explorer_knowledge.md` + `outcomes_quality_knowledge.md`; create the dedicated file only if a tool needs a single Bloom verb-reference home.
 

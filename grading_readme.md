@@ -40,6 +40,36 @@ PASS; the 6th legitimately deferred).
 
 ---
 
+## Hit something unexpected? — `cb_report_bug.py`
+
+The toolkit ships with a one-command bug + enhancement reporter. **No
+GitHub account needed.** When a grader tool surprises you — wrong band,
+over-aggressive scrub, a 4xx you can't explain, an audit that flags
+everything or nothing — file it via:
+
+```bash
+uv run python lib/tools/cb_report_bug.py --from <log path>
+```
+
+It opens `$EDITOR` for your description, scrubs PII locally (names,
+emails, paths), bundles the last 150 log lines + your toolkit version,
+and files an issue on `chaz-clark/canvas-toolbox` via the Cloudflare
+intake worker. Returns the URL in ~1 second.
+
+- **For bugs**, prefix the title `bug:` — e.g. `bug: grader_push 4xx on KC1`.
+- **For enhancements** (something the tool should do but doesn't), prefix
+  `enhancement:` — e.g. `enhancement: grader_meta_summary color-code FLAG streaks`.
+
+The FERPA gate refusing, deid quarantining a docx into `_REVIEW/`, push
+guards blocking a write — those are NOT bugs; those are the system
+working as designed. Only file when the tool deviated from documented
+behavior, or when an enhancement would close a real workflow gap.
+
+Worker design + maintainer ops:
+[`infra/bug-intake-worker/README.md`](infra/bug-intake-worker/README.md).
+
+---
+
 ## The FERPA boundary — non-negotiable
 
 > Read this section before changing any tool in the pipeline.

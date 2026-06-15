@@ -293,6 +293,18 @@ This agent follows the behavioral discipline defined in `make-ai-agents/knowledg
 
 For the full principle definitions, see `make-ai-agents/knowledge/behavioral_discipline.md`.
 
+### P-011 Surface the bug-report path (continuous improvement)
+
+This grader pipeline has many guardrails, and the bias is correct: when a guardrail refuses, surface the *fix* (add the name to `.known_names.txt`, mark reviewed, etc.) — that's the system working. But when a tool deviates from documented behavior, OR when the operator articulates something the toolkit should do but doesn't, **surface `cb_report_bug.py`** as the one-line file-it path.
+
+See the [`Continuous improvement` section of AGENTS.md](../../AGENTS.md#continuous-improvement--bugs--enhancements) for the calibrated DO / DO-NOT list. The grader-scoped condensation:
+
+- **DO surface for:** wrong band call that survives re-reading the rubric; deid scrub that over-removed (Sam in "Samsung"); a 4xx that isn't auth / not `--allow-enrolled`; `_signals.json` flagged something obviously not in the submission; consensus picked a band you can't justify; an operator workflow that would benefit from a flag the tool doesn't have.
+- **DO NOT surface for:** `grader_name_leak_check.py` correctly catching a leak; deid quarantining a docx for missing structural name (issue #50 — the tool is doing its job); `grader_push` refusing without `--mark-reviewed` / `--allow-enrolled`; collision / lock / hold guards blocking a push (#62 / #63 / #72) — those are the design.
+- **The Hermes promotion bridge:** if a friction shows up TWICE across sessions (captured first in `lib/agents/knowledge/learned/<date>_<topic>.md`), that's the agent's signal to surface filing it as an enhancement — even if neither single instance felt strong enough on its own.
+
+The CLI scrubs PII locally before posting; the maintainer triages by `agent-submitted` label. Operator never needs a GitHub account.
+
 ---
 
 ## Domain Terms
@@ -364,6 +376,7 @@ Pipeline-run-order steps above.
 | `grader_reidentify.py` | Local-only join keys → names → instructor review sheet. | `lib/tools/grader_reidentify.py` | Step 6 — instructor-only. |
 | `grader_push.py` | Local grade+comment push to Canvas. Gated behind `--mark-reviewed`. Per-assignment idempotency via `.push_log.md`. **v0.40+ (#61):** push surface excludes Test Student + inactive/withdrawn/completed/rejected enrollments by default (`--include-inactive` to revert). **v0.41+ (#62):** pre-push comment-collision guard — warns on non-self comments within `--collision-window-days` (default 14) via the FERPA-safe deid layer (#65); `--skip-if-student-replied` drops rows where the latest thread comment is from the student; `--grade-only` and `--no-collision-check` opt out. **v0.42+ (#63):** availability awareness (warn on resubmit-style comment on a locked assignment, `--allow-locked-resubmit` / `--no-lock-check` opt out) + first-class `--retract [--retract-keys K1,K2]` that DELETEs previously-pushed comments via the per-assignment ledger written automatically on every push. | `lib/tools/grader_push.py` | Step 7 — final write. |
 | `grader_quiz_mirror.py` | Classic-quiz mirror for verifiable self-reports (NWQ API doesn't expose per-item responses; Classic does). | `lib/tools/grader_quiz_mirror.py` | §J branch of setup interview — once per assignment that depends on a quiz. |
+| `cb_report_bug.py` | Continuous-improvement intake (`AGENTS.md` → Continuous improvement section). One-command file-a-bug-or-enhancement CLI; no GitHub account needed. Scrubs PII locally (names, emails, /Users paths) before posting to the Cloudflare-fronted intake worker (`infra/bug-intake-worker/`). Title prefix `bug:` / `enhancement:` is the maintainer's triage signal. `--from <log path>` auto-bundles the last 150 lines. **When to surface:** see P-011 above + AGENTS.md's calibrated DO / DO-NOT list. | `lib/tools/cb_report_bug.py` | Cross-cutting — surface ONE line at the end of an agent response when a tool deviates from documented behavior OR an operator articulates an enhancement want. |
 
 ### When the agent picks an adapter manually
 
