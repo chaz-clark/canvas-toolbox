@@ -91,12 +91,12 @@ except ImportError:
     name_aware_subn = lambda t, _: (t, 0)  # noqa: E731
 
 # ----------------------------------------------------------------------------
-# CONFIG — UPDATE THIS AFTER DEPLOYING THE WORKER
+# CONFIG — bug-intake worker endpoint
 # ----------------------------------------------------------------------------
-# Set to the deployed worker URL + `/bug`. Example:
-#   "https://canvas-toolbox-bugs.<account>.workers.dev/bug"
-# Until set, the tool falls back to --dry-run with a clear message.
-_ENDPOINT: str | None = None
+# Production endpoint, deployed 2026-06-15. The worker source + deploy
+# notes live in infra/bug-intake-worker/. Override via --endpoint for
+# testing against a preview deployment.
+_ENDPOINT: str | None = "https://canvas-toolbox-bugs.tylerchaz5.workers.dev/bug"
 
 _USER_AGENT = f"canvas-toolbox-bug-reporter/{__version__}"
 _TIMEOUT = 30

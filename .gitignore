@@ -10,6 +10,8 @@ course_src/
 
 # Secrets and local config
 .env
+.env.local
+.env.*.local
 
 # AI coding tool local memory / caches — per-user, never committed
 .gemini/
