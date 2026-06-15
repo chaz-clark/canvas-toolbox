@@ -217,7 +217,7 @@ Propose a specific title — that's the maintainer's primary triage signal. "tes
 When you're working in a CONSUMER repo (m119-master, ds460-master,
 ds250-onln-master, itm327-master, aol-student, etc.) and you notice
 `canvas-toolbox/` is at an older version than the latest, surface
-[`UPDATE.md`](UPDATE.md) at the canvas-toolbox repo root. It carries
+[`UPGRADING.md`](UPGRADING.md) at the canvas-toolbox repo root. It carries
 the scenario-driven migration guide (vs. [`CHANGELOG.md`](CHANGELOG.md)
 which is the per-version mechanical record). One-line check:
 
@@ -227,7 +227,7 @@ uv run python canvas-toolbox/lib/tools/grader_fetch.py --version
 
 If the printed version is behind the latest (currently **v0.50.1**),
 the upgrade is usually a clean `cd canvas-toolbox && git pull && uv sync`.
-UPDATE.md flags behavior changes the operator might notice (the
+UPGRADING.md flags behavior changes the operator might notice (the
 v0.40+ Test Student exclusion, the v0.41-0.42 push guards, the
 v0.50 bug-intake CLI). The toolkit does not auto-upgrade; that's by
 design (operator control). But agents can and should notice the gap.

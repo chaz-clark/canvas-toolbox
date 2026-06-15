@@ -13,7 +13,7 @@ worker's PAT — has higher stakes than a normal bug.
 
 Instead, **email the maintainer directly:**
 
-📧 **tylerchaz5@gmail.com**
+📧 **clarkty@byui.edu**
 
 Use a subject line that starts with `[SECURITY] canvas-toolbox:`.
 

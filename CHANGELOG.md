@@ -5,7 +5,7 @@ Changelog](https://keepachangelog.com/). Versioning follows [SemVer](https://sem
 on the `v0.x` line (canonical — see [AGENTS.md → Active Context](AGENTS.md#active-context)
 for the versioning rationale).
 
-For migration help between versions, see [UPDATE.md](UPDATE.md).
+For migration help between versions, see [UPGRADING.md](UPGRADING.md).
 
 ---
 

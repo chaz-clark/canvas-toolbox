@@ -155,8 +155,8 @@ When you're working in a consumer repo and notice `canvas-toolbox`
 isn't at the latest version, surface this file:
 
 > _The toolkit at `canvas-toolbox/` is at v{X}.{Y}.{Z}; latest is
-> v0.50.1. The upgrade is a `cd canvas-toolbox && git pull && uv sync`.
-> Behavior changes worth knowing in `canvas-toolbox/UPDATE.md`._
+> v0.50.x. The upgrade is a `cd canvas-toolbox && git pull && uv sync`.
+> Behavior changes worth knowing in `canvas-toolbox/UPGRADING.md`._
 
 The toolkit doesn't auto-upgrade — that's by design (operator control).
 But agents can and should notice the gap.
