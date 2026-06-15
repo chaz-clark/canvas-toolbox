@@ -82,25 +82,35 @@ try:
 except ImportError:
     __version__ = "0.0.0+unknown"
 
-# Issue #68: `<prefix>_<uid>.<ext>` is the canonical shape, AND the
-# Playwright-rendered share-URL transcripts (#51 grader_follow_share_url)
-# write `<prefix>_<uid>_external.<ext>` — a legitimate part of the deid
-# pipeline. The optional `_external` suffix between uid and extension
-# means both shapes resolve to the same uid.
-_UID_FROM_FILENAME = re.compile(r"_(\d+)(?:_external)?\.[A-Za-z0-9]+$")
+# Issue #68 + #73: handle THREE filename conventions:
+#  1. grader_fetch (`<prefix>_<uid>.<ext>`) — uid right before extension;
+#     tolerate optional whitespace (`kc1_ 33619.html`).
+#  2. grader_follow_share_url (`<prefix>_<uid>_external.<ext>`) — same
+#     uid, marked as a rendered transcript (#51 / #68).
+#  3. Canvas bulk download (`lastfirst_<uid>_<subid>_<title>.ext`) — uid
+#     is the FIRST 3+ digit block flanked by underscores.
+# The same two-pass logic lives in grader_meta_summary._uid_from_filename
+# — keep in sync.
+_UID_FETCH_RE = re.compile(r"_\s*(\d+)(?:_external)?\.[A-Za-z0-9]+$")
+_UID_BULK_RE = re.compile(r"_\s*(\d{3,})_")
 
 
 def extract_uid(filename: str) -> tuple[int, bool] | None:
-    """Return (user_id, is_external) for a filename, or None if the
-    `<prefix>_<uid>[_external].<ext>` convention doesn't match. The
-    `is_external` flag surfaces the follow-share-url origin (#51) so
-    downstream callers can see which keys came from a rendered transcript
-    vs. the original submission file."""
-    m = _UID_FROM_FILENAME.search(filename or "")
-    if not m:
-        return None
-    is_external = "_external." in (filename or "").lower()
-    return (int(m.group(1)), is_external)
+    """Return (user_id, is_external) for a filename, or None if no
+    recognized convention matches. The `is_external` flag surfaces the
+    follow-share-url origin (#51 / #68) so downstream callers can see
+    which keys came from a rendered transcript vs. the original
+    submission file."""
+    s = filename or ""
+    m = _UID_FETCH_RE.search(s)
+    if m:
+        return (int(m.group(1)), "_external." in s.lower())
+    m = _UID_BULK_RE.search(s)
+    if m:
+        # Canvas bulk-download filenames don't carry the `_external`
+        # suffix (that's a grader_fetch-era convention) — always False.
+        return (int(m.group(1)), False)
+    return None
 
 
 def find_surface_dirs(task_dir: Path) -> list[tuple[str, Path]]:

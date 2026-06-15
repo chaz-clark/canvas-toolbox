@@ -144,6 +144,40 @@ def comment_for(feedback_file: str) -> str:
     return t.split("## Comment to student", 1)[1].strip()
 
 
+# Issue #72: HOLD_<DIMENSION> grade-hold pattern (lifted from itm327's
+# build_mid_letter_comments + push_mid_letter). When a per-student
+# feedback file's top-of-file heading carries a trailing `· HOLD_<TOKEN>`
+# marker, the push posts the qualitative comment but WITHHOLDS the grade
+# write — the band may shift once the student replies with the missing
+# self-reported value. Operator clears the marker (edit the heading) +
+# re-runs to release the grade.
+_HOLD_HEADING_RE = re.compile(
+    r"^#+\s+.*?·\s*(HOLD_[A-Z][A-Z0-9_]*)\s*$",
+    re.MULTILINE,
+)
+
+
+def extract_hold_token(feedback_file: str) -> str | None:
+    """Return the first `HOLD_<DIMENSION>` token found in a top-of-file
+    heading line (e.g. `# KC1-A1B2C3 · 4 · PUSH · HOLD_HOURS`), or None
+    if no hold is staged. Issue #72."""
+    p = Path(feedback_file)
+    if not feedback_file or not p.exists():
+        return None
+    # Only scan the first ~3 heading lines — the hold marker is at the top.
+    head_lines: list[str] = []
+    with p.open(encoding="utf-8") as f:
+        for ln in f:
+            if ln.strip().startswith("#"):
+                head_lines.append(ln)
+                if len(head_lines) >= 3:
+                    break
+    if not head_lines:
+        return None
+    m = _HOLD_HEADING_RE.search("\n".join(head_lines))
+    return m.group(1) if m else None
+
+
 def fetch_submissions(base: str, cid: str, headers: dict, aid: str,
                       include_comments: bool = False) -> list[dict]:
     """All submissions for the assignment.
@@ -595,6 +629,12 @@ def main() -> int:
     ap.add_argument("--retract-keys", default=None,
                     help="Issue #63: comma-separated list of keys to retract (default: all keys "
                          "for this assignment in .push_log.md). Has no effect without --retract.")
+    ap.add_argument("--no-hold-tokens", action="store_true",
+                    help="Issue #72: ignore `· HOLD_<DIM>` markers in per-student feedback "
+                         "headings. By default, a heading like '# KEY · 4 · PUSH · HOLD_HOURS' "
+                         "causes grader_push to POST the comment but WITHHOLD the grade write "
+                         "(student must reply with the missing self-reported value first). "
+                         "Pass this flag for cohorts where the convention doesn't apply.")
     args = ap.parse_args()
 
     challenge = resolve_challenge_dir(args.challenge_dir, verb="pushing from")
@@ -760,6 +800,19 @@ def main() -> int:
                 print(f"    {state:<22} user_ids=[{preview}{more}]  ({len(ids)} row{'s' if len(ids) != 1 else ''})")
         print()
 
+    # Issue #72: scan the comment-file headings once for HOLD_<DIM> markers
+    # (e.g. '# KEY · 4 · PUSH · HOLD_HOURS'). Held rows post the comment
+    # but WITHHOLD the grade write until the operator clears the token.
+    hold_by_key: dict[str, str] = {}
+    if not args.no_hold_tokens and not args.grade_only:
+        for r in rows:
+            ff = r.get("feedback_file", "") or ""
+            if not ff:
+                continue
+            tok = extract_hold_token(ff)
+            if tok:
+                hold_by_key[r.get("key", "")] = tok
+
     plan = []
     for r in rows:
         key = r.get("key", "")
@@ -770,8 +823,11 @@ def main() -> int:
         done = key in pushed_keys and not args.force
         ok = bool(grade and uid and (comment or args.grade_only)) and not done
         plan.append((key, uid, grade, comment, ok))
+        hold = hold_by_key.get(key)
         if done:
             mark, why = "done", "  (already pushed)"
+        elif hold:
+            mark, why = "HOLD", f"  ({hold} — comment will post; grade withheld)"
         elif ok:
             mark, why = "OK ", ""
         else:
@@ -888,6 +944,12 @@ def main() -> int:
     extra2 = (f" ({len(pushed_keys)} already done, skipped)"
               if pushed_keys and not args.force else "")
     print(f"\n{len(pushable)}/{len(plan)} ready to push{extra2}.")
+    if hold_by_key:
+        by_tok: dict[str, int] = {}
+        for tok in hold_by_key.values():
+            by_tok[tok] = by_tok.get(tok, 0) + 1
+        print(f"  {sum(by_tok.values())} held (issue #72; comment posts, grade withheld): "
+              f"{', '.join(f'{k}={v}' for k, v in sorted(by_tok.items()))}")
     if not args.push:
         print("Dry run — nothing written. Re-run with --push to send to Canvas.")
         return 0
@@ -951,24 +1013,49 @@ def main() -> int:
                 return 1
 
     if not args.yes:
-        print(f"\nThis writes {len(pushable)} grades + comments to the LIVE course {cid}.")
+        held_count = sum(1 for p in pushable if hold_by_key.get(p[0]))
+        body_summary = (f"{len(pushable) - held_count} grades + comments + "
+                        f"{held_count} held (comment-only)" if held_count else
+                        f"{len(pushable)} grades + comments")
+        print(f"\nThis writes {body_summary} to the LIVE course {cid}.")
         if input("Type 'push' to confirm: ").strip().lower() != "push":
             print("Aborted.")
             return 1
 
     pushed = 0
+    held = 0
     failed: list[str] = []
     with log.open("a", encoding="utf-8") as lg:
         for key, uid, grade, comment, _ in pushable:
-            data = {"submission[posted_grade]": grade}
-            if comment:
+            # Issue #72: held rows post the qualitative comment but
+            # WITHHOLD the grade write.
+            hold_token = hold_by_key.get(key)
+            data: dict[str, object] = {}
+            if hold_token:
+                if not comment:
+                    # Held with no comment is nonsensical — the whole
+                    # point is the qualitative ask. Skip rather than
+                    # silently posting nothing.
+                    print(f"  SKIP {key}: HOLD {hold_token} but no comment to post")
+                    continue
                 data["comment[text_comment]"] = comment
+            else:
+                data["submission[posted_grade]"] = grade
+                if comment:
+                    data["comment[text_comment]"] = comment
             resp = requests.put(
                 f"{base}/api/v1/courses/{cid}/assignments/{args.assignment_id}/submissions/{uid}",
                 headers=headers, data=data, timeout=_TIMEOUT)
             if resp.status_code < 400:
-                print(f"  pushed {key}: {grade}")
-                lg.write(f"- {key}: grade {grade} pushed to assignment {args.assignment_id}\n")
+                if hold_token:
+                    print(f"  held {key}: {hold_token} (comment posted; grade {grade} withheld)")
+                    lg.write(f"- {key}: HELD {hold_token} for assignment "
+                             f"{args.assignment_id} (grade {grade} withheld)\n")
+                    held += 1
+                else:
+                    print(f"  pushed {key}: {grade}")
+                    lg.write(f"- {key}: grade {grade} pushed to assignment {args.assignment_id}\n")
+                    pushed += 1
                 # Issue #63: capture the new comment_id (if any) so --retract
                 # can DELETE it later. Canvas's PUT response includes
                 # submission_comments[] — pick the LAST entry as the one we
@@ -983,7 +1070,6 @@ def main() -> int:
                     if new_id is not None:
                         lg.write(f"- {key}: comment {new_id} pushed to assignment "
                                  f"{args.assignment_id}\n")
-                pushed += 1
             else:
                 # P-003 stop on first 4xx — surface and abort rather than retry blindly
                 print(f"  ERROR {key}: {resp.status_code} {resp.text[:120]}")
@@ -992,7 +1078,10 @@ def main() -> int:
                     print(f"\n⛔ 4xx on {key}. STOP (P-003). Don't retry blindly. "
                           f"Investigate, then re-run; idempotency skips successes.")
                     break
-    print(f"\nPushed {pushed}/{len(pushable)}. Logged to {log} (keyed, gitignored).")
+    summary_line = f"Pushed {pushed}/{len(pushable)}"
+    if held:
+        summary_line += f"; held {held} (comment posted; grade withheld — clear the HOLD_<DIM> token + re-push)"
+    print(f"\n{summary_line}. Logged to {log} (keyed, gitignored).")
     if failed:
         print(f"Failed: {failed}")
         return 2

@@ -81,11 +81,24 @@ try:
 except ImportError:
     __version__ = "0.0.0+unknown"
 
-_UID_FROM_FILENAME = re.compile(r"_(\d+)\.[A-Za-z0-9]+$")
+# Issue #73: handle TWO filename conventions:
+#  1. grader_fetch (`<prefix>_<uid>.<ext>`) — uid is the LAST digit block
+#     before the extension; tolerate optional whitespace (`kc1_ 33619.html`).
+#  2. Canvas bulk download (`lastfirst_<uid>_<subid>_<title>.ext`) —
+#     uid is the FIRST 3+ digit block flanked by underscores.
+# Pre-fetch keymaps (created from Canvas's bulk download path) carry
+# shape #2; new fetch-driven keymaps carry shape #1. The same two-pass
+# logic lives in grader_join.extract_uid — keep in sync.
+_UID_FETCH_RE = re.compile(r"_\s*(\d+)\.[A-Za-z0-9]+$")
+_UID_BULK_RE = re.compile(r"_\s*(\d{3,})_")
 
 
 def _uid_from_filename(filename: str) -> int | None:
-    m = _UID_FROM_FILENAME.search(filename or "")
+    s = filename or ""
+    m = _UID_FETCH_RE.search(s)
+    if m:
+        return int(m.group(1))
+    m = _UID_BULK_RE.search(s)
     return int(m.group(1)) if m else None
 
 
@@ -127,10 +140,13 @@ def _resolve_task_dirs(args) -> list[Path]:
             else:
                 print(f"WARN: --task-dirs path not a directory, skipping: {d}", file=sys.stderr)
     if args.cohort_glob:
-        for d in sorted(glob.glob(args.cohort_glob)):
-            p = Path(d)
-            if p.is_dir():
-                dirs.append(p)
+        # Issue #71: argparse `action="append"` gives a list of patterns.
+        # Single-use still works (one-element list).
+        for pattern in args.cohort_glob:
+            for d in sorted(glob.glob(pattern)):
+                p = Path(d)
+                if p.is_dir():
+                    dirs.append(p)
     # Dedup preserving order
     seen: set = set()
     uniq: list[Path] = []
@@ -154,7 +170,13 @@ def _surface_dirs(task_dir: Path) -> list[Path]:
 
 
 def _read_keymap_uid_index(surface_dir: Path) -> dict[str, int]:
-    """{key: user_id} via the <prefix>_<uid>.<ext> convention."""
+    """{key: user_id} via the <prefix>_<uid>.<ext> (grader_fetch) OR
+    `lastfirst_<uid>_<subid>_<title>.ext` (Canvas bulk download)
+    convention. Issue #73: warn loudly when a keymap has entries but
+    NONE resolve — silent mis-resolution (returning None and producing
+    an empty matrix) is worse than failing loudly. Operator either
+    re-fetches the cohort to get fetch-shape filenames or extends the
+    resolver."""
     p = surface_dir / ".keymap.json"
     raw = json.loads(p.read_text(encoding="utf-8"))
     keymap = raw.get("map", {}) if isinstance(raw, dict) else {}
@@ -163,6 +185,13 @@ def _read_keymap_uid_index(surface_dir: Path) -> dict[str, int]:
         uid = _uid_from_filename(fname)
         if uid is not None:
             out[key] = uid
+    if keymap and not out:
+        print(f"WARN: {surface_dir}/.keymap.json has {len(keymap)} entries but 0 "
+              f"resolved to user_ids — filenames don't match grader_fetch "
+              f"(`<prefix>_<uid>.<ext>`) OR Canvas bulk-download "
+              f"(`lastfirst_<uid>_<subid>_<title>.ext`) shape. Re-fetch via "
+              f"grader_fetch.py or extend `_uid_from_filename`.",
+              file=sys.stderr)
     return out
 
 
@@ -381,8 +410,10 @@ def main() -> int:
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     ap.add_argument("--task-dirs", default=None,
                     help="Comma-separated explicit task dirs.")
-    ap.add_argument("--cohort-glob", default=None,
-                    help="Glob pattern (e.g. 'grading/p*'). Combined with --task-dirs if both.")
+    ap.add_argument("--cohort-glob", default=None, action="append",
+                    help="Glob pattern (e.g. 'grading/p*'). Issue #71: pass multiple times to "
+                         "include multiple prefixes (e.g. --cohort-glob 'grading/p1t*' "
+                         "--cohort-glob 'grading/p2t*'). Combined with --task-dirs if both.")
     ap.add_argument("--score-file", default="feedback/_summary.csv",
                     help="Path within each surface dir to the score CSV. Defaults to "
                          "feedback/_summary.csv (consensus output); falls back to "
