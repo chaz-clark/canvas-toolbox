@@ -11,18 +11,23 @@ worker's PAT — has higher stakes than a normal bug.
 **Don't file a public GitHub issue.** Don't use `cb_report_bug.py` either
 (it files publicly). Both surface the problem in a place attackers can read.
 
-Instead, **email the maintainer directly:**
+Instead, **use GitHub's Private Vulnerability Reporting:**
 
-📧 **clarkty@byui.edu**
+1. Go to https://github.com/chaz-clark/canvas-toolbox/security/advisories
+2. Click **Report a vulnerability** (button at top right).
+3. Fill in the form. The report is private to the maintainer + you,
+   end-to-end through GitHub's UI.
 
-Use a subject line that starts with `[SECURITY] canvas-toolbox:`.
+You'll need a (free) GitHub account to file. That's the only friction —
+in exchange you get an authenticated, audited channel that's resistant
+to scraping / spam, and the maintainer gets in-platform notifications
+the same way they'd see a PR.
 
 Include:
 - A description of the issue (what / where / who's affected).
 - A proof-of-concept if you have one (the smallest reproduction that
   shows the problem).
 - The toolkit version where you found it (`uv run python lib/tools/grader_fetch.py --version`).
-- Your contact info for follow-up (or "anonymous" — that's fine).
 
 You'll get an acknowledgment within ~48 hours. Triage + fix timeline
 depends on severity:

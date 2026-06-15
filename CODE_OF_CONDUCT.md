@@ -12,18 +12,21 @@ It also applies to **faculty operators** filing reports via `cb_report_bug.py`, 
 
 ## Reporting
 
-Report incidents — anything that breaches the standards in the linked Covenant text — directly to the maintainer:
+Use GitHub's **Private Vulnerability Reporting** as the private intake channel for conduct issues too. It keeps the report confidential to the maintainer + you, end-to-end through GitHub's UI:
 
-📧 **clarkty@byui.edu**
+1. Go to https://github.com/chaz-clark/canvas-toolbox/security/advisories
+2. Click **Report a vulnerability**.
+3. **Prefix the title with `[CONDUCT]`** so the maintainer triages it to the conduct queue rather than the security queue.
+4. Describe the incident in the body.
 
-Subject line starting with **`[CONDUCT]`** to help triage.
+You'll need a (free) GitHub account to file — the same one-time setup as anyone contributing via PR. In exchange you get an authenticated channel with a confidential review track inside GitHub's UI, no email address exposed to scrapers.
 
 You can expect:
 - An acknowledgment within ~48 hours.
 - A confidential review (the report is not shared publicly without the reporter's consent).
 - A response describing what (if anything) happened next.
 
-If the incident is also a security issue — e.g., a contributor's behavior involved deliberately leaking student PII — follow [`SECURITY.md`](SECURITY.md) instead, which has a faster triage SLA.
+If the incident is also a security issue — e.g., a contributor's behavior involved deliberately leaking student PII — drop the `[CONDUCT]` prefix and follow [`SECURITY.md`](SECURITY.md) instead, which has a faster triage SLA.
 
 ## Enforcement
 
