@@ -666,8 +666,10 @@ def main() -> int:
         elif review_csvs:
             # Value-only / human-graded run — point at the actual review surface
             print(f"You are confirming you reviewed the value-only push surface for {fbdir.parent.name}:")
-            for csv in review_csvs:
-                print(f"  • {csv.name}  ({csv.stat().st_size} bytes)")
+            # Issue #74: don't rebind the loop var as `csv` — that shadows
+            # the module import and crashes the main push path further down.
+            for rc in review_csvs:
+                print(f"  • {rc.name}  ({rc.stat().st_size} bytes)")
             if actuals.exists():
                 print(f"  • {actuals.relative_to(challenge)}  (reconcile evidence)")
             print("\n  (No per-student comment files in this run — this is the "
