@@ -1,0 +1,80 @@
+{
+  "name": "canvas-toolbox",
+
+  // Debian-based dev container with Python 3.14 (matches the toolkit's
+  // pyproject.toml `requires-python = ">=3.14"`). Microsoft's published
+  // Python dev containers track new Python releases on a delay; if a
+  // `1-3.14-bookworm` tag isn't available yet in the registry, fall back
+  // to the base image + the Python feature (see commented alternative below).
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.14-bookworm",
+
+  // ── Alternative if the tag above isn't available yet ──
+  // "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+  // "features": {
+  //   "ghcr.io/devcontainers/features/python:1": { "version": "3.14" }
+  // },
+
+  // GitHub CLI for the bug-intake fallback path (cb_report_bug.py is
+  // primary, gh issue create is the fallback) + node 22 LTS for the
+  // bug-intake-worker maintainer flow (wrangler).
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "lts" }
+  },
+
+  // First-run setup: install uv, sync the toolkit's deps from
+  // pyproject.toml + uv.lock, then install Chromium for the share-URL
+  // follower (#51 / grader_follow_share_url.py). All three are
+  // documented as required in the toolkit's README.
+  //
+  // Network: each step is rerunnable; the container persists between
+  // session starts so the heavy steps (uv sync + Chromium download)
+  // only fire on initial create.
+  "postCreateCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH=\"$HOME/.local/bin:$PATH\" && uv sync && uv run playwright install chromium",
+
+  // Every shell in the container gets uv on PATH without the user
+  // sourcing anything manually.
+  "remoteEnv": {
+    "PATH": "${containerEnv:HOME}/.local/bin:${containerEnv:PATH}"
+  },
+
+  // Recommended extensions for an editor experience that matches the
+  // toolkit's expected workflow.
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "tamasfe.even-better-toml",
+        "yzhang.markdown-all-in-one",
+        "redhat.vscode-yaml",
+        "GitHub.vscode-pull-request-github"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.terminal.activateEnvironment": false,
+        "editor.formatOnSave": false,
+        "files.exclude": {
+          "**/.wrangler": true,
+          "**/__pycache__": true,
+          "**/.pytest_cache": true
+        }
+      }
+    }
+  },
+
+  // No forwarded ports by default. If/when a Streamlit/Gradio UI ships,
+  // add the dev-server port (typically 8501 for Streamlit, 7860 for
+  // Gradio) here.
+  "forwardPorts": [],
+
+  // Default the working tree to a non-root user (the image's `vscode`
+  // user). Faculty don't need root for grading; this keeps `git`
+  // history attribution clean (won't show commits authored as `root`).
+  "remoteUser": "vscode",
+
+  // Mount the host workspace at /workspaces/canvas-toolbox (Codespaces
+  // default; explicit here for non-Codespaces clients).
+  "workspaceFolder": "/workspaces/canvas-toolbox"
+}
