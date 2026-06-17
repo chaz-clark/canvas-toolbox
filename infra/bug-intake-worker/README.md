@@ -157,6 +157,45 @@ auth, no `gh`, no browser, no GitHub account.
 
 ## Operations
 
+### Maintainer notifications (issue #84 — decision logged 2026-06-17)
+
+**Channel: GitHub Mobile push notifications. Zero workflow code.**
+
+Every issue filed through this worker is opened against
+`chaz-clark/canvas-toolbox` by the maintainer's PAT. GitHub natively
+pushes a notification to the GitHub Mobile app (and the GitHub web
+UI / desktop email digest, depending on your watch settings) the
+moment the issue lands. No SMTP, no Slack/Discord webhook, no
+secrets to rotate.
+
+**Tradeoffs accepted (per #84 design conversation):**
+- No `[URGENT]` subject-line escalation for FERPA / security keywords
+  — every agent-submitted issue gets the same standard notification.
+  Mitigation: the worker's body footer includes `_Filed via
+  canvas-toolbox bug-intake worker._` so the source is unmissable in
+  the issue title preview, and FERPA-class language in the body
+  (`PII leak`, `name leak`, `scrub bypass`, `PAT exposure`) is
+  visible in the GitHub Mobile preview.
+- No phone-app channel separate from GitHub itself — relies on
+  having GitHub Mobile installed + the repo on your watch list.
+
+**Setup required:**
+- Install GitHub Mobile on your phone (one-time)
+- Confirm `chaz-clark/canvas-toolbox` is on your watched repos list
+  (default for repos you own — verify at
+  https://github.com/notifications/subscriptions)
+- That's it.
+
+**Liveness check (manual):** if `agent-submitted` issues stop
+arriving for >2 weeks while consumer repos are actively grading,
+something's wrong — `wrangler tail` (below) confirms whether the
+worker is receiving requests.
+
+If the zero-code path stops being enough (e.g. you adopt the toolkit
+beyond personal use and need an escalation tier or a Slack/Discord
+team channel), reopen #84 — the design conversation captured the
+viable alternatives.
+
 ### Tail the worker logs
 
 ```bash
@@ -165,6 +204,32 @@ wrangler tail
 
 Watches the running Worker; shows every request + response + console.log
 in real time. Useful when triaging "did my bug report land?".
+
+### Backup account access (recommended, ~5 min — closes a real DR gap)
+
+The worker lives in ONE Cloudflare account. If that account is locked,
+compromised, or deprecated, the worker is orphaned — no way to rotate
+the PAT, redeploy, or take it offline from outside.
+
+**Mitigation:** invite a second member with `Super Administrator` role
+on a **different recovery path** from the primary (different SSO /
+different 2FA recovery device / institutional vs personal email).
+
+Cloudflare dashboard → top-right account dropdown → **Members** →
+**Invite** → backup email → role **Super Administrator** → send.
+The backup confirms via emailed link + sets a Cloudflare password.
+
+Smoke-test the backup from a different machine or incognito window:
+
+```bash
+wrangler logout
+wrangler login    # OAuth as the backup
+wrangler whoami   # confirms the backup has access
+```
+
+The backup can do everything the primary can — `wrangler secret put`,
+`wrangler deploy`, `wrangler delete`. Document the backup email in
+your local `MAINTENANCE.local.md` (gitignored).
 
 ### PAT rotation (~5 min, every 90 days)
 
