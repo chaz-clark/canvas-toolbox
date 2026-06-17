@@ -20,6 +20,7 @@ Usage:
     uv run python tools/module_structure_diff.py
 """
 
+import argparse
 import os
 import re
 import sys
@@ -32,6 +33,11 @@ try:
     load_env()
 except ImportError:
     pass
+
+try:
+    from __toolbox_version__ import __version__
+except ImportError:
+    __version__ = "0.0.0+unknown"
 
 CANVAS_API_TOKEN = os.environ.get("CANVAS_API_TOKEN", "")
 _raw_url = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
@@ -134,6 +140,16 @@ def fetch_course(course_id: str) -> dict:
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description=(
+            "READ-ONLY diff of module prerequisites + completion requirements "
+            "between a Canvas Blueprint course and a master course. Reads "
+            "BLUEPRINT_COURSE_ID + MASTER_COURSE_ID + CANVAS_BASE_URL + "
+            "CANVAS_API_TOKEN from the environment (or .env). Writes nothing."
+        ),
+    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.parse_args()
     _check_env()
     print(f"READ-ONLY diff — Blueprint {BLUEPRINT_COURSE_ID} (authoritative) "
           f"vs Master {MASTER_COURSE_ID}\n" + "=" * 70)

@@ -243,7 +243,34 @@ private channel is for security.
 
 ## Active Context
 
-_Last updated: 2026-06-15_
+_Last updated: 2026-06-17_
+
+### Recent: CI tests Tier 0 + Tier 1 — closes #83 (2026-06-17)
+
+**v0.51.0** — the toolkit's first automated test layer. New
+`.github/workflows/ci.yml` runs on every push + PR. Three checks:
+**Tier 0a** compiles every Python file in `lib/tools/` (catches the
+#74 class — syntax errors, broken imports, type-annotation drift);
+**Tier 0b** runs `--help` against every primary CLI tool — exactly
+the cheap one-minute check that would have caught #74 before push;
+**Tier 1** runs `pytest lib/tests/ -k "not sprint"` (the
+sandbox-API sprint tests stay dormant pending a credentials policy
+call). Seven new test files (~50 functions) cover the pure-logic
+helpers flagged in #83: `extract_uid` / `_uid_from_filename` /
+`_row_uid` (filename → uid resolution), `extract_hold_token` /
+`comment_has_resubmit_language` / `collision_warnings_for_submission`
+(grader_push #62/#63/#72), `_is_complete_under_basis` (grader_reconcile
+#59), `evaluate_tier_thresholds` / `assign_band` (grader_competency_grade
+#60), `classify_submission` (grader_submission_health #64),
+`infer_surface` / `infer_task_slug` (grader_scaffold #54-A),
+`scrub_comment` (grader_deidentify_comments #65). 127/127 pass
+locally + 13 sprint tests deselected (kept for the regression.yml
+path when activated). pytest added to `[dependency-groups].dev` in
+pyproject.toml; install with `uv sync --group dev`. **Tier 0
+caught a real bug on first run** — `module_structure_diff.py` had
+no argparse, so `--help` failed env-check before showing usage; fixed
+in this cycle by adding a minimal `argparse.ArgumentParser` with
+`--version` to match every other tool's convention.
 
 ### Recent: grader sprint + bug-intake worker (2026-06-14 → 2026-06-15)
 

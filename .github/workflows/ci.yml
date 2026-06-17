@@ -1,0 +1,85 @@
+# CI — Tier 0 + Tier 1 (issue #83)
+#
+# Tier 0: every Python file in lib/tools/ + lib/agents/ compiles, and every
+#   primary CLI tool answers `--help` cleanly. Catches syntax errors,
+#   import breakage, broken argparse, dependency drift — the #74 class
+#   entirely.
+#
+# Tier 1: pytest on pure-logic helpers under lib/tests/. Excludes the
+#   sandbox-API regression suite (test_sprint*.py) which needs Canvas
+#   credentials — that runs separately via regression.yml (currently
+#   dormant; activated by a maintainer once the secrets policy is sorted).
+#
+# Runs on every push + PR to any branch. No Canvas credentials required.
+
+name: CI (Tier 0 + Tier 1)
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  smoke-and-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv (Python pinned via .python-version)
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies (incl. dev group for pytest)
+        run: uv sync --group dev
+
+      # ── Tier 0a: compile every Python file (catches syntax / indent / type-annotation errors) ──
+      - name: Compile lib/tools/*.py + lib/agents/*.py
+        run: |
+          uv run python -m py_compile lib/tools/*.py
+          # lib/agents/ may contain only .md/.json — guard the glob
+          shopt -s nullglob
+          AGENT_PY=(lib/agents/*.py)
+          if [ ${#AGENT_PY[@]} -gt 0 ]; then
+            uv run python -m py_compile "${AGENT_PY[@]}"
+          fi
+
+      # ── Tier 0b: every primary CLI answers --help without crashing ──
+      # Loops grader_*.py + canvas_*.py + all *_audit.py + sync tools.
+      # Helpers prefixed with `_` (private modules) are excluded.
+      - name: --help smoke on every CLI tool
+        run: |
+          set -e
+          shopt -s nullglob
+          FAILED=()
+          for f in lib/tools/grader_*.py \
+                   lib/tools/canvas_*.py \
+                   lib/tools/*_audit.py \
+                   lib/tools/blueprint_*.py \
+                   lib/tools/course_*.py \
+                   lib/tools/module_*.py \
+                   lib/tools/cb_report_bug.py; do
+            base=$(basename "$f")
+            # skip private helpers (e.g. _challenge_dir_guard.py)
+            case "$base" in _*) continue ;; esac
+            if ! uv run python "$f" --help > /dev/null 2>&1; then
+              echo "  FAIL: $f --help exited non-zero" >&2
+              FAILED+=("$f")
+            fi
+          done
+          if [ ${#FAILED[@]} -gt 0 ]; then
+            echo ""
+            echo "::error::${#FAILED[@]} tool(s) failed --help smoke:"
+            printf '  %s\n' "${FAILED[@]}"
+            exit 1
+          fi
+          echo "All CLI tools responded to --help cleanly."
+
+      # ── Tier 1: pytest on the pure-logic helper suite ──
+      # `-k 'not sprint'` excludes the Canvas-API regression suite (sprint
+      # tests need CANVAS_SANDBOX_ID + a real token — out of scope here).
+      - name: Pytest (pure-logic helpers only)
+        run: uv run pytest lib/tests/ -v -k "not sprint"

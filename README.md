@@ -1,5 +1,7 @@
 # Canvas Course Toolkit
 
+[![CI](https://github.com/chaz-clark/canvas-toolbox/actions/workflows/ci.yml/badge.svg)](https://github.com/chaz-clark/canvas-toolbox/actions/workflows/ci.yml)
+
 A set of tools that lets you manage your Canvas course like a document — pull it down to your computer, make changes, push it back. Your course structure becomes auditable, reviewable, and fixable without living in the Canvas UI.
 
 Built at BYU-Idaho, designed for all instructors. Works with any Canvas institution.
