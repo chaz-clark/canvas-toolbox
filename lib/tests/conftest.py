@@ -30,20 +30,31 @@ MISSING = [k for k, v in {
     "CANVAS_SANDBOX_ID": CANVAS_SANDBOX_ID,
 }.items() if not v]
 
-if MISSING:
-    pytest.skip(
-        f"Sandbox env vars not set: {', '.join(MISSING)} — skipping all regression tests",
-        allow_module_level=True,
-    )
+
+def _skip_if_sandbox_unset():
+    """Skip the calling test if Canvas sandbox env vars aren't set.
+
+    Called per-fixture, NOT at module load (issue caught in v0.54.0 CI:
+    a module-level `pytest.skip(allow_module_level=True)` killed the
+    WHOLE test collection — including pure-logic unit tests that don't
+    need Canvas at all — when running on remote CI without creds).
+    Sprint tests reference the fixtures below; unit tests don't, so
+    they're unaffected by this gate."""
+    if MISSING:
+        pytest.skip(
+            f"Sandbox env vars not set: {', '.join(MISSING)} — sprint test skipped",
+            allow_module_level=False,
+        )
 
 
 # ---------------------------------------------------------------------------
-# Fixtures
+# Fixtures (gated on Canvas sandbox env vars)
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
 def sandbox_env():
     """Environment dict with CANVAS_COURSE_ID pointed at the sandbox."""
+    _skip_if_sandbox_unset()
     env = dict(_env)
     env["CANVAS_COURSE_ID"] = CANVAS_SANDBOX_ID
     return env
@@ -65,6 +76,7 @@ def sandbox_pull(sandbox_env, tmp_path_factory):
 
 @pytest.fixture(scope="session")
 def canvas_headers():
+    _skip_if_sandbox_unset()
     return {
         "Authorization": f"Bearer {CANVAS_API_TOKEN}",
         "Accept": "application/vnd.github+json",
