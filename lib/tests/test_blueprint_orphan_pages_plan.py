@@ -25,7 +25,6 @@ if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
 from _orphan_phase2 import (  # noqa: E402
-    Step,
     build_apply_plan,
     scan_cross_course_links,
     summarize_plan,

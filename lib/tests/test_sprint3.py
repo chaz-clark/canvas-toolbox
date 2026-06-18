@@ -2,10 +2,8 @@
 Sprint 3 regression tests — Author Like a Human
 Covers issues: #9, #7
 """
-import json
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 
@@ -61,7 +59,6 @@ def test_markdown_has_frontmatter(sandbox_pull):
 
 def test_build_produces_html(sandbox_pull, sandbox_env):
     """#9: --build must convert a .md file to HTML in course/."""
-    import json
 
     index = sandbox_pull
     # Find a page with a markdown_path

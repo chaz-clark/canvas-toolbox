@@ -530,13 +530,13 @@ def cmd_push():
             master_modules.append(data)
     master_modules.sort(key=lambda m: m.get("position", 999))
 
-    # Map target modules by slug
+    # Map target modules by slug — used by `_confirm_module_match` below.
     target_mods_full = _get(f"/courses/{target}/modules", params={"per_page": 50, "include[]": "items"}) or []
-    target_mod_by_slug = {_slug(m.get("name", "")): m for m in target_mods_full}
 
     sprint_target_mod_ids = []
     for master_mod in master_modules:
         master_title = master_mod.get("title", "")
+        master_slug = _slug(master_title)
         tgt_mod = _confirm_module_match(
             master_title, target_mods_full,
             context=f"Syncing published state + item order for this module."

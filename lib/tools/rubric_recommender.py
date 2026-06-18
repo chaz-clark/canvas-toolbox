@@ -122,7 +122,6 @@ def extract_clo_verb_object(clo_text: str) -> tuple[str, str]:
     m = _BLOOM_RE.search(plain)
     if m:
         verb_tok = m.group(1).lower()
-        base = _VERB_TO_LEVEL.get(verb_tok)
         # use the matched (possibly conjugated) token's base form for the frame
         verb = verb_tok
         for cand in (verb_tok, verb_tok[:-1], verb_tok[:-2], verb_tok[:-3]):

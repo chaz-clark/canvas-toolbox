@@ -1331,8 +1331,6 @@ def cmd_push(target: Optional[str] = None):
             print(f"    FAILED — hash not updated, will retry on next push")
 
     _save_index(index)
-    pushed_files = [fp for fp, (path, meta) in push_candidates.items()
-                    if index["files"].get(fp, {}).get("hash") == _file_hash(path)]
     _log_push(summary, comment, list(push_candidates.keys()), direction="push")
     print(f"\nPushed {pushed}/{len(push_candidates)} files.")
     print(f"Logged to {PUSH_LOG}")

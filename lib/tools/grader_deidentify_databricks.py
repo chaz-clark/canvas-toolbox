@@ -40,7 +40,6 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
-import html as _html
 import json
 import re
 import sys

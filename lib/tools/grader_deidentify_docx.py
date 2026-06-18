@@ -111,7 +111,7 @@ def docx_lines(path: Path) -> list[str]:
         from docx.oxml.text.paragraph import CT_P
         from docx.table import Table
         from docx.text.paragraph import Paragraph
-    except ImportError as e:
+    except ImportError:
         print("Missing dependency: python-docx. Install via `uv add python-docx` or "
               "`uv run --with python-docx python ...`.", file=sys.stderr)
         raise

@@ -201,10 +201,8 @@ def estimate_minutes_per_submission(a: dict, time_defaults: dict) -> int:
 
 def estimate_course_credits(course: dict, default: int) -> int:
     """Try to extract course credit count from course_code (e.g. 'ITM 327' → 3).
-    Falls back to --credits default."""
-    code = course.get("course_code") or ""
-    # Most BYUI codes are like "ITM 327" with credits in the catalog; we can't get
-    # catalog data from the API. Operator override via --credits is the canonical path.
+    Falls back to --credits default. Catalog data isn't exposed by the
+    Canvas API, so we always return the operator-supplied default."""
     return default
 
 

@@ -1,6 +1,6 @@
 [project]
 name = "canvas-toolbox"
-version = "0.52.0"
+version = "0.53.0"
 description = "Canvas LMS course-design audits + safe sync paths + AoL course-map generation. Read-only audits cover rubric coverage/quality, syllabus completeness (BYU-I 25-item rubric), CLO quality, content representation, and workload distribution. Sync paths cover master→Blueprint, Page-level orphan cleanup, and per-resource pulls. Agent-facing knowledge surfaces in `lib/agents/`."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -24,7 +24,64 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
+    "ruff>=0.6.0",
+    "pre-commit>=4.0.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["lib/tests"]
+
+# Conservative ruff config — start with the unambiguous-bug rule families
+# and expand into stylistic rules later as the team is ready. The goal at
+# v0.53.0 is to catch real defects (undefined names, unused imports,
+# obvious mistakes) without reformatting 60+ tool files in one PR.
+#
+# Rule families enabled:
+#   E, W   — pycodestyle errors + warnings (PEP 8 surface)
+#   F      — pyflakes (undefined name, unused import, broken imports)
+#   B      — bugbear (likely bugs: mutable defaults, except-Exception, …)
+#   I      — isort (import ordering)
+[tool.ruff]
+line-length = 100   # accommodates the existing codebase; tighten later if desired
+target-version = "py314"
+extend-exclude = [
+    ".venv",
+    "__pycache__",
+    "lib/agents/pre_knowledge",   # raw upstream sources, not our code
+    "handoffs",                   # gitignored session notes
+]
+
+[tool.ruff.lint]
+# Initial v0.53.0 rollout: enforce bug-catching rules (F + B) and the
+# critical pycodestyle errors. Defer stylistic rules (line length, import
+# ordering, line-ending warnings) to a future dedicated style sweep so
+# this PR doesn't churn 60+ tool files.
+select = ["E", "W", "F", "B", "I"]
+ignore = [
+    # Style-only — defer to a future style-sweep PR. Each has dozens of
+    # occurrences across lib/tools/ that would inflate the diff without
+    # surfacing real defects:
+    "F541",   # f-string without placeholders (122 occurrences; cosmetic)
+    "I001",   # unsorted imports (69 occurrences; sweep separately)
+    "E701",   # multi-stmt-on-one-line-colon (22 occurrences; compact-style intentional)
+    "E702",   # multi-stmt-on-one-line-semicolon (15 occurrences; ditto)
+    "E741",   # ambiguous variable name (5 occurrences; `l`/`I`/`O`)
+    "B007",   # unused loop control var (7 occurrences; `for _ in range(n)` works fine)
+    "B905",   # zip-without-strict (3 occurrences; assumes Python 3.10+; we're 3.14)
+
+    # Permanent — not bugs in this codebase:
+    "E501",   # line too long: many long URLs / endpoint strings exceed 100 chars
+    "B008",   # function-call-in-default-args: argparse `default=lambda: ...` patterns
+    "E731",   # lambda assignment: a few small named lambdas used intentionally
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests routinely manipulate sys.path before imports → E402.
+# F811 fires on the legitimate pytest fixture pattern (import the fixture
+# from conftest with a `# noqa: F401` for ruff's import-detector, then
+# accept it as a function parameter — which F811 mis-flags as "redefining"
+# the import).
+"lib/tests/*" = ["E402", "F811"]
+# CLI tools commonly import inside main() for lazy-loading + env-loading
+# patterns; E402 fires on those legitimately-deferred imports.
+"lib/tools/*" = ["E402"]

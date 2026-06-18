@@ -1,0 +1,20 @@
+{
+  "name": "canvas-toolbox",
+  "description": "Marketplace entry for the canvas-toolbox agent specs + pedagogical knowledge files.",
+  "owner": {
+    "name": "Chaz Clark",
+    "url": "https://github.com/chaz-clark"
+  },
+  "plugins": [
+    {
+      "name": "canvas-toolbox",
+      "description": "FERPA-safe AI-assisted Canvas LMS toolkit. Includes agent specs (8) and pedagogical knowledge files (20+) covering course design audits, FERPA-safe LLM grading, Canvas sync, and the BYU-I Learning Model.",
+      "version": "0.53.0",
+      "source": "./",
+      "author": {
+        "name": "Chaz Clark",
+        "url": "https://github.com/chaz-clark"
+      }
+    }
+  ]
+}

@@ -83,3 +83,16 @@ jobs:
       # tests need CANVAS_SANDBOX_ID + a real token — out of scope here).
       - name: Pytest (pure-logic helpers only)
         run: uv run pytest lib/tests/ -v -k "not sprint"
+
+      # ── Tier 2: ruff lint — bug-catching rules only, see [tool.ruff] in
+      # pyproject.toml. v0.53.0 caught a real F821 in course_mirror.py
+      # (referenced master_slug never defined). Stylistic rules (F541,
+      # I001, E70x) deliberately deferred to a future sweep PR.
+      - name: Ruff (lint)
+        run: uv run ruff check .
+
+      # ── Tier 2b: actionlint — catch workflow drift early. The hook also
+      # runs in pre-commit, but a CI mirror catches PRs from contributors
+      # who didn't install the hook locally.
+      - name: actionlint (.github/workflows)
+        uses: raven-actions/actionlint@v2

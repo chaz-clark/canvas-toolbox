@@ -1,0 +1,40 @@
+# Dependabot — automated dependency-update PRs.
+# Two ecosystems we care about today: Python deps (via uv) + GitHub Actions
+# versions. The bug-intake worker uses `npx wrangler` with no local
+# package.json, so npm Dependabot would be a no-op — add it later if the
+# worker gains tracked npm deps.
+#
+# Schedule: weekly. PRs land Monday morning so we triage during the week.
+# Grouping: bundle minor + patch updates together so we don't get one PR
+# per dep; majors stay separate (they often need attention).
+
+version: 2
+updates:
+  # Python deps — uv reads pyproject.toml + uv.lock
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-and-patch:
+        update-types: ["minor", "patch"]
+    labels:
+      - "dependencies"
+      - "python"
+
+  # GitHub Actions versions (uses: in our workflow files)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor-and-patch:
+        update-types: ["minor", "patch"]
+    labels:
+      - "dependencies"
+      - "github-actions"
+

@@ -1,0 +1,36 @@
+# canvas-toolbox pre-commit configuration
+#
+# Runs on every `git commit`. Adopters opt in once with:
+#   uv run pre-commit install
+# After that, every commit is gated by the hooks below.
+#
+# What runs:
+#   1. ruff check    — Python lint (bug-catching; see [tool.ruff] in pyproject.toml)
+#   2. actionlint    — Lint .github/workflows/*.yml for syntax + action issues
+#
+# What does NOT run here (deliberate):
+#   - ruff format     — would reformat ~84 existing files on first run. Deferred
+#                       to a dedicated future style-sweep PR. Run on demand:
+#                         uv run ruff format .
+#                       Re-enable here when the codebase is fully formatted.
+#   - pytest          — too slow for every commit. CI does it (ci.yml).
+#   - FERPA name-leak — gated by canvas_course_guard at runtime + the
+#                       grader_name_leak_check.py at the deid boundary. Wrong
+#                       layer for a pre-commit (runs on every commit).
+#
+# To run all hooks against the whole tree on demand (e.g. before a release):
+#   uv run pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.18
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        args: [--fix]
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.1
+    hooks:
+      - id: actionlint
+        name: actionlint (.github/workflows)

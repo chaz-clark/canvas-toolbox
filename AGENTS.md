@@ -245,6 +245,68 @@ private channel is for security.
 
 _Last updated: 2026-06-18_
 
+### Recent: Productional sprint — Claude plugin + ruff + pre-commit + actionlint + Dependabot (2026-06-18)
+
+**v0.53.0** — three productional-alignment moves inspired by the
+`kenn-io/roborev` research (1.4k ⭐ Go project — "continuous code
+review for AI agents"). Each is a small layer; together they shift
+canvas-toolbox from "clone, read, configure" toward "plug in, hooks
+auto-run, deps auto-update."
+
+**Move 1 — Claude Code plugin manifest.** New `.claude-plugin/`
+directory (matches roborev's shape exactly): `plugin.json` +
+`marketplace.json` + a companion `README.md`. The plugin points
+at `./lib/agents/` — adopters who have Claude Code can install the
+toolkit's agent specs + 20+ pedagogical knowledge files as a single
+plugin rather than cloning the full repo. The brain-agnostic
+philosophy in `lib/agents/*.md` means the same skill catalogue
+works for Codex / Cursor / Aider etc. when their plugin specs
+stabilize (placeholder `.codex-plugin/` not added yet — wait for
+Codex's spec).
+
+**Move 2 — ruff + pre-commit + actionlint.** Three monitoring
+layers in one commit, scoped conservatively:
+- **ruff** added to `[dependency-groups].dev`. Initial ruleset enforces
+  bug-catching families (F + B + E + W + I) and explicitly DEFERS
+  stylistic rules (F541 f-string-no-placeholder; I001 import-order;
+  E70x multi-stmt-per-line; B007 unused-loop-var; B905 zip-strict;
+  E741 ambiguous-name) to a future style-sweep PR. The narrow ruleset
+  catches REAL defects without forcing 60+ tool reformats.
+- **First lint pass caught a real bug**: F821 in `course_mirror.py`
+  line 568 referenced an undefined `master_slug`. Tier 0 wouldn't
+  catch it (function not exercised by `--help`); Tier 1 had no test
+  for that function. Ruff caught it on first run. Fix: compute
+  `master_slug = _slug(master_title)` in the loop body where it's
+  used. Cleaned 5 dead-variable assignments (F841) across canvas_sync,
+  course_mirror, grader_grade, grading_load_audit, rubric_recommender
+  + 12 unused imports (F401) auto-fixed across the codebase.
+- **`.pre-commit-config.yaml`** runs `ruff check --fix` + actionlint
+  on every commit. `pre-commit` added to dev deps. **`ruff format`
+  intentionally NOT in pre-commit** — would have reformatted 84
+  existing files on first run; deferred to a dedicated style-sweep
+  PR so the working-style discipline ("Surgical Changes") holds.
+- **CI Tier 2** appended to `.github/workflows/ci.yml`: `ruff check`
+  runs after the Tier 1 pytest, plus an `actionlint` action lints the
+  workflow files themselves (catches a class of CI bugs that would
+  otherwise surface as opaque "workflow failed to start").
+
+**Move 3 — Dependabot.** New `.github/dependabot.yml` configures
+weekly automated dependency PRs for two ecosystems: Python (via uv,
+reads pyproject.toml + uv.lock) and GitHub Actions (versions pinned
+in our workflow files). Minor + patch updates grouped to reduce PR
+volume; majors stay separate for case-by-case review.
+
+**No behavior change to existing tools.** Tests: 175 passing, 13
+sprint tests still deselected (Canvas-API gated). All three CI
+tiers green locally.
+
+**Source research:** `kenn-io/roborev` — see the Tier-2-followup
+session notes (2026-06-18) for the full lesson set. roborev does
+more (goreleaser binary releases, multi-agent ACP, `prek.toml`
+versus traditional pre-commit, version-pinned linter as
+single-source-of-truth, per-checkout cache, `install_scripts_test.go`)
+— most of those are deferred until they're needed.
+
 ### Recent: Tier 2 — NQ + specs-grading sprint, closes #47 #86 #87 (2026-06-18)
 
 **v0.52.0** — three consumer-demand issues closed in one focused

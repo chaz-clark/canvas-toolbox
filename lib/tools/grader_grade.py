@@ -528,7 +528,6 @@ def main() -> int:
             output = outputs[0]
 
     # Resolve N passes
-    bulk = args.bulk
     single = args.single or (not args.bulk)  # default = single
     if single:
         n_passes = 1
