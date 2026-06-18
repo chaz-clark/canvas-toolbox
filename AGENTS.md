@@ -89,6 +89,7 @@ For the full principles and override rules, see `knowledge/behavioral_discipline
 - **Keep institutional and course-specific facts out of committed files.** This toolkit is institution-agnostic by design. Course IDs, semester data, instructor names, institutional vocabulary that isn't already neutralized (e.g., "BYUI" outside the institution-specific `byui_course_design/` template-set), and any per-course working state belong in `.env`, in `pre_knowledge/` (gitignored), or in per-course downstream repos that subtree-pull this toolkit — never in `AGENTS.md`, `README.md`, or other committed top-level files.
 - **Sandbox-first testing: validate new or changed tools against a sandbox course before handing them off.** Before a new/changed tool is committed for a downstream repo or person to test (e.g., a course repo that subtree-pulls this toolkit), exercise it first against a write-safe sandbox course (`CANVAS_SANDBOX_ID` in `.env`) on the real Canvas API — not just unit tests and `--help`/argparse smoke. If the change needs specific conditions to exercise (e.g., rubrics of various shapes for the rubric audit tools), **create those scenarios in the sandbox** — it's write-safe and built for exactly this. Real-API failures should be caught in-house, not by downstream testers. (Motivating case: 2026-05-21, the rubric audit tools were handed to a downstream course repo with no live-API run here first; they hit a blocking `CANVAS_BASE_URL` scheme bug on the first invocation — a defect a 30-second sandbox run would have caught.)
 - **Surface-before-apply (P-002) applies to every state-changing action**, not just cross-repo handoffs. **GitHub-issue triage is in scope:** between *"I understand the issue"* and the first `Edit` / `Bash` commit / `gh issue close`, propose the fix and wait for explicit go. **A one-word reply on a *summary* is ambiguous** — *"continue"* / *"yes"* / *"ok"* can mean *"continue the conversation, what's the plan?"* or *"go execute."* Clarify, don't infer. **Explicit go triggers** (honored without re-surfacing): *"go,"* *"yes apply,"* *"flow approved,"* *"fix and ship,"* *"I trust the call here."* No smallness loophole — a one-line `replace_all` and a 200-line refactor both need surfacing. (Motivating case: 2026-06-01, issue #38 fix bypassed surfacing because the agent inferred go from a *"continue"* that was meant as continue-the-conversation. See [`lib/agents/knowledge/learned/2026-06-01_surface-before-apply-on-issue-triage.md`](lib/agents/knowledge/learned/2026-06-01_surface-before-apply-on-issue-triage.md) for the failure-mode write-up.)
+- **`git push` after every commit** — in BOTH consumer repos AND canvas-toolbox itself. A commit that isn't pushed isn't a backup; it can be lost to disk failure, mistaken `reset --hard`, or just forgotten across a session boundary. **Local-only commits are a smell.** The goal is `git log --branches --not --remotes` showing zero commits at all times. Use `git add ... && git commit -m "..." && git push` as the single operation; if `git push` is omitted, the next session inherits unpushed work. **Two motivating cases**: (a) 2026-06-17, itm327-master had 23 local-only commits ahead of origin spanning ~3 weeks of canvas-toolbox-prompted work (issue #88); (b) 2026-06-18, canvas-toolbox itself had 6 local-only commits when an adopter cloned from GitHub and found `cb_init.py` missing — the v0.54.0 work was complete locally but invisible to the world. The rule applies to maintainers, not just adopters.
 
 ## Handoff document recognition
 
@@ -244,6 +245,32 @@ private channel is for security.
 ## Active Context
 
 _Last updated: 2026-06-18_
+
+### Recent: git-push discipline rule added — closes #88 (2026-06-18)
+
+**v0.54.1** — adds a single bullet to Working Style §Project-specific
+rules: "**`git push` after every commit** — in BOTH consumer repos
+AND canvas-toolbox itself." Closes issue #88, filed via the bug-intake
+worker on 2026-06-17 after the operator surfaced 23 local-only
+commits in itm327-master from ~3 weeks of canvas-toolbox-prompted
+work. The rule additionally bakes in 2026-06-18's maintainer-side
+incident: 6 local-only commits in canvas-toolbox itself when an
+adopter tried to clone from GitHub and found `cb_init.py` missing.
+The rule explicitly applies to maintainers, not just adopters —
+the same failure mode bites both. Doc-only change; no behavior shift.
+
+### Recent: Productional Dependabot wave — merged #89/#90/#91/#92 (2026-06-18)
+
+Four Dependabot PRs landed clean after a rebase against the conftest
+fix: setup-python v5→v6 (dormant regression.yml only),
+setup-uv v3→v7 + checkout v4→v7 (CI-validated), and the Python deps
+group bump (anthropic 0.93→0.111, beautifulsoup4 4.14→4.15,
+canvasapi 3.5→3.6, lxml 6.0→6.1.1, pdfplumber 0.11.4→0.11.10,
+requests 2.33→2.34.2). Sanity-tested locally: `grader_grade.py
+--help` works on anthropic 0.111 (the SDK import path is unchanged);
+195/195 tier-1 tests still green; ruff clean. v0.53.0's Dependabot
+config + pre-commit + ruff layers proved themselves on first
+real run — the maintenance loop is wired and operational.
 
 ### Recent: Sprint 2 — `cb-init` one-command bootstrap (2026-06-18)
 
