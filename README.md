@@ -21,7 +21,8 @@ Built at BYU-Idaho, designed for all instructors. Works with any Canvas institut
 - **Find unused files** — surface files sitting in Canvas that nothing links to
 - **Build a Course Map & Schedule** — generate an Architects-of-Learning–style course map (CLOs, per-module outcomes, 14-week schedule, pacing analysis) from your Canvas course
 - **Score your syllabus against the BYU-I Completeness Rubric** — 25 specific items with link-presence detection for required policy links (Grievance / FERPA / Honor Code / Policy Library)
-- **Grade an assignment end-to-end, FERPA-safe** — fetch submissions (keyed by `user_id`, no name in any filename), de-identify, run N independent grader passes, consensus + spread auto-flag for borderlines, edit comments in one compiled doc, push gated behind `--mark-reviewed`. The AI never sees a student name. See **[`grading_readme.md`](grading_readme.md)** for the canonical folder layout + 8-step pipeline + dual-push pattern + setup interview.
+- **Pull New Quiz response data** — the New Quizzes API doesn't expose per-student responses directly, but `grader_fetch_nq_responses` reads them via the student-analysis report. Returns per-student file-upload filenames + per-question answers + scores. Useful for stand-up / weekly-check-in quizzes where filename-pattern checking (`--extract-filename-dates`) replaces manual SpeedGrader passes. FERPA-safe by default (uid-keyed; names opt-in via `--include-names`).
+- **Grade an assignment end-to-end, FERPA-safe** — fetch submissions (keyed by `user_id`, no name in any filename), de-identify, run N independent grader passes, consensus + spread auto-flag for borderlines, specs-grading reconciliation with `@100%`-credit counts, edit comments in one compiled doc, push gated behind `--mark-reviewed`. The AI never sees a student name. See **[`grading_readme.md`](grading_readme.md)** for the canonical folder layout + 8-step pipeline + dual-push pattern + setup interview.
 - **Roll out a new semester** — sync your master course to a Blueprint and let Canvas handle section distribution
 
 **About the reports:** every audit/analysis tool below produces a **paired `.md` + `.pdf`** when you use `--report <name>.md`. The PDF is the faculty-friendly default (Chrome headless render); the MD is the editable source. If Chrome isn't installed the audit still runs and writes the `.md`; the agent can also explain any report aloud if you'd rather skip the file.
@@ -95,9 +96,29 @@ Use the subscription you **already have** so you don't pay twice. In your IDE, o
 
 ## Step 3 — Get the toolkit running
 
-Now that you have an IDE and an AI assistant ready, pick the path that fits your comfort level. Most people use Option A.
+Now that you have an IDE and an AI assistant ready, pick the path that fits your comfort level. **Most non-technical faculty use Option A.** Technical users with a terminal habit start with the TL;DR below.
 
-> 💡 **Already comfortable with the terminal?** Once you've cloned the repo and installed [uv](https://docs.astral.sh/uv/), `uv run python lib/tools/cb_init.py` walks through every setup step (Python install, deps, Playwright, pre-commit hook, Canvas API smoke test) in one command — see the **"Fast path"** at the top of Option B.
+### TL;DR — one-line install (macOS / Linux)
+
+If you already have `git` and a terminal habit, this is the fastest path:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chaz-clark/canvas-toolbox/main/scripts/install.sh | bash
+```
+
+The script installs `uv` if missing, clones `canvas-toolbox/` into your current directory, and runs `cb-init`. It halts after writing a `.env` stub — fill in your `CANVAS_API_TOKEN` + `CANVAS_BASE_URL`, then:
+
+```bash
+cd canvas-toolbox && uv run python lib/tools/cb_init.py
+```
+
+…to finish setup. Total time on a fresh machine: ~3 minutes.
+
+**Windows users**, or anyone who'd rather have their AI assistant walk them through it: skip the one-liner and use **Option A** below.
+
+---
+
+Otherwise, pick from these three options:
 
 ### Option A — Start here: your agent sets it up
 
@@ -168,25 +189,9 @@ Use this if you prefer to run each step yourself, or if your AI tool doesn't run
 - **Mac:** press Cmd + Space, type "Terminal", press Enter
 - **Windows:** press the Windows key, type "PowerShell", press Enter
 
-#### Fastest path — one-line install (macOS / Linux)
+#### Fast path — `cb-init` (3 lines, fully interactive — any OS, including Windows)
 
-A single curl-pipe-bash installs uv, clones canvas-toolbox into the current directory, and runs `cb-init`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/chaz-clark/canvas-toolbox/main/scripts/install.sh | bash
-```
-
-What happens:
-1. The script detects your OS, ensures `git` is on PATH, installs `uv` if missing
-2. Clones `canvas-toolbox/` into your current directory
-3. Runs `cb-init --yes` automatically (auto-accepts prompts; curl-pipe has no TTY)
-4. cb-init halts after writing a `.env` stub — fill in your `CANVAS_API_TOKEN` + `CANVAS_BASE_URL`, then `cd canvas-toolbox && uv run python lib/tools/cb_init.py` to finish setup
-
-**Windows users** — skip the one-liner; use the 3-line fast path below (works in PowerShell).
-
-#### Fast path — 3 lines, fully interactive (any OS)
-
-If you'd rather see each step's prompt (or you're on Windows), the manual 3-line equivalent:
+The same workflow as the TL;DR one-liner above, but done by hand so you can see each step's prompt + accept or skip them individually. Works in PowerShell too.
 
 ```bash
 git clone https://github.com/chaz-clark/canvas-toolbox.git canvas-toolbox

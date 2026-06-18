@@ -246,6 +246,40 @@ private channel is for security.
 
 _Last updated: 2026-06-18_
 
+### Recent: README polish — surface easier-startup + new capabilities (2026-06-18)
+
+**v0.55.1** — docs-only follow-up after Sprint 2B. Two changes:
+
+**1. README "Getting started" — surface the one-liner as the lead.**
+Sprint 2B's `scripts/install.sh` was shipped but the README still
+opened Step 3 with "Most people use Option A" + a buried 💡 tip
+pointing at the curl-pipe inside Option B. Restructured:
+  - NEW: `### TL;DR — one-line install (macOS / Linux)` section
+    immediately after the Step 3 header. Audience: technical users
+    with `git` + a terminal habit.
+  - REMOVED: the `💡` tip (now redundant)
+  - REMOVED: the `#### Fastest path — one-line install` subsection
+    inside Option B (now redundant with the TL;DR)
+  - KEPT: Option A's agent-driven 8-step runbook (target audience
+    is non-technical faculty whose AI assistant walks them through;
+    Option A's checklist also covers git install + gitignore creation
+    + course pull, three things `install.sh` doesn't do)
+  - KEPT: Option B's `#### Fast path — cb-init (3 lines)` for users
+    who want the manual equivalent of the one-liner across any OS
+
+**2. README "What you can do" — added the New Quizzes response bullet.**
+Sprint 2 (#87) shipped `grader_fetch_nq_responses` — a genuinely
+new user-facing capability (per-student NQ response data via the
+student-analysis Reporting API) — but the "What you can do" list
+hadn't been updated to surface it. Added the bullet immediately
+before the existing grading bullet so the NQ feature is visible
+to adopters scanning the capability list. Also added a brief
+"specs-grading reconciliation with @100%-credit counts" inline
+mention to the existing grading bullet (#47 from Sprint 2).
+
+No code changes. Triple-version-sync maintained (pyproject + plugin +
+marketplace), 199 tests still green, all four pre-commit hooks pass.
+
 ### Recent: Sprint 2B — `scripts/install.sh` one-line installer (2026-06-18)
 
 **v0.55.0** — the curl-pipe wrapper around Sprint 2's `cb-init`.
