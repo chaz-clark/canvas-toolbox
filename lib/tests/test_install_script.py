@@ -1,0 +1,99 @@
+"""Tier 1 tests for scripts/install.sh — Sprint 2B curl-pipe installer.
+
+Bash scripts are harder to unit-test than Python, but two cheap checks
+catch the bulk of real regressions:
+
+  1. `bash -n` syntax parse — catches typos, unclosed quotes, missing
+     `fi`/`done`, etc. Same role as `py_compile` for our Python tools.
+  2. Dry-run end-to-end — `CANVAS_TOOLBOX_INSTALL_DRY_RUN=1 bash install.sh`
+     runs the full script without network calls, real installs, or
+     real clones. Asserts the planned sequence of operations prints
+     correctly (git check, uv check, would-clone, would-cb-init).
+
+End-to-end against a real clone is verified manually by the maintainer
+on each release — see the v0.55.0 commit message for the validation
+log. CI runs only the two cheap checks below.
+"""
+import subprocess
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_INSTALL_SH = _REPO_ROOT / "scripts" / "install.sh"
+
+
+def test_install_sh_exists_and_is_executable():
+    """install.sh must be tracked + chmod +x for `bash install.sh` to work."""
+    assert _INSTALL_SH.is_file(), f"missing: {_INSTALL_SH}"
+    mode = _INSTALL_SH.stat().st_mode
+    assert mode & 0o100, f"not executable: {_INSTALL_SH} (mode={oct(mode)})"
+
+
+def test_install_sh_passes_bash_syntax_check():
+    """`bash -n` validates syntax without executing — catches typos +
+    unclosed blocks. Equivalent to py_compile for Python tools."""
+    r = subprocess.run(
+        ["bash", "-n", str(_INSTALL_SH)],
+        capture_output=True, text=True, timeout=10,
+    )
+    assert r.returncode == 0, (
+        f"bash -n failed:\nSTDOUT:\n{r.stdout}\nSTDERR:\n{r.stderr}"
+    )
+
+
+def test_install_sh_dry_run_prints_planned_sequence(tmp_path):
+    """Dry-run end-to-end: no clone, no uv install, no cb-init invocation.
+    Asserts the 4 phases each print their planned action: git check,
+    uv check (or install), clone, cb-init."""
+    r = subprocess.run(
+        ["bash", str(_INSTALL_SH)],
+        env={
+            "CANVAS_TOOLBOX_INSTALL_DRY_RUN": "1",
+            "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+            "HOME": str(tmp_path),
+        },
+        capture_output=True, text=True, timeout=30,
+        cwd=str(tmp_path),
+    )
+    out = r.stdout + r.stderr
+    assert r.returncode == 0, (
+        f"dry-run failed (exit {r.returncode}):\n{out}"
+    )
+
+    assert "canvas-toolbox installer" in out
+    assert "[dry-run mode" in out
+    assert "git" in out
+    assert "uv" in out
+    assert "[dry-run] would clone" in out
+    assert "canvas-toolbox.git" in out
+    assert "[dry-run] would cd" in out
+    assert "cb_init.py" in out
+    assert "--yes" in out  # non-interactive flag for curl-pipe context
+
+
+def test_install_sh_refuses_existing_clone_dir(tmp_path):
+    """If `canvas-toolbox/` already exists in cwd, install.sh should bail
+    with a recovery hint, not clobber existing state."""
+    existing = tmp_path / "canvas-toolbox"
+    existing.mkdir()
+    (existing / "marker.txt").write_text("pre-existing", encoding="utf-8")
+
+    r = subprocess.run(
+        ["bash", str(_INSTALL_SH)],
+        env={
+            "CANVAS_TOOLBOX_INSTALL_DRY_RUN": "1",
+            "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+            "HOME": str(tmp_path),
+        },
+        capture_output=True, text=True, timeout=10,
+        cwd=str(tmp_path),
+    )
+    out = r.stdout + r.stderr
+
+    assert r.returncode != 0, (
+        f"install.sh should refuse pre-existing dir; got exit 0:\n{out}"
+    )
+    assert "already exists" in out
+    assert "cb_init.py" in out  # recovery hint mentions the resume tool
+
+    # Pre-existing file must be untouched
+    assert (existing / "marker.txt").read_text(encoding="utf-8") == "pre-existing"

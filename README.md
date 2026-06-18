@@ -168,9 +168,25 @@ Use this if you prefer to run each step yourself, or if your AI tool doesn't run
 - **Mac:** press Cmd + Space, type "Terminal", press Enter
 - **Windows:** press the Windows key, type "PowerShell", press Enter
 
-#### Fast path — `cb-init` (one command for steps 2–5)
+#### Fastest path — one-line install (macOS / Linux)
 
-After cloning the repo (step 1 below), `cb-init` bootstraps everything in one command:
+A single curl-pipe-bash installs uv, clones canvas-toolbox into the current directory, and runs `cb-init`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chaz-clark/canvas-toolbox/main/scripts/install.sh | bash
+```
+
+What happens:
+1. The script detects your OS, ensures `git` is on PATH, installs `uv` if missing
+2. Clones `canvas-toolbox/` into your current directory
+3. Runs `cb-init --yes` automatically (auto-accepts prompts; curl-pipe has no TTY)
+4. cb-init halts after writing a `.env` stub — fill in your `CANVAS_API_TOKEN` + `CANVAS_BASE_URL`, then `cd canvas-toolbox && uv run python lib/tools/cb_init.py` to finish setup
+
+**Windows users** — skip the one-liner; use the 3-line fast path below (works in PowerShell).
+
+#### Fast path — 3 lines, fully interactive (any OS)
+
+If you'd rather see each step's prompt (or you're on Windows), the manual 3-line equivalent:
 
 ```bash
 git clone https://github.com/chaz-clark/canvas-toolbox.git canvas-toolbox

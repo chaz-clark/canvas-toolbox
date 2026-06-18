@@ -34,3 +34,12 @@ repos:
     hooks:
       - id: actionlint
         name: actionlint (.github/workflows)
+
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
+    hooks:
+      - id: shellcheck
+        name: shellcheck (scripts/*.sh)
+        # Default scope is *.sh; keep that. The bug-intake worker's
+        # scripts and Tier 0 CI smoke wrappers aren't shell scripts, so
+        # there's nothing to scope out here.

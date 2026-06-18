@@ -246,6 +246,52 @@ private channel is for security.
 
 _Last updated: 2026-06-18_
 
+### Recent: Sprint 2B — `scripts/install.sh` one-line installer (2026-06-18)
+
+**v0.55.0** — the curl-pipe wrapper around Sprint 2's `cb-init`.
+True one-line install for macOS / Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chaz-clark/canvas-toolbox/main/scripts/install.sh | bash
+```
+
+`scripts/install.sh` (~140 lines) detects OS (bails on Windows with
+a pointer to the manual 3-line flow), ensures `git` + installs `uv`
+via Astral's official installer if missing, clones canvas-toolbox
+into cwd, and runs `cb-init --yes`. `--yes` is the right default
+because curl-pipe consumes stdin, so interactive prompts wouldn't
+work anyway — and the whole point of the one-liner is non-interactive.
+Refuses to clobber a pre-existing `canvas-toolbox/` directory; prints
+a recovery hint at `cd canvas-toolbox && uv run python
+lib/tools/cb_init.py` (the resume path).
+
+**Test coverage** — Sprint 1's pattern continues:
+  - 4 new pytest tests under `lib/tests/test_install_script.py`:
+    file-exists-and-executable, `bash -n` syntax parse, dry-run
+    end-to-end (via `CANVAS_TOOLBOX_INSTALL_DRY_RUN=1`), and the
+    pre-existing-clone-dir refusal case
+  - `shellcheck` added to `.pre-commit-config.yaml` (matching the
+    ruff + actionlint pattern from v0.53.0) — catches the same
+    class of bash bugs ruff catches for Python
+  - **Manual end-to-end verified before commit**: ran `install.sh`
+    in `/tmp/canvas-toolbox-real-test`, cloned from GitHub, ran
+    cb-init through step 3 halt, confirmed the final "Next: edit
+    .env" message. cwd-control behavior verified (.env landed at
+    the test dir's canvas-toolbox/ subdir, not anywhere else).
+
+**README** — replaced the 3-line "Fast path" with a tiered structure:
+"Fastest path" = the curl-pipe one-liner (macOS/Linux); "Fast path"
+= the 3-line manual flow (any OS, fully interactive). Windows users
+explicitly directed to the 3-line flow.
+
+**Adopter pitch is now genuinely one line**: paste the curl URL,
+fill in `.env`, re-run cb-init. Total time from zero to working
+canvas-toolbox install on a fresh machine: ~3 minutes (depending
+on Python download speed).
+
+Tests: 199 passing (was 195 — added 4). All three CI tiers + the
+new shellcheck hook green.
+
 ### Recent: git-push discipline rule added — closes #88 (2026-06-18)
 
 **v0.54.1** — adds a single bullet to Working Style §Project-specific
