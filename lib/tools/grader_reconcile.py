@@ -61,11 +61,20 @@ CONFIG SHAPE (JSON; YAML supported if pyyaml is installed)
   "submitted"   submitted_at is set                       (default; legacy)
   "nonzero"     submitted AND score > 0                   (partial-credit work)
   "full_credit" submitted AND score == points_possible    (1-pt complete /
-                                                           incomplete tasks;
-                                                           generalizes #47)
+                                                           incomplete tasks)
 Each row of the keyed actuals CSV now includes `<dim>_complete` alongside
 the existing `<dim>_sum`/`<dim>_submitted`/`<dim>_missing` columns. This
 is the input the competency grader (#60) consumes.
+
+`at_full_ratio` (issue #47 — gradebook source only, OPTIONAL float):
+  When set on a gradebook dimension, ALWAYS emit a `<dim>_at_full` column
+  counting submissions where `score >= points_possible * at_full_ratio`.
+  Default ratio 1.0 means strict full-credit (score == points_possible).
+  Use 0.9 for "90%+", etc. Independent of `completion_basis` — set on
+  any dimension where you need a separate at-full visibility column
+  alongside `<dim>_complete` (e.g. specs-grading mid-letter tiers where
+  the "A" gate requires N quizzes @100% and you want to verify against
+  `<dim>_submitted`). Omit the field to skip the column.
 
 GENERALIZED FROM: ds460-master/grading/reconcile_gradebook.py
 (commit 8f7814b + 2fd277f — round-2 + Classic-mirror addendum). The ds460 source
@@ -200,6 +209,27 @@ def _is_complete_under_basis(
     return False  # unknown basis
 
 
+def _is_at_full_ratio(
+    submission: dict, points_possible: float | None, ratio: float,
+) -> bool:
+    """True if score >= points_possible * ratio. Issue #47.
+
+    None/missing scores never count (`submitted_at` alone is not enough).
+    Missing `points_possible` returns False — we cannot compute the
+    threshold without the max. The 1.0 default cleanly handles strict
+    full-credit; lower ratios (0.9, etc.) handle "90%+" semantics for
+    specs-grading tiers that aren't strict 100%."""
+    score = submission.get("score")
+    if score is None or points_possible is None:
+        return False
+    try:
+        score_f = float(score)
+    except (TypeError, ValueError):
+        return False
+    # 1e-9 tolerance defends against float drift at the exact-equal case
+    return (score_f + 1e-9) >= points_possible * ratio
+
+
 def resolve_user_id(filename: str, primary_subs: dict[int, dict]) -> int | None:
     """Resolve a Canvas-format filename to its user_id by matching embedded numeric IDs.
 
@@ -263,11 +293,16 @@ def reconcile_dimension_gradebook(
     dimension: dict, key_to_uid: dict[str, int | None],
 ) -> dict[str, dict]:
     """Per-key totals for a gradebook-source dimension. Returns
-    {key: {'sum': float, 'submitted': int, 'missing': int, 'complete': int}}.
+    {key: {'sum': float, 'submitted': int, 'missing': int, 'complete': int,
+           'at_full': int | None}}.
 
     `complete` is counted under `dimension['completion_basis']` (default
     'submitted' for backward compatibility — same as the existing
-    `submitted` count). Issue #59."""
+    `submitted` count). Issue #59.
+
+    `at_full` is counted when `dimension['at_full_ratio']` is set
+    (default ratio 1.0 = strict full credit). The value is None when
+    the field is omitted so the caller skips the column. Issue #47."""
     per_aid_subs = {aid: submissions(base, cid, headers, aid) for aid in dimension["assignment_ids"]}
     zero_means = dimension.get("zero_means", "not_submitted")
 
@@ -278,20 +313,27 @@ def reconcile_dimension_gradebook(
               f"Valid: {sorted(_VALID_BASES)}", file=sys.stderr)
         basis = "submitted"
 
-    # Cache assignment.points_possible per-aid for full_credit basis only
-    # (skips the extra GET when not needed).
+    # Issue #47: at_full_ratio is None when the dimension doesn't ask for it;
+    # any float (default 1.0 when the field is set without a value via the
+    # `count_mode=full_credit` legacy alias) triggers the at_full column.
+    at_full_ratio = _resolve_at_full_ratio(dimension)
+
+    # Cache assignment.points_possible per-aid when needed (full_credit
+    # basis OR at_full_ratio set — both require points_possible).
     pp_by_aid: dict[int, float | None] = {}
-    if basis == "full_credit":
+    if basis == "full_credit" or at_full_ratio is not None:
         for aid in dimension["assignment_ids"]:
             pp_by_aid[aid] = fetch_assignment_points_possible(base, cid, headers, aid)
 
     out: dict[str, dict] = {}
     for key, uid in key_to_uid.items():
         if uid is None:
-            out[key] = {"sum": None, "submitted": "?", "missing": "?", "complete": "?"}
+            out[key] = {"sum": None, "submitted": "?", "missing": "?",
+                        "complete": "?",
+                        "at_full": "?" if at_full_ratio is not None else None}
             continue
         total = 0.0
-        submitted = missing = complete = 0
+        submitted = missing = complete = at_full = 0
         for aid, subs in per_aid_subs.items():
             s = subs.get(uid, {})
             score = s.get("score")
@@ -305,9 +347,38 @@ def reconcile_dimension_gradebook(
             submitted += 1
             if _is_complete_under_basis(s, pp_by_aid.get(aid), basis):
                 complete += 1
+            if at_full_ratio is not None and _is_at_full_ratio(
+                s, pp_by_aid.get(aid), at_full_ratio,
+            ):
+                at_full += 1
         out[key] = {"sum": total, "submitted": submitted, "missing": missing,
-                    "complete": complete}
+                    "complete": complete,
+                    "at_full": at_full if at_full_ratio is not None else None}
     return out
+
+
+def _resolve_at_full_ratio(dimension: dict) -> float | None:
+    """Return the at_full_ratio for a dimension, or None if not requested.
+
+    Accepts two config syntaxes (per issue #47):
+      `"at_full_ratio": 1.0`               (preferred — explicit float)
+      `"count_mode": "full_credit"`        (alias — implies ratio=1.0)
+      `"count_mode": "at_ratio", "at_ratio": 0.9`   (alias with override)
+    """
+    if "at_full_ratio" in dimension:
+        try:
+            return float(dimension["at_full_ratio"])
+        except (TypeError, ValueError):
+            return None
+    mode = dimension.get("count_mode")
+    if mode == "full_credit":
+        return 1.0
+    if mode == "at_ratio":
+        try:
+            return float(dimension.get("at_ratio", 1.0))
+        except (TypeError, ValueError):
+            return 1.0
+    return None
 
 
 def reconcile_dimension_classic_quiz(
@@ -423,6 +494,9 @@ def main() -> int:
         if dim["source"] == "gradebook":
             fieldnames += [f"{name}_sum", f"{name}_submitted", f"{name}_missing",
                            f"{name}_complete"]
+            # Issue #47: only emit the at_full column when configured
+            if _resolve_at_full_ratio(dim) is not None:
+                fieldnames.append(f"{name}_at_full")
         elif dim["source"] == "classic_quiz_submissions":
             for qn in (dim.get("question_names") or [name]):
                 fieldnames.append(f"{name}_{qn}")
@@ -443,6 +517,8 @@ def main() -> int:
                 row[f"{name}_submitted"] = r.get("submitted")
                 row[f"{name}_missing"] = r.get("missing")
                 row[f"{name}_complete"] = r.get("complete")
+                if _resolve_at_full_ratio(dim) is not None:
+                    row[f"{name}_at_full"] = r.get("at_full")
             elif dim["source"] == "classic_quiz_submissions":
                 for qn in (dim.get("question_names") or [name]):
                     row[f"{name}_{qn}"] = r.get(qn)

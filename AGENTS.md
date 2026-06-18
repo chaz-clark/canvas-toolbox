@@ -243,7 +243,61 @@ private channel is for security.
 
 ## Active Context
 
-_Last updated: 2026-06-17_
+_Last updated: 2026-06-18_
+
+### Recent: Tier 2 — NQ + specs-grading sprint, closes #47 #86 #87 (2026-06-18)
+
+**v0.52.0** — three consumer-demand issues closed in one focused
+sprint, no behavior change to existing flows.
+
+**#47 — `grader_reconcile` per-dimension `at_full_ratio`.** Adds an
+optional dimension field (`at_full_ratio: 1.0` for strict full credit,
+`0.9` for "90%+", or the issue's `count_mode: full_credit` alias)
+that emits a NEW `<dim>_at_full` column counting submissions where
+`score >= points_possible * ratio`. Closes the DS250 mid-letter
+Spring 2026 false-flag where `submitted=3` but `@100%=2` was promoting
+A- students to A. Independent of `completion_basis` (#59) — set on
+any dimension where you need at-full visibility alongside
+`<dim>_complete`. Two new helpers in grader_reconcile.py
+(`_is_at_full_ratio` + `_resolve_at_full_ratio` for the dual config
+syntax) with 15 new unit tests.
+
+**#87 — `grader_fetch_nq_responses`.** Ports the validated
+itm327-master `grade_standups.py` Reporting API pattern into a
+canvas-toolbox primitive (~400 lines). POST report → poll progress →
+download CSV → parse to uid-keyed dict. Default-on local CSV cache
+(23h TTL, under Canvas's ~24h inst-fs URL expiry) with `--no-cache`
+and `--force-refresh` opt-outs. Inline filename-date extractor
+(`--extract-filename-dates`) with the 4 known screenshot patterns
+(Mac default, Windows default, generic ISO, Snipping Tool).
+FERPA-safe by default: uid-keyed output, names OMITTED unless
+`--include-names` is passed for review-surface generation. 15 new
+unit tests covering parse_filename_date, parse_canvas_ts, and
+parse_student_analysis_csv against a synthetic CSV fixture modeled
+on the real Canvas shape. The fetch primitive doesn't decide grades
+— consuming tools apply bucket logic.
+
+**#86 — NQ detection helper + knowledge note.** New shared module
+`_quiz_kind.py` (~140 lines) with a pure classifier
+(`classify_assignment_shape(assn_payload) -> (kind, path)`) plus a
+network-touching wrapper (`detect_quiz_kind`). Classifies an
+assignment as `new_quiz` / `classic_quiz` / `not_a_quiz` and
+recommends one of three paths (`reporting_api` /
+`submission_data` / `submitted_proxy` / `none`). Strongest signal
+wins: explicit `quiz_id` → classic; `submission_types: [online_quiz]`
+→ classic; `submission_types: [external_tool]` + NQ URL marker
+(`quiz-lti` / `quiz_lti` / `quizzes.next`) → new_quiz; otherwise
+not-a-quiz. The matching `learned/` knowledge note
+(`2026-06-18_new-quizzes-responses-api-walled.md`) captures the
+empirical endpoint table + the three viable data paths so the next
+consumer doesn't re-spend the ~2 hours m119/ds460/itm327 each spent
+discovering this. 11 new unit tests covering all classifier branches.
+
+Total: 33 new unit tests (175 passing total, 13 sprint tests still
+deselected). Tier 0 `--help` smoke green on both new tools.
+`pending_review_finalizer.py` (sidecar suggested in #86) parked as a
+separate follow-up — has its own design surface (gating, bulk vs
+single, interaction with `grader_push.py`).
 
 ### Recent: CI tests Tier 0 + Tier 1 — closes #83 (2026-06-17)
 
