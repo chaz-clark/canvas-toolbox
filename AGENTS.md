@@ -245,6 +245,69 @@ private channel is for security.
 
 _Last updated: 2026-06-18_
 
+### Recent: Sprint 2 — `cb-init` one-command bootstrap (2026-06-18)
+
+**v0.54.0** — new `lib/tools/cb_init.py` (~370 lines): the
+one-command bootstrap that closes the "what do I do AFTER I clone?"
+friction every adopter (and every fresh agent) hits. Inspired by
+`roborev init` (research 2026-06-18); locked to the canvas-toolbox
+trust + working-style discipline.
+
+**8 idempotent steps**, each silent when there's nothing to do +
+prompts y/n when there is (decision G — "smart prompts"):
+  1. Install uv via Astral's official installer if missing (macOS/Linux)
+  2. Install Python 3.14 via uv (won't touch system Python)
+  3. Write `.env` stub at cwd if absent — STOPS for manual fill-in
+     of CANVAS_API_TOKEN + CANVAS_BASE_URL (decision: stays manual)
+  4. `uv sync --group dev` from REPO_ROOT
+  5. `uv run playwright install chromium` (skippable via --skip-playwright)
+  6. `uv run pre-commit install` (ruff + actionlint hook)
+  7. Canvas API smoke — `GET /users/self` (read-only; reports the
+     authenticated user's name)
+  8. Surface AGENTS.md + cb-report-bug one-liner
+
+**Key design calls captured during the planning conversation:**
+  - **`.env` stays manual** — no $EDITOR invocation; stub goes to cwd
+    + halts so the operator fills in tokens, then re-runs cb-init
+  - **uv-managed everything** — tool installs uv + Python itself, so
+    non-technical faculty don't need to know what Python is, AND
+    technical users get a contained env that doesn't pollute their
+    global Python
+  - **No `gh` requirement** — confirmed: canvas-toolbox doesn't need
+    `gh` at runtime; bug-intake goes through the Cloudflare worker
+  - **Mode: explicit `--mode {maintainer,adopter}` flag, default
+    adopter** (decision A) — auto-detection from git origin surfaces
+    a suggestion but doesn't override; flag is the explicit toggle
+    for future co-maintainers
+  - **stub_is_filled requires only TOKEN + BASE_URL** — caught
+    during live testing: maintainer's working .env doesn't have
+    CANVAS_COURSE_ID (most tools accept --course-id per-command).
+    COURSE_ID + SANDBOX_ID stay in the stub commented out as
+    OPTIONAL.
+  - **Tests: pure-logic + ONE tmp-repo integration** (decision E
+    a+c) — 20 tests under lib/tests/test_cb_init.py covering
+    detect_mode_from_remote (6), env_stub_content (1),
+    stub_is_filled (8), parse_canvas_self_name (4), plus the
+    end-to-end --check dry-run integration test
+  - **install.sh curl-pipe wrapper parked as Sprint 2B** (decision F)
+    — let cb-init prove itself in real use before adding the
+    one-line install layer on top
+
+**Updates to README.md Getting Started:**
+  - Hint at the top of Step 3 pointing technical users at the
+    cb-init fast path
+  - New "Fast path — `cb-init`" subsection inside Option B (manual
+    setup) with the 3-line clone + cd + cb-init flow + the flag
+    table (--check, --yes, --mode, --skip-playwright)
+
+**Version sync:** pyproject.toml + .claude-plugin/plugin.json +
+.claude-plugin/marketplace.json all bumped 0.53.0 → 0.54.0
+(maintain this triple-sync convention from the v0.53.0 plugin shipped
+last commit).
+
+**Tests:** 195 passing (was 175 after Sprint 1 — added 20). 13 sprint
+tests still deselected (Canvas-API gated). All three CI tiers green.
+
 ### Recent: Productional sprint — Claude plugin + ruff + pre-commit + actionlint + Dependabot (2026-06-18)
 
 **v0.53.0** — three productional-alignment moves inspired by the

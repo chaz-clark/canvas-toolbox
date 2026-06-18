@@ -97,6 +97,8 @@ Use the subscription you **already have** so you don't pay twice. In your IDE, o
 
 Now that you have an IDE and an AI assistant ready, pick the path that fits your comfort level. Most people use Option A.
 
+> 💡 **Already comfortable with the terminal?** Once you've cloned the repo and installed [uv](https://docs.astral.sh/uv/), `uv run python lib/tools/cb_init.py` walks through every setup step (Python install, deps, Playwright, pre-commit hook, Canvas API smoke test) in one command — see the **"Fast path"** at the top of Option B.
+
 ### Option A — Start here: your agent sets it up
 
 Create a new empty folder on your computer, open it in the IDE you set up in Steps 1 and 2, then give your AI assistant this prompt:
@@ -165,6 +167,40 @@ Use this if you prefer to run each step yourself, or if your AI tool doesn't run
 **Open a terminal:**
 - **Mac:** press Cmd + Space, type "Terminal", press Enter
 - **Windows:** press the Windows key, type "PowerShell", press Enter
+
+#### Fast path — `cb-init` (one command for steps 2–5)
+
+After cloning the repo (step 1 below), `cb-init` bootstraps everything in one command:
+
+```bash
+git clone https://github.com/chaz-clark/canvas-toolbox.git canvas-toolbox
+cd canvas-toolbox
+uv run python lib/tools/cb_init.py
+```
+
+`cb-init` is **idempotent** — re-running is safe and fast. It:
+
+1. Installs uv if missing (curl-pipe Astral's installer; macOS/Linux)
+2. Installs Python 3.14 via uv (won't touch your system Python)
+3. Writes a `.env` stub at your current directory if none exists, then **stops** so you can fill in `CANVAS_API_TOKEN` + `CANVAS_BASE_URL` manually
+4. `uv sync --group dev` — installs all deps + dev tools (pytest, ruff, pre-commit)
+5. Installs Playwright Chromium (used by share-URL parsing; skip with `--skip-playwright`)
+6. Installs the pre-commit hook (ruff + actionlint on every commit)
+7. Smoke-tests your Canvas API token against `GET /users/self` (read-only)
+8. Surfaces `AGENTS.md` + the `cb-report-bug` one-liner
+
+Useful flags:
+
+| Flag | Use |
+|---|---|
+| `--check` | Dry-run: shows what each step would do, writes nothing |
+| `--yes` | Skip all y/n prompts (for CI / Codespaces) |
+| `--mode maintainer` | Suppress adopter-only hints (you're the toolkit maintainer) |
+| `--skip-playwright` | Skip the 92 MB Chromium download |
+
+If `cb-init` runs cleanly, you can skip the rest of Option B and jump to **"Step 4 — Pull your course"** (whichever number it lands on below).
+
+---
 
 **Step 1 — Download the toolkit**
 
