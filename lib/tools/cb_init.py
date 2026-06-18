@@ -223,6 +223,14 @@ def is_playwright_chromium_installed() -> bool:
         return False
 
 
+def is_uv_synced() -> bool:
+    """True if REPO_ROOT/.venv exists. `uv sync` is idempotent, so this
+    is only a heuristic to keep the cb-init output honest: when uv has
+    already synced (often because `uv run` auto-sync'd on invocation),
+    step 4 prints '✓ skipping' instead of 'would run'."""
+    return (REPO_ROOT / ".venv").exists()
+
+
 def is_pre_commit_installed() -> bool:
     """True if REPO_ROOT/.git/hooks/pre-commit exists AND looks like a
     pre-commit-framework hook (contains the framework's marker)."""
@@ -363,16 +371,26 @@ def step_3_env_stub(*, cwd: Path, auto_yes: bool, check_only: bool) -> bool:
     env_path.write_text(env_stub_content(), encoding="utf-8")
     print(f"  ✓ Wrote stub to {env_path}.")
     print("    Now: edit it (any editor — VS Code / vim / nano / etc.),")
-    print("    fill in CANVAS_API_TOKEN + CANVAS_BASE_URL + CANVAS_COURSE_ID,")
+    print("    fill in CANVAS_API_TOKEN + CANVAS_BASE_URL (CANVAS_COURSE_ID is optional),")
     print("    then re-run cb-init to continue from step 4.")
     return False  # halt — operator needs to fill in values manually per decision
 
 
 def step_4_uv_sync(*, auto_yes: bool, check_only: bool) -> bool:
+    # Honest message either way — uv sync is idempotent, but a fresh
+    # invocation via `uv run` already auto-syncs, so we only PROMPT for a
+    # fresh install. When .venv exists we just verify (no prompt).
+    venv_exists = is_uv_synced()
     if check_only:
-        print("Step 4/8: would run `uv sync --group dev` from the repo root.")
-        return True  # check-only: skip the work but keep going
-    print("Step 4/8: running `uv sync --group dev` (idempotent — verifies + installs deps).")
+        if venv_exists:
+            print("Step 4/8: ✓ .venv exists — would verify with `uv sync --group dev`.")
+        else:
+            print("Step 4/8: would run `uv sync --group dev` (creates .venv + installs deps).")
+        return True
+    if venv_exists:
+        print("Step 4/8: ✓ .venv exists — verifying deps with `uv sync --group dev`...")
+    else:
+        print("Step 4/8: running `uv sync --group dev` (creates .venv + installs deps)...")
     if not run_subprocess(["uv", "sync", "--group", "dev"], cwd=REPO_ROOT, timeout=180):
         return False
     print("  ✓ Deps synced.")
