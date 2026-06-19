@@ -147,3 +147,55 @@ def test_bin_wrapper_targets_correct_tool(name, expected_target):
     assert expected_target in content, (
         f"bin/{name} does not reference {expected_target}"
     )
+
+
+# ---------------------------------------------------------------------------
+# scripts/install.ps1 — Windows installer (v0.57.0)
+#
+# Bash-side can't run PowerShell to syntax-check; we keep these tests
+# light — file exists, has the expected sections, references the right
+# downstream tool. A maintainer with pwsh installed locally validates
+# syntax + behavior before any release that touches install.ps1.
+# ---------------------------------------------------------------------------
+
+_INSTALL_PS1 = _REPO_ROOT / "scripts" / "install.ps1"
+
+
+def test_install_ps1_exists():
+    assert _INSTALL_PS1.is_file(), f"missing: {_INSTALL_PS1}"
+
+
+def test_install_ps1_references_uv_installer():
+    """The PS1 must shell out to Astral's official PowerShell installer."""
+    content = _INSTALL_PS1.read_text(encoding="utf-8")
+    assert "astral.sh/uv/install.ps1" in content
+
+
+def test_install_ps1_references_cb_init():
+    """The PS1 must end by invoking cb_init.py with --yes (matches the
+    install.sh shape)."""
+    content = _INSTALL_PS1.read_text(encoding="utf-8")
+    assert "cb_init.py" in content
+    assert "--yes" in content
+
+
+def test_install_ps1_has_dry_run_branch():
+    """The PS1 honors CANVAS_TOOLBOX_INSTALL_DRY_RUN parity with install.sh."""
+    content = _INSTALL_PS1.read_text(encoding="utf-8")
+    assert "CANVAS_TOOLBOX_INSTALL_DRY_RUN" in content
+    assert "DryRun" in content
+
+
+def test_install_ps1_refuses_existing_clone_dir_logic_present():
+    """The PS1's idempotency check (Test-Path $CloneDir) must be present;
+    mirrors install.sh's `[ -e "$CLONE_DIR" ]` guard."""
+    content = _INSTALL_PS1.read_text(encoding="utf-8")
+    assert "Test-Path $CloneDir" in content
+    assert "already exists" in content
+
+
+def test_install_ps1_references_cb_init_recovery_path():
+    """When the clone dir exists, the PS1 must point at cb_init.py as the
+    resume path — same UX as install.sh."""
+    content = _INSTALL_PS1.read_text(encoding="utf-8")
+    assert "cb_init.py" in content

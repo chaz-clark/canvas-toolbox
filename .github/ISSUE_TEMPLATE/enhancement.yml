@@ -1,0 +1,44 @@
+name: ✨ Enhancement request
+description: Something the toolkit should do but doesn't yet (you HAVEN'T built it locally — that's `share:` not `enhancement:`).
+title: "enhancement: <short description>"
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Easier path:** if you have the toolkit installed, run `./bin/cb-report-bug` instead — same channel, scrubs PII, auto-bundles your toolkit version. See [the README](https://github.com/chaz-clark/canvas-toolbox/blob/main/README.md#how-can-you-share-back).
+
+        **Already built it?** Use the `share:` prefix instead (or run `./bin/cb-share`) — the maintainer triages "I built this" differently from "I want this." See [CONTRIBUTING.md](https://github.com/chaz-clark/canvas-toolbox/blob/main/CONTRIBUTING.md).
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case — what are you trying to accomplish?
+      description: Describe the workflow that's currently friction. Concrete is better than abstract.
+      placeholder: |
+        I'm grading a contract-graded course where assignments are 1-pt complete/incomplete. The current grader_reconcile counts "submitted" but my Leader-tier check needs "at @100%". I keep having to manually verify per-quiz.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed behavior (optional)
+      description: If you have a specific idea for HOW the toolkit should solve this, describe it here. Sketches / pseudo-config / "it should add an `--at-full` flag" are all fine.
+      placeholder: |
+        A `count_mode: full_credit` flag per dimension that emits a `<dim>_at_full` column counting submissions where `score >= points_possible * ratio`.
+
+  - type: input
+    id: tools-touched
+    attributes:
+      label: Which tool(s) would this touch
+      description: Best-guess is fine.
+      placeholder: "e.g., grader_reconcile, course_audit, NEW tool"
+
+  - type: checkboxes
+    id: ferpa
+    attributes:
+      label: FERPA hygiene check
+      options:
+        - label: I have NOT pasted any student names, emails, or Canvas API tokens into this issue.
+          required: true

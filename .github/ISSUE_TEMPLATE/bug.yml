@@ -1,0 +1,71 @@
+name: 🐛 Bug report
+description: The toolkit deviated from documented behavior (surprising exit code, wrong output, crash).
+title: "bug: <short description>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Easier path:** if you have the toolkit installed, run `./bin/cb-report-bug` instead — it auto-bundles your toolkit version + last 150 log lines + sanitized cwd, scrubs PII locally, and files this issue for you in ~1 second. See [the README](https://github.com/chaz-clark/canvas-toolbox/blob/main/README.md#how-can-you-share-back).
+
+        Use this form if you'd rather file directly on GitHub (e.g., you don't have the toolkit installed yet, or you're a contributor).
+
+  - type: input
+    id: tool
+    attributes:
+      label: Which tool / command
+      description: Which `lib/tools/<tool>.py` or `bin/cb-*` command exhibited the bug?
+      placeholder: "e.g., grader_push.py, cb-init, course_audit --full"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: canvas-toolbox version
+      description: Run `uv run python lib/tools/canvas_sync.py --version` or check pyproject.toml.
+      placeholder: "e.g., 0.56.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you run + what was the output? Include relevant error messages. **DO NOT** paste student names / emails / Canvas API tokens.
+      placeholder: |
+        Ran: uv run python lib/tools/grader_push.py --challenge-dir grading/kc1
+        Got: UnboundLocalError: cannot access local variable 'csv'
+        Expected: review-surface CSV written successfully
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro steps (optional)
+      description: If you can reduce the bug to a minimal reproduction, paste the steps here.
+      placeholder: |
+        1. cd into a challenge dir with N submissions
+        2. Run `grader_push --challenge-dir <path>`
+        3. ...
+
+  - type: checkboxes
+    id: ferpa
+    attributes:
+      label: FERPA hygiene check
+      options:
+        - label: I have NOT pasted any student names, emails, or Canvas API tokens into this issue.
+          required: true

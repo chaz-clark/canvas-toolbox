@@ -1,0 +1,57 @@
+name: 🎁 Share something you built
+description: You built a tool, config, or pattern locally and want to contribute it back (distinct from `enhancement:` which is "I want this but haven't built it").
+title: "share: <short description>"
+labels: ["share", "contribution"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Easier path:** `./bin/cb-share` (same channel, but it scrubs PII locally + bundles your toolkit version). See [CONTRIBUTING.md](https://github.com/chaz-clark/canvas-toolbox/blob/main/CONTRIBUTING.md#2-share-something-you-built).
+
+        **Big change?** If your contribution is substantial (>200 lines, touches multiple tools, introduces a new module), the maintainer will likely ask you to convert it into a pull request. Use [the PR path](https://github.com/chaz-clark/canvas-toolbox/blob/main/CONTRIBUTING.md#3-push-code-via-a-pull-request) directly if you'd rather skip the intermediate triage.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What did you build?
+      description: 1-2 paragraphs. What does it do? What use case does it solve?
+      placeholder: |
+        I built a group-grading wrapper around grader_reconcile that splits the gradebook by Canvas group + runs per-group consensus separately. We use it for our team-project assignments in ITM 327.
+    validations:
+      required: true
+
+  - type: textarea
+    id: link
+    attributes:
+      label: Link to the code/config
+      description: A gist, a branch, a fork, OR a paste of the code inline. The maintainer can't review what they can't see.
+      placeholder: |
+        Gist: https://gist.github.com/...
+        OR
+        Branch on my fork: https://github.com/<you>/canvas-toolbox/tree/feat/group-grading
+        OR
+        ```python
+        # paste the code here
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: ferpa-notes
+    attributes:
+      label: FERPA + environment notes
+      description: Where does your code touch student data? Does it preserve the two-zone architecture (local zone for names; deid'd zone for anything an AI reads)? Any environment assumptions worth knowing?
+      placeholder: |
+        - Reads from grader_reconcile's `_gradebook_actuals.csv` (already deid'd; no names)
+        - Group assignments fetched from Canvas API (no student data; just group IDs)
+        - Output is a keyed CSV; no names anywhere
+
+  - type: checkboxes
+    id: ferpa
+    attributes:
+      label: FERPA hygiene check
+      options:
+        - label: I have NOT pasted any student names, emails, or Canvas API tokens into this issue.
+          required: true
+        - label: My contribution preserves the two-zone architecture (local zone keeps names; AI-readable zone is deid'd).
+          required: true

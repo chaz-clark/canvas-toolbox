@@ -1,0 +1,14 @@
+# Route blank issues + common questions away from the issue tracker.
+# Reserves Issues for actionable bug reports + enhancement requests.
+blank_issues_enabled: false
+
+contact_links:
+  - name: "Use the bug-intake worker (zero-friction; no GitHub account needed)"
+    url: https://github.com/chaz-clark/canvas-toolbox/blob/main/README.md#how-can-you-share-back
+    about: "If you have the toolkit installed, `./bin/cb-report-bug` files an issue here for you with PII scrubbed locally + body auto-bundled. Prefer this over the templates below."
+  - name: "Discussions — questions, ideas, share what you built"
+    url: https://github.com/chaz-clark/canvas-toolbox/discussions
+    about: "For open-ended questions, design conversation, or 'I built this — what do you think' threads. Issues are for actionable bugs + scoped enhancements."
+  - name: "Security disclosures — DO NOT file as a public issue"
+    url: https://github.com/chaz-clark/canvas-toolbox/security/advisories/new
+    about: "FERPA-class issues + credential exposures + vulnerabilities go through GitHub's Private Vulnerability Reporting, not the public issue tracker."

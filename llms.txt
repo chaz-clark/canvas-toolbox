@@ -1,0 +1,94 @@
+# canvas-toolbox
+
+> FERPA-safe AI-assisted Canvas LMS toolkit. Read-only audits + safe sync paths + Course Map generation + LLM-grading pipeline. Two-zone FERPA architecture (local zone = names + keymap; AI-zone = deid'd). 60+ CLI tools under `lib/tools/`. Brain-agnostic by design.
+
+This file follows the `llms.txt` convention ([llmstxt.org](https://llmstxt.org)) — a curated index for AI agents to read instead of crawling the whole repo. Pair it with `AGENTS.md` (the deeper agent-facing project guide).
+
+## Quickstart
+
+- [README.md](README.md): What canvas-toolbox does + install + three share-back paths + tiered "Getting started" (one-liner / 3-line / agent-driven / manual).
+- [AGENTS.md](AGENTS.md): Active Context (what's where, current state, recent versions). Read this BEFORE acting on anything project-related.
+- [CONTRIBUTING.md](CONTRIBUTING.md): Three contribution shapes (bug report / share-back / PR) with pre-commit + tests requirements.
+- [CHANGELOG.md](CHANGELOG.md): Version history (hand-curated, sectioned).
+- [scripts/install.sh](scripts/install.sh): One-line curl-pipe install for macOS/Linux.
+- [scripts/install.ps1](scripts/install.ps1): One-line `irm | iex` install for Windows.
+
+## Agent specs (skill catalogue under `lib/agents/`)
+
+Each agent spec is paired `.md` + `.json`. JSON declares `cross_references.knowledge_files[]` + behavioral discipline; MD is the readable spec.
+
+- [lib/agents/canvas_course_expert.md](lib/agents/canvas_course_expert.md): The orchestrator agent — pulls structural audits + suggests fixes. Composes `course_audit.py --full`.
+- [lib/agents/canvas_grader.md](lib/agents/canvas_grader.md): FERPA-safe LLM-grading agent. Operator-facing pipeline guide (8-step flow). DEFAULT KEYLESS path documented; key-holder path is the optional accelerator.
+- [lib/agents/canvas_blueprint_sync.md](lib/agents/canvas_blueprint_sync.md): Master → Blueprint → section sync flow.
+- [lib/agents/canvas_content_sync.md](lib/agents/canvas_content_sync.md): Single-course pull/push of pages, assignments, quizzes, discussions, syllabus.
+- [lib/agents/canvas_schedule_auditor.md](lib/agents/canvas_schedule_auditor.md): Date-validation orchestrator.
+- [lib/agents/canvas_semester_setup.md](lib/agents/canvas_semester_setup.md): Multi-step new-semester rollout.
+- [lib/agents/canvas_new_course_setup.md](lib/agents/canvas_new_course_setup.md): First-time course init.
+- [lib/agents/ira_program_alignment.md](lib/agents/ira_program_alignment.md): Conversational program-alignment agent.
+- [lib/agents/AGENT_LAYERS.md](lib/agents/AGENT_LAYERS.md): How the agent files compose (interaction patterns, behavioral discipline).
+
+## Knowledge files (under `lib/agents/knowledge/`)
+
+Curated pedagogical + Canvas-API knowledge. Each `.md` is the readable spec; `.json` carries facts + provenance + cross-references.
+
+- [lib/agents/knowledge/README.md](lib/agents/knowledge/README.md): Catalog index — what each knowledge file covers + when each agent loads it.
+- [lib/agents/knowledge/canvas_api_knowledge.md](lib/agents/knowledge/canvas_api_knowledge.md): Canvas REST API surface as documented.
+- [lib/agents/knowledge/canvas_api_lessons_learned.md](lib/agents/knowledge/canvas_api_lessons_learned.md): Empirical Canvas-API lessons (the documented-vs-actual deltas).
+- [lib/agents/knowledge/rubrics_knowledge.md](lib/agents/knowledge/rubrics_knowledge.md): 4-criterion backbone meta-rubric + 4 typologies (AAC&U VALUE, Walvoord PTA, single-point, developmental).
+- [lib/agents/knowledge/grader_knowledge.md](lib/agents/knowledge/grader_knowledge.md): FERPA architecture for the grading pipeline; calibration anchors; consensus discipline.
+- [lib/agents/knowledge/learned/](lib/agents/knowledge/learned/): Dated lessons from incidents/sessions (Hermes promotion pattern — second occurrence promotes to a `learned/` entry).
+- Pedagogy frameworks: backwards_design, assessments, cognitive_load_theory, hattie_3phase, merrill_first_principles, three_domains, taxonomy_explorer, designer_thinking, course_design_language, toyota_gap_analysis, outcomes_quality, byui_course_design_standards, structured_teaching, content_representation, workload_calibration. See `knowledge/README.md` for the routing table.
+
+## Tools (under `lib/tools/`)
+
+60+ CLI tools. Common entry points:
+
+- [bin/cb-init](bin/cb-init): One-command bootstrap (8 idempotent setup steps).
+- [bin/cb-report-bug](bin/cb-report-bug): File a bug via the Cloudflare-fronted intake worker (no GitHub account needed).
+- [bin/cb-share](bin/cb-share): Share back code/patterns you built locally (same worker, different prefix).
+- [lib/tools/course_audit.py](lib/tools/course_audit.py): Read-only orchestrator — composes 11 audits into one health report.
+- [lib/tools/canvas_sync.py](lib/tools/canvas_sync.py): Pull / push Canvas course content to a local folder.
+- [lib/tools/grader_fetch.py](lib/tools/grader_fetch.py): Step 0 of the grading pipeline (FERPA-safe submissions download, keyed by user_id).
+- [lib/tools/grader_fetch_nq_responses.py](lib/tools/grader_fetch_nq_responses.py): Pull New Quiz response data via the student-analysis Reporting API.
+- [lib/tools/grader_reconcile.py](lib/tools/grader_reconcile.py): Reconcile review claims vs gradebook (FERPA-safe; supports `completion_basis` + `at_full_ratio`).
+- [lib/tools/cb_init.py](lib/tools/cb_init.py): Underlying Python tool for `bin/cb-init`.
+- [lib/tools/cb_report_bug.py](lib/tools/cb_report_bug.py): Underlying Python tool for `bin/cb-report-bug` and `bin/cb-share`.
+
+For the full tool catalog, run `ls lib/tools/` after cloning, or read the `lib/agents/canvas_*.md` agent specs (each one lists the tools it composes).
+
+## Plugin manifests + install metadata
+
+- [.claude-plugin/plugin.json](.claude-plugin/plugin.json): Claude Code plugin manifest pointing at `lib/agents/`.
+- [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json): Marketplace entry for the plugin.
+- [pyproject.toml](pyproject.toml): Python project config, deps, dev group, `[tool.ruff]`, `[tool.pytest.ini_options]`. Triple-version-synced with the Claude plugin manifests.
+- [.python-version](.python-version): Python 3.14.
+- [uv.lock](uv.lock): Locked deps.
+- [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json): GitHub Codespaces / VS Code Dev Containers config.
+
+## Working style — what makes a contribution land
+
+- **Local files are source of truth.** Canvas is the sync target.
+- **Canvas IDs are course-specific.** Match across courses by title, never by ID.
+- **Confirm scope before any write.** Master / blueprint / sections have different IDs.
+- **Run `course_quality_check.py` after every Canvas push.**
+- **Sandbox-first testing** against `CANVAS_SANDBOX_ID` before handing tools to downstream repos.
+- **`git push` after every commit** — local-only commits are a smell (rule added 2026-06-18 after biting the maintainer + an itm327 operator).
+- **Surface-before-apply.** Between "I understand the issue" and the first `Edit` / `Bash` / `gh issue close`, propose + wait for explicit go.
+- **FERPA two-zone discipline is non-negotiable.** Names live in the local zone + the keymap; the AI-readable zone is fully deid'd. Don't compress, drop, or "optimize away" the deid layer.
+
+Full project rules: see `AGENTS.md` → Working Style.
+
+## Bug + feature + share-back paths
+
+| You want to… | Command | What happens |
+|---|---|---|
+| Report a bug | `./bin/cb-report-bug` with `bug:` title prefix | Cloudflare worker files GitHub issue, tagged `agent-submitted` |
+| Request a feature | `./bin/cb-report-bug` with `enhancement:` title prefix | Same path |
+| Share something built | `./bin/cb-share` with `share:` title prefix | Same path; maintainer triages "built it" differently from "want it" |
+| Push code | Fork + branch + PR | See CONTRIBUTING.md |
+
+Zero GitHub account required for the first three.
+
+## Security disclosures
+
+DO NOT file FERPA-class issues or credential exposures as public issues. Use GitHub's Private Vulnerability Reporting: <https://github.com/chaz-clark/canvas-toolbox/security/advisories/new>. See [SECURITY.md](SECURITY.md).

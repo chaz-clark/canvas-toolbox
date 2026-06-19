@@ -246,6 +246,75 @@ private channel is for security.
 
 _Last updated: 2026-06-18_
 
+### Recent: Top-stars sweep ship-now batch — v0.57.0 (2026-06-18)
+
+**v0.57.0** — the 4 SHIP-NOW items from the top-stars-sweep research
+(handoffs/2026-06-18_top-gh-stars-research.md) + the SHIP-NOW item
+from the headroom research (handoffs/2026-06-18_headroom-research.md).
+Five OSS-readiness moves in one commit:
+
+**1. `.github/ISSUE_TEMPLATE/` — YAML form templates** (matches
+`astral-sh/uv/.github/ISSUE_TEMPLATE/` shape):
+  - `bug.yml` — toolkit deviation; structured fields for tool name +
+    version + OS + what-happened + repro; FERPA hygiene checkbox
+  - `enhancement.yml` — feature request; use case + proposed behavior;
+    explicit note: "already built? use share: instead"
+  - `share.yml` — contribution flow; what-built + link-to-code +
+    FERPA + two-zone-architecture checkboxes
+  - `config.yml` — disables blank issues; routes 3 contact links:
+    cb-report-bug (preferred), Discussions, Private Vulnerability Reporting
+
+**2. `.github/PULL_REQUEST_TEMPLATE.md`** — short Summary / Test plan
+template + pre-merge checklist (pre-commit pass / tests added /
+AGENTS.md updated / triple-version sync / FERPA preserved). Matches
+the `astral-sh/uv` + `astral-sh/ruff` PR template shape.
+
+**3. GitHub Discussions enabled** — `gh api -X PATCH repos/chaz-clark/
+canvas-toolbox -f has_discussions=true` returned `has_discussions:
+True`. Pairs with the `cb-share` flow as a place to surface "share-back"
+threads + open-ended design conversation. ISSUE_TEMPLATE's config.yml
+points there for non-bug Q&A.
+
+**4. `scripts/install.ps1` Windows installer** (~130 lines, PowerShell
+shape matching `Aider-AI/aider/aider/website/install.ps1`). One-line
+install for Windows: `irm https://raw.githubusercontent.com/chaz-clark/
+canvas-toolbox/main/scripts/install.ps1 | iex`. Mirrors install.sh
+exactly: detects OS, ensures git is on PATH, installs uv via Astral's
+PS1 installer if missing, clones into ./canvas-toolbox, runs `cb-init
+--yes`, branches on exit code for the "edit .env" vs "fully configured"
+final message. Honors `$env:CANVAS_TOOLBOX_INSTALL_DRY_RUN` for tests.
+
+**5. `/llms.txt` curated AI-agent doc index** — the `llmstxt.org`
+convention; a Markdown file at repo root that gives AI agents a focused
+index of the project's docs instead of crawling the whole tree.
+Curated entries: README, AGENTS.md, CONTRIBUTING.md, CHANGELOG.md,
+install scripts, 8 agent specs, the knowledge catalog, the tools
+catalog, plugin manifests, working-style rules, share-back paths.
+Pairs naturally with `AGENTS.md` (in-context agents working ON
+the project) — `llms.txt` is for agents working WITH the project
+(an adopter's IDE agent learning what canvas-toolbox does).
+
+**Tests:** 214 passing (was 208 — added 6 for install.ps1 coverage:
+exists, references uv installer, references cb_init, has dry-run
+branch, idempotency guard present, recovery path mentions cb_init).
+13 sprint tests still deselected. All four pre-commit hooks pass
+(ruff, actionlint, shellcheck w/ bin/ scope).
+
+**Yes-count delta:** canvas-toolbox went from 2/13 → 7/13 on the
+comparison matrix (added issue templates, PR template, Discussions,
+multi-platform installer, plus llms.txt which isn't a row but
+counts toward AI-agent discoverability).
+
+Park-pile from the same sweep (deferred):
+  - MkDocs Material docs site
+  - pluggy plugin/hook system
+  - shell completion (`cb-init --completions bash`)
+  - rooster-style sectioned CHANGELOG auto-generation
+  - `examples/` directory expansion
+  - direct `headroom` integration in grader_grade.py
+  - documenting headroom as adjacent operator tool
+Skip-pile: `.github/FUNDING.yml` (out of step with institutional footing).
+
 ### Recent: Share-back paths — bin/ wrappers + CONTRIBUTING.md + share: prefix (2026-06-18)
 
 **v0.56.0** — broadens the share-back surface from "report a bug or
