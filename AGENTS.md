@@ -246,6 +246,60 @@ private channel is for security.
 
 _Last updated: 2026-06-18_
 
+### Recent: Share-back paths — bin/ wrappers + CONTRIBUTING.md + share: prefix (2026-06-18)
+
+**v0.56.0** — broadens the share-back surface from "report a bug or
+file an enhancement" to **three discoverable paths**, all surfaced in
+the README + cb-init's step 8:
+
+**1. `share:` title prefix added to cb_report_bug.py.**
+The existing `bug:` / `enhancement:` prefixes are now joined by `share:`
+for the case where an operator BUILT something locally and wants to
+contribute it back — distinct from `enhancement:` (asked for, not yet
+built). Maintainer triages these differently. Triggered by the
+2026-06-18 observation that a beta tester's group-grading extension
+work didn't come through the bug-intake worker — likely because the
+existing "report a bug" framing didn't invite contribution.
+
+**2. `bin/` wrappers** — three short-alias passthrough scripts:
+  - `bin/cb-init` → `uv run python lib/tools/cb_init.py`
+  - `bin/cb-report-bug` → `uv run python lib/tools/cb_report_bug.py`
+  - `bin/cb-share` → same target as cb-report-bug (alias for the
+    contribution use case; semantic name maps to the `share:` prefix)
+
+  Each is a 3-line bash wrapper. shellcheck pre-commit hook scope
+  widened to include `bin/cb-*` files. Adopters can put `<repo>/bin/`
+  on PATH to invoke as `cb-init` / `cb-share` / etc. from anywhere.
+
+**3. README "How can you share back?" section.** Restructured the
+prior "Hit a bug? Hit a wish?" header into a 3-path table:
+  - bug → `cb-report-bug` with `bug:` prefix
+  - enhancement → `cb-report-bug` with `enhancement:` prefix
+  - share (built it locally) → `cb-share` with `share:` prefix
+  - PR (code push) → CONTRIBUTING.md
+  Plus an explicit "How to put `bin/` on PATH" snippet for adopters
+  who want short commands, plus three documented fallbacks (long-form,
+  gh CLI, web UI) for users without the bin/ wrappers handy.
+
+**4. NEW: CONTRIBUTING.md** (~130 lines). First-class contributor doc:
+  - All three contribution shapes (bug-report, share-back, PR)
+  - Pre-commit hook install instructions (mandatory for PRs)
+  - Tests required before PR + what the maintainer reviews
+  - Explicit "what the maintainer is NOT looking for" section
+    (style-only PRs, tool renames, FERPA-removing optimizations,
+    demographic integrations without institutional partnership)
+  - Communication norm: design discussion via `cb-share` BEFORE
+    long PRs; PRs stay focused on code, not design debate.
+
+**5. cb-init step 8 wording updated.** The "Hit a bug?" hint now reads
+as three lines — bug / enhancement / share — so adopters see the full
+share-back surface on first install, not just the bug-reporting framing.
+
+**Tests:** 208 passing (was 199 — added 9 across bin/ wrapper tests:
+exists+executable, bash -n syntax parse, correct-target-file). 13
+sprint tests still deselected. All four pre-commit hooks pass
+(ruff, actionlint, shellcheck w/ bin/ scope, ruff again).
+
 ### Recent: README polish — surface easier-startup + new capabilities (2026-06-18)
 
 **v0.55.1** — docs-only follow-up after Sprint 2B. Two changes:

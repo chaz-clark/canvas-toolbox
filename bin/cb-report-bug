@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# bin/cb-report-bug — short-alias wrapper around
+# `uv run python lib/tools/cb_report_bug.py`.
+#
+# File a bug report (or enhancement, or share-back) against
+# `chaz-clark/canvas-toolbox` without needing GitHub auth.
+# See lib/tools/cb_report_bug.py for the full docstring + flags.
+#
+# To put on PATH: see bin/cb-init.
+set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec uv run --project "$HERE/.." python "$HERE/../lib/tools/cb_report_bug.py" "$@"

@@ -31,23 +31,47 @@ Full knowledge base and agent framework references: [`lib/agents/knowledge/READM
 
 ---
 
-# Hit a bug? Hit a wish?
+# How can you share back?
 
-The toolkit ships with a **zero-friction reporting path** — one command, no GitHub account, no `gh` CLI, no browser auth required:
+Three paths — pick the one that fits what you're sharing:
+
+| You want to… | Use | What happens |
+|---|---|---|
+| **Report a bug** (toolkit deviated from documented behavior, surprising exit code, wrong output) | `cb-report-bug` with title `bug: <short description>` | Files an issue on `chaz-clark/canvas-toolbox` tagged `agent-submitted`. No GitHub account / `gh` CLI / browser auth required. ~1 second roundtrip. |
+| **Request a feature** (something the toolkit should do but doesn't) | `cb-report-bug` with title `enhancement: <short description>` | Same path; the title prefix tells the maintainer how to triage. |
+| **Share something you built** (a new tool, a config pattern, a workflow extension) | `cb-share` with title `share: <short description>` + a body that links to a gist/branch OR pastes the code/config | Same path; the `share:` prefix tells the maintainer this is contribution-shaped (already built locally) — distinct from `enhancement:` (asked for, not yet built). |
+| **Push code via a PR** (you already have a branch you want merged) | Standard GitHub PR workflow | See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the fork → branch → PR shape. The `cb-share` path is the lighter-weight alternative when a PR feels heavy. |
+
+## The zero-friction commands
+
+These three are the same tool — `bin/cb-share` is just a friendlier-named alias for the contribution use case.
 
 ```bash
-uv run python lib/tools/cb_report_bug.py
+./bin/cb-report-bug     # report a bug
+./bin/cb-report-bug     # also request an enhancement (use the `enhancement:` prefix)
+./bin/cb-share          # share something you built (use the `share:` prefix)
 ```
 
-It opens your editor for a description, scrubs PII locally (names, emails, /Users paths), bundles your toolkit version + last 150 log lines + sanitized cwd, and files an issue on `chaz-clark/canvas-toolbox` via a Cloudflare-fronted intake worker. Returns the issue URL in about 1 second.
+All three open your editor for a description, scrub PII locally (names, emails, `/Users` paths), bundle your toolkit version + last 150 log lines + sanitized cwd, and post to a Cloudflare-fronted intake worker that files the GitHub issue using the maintainer's PAT.
 
-**For toolkit bugs**, prefix the title `bug:` — e.g. `bug: grader_push 4xx on KC1 assignment 16958677`.
+**Want shorter commands?** Put `bin/` on your PATH:
 
-**For enhancement requests** (something the tool should do but doesn't), prefix `enhancement:` — e.g. `enhancement: grader_meta_summary should color-code FLAG streaks ≥ 3`.
+```bash
+echo 'export PATH="'"$(pwd)"'/bin:$PATH"' >> ~/.zshrc   # or ~/.bashrc
+source ~/.zshrc
+# now: cb-init, cb-report-bug, cb-share work from anywhere
+```
 
-The maintainer triages from the `agent-submitted` label. If you'd rather file directly on GitHub, https://github.com/chaz-clark/canvas-toolbox/issues/new always works as a fallback.
+**Fallbacks** (any of these work if the bin/ wrappers aren't on PATH):
 
-Worker design + maintainer ops: [`infra/bug-intake-worker/README.md`](infra/bug-intake-worker/README.md).
+```bash
+uv run python lib/tools/cb_report_bug.py          # long-form, equivalent
+gh issue create -R chaz-clark/canvas-toolbox      # if you have gh + a GitHub account
+```
+
+Or go directly: <https://github.com/chaz-clark/canvas-toolbox/issues/new>.
+
+The maintainer triages from the `agent-submitted` label. Worker design + maintainer ops: [`infra/bug-intake-worker/README.md`](infra/bug-intake-worker/README.md).
 
 ---
 

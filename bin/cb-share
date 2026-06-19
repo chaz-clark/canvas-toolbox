@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# bin/cb-share — alias wrapper for sharing code / patterns / configs
+# back to canvas-toolbox. Same tool as `cb-report-bug` but named for
+# the contribution use case.
+#
+# Use the `share:` title prefix to mark this as "operator BUILT this
+# locally and wants to contribute it back" — distinct from `bug:`
+# (toolkit broke) and `enhancement:` (operator wants something not yet
+# built). Maintainer triages these differently.
+#
+# Common shapes:
+#   cb-share                            # interactive (opens $EDITOR)
+#   cb-share --title "share: <X>" --body "<markdown>"
+#   cb-share --dry-run                  # show what would be sent
+#
+# To put on PATH: see bin/cb-init.
+set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec uv run --project "$HERE/.." python "$HERE/../lib/tools/cb_report_bug.py" "$@"

@@ -482,10 +482,13 @@ def step_8_surface_docs(*, mode: str) -> bool:
     print("  • Tools under lib/tools/ — try `uv run python lib/tools/course_audit.py --help`")
     print("  • For grading workflows, see grading_readme.md + lib/agents/canvas_grader.md")
     if mode == "adopter":
-        print("  • Hit a bug or want a feature? Run `uv run python lib/tools/cb_report_bug.py`")
-        print("    (zero-config; routes through the Cloudflare bug-intake worker)")
+        print("  • Share back — three zero-friction paths (no GitHub account needed):")
+        print("      ./bin/cb-report-bug    bug: <description>          # toolkit broke")
+        print("      ./bin/cb-report-bug    enhancement: <description>  # want a feature")
+        print("      ./bin/cb-share         share: <description>        # built something to contribute")
+        print("    See README → 'How can you share back?' or CONTRIBUTING.md for the full shape.")
     else:
-        print("  • [maintainer mode] cb-report-bug hint suppressed; you ARE the maintainer.")
+        print("  • [maintainer mode] share-back hints suppressed; you ARE the maintainer.")
     print()
     return True
 

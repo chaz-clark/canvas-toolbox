@@ -97,3 +97,53 @@ def test_install_sh_refuses_existing_clone_dir(tmp_path):
 
     # Pre-existing file must be untouched
     assert (existing / "marker.txt").read_text(encoding="utf-8") == "pre-existing"
+
+
+# ---------------------------------------------------------------------------
+# bin/ wrappers — short-alias passthrough scripts (v0.56.0)
+#
+# Each wrapper is a 3-line bash script that execs `uv run python
+# lib/tools/<tool>.py "$@"`. Tests assert the wrappers are present,
+# executable, and parse cleanly. End-to-end behavior is exercised
+# indirectly by the wrappers' --help passing (caught by Tier 0 CI smoke).
+# ---------------------------------------------------------------------------
+
+import pytest
+
+_BIN_DIR = _REPO_ROOT / "bin"
+
+
+@pytest.mark.parametrize("name", ["cb-init", "cb-report-bug", "cb-share"])
+def test_bin_wrapper_exists_and_is_executable(name):
+    """Every bin/ wrapper must be tracked + chmod +x."""
+    p = _BIN_DIR / name
+    assert p.is_file(), f"missing: {p}"
+    mode = p.stat().st_mode
+    assert mode & 0o100, f"not executable: {p} (mode={oct(mode)})"
+
+
+@pytest.mark.parametrize("name", ["cb-init", "cb-report-bug", "cb-share"])
+def test_bin_wrapper_passes_bash_syntax_check(name):
+    """`bash -n` validates syntax without executing — catches typos +
+    unclosed blocks in the 3-line wrappers."""
+    r = subprocess.run(
+        ["bash", "-n", str(_BIN_DIR / name)],
+        capture_output=True, text=True, timeout=5,
+    )
+    assert r.returncode == 0, (
+        f"bash -n failed for bin/{name}:\nSTDOUT:\n{r.stdout}\nSTDERR:\n{r.stderr}"
+    )
+
+
+@pytest.mark.parametrize("name,expected_target", [
+    ("cb-init", "cb_init.py"),
+    ("cb-report-bug", "cb_report_bug.py"),
+    ("cb-share", "cb_report_bug.py"),  # cb-share is an alias for cb_report_bug
+])
+def test_bin_wrapper_targets_correct_tool(name, expected_target):
+    """The wrapper must reference the right lib/tools/<tool>.py file.
+    Catches typos that would have the wrapper exec the wrong tool."""
+    content = (_BIN_DIR / name).read_text(encoding="utf-8")
+    assert expected_target in content, (
+        f"bin/{name} does not reference {expected_target}"
+    )

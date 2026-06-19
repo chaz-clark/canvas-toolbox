@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# bin/cb-init — short-alias wrapper around `uv run python lib/tools/cb_init.py`.
+#
+# Lets adopters type `cb-init` (or `./bin/cb-init`) instead of the
+# longer `uv run python lib/tools/cb_init.py`. Same tool, same flags.
+#
+# To put on PATH for all-directory invocation:
+#   echo 'export PATH="$HOME/canvas-toolbox/bin:$PATH"' >> ~/.zshrc   # or ~/.bashrc
+#   source ~/.zshrc
+#
+# Or symlink into ~/.local/bin:
+#   ln -s "$(pwd)/bin/cb-init" ~/.local/bin/cb-init
+set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec uv run --project "$HERE/.." python "$HERE/../lib/tools/cb_init.py" "$@"

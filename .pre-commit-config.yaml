@@ -39,7 +39,9 @@ repos:
     rev: v0.10.0
     hooks:
       - id: shellcheck
-        name: shellcheck (scripts/*.sh)
-        # Default scope is *.sh; keep that. The bug-intake worker's
-        # scripts and Tier 0 CI smoke wrappers aren't shell scripts, so
-        # there's nothing to scope out here.
+        name: shellcheck (scripts/ + bin/)
+        # Default scope is *.sh; extend to also catch the bin/ wrappers
+        # which intentionally have no .sh extension (they're invoked
+        # as `./bin/cb-init`, etc., so the extensionless name is the
+        # right UX).
+        files: '(\.sh$|^bin/cb-)'

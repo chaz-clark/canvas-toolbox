@@ -58,9 +58,18 @@ TITLE-PREFIX CONVENTION
                          do; or a recurring friction crossed the Hermes
                          promotion threshold (captured twice in
                          `lib/agents/knowledge/learned/`).
+  - `share: ...`       — operator BUILT something locally and wants
+                         to contribute it back. Body should describe
+                         what they built, what use case it solves, +
+                         a link to a gist/diff/branch OR a paste of
+                         the code/config. Maintainer triages these
+                         differently from `enhancement:` (asks for it)
+                         vs `share:` (already built it).
   The maintainer triages on these prefixes. The CLI doesn't require
   them, but agents calling this tool SHOULD include one. See
   `AGENTS.md → Continuous improvement` for the DO / DO-NOT calibration.
+  The `cb-share` alias in `bin/` invokes this same tool — use it when
+  the prefix is `share:` for self-documenting CLI invocations.
 
 EXIT CODES
   0  filed (or printed in --dry-run)
