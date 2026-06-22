@@ -524,6 +524,98 @@ The setup interview captures the per-cohort cost estimate (`grader_setup_knowled
 - **Auto-scoring correctness by executing notebooks** — not reproducible (needs the course's cluster/data) and wrong for no-single-answer work (§2). Never executes student code.
 - **Additive rubric scoring** — invites gaming; keep it holistic (§2).
 - **One forked grader per course** — the drift trap this whole skill exists to avoid.
+- **LLM-grades-everything** — see §16 (Deterministic-first design principle). The LLM has two superpowers; everything else is engineering.
+
+---
+
+## 16 — Deterministic-first design principle (✅ codified 2026-06-22)
+
+The grader pipeline is a **router**, not a uniform "LLM grades the whole rubric" function. Each rubric criterion gets dispatched to the strategy that fits it:
+
+- **Deterministic grading (Python)** — regex / Levenshtein / AST parse / counter+threshold / completion-basis. Free (no tokens), reproducible, auditable, FERPA-safe by default.
+- **LLM grading (the N-pass consensus from §4)** — contextual judgment where a rule can't reach (was the reflection coherent? did they engage with the prompt?) + voice-anchored student-facing comments.
+- **Manual (instructor-only)** — criteria that genuinely require an in-context human read; never auto-assigned.
+
+**This is a tuning preference, not a hard binary.** Lean Python first; reach for the LLM where contextual judgment is the better fit. The messy middle (below) is real — instructor judgment trumps the heuristic.
+
+### What the LLM is GOOD at (a preference, not an exclusivity claim)
+
+1. **Contextual judgment on prose where a rule can't reach.** "Did the student demonstrate critical thinking?" "Did the reflection engage with the prompt?" — answers depend on meaning, not surface features. The LLM has clear strength here.
+2. **Voice-anchored student-facing comments.** Writing prose that sounds like the instructor (per `student_feedback_voice_<instructor>.md`) is what the LLM is uniquely positioned to do.
+
+Many other criteria — counts, deltas, output matching, structural checks, function-signature presence, file-presence, completion-basis ratios, score-vs-points-possible thresholds — are cleanly engineered with Python. Default to Python there. **But "cleanly engineered" depends on the criterion, the rubric author's pedagogical intent, and what's actually tractable to write** — see the messy middle below.
+
+### What canvas-toolbox already follows (the good pattern)
+
+These tools are deterministic-first by design + should stay that way:
+
+| Tool | Deterministic discipline |
+|---|---|
+| `grader_signals.py` | Extracts objective signals (language detection, function presence) — pure Python, no LLM. Signals are priors (§3), not scores. |
+| `grader_reconcile.py` | Counts submissions against gradebook against rubric. `completion_basis` (submitted / nonzero / full_credit) + `at_full_ratio` are rule-based. |
+| `grader_competency_grade.py` | Tier thresholds → band assignment is `evaluate_tier_thresholds()` — pure logic. |
+| `grader_submission_health.py` | Flags broken submissions (size, content-type, empty entries) deterministically. |
+| `_quiz_kind.py` | Classifies quiz-type deterministically. |
+| `grader_consensus.py` | Majority rule + spread auto-flag is arithmetic, not LLM judgment. |
+
+These compose. The LLM (`grader_grade.py`) is invoked when contextual judgment is genuinely required — which is some of the rubric, not all of it.
+
+### The messy middle (where the principle stops being mechanical)
+
+Some criteria LOOK cleanly Python-able but resist real rule-writing. Others look LLM-only but have deterministic shadows. The rubric author / instructor — not the toolkit — picks the right strategy for THEIR rubric:
+
+| Criterion | LOOKS like | But the truth is | Reasonable strategies |
+|---|---|---|---|
+| "Code is well-organized" | Deterministic (regex on structure?) | Hard to capture in rules without crude approximations (`len(funcs) > 3 and max_func_len < 50` misses readability + naming + cohesion) | LLM with anchors; OR a deterministic prefilter (function length / count) + LLM on what passes the filter |
+| "The analysis is thorough" | LLM-only | A length floor + key-concept presence check (regex / Levenshtein) often correlates with thoroughness well enough to use as a prior | Deterministic prior (signal) + LLM judgment; OR LLM-only if the prior is too noisy |
+| "Voice is appropriate for client report" | LLM (matches voice-anchored prose) | Reading-level metrics (Flesch-Kincaid) + tone-word detection can rule out clear failures cheaply; the LLM handles the edge cases | Hybrid: deterministic prefilter (rules out obvious off-tone), LLM for borderline cases |
+| "Demonstrates critical questioning" | LLM (it's about reasoning quality) | A keyword presence check ("why", "however", "alternative") is a poor proxy; LLM is the right tool here | LLM with calibration anchors (§6). Don't bother with the deterministic shadow. |
+| "Naming conventions follow PEP 8" | Deterministic (linters exist!) | Genuinely deterministic; `pycodestyle` / `ruff` solve this for free | Deterministic via existing linter |
+| "Reflection coherence" | LLM-only | Word count + paragraph structure are too crude; coherence needs semantic understanding | LLM with anchors |
+
+**The right strategy for a messy-middle criterion depends on:**
+- **What the rubric author has time + expertise to write.** A well-tuned deterministic check is great; a brittle one that misses cases is worse than the LLM.
+- **Pedagogical intent.** "I want the LLM to surface what it sees" is a legitimate position for a reflection criterion even if a deterministic shadow exists.
+- **Available compute / cost ceiling.** High-volume courses may need to bias deterministic harder than low-volume ones.
+- **The criterion's failure mode.** If LLM-misgrading is more costly than over-redaction (FERPA-class), bias deterministic. If brittle-rule-misgrading is the worse outcome, bias LLM.
+
+**Migration is fine and expected.** A criterion may start as LLM (cheap proof-of-concept; see what the model surfaces) and harden to deterministic later when patterns emerge. Or start deterministic and escalate to LLM when the rule consistently misses real cases. Treat the criterion-type tag as a current-best-guess, not a permanent assignment.
+
+### When designing or extending a grader tool, work the question — don't just apply a filter
+
+The decision shape (NOT a mechanical if/then):
+
+1. **Is the criterion cleanly rule-able?** (Output equality / regex / count / threshold — and the rule is well-specified.) If yes → Python is the obvious choice.
+2. **Is the criterion genuinely contextual?** (Coherence / engagement / critical thinking / voice.) If yes → LLM with calibration anchors (§6) + consensus (§4).
+3. **Does it land in the messy middle?** Then the rubric author chooses based on the dimensions above (time, intent, cost, failure mode). A hybrid (deterministic prefilter + LLM-on-passes) is often the right answer; document the choice in the rubric so future maintainers know WHY.
+4. **Is the criterion poorly specified?** If you can't tell which lane it should go in, the criterion itself probably needs sharpening before grading strategy matters. Go back to the rubric author.
+
+### Why this discipline matters (the "lean Python" preference)
+
+- **Cost** — deterministic checks are free; LLM is expensive at scale. The preference matters most for high-volume / high-frequency grading.
+- **Drift** — regex either matches or doesn't; `score >= threshold` is mathematically stable. Calibration-drift concerns (§13's gold-set regression harness; the DS 250 calibrate-against-historical pattern requested 2026-06-22) ONLY apply to the LLM-eval portion. Smaller LLM surface → cheaper drift detection.
+- **Pedagogical safety** — deterministic criteria are reproducible + auditable. An instructor can re-run them and get the same result. Concentrating LLM use in the messy middle + the genuinely-contextual portion lets the operator focus review effort where it matters.
+- **FERPA** — deterministic Python touches local data only + reversibly. The data path stays in the local zone.
+
+### Why this discipline matters
+
+- **Cost** — deterministic checks are free; LLM is expensive at scale. A class of 30 × 12 weekly assignments × N-pass consensus is ~1,000+ LLM calls per term IF everything is LLM. Deterministic-first cuts the LLM portion to ~20% of criteria → 80%+ cost reduction.
+- **Drift** — regex either matches or doesn't; `score >= threshold` is mathematically stable. The calibration-drift concern (§13's gold-set regression harness; the DS 250 calibrate-against-historical pattern requested 2026-06-22) ONLY applies to the LLM-eval portion. Smaller surface → cheaper drift detection.
+- **Pedagogical safety** — deterministic criteria are reproducible + auditable. An instructor can re-run them and get the same result. The LLM-eval portion is where pedagogical risk concentrates; isolating it lets the operator focus review effort where it matters.
+- **FERPA** — deterministic Python touches local data only + reversibly. The data path stays in the local zone.
+
+### Where this principle composes with the rest of the file
+
+- **§3 (signals as priors)** is a special case of this principle: signals are deterministic extractions; they inform the LLM as context, never replace its judgment for the criteria where judgment is required.
+- **§4 (consensus)** runs ONLY on the LLM-eval criteria; deterministic criteria don't need consensus (they're already deterministic).
+- **§13 (open gaps)** — the gold-set regression harness only needs to validate the LLM-eval portion (because deterministic criteria don't drift).
+- **§14 (token reality)** — deterministic-first is the primary cost lever; per-pass token compression (e.g. headroom integration, parked in v1.x) is secondary.
+
+### Forward-looking: this principle enables the v1.2 auto-grade-on-cycle feature
+
+The parked v1.2 design (`handoffs/parkinglot.md`) for near-realtime auto-grading depends on this principle. Without deterministic-first routing, the auto-grade feature is unsafe (LLM drift on every submission + token cost at scale + pedagogical risk on prose). WITH the principle, only the LLM-eval portion needs the gold-set harness + human-in-the-loop gate; deterministic criteria can auto-push for code/math/structured-output assignments.
+
+The principle stands on its own for CURRENT grader work — don't wait for v1.2 to apply it.
 
 ---
 

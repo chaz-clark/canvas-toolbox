@@ -91,6 +91,7 @@ For the full principles and override rules, see `knowledge/behavioral_discipline
 - **Surface-before-apply (P-002) applies to every state-changing action**, not just cross-repo handoffs. **GitHub-issue triage is in scope:** between *"I understand the issue"* and the first `Edit` / `Bash` commit / `gh issue close`, propose the fix and wait for explicit go. **A one-word reply on a *summary* is ambiguous** — *"continue"* / *"yes"* / *"ok"* can mean *"continue the conversation, what's the plan?"* or *"go execute."* Clarify, don't infer. **Explicit go triggers** (honored without re-surfacing): *"go,"* *"yes apply,"* *"flow approved,"* *"fix and ship,"* *"I trust the call here."* No smallness loophole — a one-line `replace_all` and a 200-line refactor both need surfacing. (Motivating case: 2026-06-01, issue #38 fix bypassed surfacing because the agent inferred go from a *"continue"* that was meant as continue-the-conversation. See [`lib/agents/knowledge/learned/2026-06-01_surface-before-apply-on-issue-triage.md`](lib/agents/knowledge/learned/2026-06-01_surface-before-apply-on-issue-triage.md) for the failure-mode write-up.)
 - **`git push` after every commit** — in BOTH consumer repos AND canvas-toolbox itself. A commit that isn't pushed isn't a backup; it can be lost to disk failure, mistaken `reset --hard`, or just forgotten across a session boundary. **Local-only commits are a smell.** The goal is `git log --branches --not --remotes` showing zero commits at all times. Use `git add ... && git commit -m "..." && git push` as the single operation; if `git push` is omitted, the next session inherits unpushed work. **Two motivating cases**: (a) 2026-06-17, itm327-master had 23 local-only commits ahead of origin spanning ~3 weeks of canvas-toolbox-prompted work (issue #88); (b) 2026-06-18, canvas-toolbox itself had 6 local-only commits when an adopter cloned from GitHub and found `cb_init.py` missing — the v0.54.0 work was complete locally but invisible to the world. The rule applies to maintainers, not just adopters.
 - **Placeholder names in code comments, commit messages, and prose docs must be visibly fake.** In any prose context (code comments, commit messages, AGENTS.md entries, learned-lessons docs, parking-lot entries), the first appearance of a placeholder name **gets the explicit "fake" annotation** — `"Sarah" (fake name)` — and subsequent appearances in the same artifact stay in quotes: `"Sarah"`. The annotation is an **active FERPA-discipline signal** so any reader (auditor, IRB, future contributor) immediately knows the name is not real. Inside test FIXTURES (literal grading-comment strings), names stay un-quoted because the tests assert against the literal shape; instead, the test file's top docstring documents the convention. Common first names ("Sarah", "Alex", "Maria") chosen for readability remain fine — the discipline is to make their placeholder-status VISIBLE, not to invent obscure tokens. **Motivating case**: 2026-06-22 (v0.57.1 → v0.57.2), the FERPA-fix commit for #94 used "Sarah" throughout as a placeholder (the reporter had been more careful, using `<Name>`). Operator caught the inconsistency: "we shipped a FERPA fix; did we ourselves follow FERPA discipline in the artifacts?" — answer: not visibly enough. The annotation pattern was adopted to over-communicate the discipline rather than rely on context for it.
+- **Deterministic-first grader design — bias toward Python; reach for the LLM where contextual judgment or voice-anchored prose is the better fit. It's a tuning preference, not a hard rule.** Many rubric criteria (output matching, structural checks, function-signature presence, count thresholds, completion-basis ratios, file-presence) are cleanly deterministic — `regex` / `Levenshtein` / `AST parse` / a counter + a threshold. The LLM has clear strength on: contextual judgment on prose where a rule can't reach (was the reflection coherent? did they engage with the prompt?), and writing voice-anchored student-facing comments. **But there's a real messy middle** where the right call isn't obvious — "is the code well-organized?" / "did the analysis go deep enough?" / "is the voice appropriate?" — criteria that LOOK rule-friendly but resist clean regex, OR look LLM-only but have deterministic shadows (length checks, structural-flatness heuristics) that approximate the judgment cheaply. **The principle is a preference, not a mechanical filter:** prefer Python when the criterion is cleanly deterministic; prefer the LLM when contextual judgment is genuinely required; in the messy middle, **the rubric author / instructor decides** based on pedagogical intent, available time, and what fits THEIR rubric (sometimes a deterministic prefilter + LLM-on-what-passes is the right hybrid). **Migration is fine** — a criterion may start as LLM (cheap proof-of-concept) and harden to deterministic later when patterns emerge; or start deterministic and escalate to LLM when the rule misses cases. **The grader pipeline today already follows the preference for parts of the work** (`grader_signals.py` extracts signals deterministically; `grader_reconcile.py` counts via `completion_basis`; `grader_competency_grade.py` applies tier thresholds rule-based) — the discipline is to ASK the question at design time, not to assume the LLM is the default. **Why it matters**: deterministic checks are free (no token cost), reproducible, auditable, and FERPA-safe by default. The LLM's cost / drift / pedagogical-risk concentrate on the (smaller) judgment-required portion. **Motivating case**: 2026-06-22 design conversation on a potential v1.2 auto-grade-on-cycle feature — original framing assumed the LLM grades everything per submission; operator's reframe ("use deterministic where you can; LLM for context and comments") collapsed token cost + drift + safety concerns substantially, BUT the operator also flagged the messy middle so the principle is "tuned toward Python first" — not a hard binary. See `lib/agents/knowledge/grader_knowledge.md` §16 + the v1.2 parking-lot entry for the full nuance.
 
 ## Handoff document recognition
 
@@ -246,6 +247,49 @@ private channel is for security.
 ## Active Context
 
 _Last updated: 2026-06-22_
+
+### Recent: Deterministic-first grader design principle — v0.57.3 (2026-06-22)
+
+**v0.57.3** — codifies a grader-design principle that emerged from a
+"side thought" conversation about auto-grade-on-cycle: **bias toward
+Python; reach for the LLM where contextual judgment or voice-anchored
+prose is the better fit. It's a tuning preference, not a hard rule.**
+Three artifacts updated:
+
+1. **AGENTS.md → Working Style** — new project-specific rule
+   ("Deterministic-first grader design") that lays out the preference
+   + the messy-middle nuance + the migration pattern + a pointer at
+   the deeper knowledge file.
+
+2. **`lib/agents/knowledge/grader_knowledge.md`** — new §16
+   ("Deterministic-first design principle") with: what canvas-toolbox
+   already follows (the good pattern); a 6-row messy-middle examples
+   table; the criteria-author decision dimensions (time, intent, cost,
+   failure mode); the migration pattern; why the discipline matters.
+
+3. **`handoffs/parkinglot.md`** — new v1.2 entry parked: "Auto-grade
+   on cycle, deterministic-first." Captures the full design
+   conversation (event/poll trigger, three-lane exit routing, rubric
+   criterion-type schema with the new `hybrid` type, prerequisites
+   incl. the DS 250 calibrate-against-historical share-back, the
+   pedagogical-line decision shape (α auto-draft vs β auto-push).
+
+**The operator caught two calibrations in real-time during this work:**
+  - Original framing was too binary ("LLM has exactly two superpowers;
+    everything else is engineering") → softened to acknowledge the
+    messy middle.
+  - The rubric criterion-type schema gained a 4th type (`hybrid`)
+    for deterministic-prefilter + LLM-judgment-on-passes, matching
+    real rubric needs.
+
+**No code changes; no behavior changes.** Pure design-principle
+codification. The existing tools that ALREADY follow deterministic-
+first (`grader_signals`, `grader_reconcile`, `grader_competency_grade`,
+`grader_submission_health`, `_quiz_kind`, `grader_consensus`) are
+documented as the pattern to extend.
+
+**Tests: 228 passing (unchanged).** All four pre-commit hooks pass.
+Triple-version sync maintained.
 
 ### Recent: Placeholder-name discipline rule — v0.57.2 (2026-06-22)
 
