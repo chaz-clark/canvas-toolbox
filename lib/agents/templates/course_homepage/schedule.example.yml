@@ -1,0 +1,79 @@
+# course_homepage_build.py — schedule.yml example
+#
+# One file per course-section. Written once at semester start (or
+# bootstrapped from Canvas via `course_homepage_build.py --bootstrap-from-canvas`).
+# Read by `course_homepage_build.py` at render time + every regenerate.
+#
+# Modules + their date ranges live HERE in the consumer repo (versioned, plannable,
+# offline-capable). The tool reads this + today's date + renders HTML with the
+# matching week pre-expanded. Re-run weekly (or daily) to keep the page in sync.
+
+course:
+  # REQUIRED — visible header
+  name: "REL 130 — Missionary Preparation"
+  code: "REL 130"
+
+  # OPTIONAL — banner image at the top of the home page (URL must be accessible to students)
+  banner_url: "https://byui.instructure.com/courses/415138/files/163821794/download"
+
+  # REQUIRED — base URL for Canvas + the course ID (used to build module links)
+  base_url: "https://byui.instructure.com"
+  course_id: 415138
+
+# Top quick-link buttons (optional). Each renders as a tile next to the others.
+# Common pattern: Syllabus, Modules-index, an external resource, etc.
+quick_links:
+  - title: "Syllabus"
+    href: "/courses/415138/assignments/syllabus"
+    icon: "📄"          # any text/emoji; rendered inline (no FA dependency)
+  - title: "All Modules"
+    href: "/courses/415138/modules"
+    icon: "📚"
+  - title: "Resources"
+    href: "/courses/415138/modules/4592477"
+    icon: "🔖"
+
+# REQUIRED — the semester's week-by-week schedule. The week whose `start <= today <= end`
+# is auto-marked as the "current" one (its <details> opens by default; its button gets
+# the .current CSS class). Other weeks render as collapsed accordions.
+weeks:
+  - week: 1
+    module_id: 4592419
+    title: "Week 01: Come Unto Christ"
+    start: 2026-04-18
+    end: 2026-04-24
+    summary: "Introduction to the course + first principles of preparation."
+
+  - week: 2
+    module_id: 4592423
+    title: "Week 02: Hear His Voice"
+    start: 2026-04-25
+    end: 2026-05-01
+    summary: "Recognizing personal revelation."
+
+  - week: 3
+    module_id: 4592429
+    title: "Week 03: Seek and Rely on the Spirit"
+    start: 2026-05-02
+    end: 2026-05-08
+
+  - week: 4
+    module_id: 4592435
+    title: "Week 04: Seek Christlike Attributes"
+    start: 2026-05-09
+    end: 2026-05-15
+
+  - week: 5
+    module_id: 4592439
+    title: "Week 05: Fulfill My Missionary Purpose"
+    start: 2026-05-16
+    end: 2026-05-22
+
+  # ... continue through the term
+
+# Optional: styling overrides (the template ships with sensible defaults)
+style:
+  primary_color: "#800000"      # accent color (BYUI maroon by default)
+  secondary_color: "#f5f5f5"    # button hover background
+  current_color: "#FFD700"      # accent for the CURRENT week's button (defaults to a gold)
+  font_family: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"

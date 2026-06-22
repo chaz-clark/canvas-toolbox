@@ -248,6 +248,77 @@ private channel is for security.
 
 _Last updated: 2026-06-22_
 
+### Recent: `course_homepage_build.py` v0.1 — DesignPLUS-free course home page (v0.58.0, 2026-06-22)
+
+**v0.58.0** — new tool surface. Triggered by: BYUI moving off DesignPLUS for
+cost savings; operator was added to a REL 130 Missionary Prep course
+(cid=415138) with a DesignPLUS-themed home page; flagged it as worth
+absorbing into canvas-toolbox knowledge AS an HTML/CSS-native replacement.
+
+**What v0.1 ships:**
+- `lib/tools/course_homepage_build.py` (~430 lines) — reads `schedule.yml` +
+  today's date, renders a static HTML home page with the CURRENT week
+  pre-expanded as a `<details open>`, others collapsed. Three modes:
+  `--bootstrap-from-canvas` (generates a starter schedule.yml from a
+  course's modules), default render (write HTML to file), `--apply`
+  (PUT to Canvas /front_page, honors canvas_course_guard).
+- `lib/agents/templates/course_homepage/schedule.example.yml` — documented
+  schedule schema with all fields commented.
+- `lib/agents/knowledge/course_homepage_knowledge.md` (~250 lines) —
+  design rationale, when to use, accessibility notes, FERPA assessment
+  (clean by construction — modules + dates aren't student data),
+  decision tree for when NOT to use this, integration with other tools,
+  anti-patterns to refuse if instructors ask.
+- `lib/tests/test_course_homepage_build.py` — 33 pure-logic tests
+  covering date parsing, schedule validation, current-week selection,
+  module-URL building, render output shape (incl. no-JS guarantee,
+  no-external-stylesheet guarantee, current-week-marking).
+
+**The model is pure-CSS + scheduled regenerate:**
+- No JavaScript in the rendered page (Canvas-WYSIWYG-safe; no
+  DesignPLUS account-level injection required)
+- Pure-CSS techniques: anchor-jump nav links + native `<details>/<summary>`
+  accordions + `<details open>` for the current week (baked in at build
+  time based on today + schedule)
+- Regenerate cadence: manual `--apply` Monday morning, OR local cron,
+  OR GitHub Actions scheduled workflow — operator chooses; the tool
+  doesn't dictate
+- The schedule.yml lives in the consumer repo (per-course state);
+  canvas-toolbox provides the template + rendering
+
+**Live-tested READ-ONLY** against `CANVAS_SANDBOX_ID` (cid=145706):
+- Bootstrap correctly pulled 14 modules
+- Schedule validator correctly refused the `<EDIT:>` placeholder dates
+- After hand-patching dates, render with `--date 2020-10-15` correctly
+  marked Week 6 as current (`<details id="week-6" class="ct-week" open>`)
+  and added `class="current"` to the Week 6 button
+- All other weeks rendered as collapsed accordions
+
+**NOT YET tested live:** the `--apply` push to Canvas. Parked for v0.2
+along with the visual-polish work below.
+
+**Visual polish — explicit v0.2 work** (parked in `handoffs/parkinglot.md`):
+After visual review of the rendered output, operator feedback: "looks
+horrible compared to where we got the HTML from." The functional core
+works; the visual polish does not match DesignPLUS quality (no banner
+exercised in the test course, plain CSS vs. DesignPLUS's mature theme,
+emoji vs. Font Awesome icons). v0.2 will add:
+  - `style.css_override` field in schedule.yml — institutions drop in
+    their own CSS file; tool inlines it
+  - Starter CSS themes directory (`lib/agents/templates/course_homepage/themes/`):
+    BYUI-aligned + neutral + minimal
+  - Sandbox push test against a different course ID (one with a banner
+    + real modules + real dates) — operator to provide that ID tomorrow
+
+**Triple-version sync** maintained (pyproject + .claude-plugin/plugin.json
++ .claude-plugin/marketplace.json all 0.57.3 → 0.58.0). New direct
+dependency added to pyproject: `pyyaml>=6.0.3` (already a transitive
+dep; now declared).
+
+**Tests: 261 passing** (was 228 — added 33 for the new tool). 13 sprint
+tests still deselected (Canvas-API gated). All four pre-commit hooks
+pass. CI gate green.
+
 ### Recent: Deterministic-first grader design principle — v0.57.3 (2026-06-22)
 
 **v0.57.3** — codifies a grader-design principle that emerged from a
