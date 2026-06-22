@@ -6,6 +6,15 @@ net for off-roster greeting-position names).
 These tests cover the PURE-LOGIC helper `heuristic_greeting_hits()` only.
 The CLI main() loop is exercised end-to-end via the existing sprint
 tests (gated on CANVAS_SANDBOX_ID) and via manual end-to-end runs.
+
+PLACEHOLDER-NAME CONVENTION (per AGENTS.md → Working Style):
+  ALL names appearing in test fixture strings below (Sarah, Alex, Maya,
+  There, Spark, Pandas, etc.) are OBVIOUSLY-FAKE placeholders chosen
+  for readability, the way "Alice/Bob" are used in crypto examples.
+  They are NOT real students. Quotes are omitted INSIDE the test
+  strings because the tests assert against literal grading-comment
+  shapes; the convention is documented HERE so reviewers don't mistake
+  them for real names.
 """
 import sys
 from pathlib import Path

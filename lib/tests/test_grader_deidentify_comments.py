@@ -7,6 +7,15 @@ grader's view).
 scrub_comment(body, extra_names) returns (scrubbed_body, total_scrubs).
 It runs name-aware (word-bounded) substitution for roster names + emails
 + user-paths, plus secret-prefix scrubbing.
+
+PLACEHOLDER-NAME CONVENTION (per AGENTS.md → Working Style):
+  ALL names appearing in test fixture strings below (Sarah, Alex, Maya,
+  Jamie, Jordan, Pat, Riley, Lee, Casey, Morgan, Sam, Maria, There,
+  Spark, etc.) are OBVIOUSLY-FAKE placeholders chosen for readability,
+  the way "Alice/Bob" are used in crypto examples. They are NOT real
+  students. Quotes are omitted INSIDE the test strings because the
+  tests assert against literal grading-comment shapes; the convention
+  is documented HERE so reviewers don't mistake them for real names.
 """
 import sys
 from pathlib import Path

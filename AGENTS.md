@@ -90,6 +90,7 @@ For the full principles and override rules, see `knowledge/behavioral_discipline
 - **Sandbox-first testing: validate new or changed tools against a sandbox course before handing them off.** Before a new/changed tool is committed for a downstream repo or person to test (e.g., a course repo that subtree-pulls this toolkit), exercise it first against a write-safe sandbox course (`CANVAS_SANDBOX_ID` in `.env`) on the real Canvas API — not just unit tests and `--help`/argparse smoke. If the change needs specific conditions to exercise (e.g., rubrics of various shapes for the rubric audit tools), **create those scenarios in the sandbox** — it's write-safe and built for exactly this. Real-API failures should be caught in-house, not by downstream testers. (Motivating case: 2026-05-21, the rubric audit tools were handed to a downstream course repo with no live-API run here first; they hit a blocking `CANVAS_BASE_URL` scheme bug on the first invocation — a defect a 30-second sandbox run would have caught.)
 - **Surface-before-apply (P-002) applies to every state-changing action**, not just cross-repo handoffs. **GitHub-issue triage is in scope:** between *"I understand the issue"* and the first `Edit` / `Bash` commit / `gh issue close`, propose the fix and wait for explicit go. **A one-word reply on a *summary* is ambiguous** — *"continue"* / *"yes"* / *"ok"* can mean *"continue the conversation, what's the plan?"* or *"go execute."* Clarify, don't infer. **Explicit go triggers** (honored without re-surfacing): *"go,"* *"yes apply,"* *"flow approved,"* *"fix and ship,"* *"I trust the call here."* No smallness loophole — a one-line `replace_all` and a 200-line refactor both need surfacing. (Motivating case: 2026-06-01, issue #38 fix bypassed surfacing because the agent inferred go from a *"continue"* that was meant as continue-the-conversation. See [`lib/agents/knowledge/learned/2026-06-01_surface-before-apply-on-issue-triage.md`](lib/agents/knowledge/learned/2026-06-01_surface-before-apply-on-issue-triage.md) for the failure-mode write-up.)
 - **`git push` after every commit** — in BOTH consumer repos AND canvas-toolbox itself. A commit that isn't pushed isn't a backup; it can be lost to disk failure, mistaken `reset --hard`, or just forgotten across a session boundary. **Local-only commits are a smell.** The goal is `git log --branches --not --remotes` showing zero commits at all times. Use `git add ... && git commit -m "..." && git push` as the single operation; if `git push` is omitted, the next session inherits unpushed work. **Two motivating cases**: (a) 2026-06-17, itm327-master had 23 local-only commits ahead of origin spanning ~3 weeks of canvas-toolbox-prompted work (issue #88); (b) 2026-06-18, canvas-toolbox itself had 6 local-only commits when an adopter cloned from GitHub and found `cb_init.py` missing — the v0.54.0 work was complete locally but invisible to the world. The rule applies to maintainers, not just adopters.
+- **Placeholder names in code comments, commit messages, and prose docs must be visibly fake.** In any prose context (code comments, commit messages, AGENTS.md entries, learned-lessons docs, parking-lot entries), the first appearance of a placeholder name **gets the explicit "fake" annotation** — `"Sarah" (fake name)` — and subsequent appearances in the same artifact stay in quotes: `"Sarah"`. The annotation is an **active FERPA-discipline signal** so any reader (auditor, IRB, future contributor) immediately knows the name is not real. Inside test FIXTURES (literal grading-comment strings), names stay un-quoted because the tests assert against the literal shape; instead, the test file's top docstring documents the convention. Common first names ("Sarah", "Alex", "Maria") chosen for readability remain fine — the discipline is to make their placeholder-status VISIBLE, not to invent obscure tokens. **Motivating case**: 2026-06-22 (v0.57.1 → v0.57.2), the FERPA-fix commit for #94 used "Sarah" throughout as a placeholder (the reporter had been more careful, using `<Name>`). Operator caught the inconsistency: "we shipped a FERPA fix; did we ourselves follow FERPA discipline in the artifacts?" — answer: not visibly enough. The annotation pattern was adopted to over-communicate the discipline rather than rely on context for it.
 
 ## Handoff document recognition
 
@@ -246,13 +247,62 @@ private channel is for security.
 
 _Last updated: 2026-06-22_
 
+### Recent: Placeholder-name discipline rule — v0.57.2 (2026-06-22)
+
+**v0.57.2** — discipline-only follow-up immediately after the v0.57.1
+FERPA fix. Operator caught the inconsistency: "we shipped a FERPA fix
+using `'Sarah'` throughout as a placeholder, but the reporter had been
+more careful using `<Name>` — did we ourselves follow FERPA discipline
+in the artifacts?" Answer: not visibly enough.
+
+**New Working Style rule:** placeholder names in code comments, commit
+messages, and prose docs get the explicit `"Sarah" (fake name)`
+annotation on first appearance per artifact; subsequent appearances
+stay in quotes (`"Sarah"`). Test fixtures keep literal strings (the
+tests assert literal shapes), but each test file's top docstring now
+documents the convention so reviewers don't mistake the names for
+real.
+
+**Why not "scrub all common names"?** The reporter used `<Name>` — a
+disambiguating-but-unreadable placeholder. The annotation pattern
+(`"Sarah" (fake name)`) keeps the readability of "Alice/Bob"-style
+examples AND **over-communicates** the discipline. Future code
+reviewers see the discipline in the artifacts themselves rather than
+having to know about it externally.
+
+**Files updated:**
+- `lib/tools/grader_deidentify_comments.py` — code comment block
+  showing the precipitating failure case now reads
+  `'Excellent work, "Sarah" (fake name)!'` with explicit annotation
+  + a one-line lead-in pointing at Working Style.
+- `lib/tests/test_grader_deidentify_comments.py` + `lib/tests/
+  test_grader_name_leak_check.py` — top docstring documents the
+  convention; test fixture strings unchanged (the tests assert
+  against literal comment shapes).
+- `AGENTS.md` § Working Style — new bullet codifying the rule + the
+  2026-06-22 motivating case.
+
+**Tests:** 228 passing (unchanged — pure docs/comment change). All
+four pre-commit hooks pass. Triple-version-sync maintained.
+
+**Honest note on the v0.57.1 commit message** (`1920a00`, on
+`origin/main` since earlier today): it contains the older "Sarah"
+references without the annotation. That commit message lives in git
+history; rewriting it would require a force-push, which is
+destructive and the risk doesn't warrant it ("Sarah" alone without
+any linkage to a real student is not PII under FERPA — just a common
+first name in a representative example). Forward-going artifacts
+follow the new rule.
+
 ### Recent: FERPA fix — off-roster greeting names — closes #94 (2026-06-22)
 
 **v0.57.1** — three-layer fix for the FERPA leak reported in #94. A real
-incident: a TA comment "Excellent work, Sarah!" where Sarah was a dropped
-student NOT in the active roster. The de-id pipeline left "Sarah"
-intact AND the leak-check (using the same roster) reported "0 hits /
-clean" — silent FERPA leak.
+incident: a TA comment `Excellent work, "Sarah" (fake name)!` where
+"Sarah" was a dropped student NOT in the active roster. (Throughout
+this entry "Sarah" is an obviously-fake placeholder — see Working
+Style → placeholder-name discipline below.) The de-id pipeline left
+"Sarah" intact AND the leak-check (using the same roster) reported
+"0 hits / clean" — silent FERPA leak.
 
 **Three layers, each independent:**
 

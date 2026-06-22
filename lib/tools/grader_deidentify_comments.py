@@ -121,9 +121,12 @@ _TIMEOUT = 30
 # students who still have content in the gradebook (their own submissions
 # OR — especially — TA comments mentioning them by first name).
 #
-# Real failure case (the precipitating incident on #94):
-#   Comment body: "Excellent work, Sarah!"
-#   Roster:       {Alice, Bob, ...}    ← Sarah not present (she dropped)
+# Real failure case (the precipitating incident on #94). Names below are
+# OBVIOUSLY-FAKE placeholders — see AGENTS.md → Working Style on the
+# placeholder-name discipline. They are NOT real students; they're chosen
+# for readability the way crypto examples use "Alice/Bob":
+#   Comment body: 'Excellent work, "Sarah" (fake name)!'
+#   Roster:       {"Alice" (fake), "Bob" (fake), ...}    ← "Sarah" not present (she dropped)
 #   Without this regex: scrub passes through "Sarah" untouched; leak-check
 #   (which uses the SAME roster) reports "0 hits / clean" → false clean →
 #   FERPA leak.
