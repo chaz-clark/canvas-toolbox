@@ -115,6 +115,30 @@ from grader_deidentify_databricks import (  # noqa: E402
 NUM = re.compile(r"\d+")
 _TIMEOUT = 30
 
+# Issue #94 (FERPA) — greeting-position name scrub. The roster (built from
+# `.known_names.txt`) catches known names via the canonical scrub pipeline;
+# this regex is the safety net for off-roster names — typically dropped
+# students who still have content in the gradebook (their own submissions
+# OR — especially — TA comments mentioning them by first name).
+#
+# Real failure case (the precipitating incident on #94):
+#   Comment body: "Excellent work, Sarah!"
+#   Roster:       {Alice, Bob, ...}    ← Sarah not present (she dropped)
+#   Without this regex: scrub passes through "Sarah" untouched; leak-check
+#   (which uses the SAME roster) reports "0 hits / clean" → false clean →
+#   FERPA leak.
+#
+# Pattern: (case-insensitive greeting phrase)(separator)(Capitalized name).
+# The greeting is case-insensitive ("hi", "Hi"); the name MUST be capitalized
+# to avoid matching every common word. Reporter explicitly accepted the
+# trade of occasionally over-redacting a capitalized non-name word
+# ("Overall", "There") — a leaked name is the larger harm.
+_GREETING_NAME_RE = re.compile(
+    r'(?P<greeting>(?i:Hi|Hey|Hello|Dear|Nice work|Great work|Excellent work|Good work|Good job|Well done|Nicely done))'
+    r'(?P<sep>[,:!\s]+)'
+    r'(?P<name>[A-Z][a-z]+)\b'
+)
+
 
 # ---------------------------------------------------------------------------
 # Env + HTTP
@@ -208,7 +232,15 @@ def scrub_comment(body: str, extra_names: list[str]) -> tuple[str, int]:
     body, k2 = USERPATH_RE.subn("[REDACTED]", body)
     body, k3 = SECRET_PREFIX_RE.subn("[REDACTED-SECRET]", body)
     body, k4 = SECRET_ASSIGN_RE.subn(r"\1=[REDACTED-SECRET]", body)
-    return body, n + k1 + k2 + k3 + k4
+    # Issue #94 (FERPA): safety-net scrub for greeting-position names that
+    # the roster might miss (dropped students; off-roster greeters). Runs
+    # AFTER the roster pass so known names are caught with their canonical
+    # name_aware_subn (more precise) first; this is the fallback.
+    body, k5 = _GREETING_NAME_RE.subn(
+        lambda m: f"{m.group('greeting')}{m.group('sep')}[REDACTED]",
+        body,
+    )
+    return body, n + k1 + k2 + k3 + k4 + k5
 
 
 def leak_count(scrubbed: str, roster_names: list[str]) -> int:

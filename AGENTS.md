@@ -244,7 +244,72 @@ private channel is for security.
 
 ## Active Context
 
-_Last updated: 2026-06-18_
+_Last updated: 2026-06-22_
+
+### Recent: FERPA fix — off-roster greeting names — closes #94 (2026-06-22)
+
+**v0.57.1** — three-layer fix for the FERPA leak reported in #94. A real
+incident: a TA comment "Excellent work, Sarah!" where Sarah was a dropped
+student NOT in the active roster. The de-id pipeline left "Sarah"
+intact AND the leak-check (using the same roster) reported "0 hits /
+clean" — silent FERPA leak.
+
+**Three layers, each independent:**
+
+1. **Roster expansion (`grader_fetch.py:182-183`)** — enrollment_state[]
+   now includes `inactive` + `completed` in addition to `active` +
+   `invited`. Dropped students land in `.known_names.txt`; the canonical
+   roster scrub catches them. Load-bearing fix; closes the originating
+   gap.
+
+2. **Greeting-position scrub (`grader_deidentify_comments.py`)** —
+   safety net for off-roster names. New module-level
+   `_GREETING_NAME_RE` matches `(case-insensitive greeting phrase)
+   (separator)(Capitalized name)` and redacts the captured name. 11
+   greeting phrases per the reporter's recommendation: Hi / Hey /
+   Hello / Dear / Nice work / Great work / Excellent work / Good work
+   / Good job / Well done / Nicely done. Runs AFTER the roster pass
+   (roster catches known names more precisely; this is the fallback).
+   Greeting is case-insensitive; name MUST be capitalized to avoid
+   redacting every common word.
+
+3. **Heuristic leak check (`grader_name_leak_check.py`)** — new
+   `heuristic_greeting_hits()` helper + a second pass in `main()` that
+   runs independent of the roster. If a capitalized name in greeting
+   position survived ALL the scrubs, it's flagged with a distinct
+   "HEURISTIC" category (vs the "ROSTER" hits). Different remediation
+   per category: ROSTER miss → add to `.known_names.txt` + re-run
+   deidentify; HEURISTIC miss → scrubber bug OR a name pattern not yet
+   covered. Exit code 2 on either flag type (was 2 on roster only).
+
+**Deliberate non-extraction:** the greeting regex is duplicated between
+`grader_deidentify_comments.py` and `grader_name_leak_check.py`. Per
+our 2nd-consumer rule (the Hermes "extract on 2nd occurrence" pattern
+that triggered `_quiz_kind.py` in v0.52.0), we'd extract to a shared
+helper when a 3rd consumer needs the same pattern (e.g. PDF or jupyter
+scrubbers). Right now there are 2 consumers, both at the FERPA-critical
+edge — duplication is cheaper than premature abstraction. Both files
+carry sync notes.
+
+**Tests:** 228 passing (was 214 — added 14). Eight new tests in
+`test_grader_deidentify_comments.py` cover all 11 greeting phrases +
+case sensitivity + accepted over-redaction trade. New
+`test_grader_name_leak_check.py` (7 tests) covers the heuristic
+helper, the headline regression case (off-roster name caught), empty/
+None defenses, and the over-redaction trade documentation.
+
+**Accepted trade (per reporter):** occasionally over-redacts a
+capitalized non-name in greeting position ("Hi There," → "There"
+redacted). A leaked name is the larger harm. Documented in code
+comments + tests to prevent future drift.
+
+**FERPA discipline signal:** this is the kind of fix that DOES belong
+in production-grade scope, NOT minimum-scope. The proposal scope was
+calibrated DOWN from the original 3-hour "extract shared helper" plan
+to a 1-hour "ship the 3 layers directly" plan after operator pushback
+(documented in handoffs/parkinglot.md → research-filter calibration).
+The smaller fix matches the reported bug exactly; the shared helper
+gets pulled when 3rd consumer arrives.
 
 ### Recent: Top-stars sweep ship-now batch — v0.57.0 (2026-06-18)
 

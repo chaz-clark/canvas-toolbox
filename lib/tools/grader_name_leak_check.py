@@ -84,6 +84,35 @@ DEFAULT_STOP = {
     "docx", "review", "midreview", "performance",
 }
 
+# Issue #94 (FERPA) — heuristic pass for greeting-position names that aren't
+# in the roster. A leak-check that ONLY tests the same roster used to scrub
+# structurally cannot catch the roster's own omissions (dropped students,
+# off-roster greeters). This pattern is the safety net.
+#
+# Pattern duplicated from grader_deidentify_comments.py (deliberate; 2nd-
+# consumer rule says don't extract to a shared helper until a 3rd consumer
+# appears — e.g., if PDF or jupyter scrubbers ever need the same pattern).
+# Keep these two in sync if either changes; documented at the deidentify side.
+_GREETING_NAME_RE = re.compile(
+    r'(?P<greeting>(?i:Hi|Hey|Hello|Dear|Nice work|Great work|Excellent work|Good work|Good job|Well done|Nicely done))'
+    r'(?P<sep>[,:!\s]+)'
+    r'(?P<name>[A-Z][a-z]+)\b'
+)
+
+
+def heuristic_greeting_hits(text: str) -> list[str]:
+    """Return capitalized tokens that appear in greeting position. Issue #94.
+
+    Used as a roster-independent leak check: if a name survived the scrub
+    AND it's not in the roster (so the roster-based pass misses it), the
+    greeting heuristic catches it here. Returns the captured names so the
+    caller can report which specific tokens triggered the heuristic flag.
+
+    Over-flags capitalized non-name words ("There" after "Hi", "Overall"
+    after "Nice work"). That's the trade — better to flag for human review
+    than to miss a real name leak."""
+    return [m.group("name") for m in _GREETING_NAME_RE.finditer(text or "")]
+
 
 def is_grader_fetch_naming(filename: str) -> bool:
     """True iff the filename matches grader_fetch.py's `<prefix>_<userid>.<ext>`
@@ -203,7 +232,7 @@ def main() -> int:
           f"({roster_term_count} decomposed terms after first/last split) "
           f"+ filename tokens for legacy-named files.", file=sys.stderr)
 
-    clean = flagged = missing = 0
+    clean = flagged = heuristic_flagged = missing = 0
     for key, fname in sorted(keymap.items()):
         md = deid_dir / f"{key}.md"
         if not md.exists():
@@ -216,16 +245,32 @@ def main() -> int:
         # was bare substring matching and would re-introduce false positives
         # after #47 even before #49's other fixes).
         hits = sum(name_aware_count(text, t) for t in terms)
+        # Issue #94 (FERPA): heuristic safety net — flag capitalized tokens
+        # in greeting position regardless of roster membership. Reported
+        # separately so the operator can distinguish "roster miss" (add to
+        # .known_names.txt + re-run deidentify) from "heuristic miss" (likely
+        # scrubber bug OR a name pattern not yet covered).
+        heuristic = heuristic_greeting_hits(text)
         if hits:
             print(f"  {key}: {hits} possible name hit(s) — review this file locally")
             flagged += 1
+        elif heuristic:
+            # No counts of the names themselves to stdout; just the
+            # number-of-hits + a generic warning. FERPA: don't echo names.
+            print(f"  {key}: {len(heuristic)} HEURISTIC hit(s) (greeting-position "
+                  f"capitalized name) — review locally; if real name, add to "
+                  f".known_names.txt")
+            heuristic_flagged += 1
         else:
             clean += 1
 
     # Counts only — no names ever to stdout
-    print(f"\n{clean} clean, {flagged} to review, {missing} missing (of {len(keymap)} keys).")
-    # P-003 stop-on-defect: exit 2 if any flag, 1 if missing-only, 0 if clean
-    if flagged:
+    print(f"\n{clean} clean, {flagged} roster-flagged, {heuristic_flagged} "
+          f"heuristic-flagged, {missing} missing (of {len(keymap)} keys).")
+    # P-003 stop-on-defect: exit 2 if any flag (roster OR heuristic), 1 if
+    # missing-only, 0 if clean. Heuristic hits are also leaks until the
+    # operator confirms they're false positives.
+    if flagged or heuristic_flagged:
         return 2
     if missing:
         return 1

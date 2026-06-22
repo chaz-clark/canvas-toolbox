@@ -180,7 +180,12 @@ def fetch_roster(base: str, cid: str, headers: dict) -> list[dict]:
                 "per_page": 100,
                 "page": page,
                 "enrollment_type[]": "student",
-                "enrollment_state[]": ["active", "invited"],
+                # Issue #94 (FERPA): include dropped + completed students so
+                # their names land in .known_names.txt as scrub terms. A
+                # student who dropped mid-semester (state: completed/inactive)
+                # may still have submissions OR be named in a TA comment;
+                # an active-only roster leaks those names past the scrub.
+                "enrollment_state[]": ["active", "invited", "inactive", "completed"],
                 "include[]": ["enrollments"],
             },
             timeout=_TIMEOUT,
