@@ -246,7 +246,51 @@ private channel is for security.
 
 ## Active Context
 
-_Last updated: 2026-06-22_
+_Last updated: 2026-06-23_
+
+### Recent: Ollama + Continue.dev added to README Step 2 (v0.58.1, 2026-06-23)
+
+**v0.58.1** — docs-only follow-up to v0.58.0. Operator flagged that the
+README's "Pick your AI assistant" matrix only covered subscription-keyed
+options (ChatGPT, Claude, Copilot) + the Antigravity / Gemini fallback.
+Missing: local models for the FERPA-strict + cost-conscious adopter
+cohort.
+
+**Added a new row** to README Step 2 between Copilot and Antigravity:
+  - **Local models (Ollama)** → **Continue.dev** (open-source, Apache 2.0,
+    fully agentic VS Code extension)
+  - No account; configure Ollama backend in Continue's settings
+  - Links to both Continue Marketplace listing + ollama.com
+
+**Added a 🦙 caveat note** explaining honestly:
+  - What the path is (Continue.dev + Ollama, fully agentic — reads files,
+    runs commands, edits code; same workflow as cloud extensions)
+  - Why it's worth considering (local-first; nothing leaves the machine;
+    FERPA-strict-friendly; no subscription cost)
+  - The trade-off (today's local code models handle deterministic +
+    structural work well but typically need extra calibration for nuanced
+    prose grading vs Claude / GPT-4)
+  - Concrete starting-point models (qwen2.5-coder, deepseek-coder-v2,
+    codestral) without over-prescribing
+
+**Why this matters strategically:** aligns with canvas-toolbox's standing
+"brain-agnostic" philosophy + the deterministic-first grader principle
+codified in v0.57.3. Local models excel at the deterministic-first
+work (which is most of the grader pipeline) and only struggle with the
+LLM-eval portion (the messy middle from grader_knowledge.md §16).
+Adopters with FERPA constraints that prevent cloud LLM use now have
+a documented path.
+
+**No code changes; README-only patch.** All 261 tests still passing.
+Triple-version-sync maintained (pyproject + plugin + marketplace all
+0.58.0 → 0.58.1).
+
+**Deeper integration deferred to a future trigger:** the `GraderLLM`
+interface in `grader_grade.py` already abstracts the LLM provider
+(today's only impl is `AnthropicGraderLLM`). An `OllamaGraderLLM`
+subclass would plug in cleanly when an adopter actually uses the
+keyholder path with local models. Not yet built; would land as a v0.X.Y
+when an institutional signal arrives or the operator pulls it.
 
 ### Recent: `course_homepage_build.py` v0.1 — DesignPLUS-free course home page (v0.58.0, 2026-06-22)
 
