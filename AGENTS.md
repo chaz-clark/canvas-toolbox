@@ -248,6 +248,29 @@ private channel is for security.
 
 _Last updated: 2026-06-23_
 
+### Recent: Cline added as Ollama alternative; Continue.dev still preferred (v0.58.2, 2026-06-23)
+
+**v0.58.2** — small README polish following v0.58.1. Operator wants
+Cline listed alongside Continue.dev as a viable Ollama extension
+("preferred is Continue.dev"; operator will personally test both).
+
+Two README edits:
+  1. The Ollama row in Step 2's matrix now reads "Continue.dev
+     (preferred) — or Cline as an alternative." Both Marketplace
+     URLs surfaced + the Ollama link stays.
+  2. The 🦙 caveat note now covers both — Continue.dev framed as the
+     safer first pick (Apache 2.0; broader adoption; more stable
+     backend abstraction); Cline framed as newer-but-capable for the
+     same agentic workflow. Both are local-first; both are open-source.
+
+**Why both rather than just one:** the operator plans to personally
+test each before locking the long-term recommendation. Documenting
+both NOW protects future-me from re-deriving why the alternative was
+considered + lets adopters who already prefer Cline see it's a
+documented path.
+
+**No code changes.** README + AGENTS.md + version triple update only.
+
 ### Recent: Ollama + Continue.dev added to README Step 2 (v0.58.1, 2026-06-23)
 
 **v0.58.1** — docs-only follow-up to v0.58.0. Operator flagged that the
