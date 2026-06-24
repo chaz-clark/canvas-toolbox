@@ -284,6 +284,25 @@ def regression_check(existing: object, new: object) -> str:
     return "ok"
 
 
+def is_yes_refused_on_review(comment_files: list, yes_flag: bool) -> bool:
+    """Issue #97: --yes is refused on the LLM-comment review path.
+
+    The `.reviewed` marker attests that a HUMAN reviewed
+    `feedback/_all_comments.md` (+ each per-student `<KEY>.md`
+    justification). A grading agent under the keyless protocol can pass
+    `--yes` and self-attest review — that collapses the
+    human-in-the-middle gate. The fix is to refuse the combination on
+    the path where comment files exist (LLM-comment grading).
+
+    The value-only / human-graded path keeps `--yes` (the human IS the
+    grader; `--yes` there is a script convenience, not an attestation
+    bypass).
+
+    Returns True if the caller should refuse the command and exit.
+    """
+    return bool(comment_files) and bool(yes_flag)
+
+
 def consensus_gate_status(fbdir: Path) -> tuple[str, list[Path]]:
     """Issue #95: consensus-presence + freshness check.
 
@@ -715,7 +734,12 @@ def main() -> int:
                          "Default: uppercased basename of --challenge-dir.")
     ap.add_argument("--push", action="store_true",
                     help="Actually write to Canvas (default: dry-run). Refuses without --mark-reviewed.")
-    ap.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
+    ap.add_argument("--yes", action="store_true",
+                    help="Skip the confirmation prompt. NOTE: REFUSED on the "
+                         "LLM-comment --mark-reviewed path (issue #97) — a human "
+                         "must physically type 'reviewed' there to attest review "
+                         "of _all_comments.md. Works on the value-only / "
+                         "human-graded review path + on the main --push prompt.")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Bypass canvas_course_guard for enrolled-course writes (instructor's own course).")
     ap.add_argument("--test-user", type=int,
@@ -885,6 +909,25 @@ def main() -> int:
                   "a review surface.", file=sys.stderr)
             return 1
 
+        # Issue #97: refuse --yes on the LLM-comment review path. The risk:
+        # an agent grading on the keyless protocol can self-attest review by
+        # running `grader_push --mark-reviewed --yes` immediately after
+        # writing _all_comments.md, then chain into --push. That collapses
+        # "grade" and "push" — the human-in-the-middle review of
+        # _all_comments.md never happens. The value-only / human-graded
+        # path keeps the --yes shortcut (the human IS the grader; --yes is
+        # a script convenience).
+        if is_yes_refused_on_review(comment_files, args.yes):
+            print(f"\n⛔ --yes is refused on the LLM-comment review path (issue #97).",
+                  file=sys.stderr)
+            print(f"   The .reviewed marker attests human review of "
+                  f"{fbdir.relative_to(challenge)}/_all_comments.md", file=sys.stderr)
+            print(f"   + each per-student {prefix}-*.md justification. An agent can "
+                  f"pass --yes; a human must physically type 'reviewed'.",
+                  file=sys.stderr)
+            print(f"   Fix: re-run WITHOUT --yes; eyeball the comments; type "
+                  f"'reviewed' at the prompt.", file=sys.stderr)
+            return 1
         if not args.yes and input("\nType 'reviewed' to confirm: ").strip().lower() != "reviewed":
             print("Not marked.")
             return 1

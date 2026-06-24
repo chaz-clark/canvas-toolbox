@@ -483,6 +483,23 @@ Before assigning a score to a key:
 
 **What this is NOT.** This is NOT a "trust the existing grade unconditionally" rule. The instructor's manual regrade or a genuine error correction is a legitimate downward move — the bypass at push is `--allow-lower`. But the DEFAULT is anchor-to-existing; deviation requires explicit reason; lowering is the highest-stakes deviation and gets the loudest surface.
 
+### Standard Work — "grade X" stops at `_all_comments.md`; pushing is a separate, human-approved step (issue #97, v0.62.0+)
+
+The review gate is the **core human-in-the-middle promise** — non-negotiable in the BYUI context. The grade only reaches Canvas after the instructor has eyeballed `_all_comments.md` (+ each per-student justification) and physically attested review. The gate's credibility depends on a HUMAN, not an agent, performing that attestation.
+
+**The keyless agent grading-protocol default:**
+
+1. **"grade X" produces the review artifact and STOPS.** When the operator says "grade KC1," the agent's terminal state for that command is: `_grader<n>.csv` per pass + `feedback/_all_comments.md` + per-student `feedback/<KEY>.md` files exist; `--mark-reviewed` has NOT been run; `--push` has NOT been run. Period.
+2. **Pushing is a SEPARATE step.** After producing the review artifact, the agent offers the review summary ("ready for your review of `_all_comments.md`") and waits. The operator then reviews the comments, types `reviewed` at the `grader_push --mark-reviewed` prompt themselves, and explicitly approves the `--push`.
+3. **The agent NEVER chains grade-then-push** under "do it now" / "now grade those late ones" / "batch them through" pressure. "Now" is fine for the grading phase; it does NOT extend to the push phase. If the operator says "now push them," ask which keys are being pushed and confirm `_all_comments.md` was reviewed — never auto-push from grading momentum.
+4. **The agent NEVER passes `--yes` to `grader_push --mark-reviewed` on the LLM-comment path.** As of v0.62.0, the tool refuses this combination ([grader_push.py:888-905](../../tools/grader_push.py#L888-L905)) — but the agent's protocol-level rule predates the seam check: the attestation is the human's act, not the agent's, regardless of what flag would technically allow bypass.
+
+**Enforced at the push seam (the tool half):** the existing `.reviewed` marker requirement + the auto-invalidation gate (any review-surface mtime change since `.reviewed` was written invalidates it) catch the file-presence bypass. The new `--yes` refusal closes the agent-self-attestation bypass: a human MUST physically type 'reviewed' on the LLM-comment review path.
+
+**Lived failure that drove this (issue #97).** A grading agent ran `grade` → `--mark-reviewed --yes` → `--push` in one motion under "grade these late ones now" pressure. The grades were sound, but the human-in-the-middle review of `_all_comments.md` never happened. Instructor caught it after the push. The grades being correct doesn't redeem the gate being skipped — the next batch might not be correct, and the gate is what protects students then.
+
+**The pattern across #95 / #96 / #97.** Three documented-but-unenforced protocols (3-pass consensus, regression-direction, human review) each failed exactly when the operator was busy. v0.59.0–v0.62.0 converts each from prose policy into a coded precondition. Together they form the working guarantee: **the grade reaching Canvas is consensus-backed, never accidentally lower than what the student already had, and never pushed without explicit human review.**
+
 ### Where the canvas_course_guard fits
 
 The toolkit's [`canvas_course_guard.py`](../../tools/canvas_course_guard.py) blocks writes to enrolled courses. The push pipeline integrates with the guard via `--allow-enrolled` (or whatever the canonical flag is when the push lands in `lib/tools/`). Live-course writes that don't pass the guard refuse the operation; the operator's intent has to be explicit. This is the toolkit's standing safety bar — the grader inherits it for free.

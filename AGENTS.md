@@ -248,6 +248,64 @@ private channel is for security.
 
 _Last updated: 2026-06-24_
 
+### Recent: --mark-reviewed --yes refused on LLM-comment path — issue #97 (v0.62.0, 2026-06-24)
+
+**v0.62.0** — closes issue #97 ("enforce the human-in-the-middle
+review gate before push"). Lived (DS 460): a grading agent ran
+`grade` → `--mark-reviewed --yes` → `--push` in one motion under
+"grade these late ones now" pressure. The grades were sound, but
+the human-in-the-middle review of `_all_comments.md` never happened.
+Instructor caught it after the push. The grades being correct
+doesn't redeem the gate being skipped — the next batch might not be.
+
+**Investigation finding:** the `.reviewed` marker requirement was
+already in place ([grader_push.py:1192-1217](lib/tools/grader_push.py#L1192-L1217))
+— `--push` refuses without it, auto-invalidates on review-surface
+mtime changes. Fix 1 of the issue was a duplicate. The REAL gap
+was the `--yes` shortcut: an agent could pass it with
+`--mark-reviewed` to bypass the "Type 'reviewed' to confirm" prompt
+and self-attest the review. That's the hole.
+
+**The fix:**
+
+1. **New pure helper `is_yes_refused_on_review(comment_files, yes_flag)`**
+   in [grader_push.py:181-198](lib/tools/grader_push.py#L181-L198) —
+   returns True when the caller should refuse. Path-aware: refuses
+   only on the LLM-comment sub-path (where `prefix-*.md` files
+   exist); allows on the value-only / human-graded path (human IS
+   the grader; `--yes` there is a script convenience).
+2. **Refusal wired into `--mark-reviewed`** with a clear error
+   message: "An agent can pass --yes; a human must physically type
+   'reviewed' to attest review of `_all_comments.md`."
+3. **`--yes` help text updated** to mention the carve-out so
+   `--help` discovery surfaces the rule.
+4. **[grader_knowledge.md §10](lib/agents/knowledge/grader_knowledge.md)**
+   — new Standard Work subsection codifying the agent-side rule:
+   "grade X" produces the review artifact and STOPS; pushing is a
+   SEPARATE explicitly human-approved step; the agent never chains
+   grade→push under "do it now" pressure; the agent never passes
+   `--yes` to `--mark-reviewed`. The tool refusal is the safety net;
+   the agent's protocol-level rule is the first line of defense.
+5. **4 new tests** in [test_grader_push_helpers.py](lib/tests/test_grader_push_helpers.py)
+   covering the predicate (comment-files-present + --yes refused;
+   value-only + --yes allowed; no --yes always allowed; refusal
+   independent of file count).
+
+**The cross-issue pattern (#95 / #96 / #97).** Three
+documented-but-unenforced protocols each failed under operator-busy
+pressure. v0.59.0–v0.62.0 converts each from prose policy into a
+coded precondition:
+
+| Issue | Failure mode | Coded gate |
+|---|---|---|
+| #95 | Single pass ships without consensus | `_consensus.csv` presence + freshness gate at `--mark-reviewed` |
+| #96 | Re-grade silently lowers existing grade | Regression direction gate at PUT seam + upstream `_existing_grades.csv` |
+| #97 | Agent self-attests review with `--yes` | `--yes` refused on LLM-comment review path |
+
+Together the guarantee: the grade reaching Canvas is **consensus-backed,
+never accidentally lower than what the student already had, and
+never pushed without explicit human review.**
+
 ### Recent: grader_fetch surfaces existing Canvas grades for re-grade detection — issue #96 part 3 (v0.61.0, 2026-06-24)
 
 **v0.61.0** — completes the upstream half of issue #96. The

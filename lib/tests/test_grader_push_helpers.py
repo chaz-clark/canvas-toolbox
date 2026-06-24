@@ -20,6 +20,7 @@ from grader_push import (  # noqa: E402
     consensus_gate_status,
     normalize_grade,
     regression_check,
+    is_yes_refused_on_review,
 )
 
 
@@ -433,3 +434,38 @@ def test_regression_check_new_empty_is_mismatch_not_silent():
     assert regression_check("3.5", None) == "mismatch"
     assert regression_check("3.5", "") == "mismatch"
     assert regression_check("B+", None) == "mismatch"
+
+
+# ---------------------------------------------------------------------------
+# is_yes_refused_on_review — issue #97 (review-gate attestation)
+# ---------------------------------------------------------------------------
+
+def test_yes_refused_when_comment_files_exist():
+    """LLM-comment review path + --yes → refused. The agent flow that
+    motivated #97: write _all_comments.md + per-student .md files,
+    then immediately --mark-reviewed --yes to self-attest. Now blocked."""
+    fake_files = [Path("/tmp/KC1-A1B2C3.md")]
+    assert is_yes_refused_on_review(fake_files, yes_flag=True) is True
+
+
+def test_yes_allowed_when_no_comment_files():
+    """Value-only / human-graded path (no LLM comment .md files) keeps
+    --yes — the human IS the grader; --yes is a script convenience there."""
+    assert is_yes_refused_on_review([], yes_flag=True) is False
+
+
+def test_no_yes_allowed_regardless_of_path():
+    """Without --yes, the interactive 'Type reviewed' prompt runs regardless
+    of which sub-path; the helper returns False both times."""
+    assert is_yes_refused_on_review([Path("/tmp/x.md")], yes_flag=False) is False
+    assert is_yes_refused_on_review([], yes_flag=False) is False
+
+
+def test_yes_refused_does_not_depend_on_file_count():
+    """One comment file is enough to count as the LLM-comment path; the
+    refusal isn't gated by N >= some-threshold (a single missed review
+    is still a missed review)."""
+    one_file = [Path("/tmp/KC1-A1B2C3.md")]
+    assert is_yes_refused_on_review(one_file, yes_flag=True) is True
+    many_files = [Path(f"/tmp/KC1-XXX{i}.md") for i in range(10)]
+    assert is_yes_refused_on_review(many_files, yes_flag=True) is True
