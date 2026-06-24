@@ -21,6 +21,7 @@ from grader_push import (  # noqa: E402
     normalize_grade,
     regression_check,
     is_yes_refused_on_review,
+    truncate_comment_preview,
 )
 
 
@@ -469,3 +470,54 @@ def test_yes_refused_does_not_depend_on_file_count():
     assert is_yes_refused_on_review(one_file, yes_flag=True) is True
     many_files = [Path(f"/tmp/KC1-XXX{i}.md") for i in range(10)]
     assert is_yes_refused_on_review(many_files, yes_flag=True) is True
+
+
+# ---------------------------------------------------------------------------
+# truncate_comment_preview — issue #98 (inline deid'd latest comment in skip)
+# ---------------------------------------------------------------------------
+
+def test_truncate_comment_preview_short_text_unchanged():
+    """Short text below the limit passes through (whitespace-trimmed)."""
+    assert truncate_comment_preview("ok thanks") == "ok thanks"
+    assert truncate_comment_preview("  ok thanks  ") == "ok thanks"
+
+
+def test_truncate_comment_preview_collapses_newlines():
+    """Multi-line replies become single-line previews. The skip surface is
+    a one-line skim; a 5-line student reply with embedded \\n would
+    otherwise wreck the table-like print."""
+    multi = "I fixed the bug.\nUploaded the new file.\nThanks!"
+    out = truncate_comment_preview(multi)
+    assert "\n" not in out
+    assert out == "I fixed the bug. Uploaded the new file. Thanks!"
+
+
+def test_truncate_comment_preview_collapses_carriage_returns():
+    """Windows-newline replies (CRLF) get both characters normalized."""
+    win = "I fixed it\r\nThanks!"
+    out = truncate_comment_preview(win)
+    assert "\r" not in out and "\n" not in out
+
+
+def test_truncate_comment_preview_truncates_past_limit():
+    """Text past the limit is ellipsized to fit within `limit` chars total."""
+    long = "x" * 500
+    out = truncate_comment_preview(long, limit=100)
+    assert len(out) == 100
+    assert out.endswith("…")
+    assert out.startswith("x")
+
+
+def test_truncate_comment_preview_default_limit_is_240():
+    """The default limit is 240 chars (per the #98 issue acceptance)."""
+    long = "y" * 300
+    out = truncate_comment_preview(long)
+    assert len(out) == 240
+    assert out.endswith("…")
+
+
+def test_truncate_comment_preview_none_and_empty():
+    """None and empty string both return empty string, never crash."""
+    assert truncate_comment_preview(None) == ""
+    assert truncate_comment_preview("") == ""
+    assert truncate_comment_preview("   ") == ""

@@ -284,6 +284,23 @@ def regression_check(existing: object, new: object) -> str:
     return "ok"
 
 
+def truncate_comment_preview(text: str | None, limit: int = 240) -> str:
+    """Issue #98: produce a one-line truncated preview of a comment for the
+    `--skip-if-student-replied` skip-print. Newlines collapse to single
+    spaces (the goal is a one-line skim surface). Past `limit`, the tail
+    is replaced with `…` so the preview always fits within `limit` chars.
+
+    `text` is expected to be already FERPA-scrubbed (the caller pulls it
+    from the deidentify_submission_comments output — the same scrub
+    pipeline as the #62 collision guard). This helper does NOT scrub; it
+    only truncates and normalizes whitespace.
+    """
+    snippet = (text or "").replace("\n", " ").replace("\r", " ").strip()
+    if len(snippet) > limit:
+        snippet = snippet[: limit - 1] + "…"
+    return snippet
+
+
 def is_yes_refused_on_review(comment_files: list, yes_flag: bool) -> bool:
     """Issue #97: --yes is refused on the LLM-comment review path.
 
@@ -1117,7 +1134,10 @@ def main() -> int:
     # are objective + safe (per the issue: "the grade is safe; qualitative
     # comments cause harm"). --no-collision-check opts out explicitly.
     collisions: dict[str, dict] = {}
-    student_replied_keys: set[str] = set()
+    # Issue #98: stash the deid'd latest comment alongside the key so the
+    # skip-print can surface its scrubbed text inline (operator triage of
+    # benign "I resubmitted" replies vs. unanswered questions in one pass).
+    student_replied_latest: dict[str, dict] = {}
     if not args.no_collision_check and not args.grade_only and any(p[4] for p in plan):
         try:
             # Lazy import — keeps grader_push standalone if a vendoring user
@@ -1155,7 +1175,7 @@ def main() -> int:
                 if others:
                     collisions[key] = {"others": others, "latest": latest}
                 if latest is not None and latest.get("author_role") == "self":
-                    student_replied_keys.add(key)
+                    student_replied_latest[key] = latest
 
     if locked_resubmit_keys:
         print(f"\n  ⚠️  availability guard (issue #63): assignment is locked "
@@ -1185,12 +1205,20 @@ def main() -> int:
             if len(info["others"]) > 3:
                 print(f"        … +{len(info['others']) - 3} more in window")
 
-    if args.skip_if_student_replied and student_replied_keys:
-        print(f"\n  --skip-if-student-replied: dropping {len(student_replied_keys)} row(s) where "
+    if args.skip_if_student_replied and student_replied_latest:
+        print(f"\n  --skip-if-student-replied: dropping {len(student_replied_latest)} row(s) where "
               f"the latest comment is from the student:")
-        for k in sorted(student_replied_keys):
-            print(f"    [{k}] latest comment role=self → skipped")
-        plan = [(k, u, g, c, (ok and k not in student_replied_keys))
+        # Issue #98: surface the de-identified latest comment inline so the
+        # operator can triage benign "I resubmitted" replies vs. unanswered
+        # questions without a separate grader_deidentify_comments pass. The
+        # `latest` dict is already FERPA-scrubbed (it came from
+        # deidentify_submission_comments above).
+        for k in sorted(student_replied_latest):
+            latest_c = student_replied_latest[k]
+            snippet = truncate_comment_preview(latest_c.get("scrubbed_text"))
+            created = latest_c.get("created_at", "")
+            print(f"    [{k}] role=self {created}: \"{snippet}\"")
+        plan = [(k, u, g, c, (ok and k not in student_replied_latest))
                 for (k, u, g, c, ok) in plan]
     # ---- end collision guard --------------------------------------------
 

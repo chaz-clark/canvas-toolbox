@@ -2,7 +2,7 @@
   "name": "canvas-toolbox",
   "displayName": "canvas-toolbox",
   "description": "FERPA-safe AI-assisted Canvas LMS toolkit. Agent specs cover course audits (rubric coverage / quality, syllabus, CLO quality, alignment chain, accessibility, workload, grading structure / load, formative variety, learning model), Canvas sync paths (course / blueprint / Page-level orphan cleanup), and a generic LLM-grading pipeline (de-identify → consensus → reconcile → push). Knowledge files cover Canvas API + lessons learned, rubrics, assessments, backwards design, cognitive load theory, Hattie 3-phase, Merrill's First Principles, BYU-I Learning Model, BYUI Course Design Standards, and 14+ other pedagogical frameworks. Brain-agnostic by design: the LLM provider is your choice.",
-  "version": "0.62.0",
+  "version": "0.62.1",
   "author": {
     "name": "Chaz Clark",
     "url": "https://github.com/chaz-clark"

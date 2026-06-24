@@ -248,6 +248,45 @@ private channel is for security.
 
 _Last updated: 2026-06-24_
 
+### Recent: --skip-if-student-replied surfaces the de-id'd latest comment inline — issue #98 (v0.62.1, 2026-06-24)
+
+**v0.62.1** — small DS 250 quality-of-life enhancement. Closes
+issue #98. Filed from `ds250-onln-master/canvas-toolbox` (W08 Joins
+push held 6 rows; all benign "I resubmitted" replies that required
+a separate `grader_deidentify_comments.py` pass to confirm).
+
+**The gap:** the `--skip-if-student-replied` skip-print used only
+the key — operator had to run a second tool to read each held
+thread and decide whether the student's reply was benign ("I fixed
+it / re-uploaded") vs. an open question (still needs a response).
+The deid'd latest comment was already in hand from the #62
+collision-guard pipeline; the skip-print just discarded it.
+
+**The fix (display-only, no behavior change):**
+
+1. New pure helper **[`truncate_comment_preview(text, limit=240)`](lib/tools/grader_push.py)**
+   — one-line preview with newline collapse + ellipsize past `limit`.
+2. **`student_replied_keys: set` → `student_replied_latest: dict`**
+   — same gate behavior, but the dict carries the deid'd latest
+   comment alongside the key.
+3. **Skip-print updated** to surface `[KEY] role=self <created_at>:
+   "<scrubbed comment>"`. The comment text is already FERPA-scrubbed
+   (issue #65 collision-guard deid pipeline produced it).
+4. **6 new tests** in
+   [test_grader_push_helpers.py](lib/tests/test_grader_push_helpers.py)
+   — short text passthrough, newline collapse, CRLF normalization,
+   truncation past limit, default-240-char limit, None/empty
+   handling.
+
+**FERPA note:** no new surface. The same `deidentify_submission_comments`
+pipeline that produces the scrubbed text for the collision-guard
+print produces it here. This change wires the in-hand data through
+to the skip-print; it does NOT fetch or process anything new.
+
+**Operator UX:** one-pass triage of held rows. Benign resubmission
+replies vs. open questions become visible in the same output instead
+of requiring a second tool invocation per push.
+
 ### Recent: --mark-reviewed --yes refused on LLM-comment path — issue #97 (v0.62.0, 2026-06-24)
 
 **v0.62.0** — closes issue #97 ("enforce the human-in-the-middle
