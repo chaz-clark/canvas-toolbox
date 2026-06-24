@@ -248,6 +248,64 @@ private channel is for security.
 
 _Last updated: 2026-06-24_
 
+### Recent: grader_push refuses to silently LOWER an existing grade — issue #96 (v0.60.0, 2026-06-24)
+
+**v0.60.0** — closes issue #96 ("grader_push must never silently
+lower an existing grade"). Lived (DS 460): an out-of-band Slack drop
+was treated as an initial submission and graded fresh. Student was
+already graded 3.75 in an earlier run; local `submissions_raw/` was
+empty for that uid so the existing local-file re-submission check
+passed. The fresh re-grade (3.5) was about to ship — caught only
+because an ad-hoc print showed `before → after`. Silent grade
+regression is the highest-stakes failure mode in grading.
+
+**Three layers of fix in the push seam:**
+
+1. **[grader_push.py](lib/tools/grader_push.py) `normalize_grade` +
+   `regression_check`** — new pure helpers that classify a grade as
+   `numeric` / `letter` / `pass_fail` / `empty` / `unknown` and
+   direction-compare existing vs new. Letter scale is full F → A+
+   (F, D-, D, D+, C-, C, C+, B-, B, B+, A-, A, A+) with rank ordering.
+   Pass/fail is `incomplete` < `complete` (case-insensitive).
+2. **Push loop gate** — fetches each submission's current Canvas
+   grade and refuses to LOWER it without `--allow-lower`. Class
+   mismatches (numeric vs letter, etc.) and unknown grade strings
+   refuse the push and surface for manual review — a grade we can't
+   classify is a grade we can't direction-check.
+3. **Visibility by default** — every row prints `pushed KEY:
+   before → after`; every push-log line records `grade <before> →
+   <after> pushed to assignment <aid>`. The blind-write failure
+   mode is gone.
+
+**New flag `--allow-lower`** — explicit, logged opt-out (for
+legitimate cases like an academic-integrity reversal). Follows the
+existing `--allow-*` convention. The bypass is logged inline per row
+so the audit trail shows the intentional regrade.
+
+**fetch_submissions extended** — the lean default response now
+includes `grade` (display string) + `score` (numeric) per row in
+addition to `user_id` + `id`. Cost: same single API call that was
+already made; no extra round-trips.
+
+**17 new tests** in [test_grader_push_helpers.py](lib/tests/test_grader_push_helpers.py)
+— 7 for `normalize_grade` (empty / numeric / letter / case-insensitive
+/ pass-fail / unknown strings / full F→A+ ordering chain) + 10 for
+`regression_check` (first-fill / numeric lower-is-regression / raise-or-equal /
+letter regression / letter raise / pass-fail regression / pass-fail
+raise / class mismatch / unknown-class halt / new-empty mismatch).
+
+**[grader_knowledge.md §10](lib/agents/knowledge/grader_knowledge.md)** —
+new mechanism item #10 documenting the regression gate + updated
+"Out-of-band drops and re-submissions" subsection with the lived
+DS 460 failure as the motivating example.
+
+**Out of scope (filed as follow-up):** issue #96 part 3 — pre-grade
+check via `grader_fetch` surfacing "this user already has a Canvas
+grade" to the agent BEFORE grading. The push-side gate is the
+safety net that prevents the harm reaching Canvas; the pre-grade
+check is upstream preventative work. Recommend file as separate
+issue when ready.
+
 ### Recent: 3-pass consensus is now enforced at the push seam — issue #95 (v0.59.0, 2026-06-24)
 
 **v0.59.0** — closes issue #95 ("make 3-grader consensus the default

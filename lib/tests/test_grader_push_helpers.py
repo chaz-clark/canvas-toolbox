@@ -18,6 +18,8 @@ from grader_push import (  # noqa: E402
     comment_has_resubmit_language,
     collision_warnings_for_submission,
     consensus_gate_status,
+    normalize_grade,
+    regression_check,
 )
 
 
@@ -280,3 +282,154 @@ def test_consensus_gate_ok_when_consensus_present_but_no_graders(tmp_path):
     status, grader_csvs = consensus_gate_status(tmp_path)
     assert status == "ok"
     assert grader_csvs == []
+
+
+# ---------------------------------------------------------------------------
+# normalize_grade — issue #96 (grade classification for regression check)
+# ---------------------------------------------------------------------------
+
+def test_normalize_grade_empty_variants():
+    """None, empty string, '-', and 'EX' (excused) all classify as 'empty'."""
+    for val in (None, "", "-", "EX", "ex", "Ex"):
+        cls, rank = normalize_grade(val)
+        assert cls == "empty", f"expected 'empty' for {val!r}, got {cls!r}"
+        assert rank is None
+
+
+def test_normalize_grade_numeric():
+    """int, float, numeric strings, and percent strings parse as numeric."""
+    assert normalize_grade(3.5) == ("numeric", 3.5)
+    assert normalize_grade(4) == ("numeric", 4.0)
+    assert normalize_grade("3.75") == ("numeric", 3.75)
+    assert normalize_grade("  3.0  ") == ("numeric", 3.0)
+    assert normalize_grade("92%") == ("numeric", 92.0)
+    assert normalize_grade("0") == ("numeric", 0.0)
+
+
+def test_normalize_grade_letter_grades():
+    """Standard US letter scale F → A+ with full ordering."""
+    cls, rank_F = normalize_grade("F")
+    assert cls == "letter"
+    cls, rank_A = normalize_grade("A")
+    assert cls == "letter"
+    cls, rank_Aplus = normalize_grade("A+")
+    assert cls == "letter"
+    cls, rank_Dminus = normalize_grade("D-")
+    assert cls == "letter"
+    # F is lowest, A+ is highest
+    assert rank_F < rank_Dminus < rank_A < rank_Aplus
+
+
+def test_normalize_grade_letter_case_insensitive():
+    """Letter grades are uppercase-normalized at lookup."""
+    assert normalize_grade("b+") == normalize_grade("B+")
+    assert normalize_grade("c-") == normalize_grade("C-")
+    assert normalize_grade("a") == normalize_grade("A")
+
+
+def test_normalize_grade_pass_fail():
+    """'complete' / 'incomplete' classify as pass_fail; case-insensitive."""
+    assert normalize_grade("complete") == ("pass_fail", 1.0)
+    assert normalize_grade("incomplete") == ("pass_fail", 0.0)
+    assert normalize_grade("Complete") == ("pass_fail", 1.0)
+    assert normalize_grade("INCOMPLETE") == ("pass_fail", 0.0)
+
+
+def test_normalize_grade_unknown_strings_dont_silently_pass():
+    """Strings that aren't numeric / letter / pass-fail return 'unknown'.
+    Critical: a grade we can't classify is a grade we can't direction-check —
+    callers MUST halt on this rather than allow the push."""
+    for val in ("Meets", "Strong", "weird custom tag", "X", "pass", "fail"):
+        cls, rank = normalize_grade(val)
+        assert cls == "unknown", f"expected 'unknown' for {val!r}, got {cls!r}"
+        assert rank is None
+
+
+def test_normalize_grade_letter_grade_ordering_full_chain():
+    """Verify the full F → A+ ordering is monotonically increasing.
+    If a future edit accidentally reorders or drops a step, this test
+    catches it before the ordering bug reaches the regression gate."""
+    chain = ["F", "D-", "D", "D+", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+"]
+    ranks = [normalize_grade(g)[1] for g in chain]
+    assert ranks == sorted(ranks)
+    assert len(set(ranks)) == len(chain)  # no duplicates
+
+
+# ---------------------------------------------------------------------------
+# regression_check — issue #96 (existing vs new grade direction)
+# ---------------------------------------------------------------------------
+
+def test_regression_check_first_fill_when_existing_is_empty():
+    """No existing grade → push proceeds as first-fill."""
+    assert regression_check(None, "3.5") == "first_fill"
+    assert regression_check("", "3.5") == "first_fill"
+    assert regression_check("-", "B+") == "first_fill"
+    assert regression_check("EX", 3.5) == "first_fill"
+
+
+def test_regression_check_numeric_lower_is_regression():
+    """The DS 460 scenario: 3.75 → 3.5 must be flagged."""
+    assert regression_check("3.75", "3.5") == "regression"
+    assert regression_check(3.75, 3.5) == "regression"
+    assert regression_check("4.0", "0.0") == "regression"
+
+
+def test_regression_check_numeric_raise_or_equal_is_ok():
+    """Raising or matching the existing score is fine."""
+    assert regression_check("3.5", "3.75") == "ok"
+    assert regression_check("3.5", "3.5") == "ok"
+    assert regression_check(3.0, 4.0) == "ok"
+
+
+def test_regression_check_letter_grade_lower_is_regression():
+    """A → B+ is a regression; F → A is not."""
+    assert regression_check("A", "B+") == "regression"
+    assert regression_check("A-", "F") == "regression"
+    assert regression_check("B+", "B") == "regression"
+    assert regression_check("D+", "D-") == "regression"
+
+
+def test_regression_check_letter_grade_raise_is_ok():
+    """F → A, C → B+, etc."""
+    assert regression_check("F", "A") == "ok"
+    assert regression_check("C", "B+") == "ok"
+    assert regression_check("B+", "A-") == "ok"
+    assert regression_check("D-", "D") == "ok"
+
+
+def test_regression_check_pass_fail_lower_is_regression():
+    """complete → incomplete is the pass/fail regression case."""
+    assert regression_check("complete", "incomplete") == "regression"
+    assert regression_check("Complete", "Incomplete") == "regression"
+
+
+def test_regression_check_pass_fail_raise_is_ok():
+    """incomplete → complete is the intended uplift."""
+    assert regression_check("incomplete", "complete") == "ok"
+    assert regression_check("Incomplete", "Complete") == "ok"
+
+
+def test_regression_check_class_mismatch_halts():
+    """numeric vs letter, letter vs pass-fail, etc. — can't direction-check.
+    The push gate refuses these rows and asks the operator to review."""
+    assert regression_check("3.5", "B+") == "mismatch"
+    assert regression_check("B+", "3.5") == "mismatch"
+    assert regression_check("A", "complete") == "mismatch"
+    assert regression_check("complete", "92%") == "mismatch"
+
+
+def test_regression_check_unknown_class_halts():
+    """If either side is an unrecognized grade string, refuse + escalate.
+    A grade we can't classify is a grade we can't direction-check."""
+    assert regression_check("Meets", "Developing") == "unknown"
+    assert regression_check("3.5", "Strong") == "unknown"
+    assert regression_check("custom-tag", "B+") == "unknown"
+
+
+def test_regression_check_new_empty_is_mismatch_not_silent():
+    """If the new grade is empty/None, that shouldn't reach the push loop —
+    but if it does, the gate treats it as 'mismatch' so the row surfaces
+    explicitly rather than getting silently passed through."""
+    assert regression_check("3.5", None) == "mismatch"
+    assert regression_check("3.5", "") == "mismatch"
+    assert regression_check("B+", None) == "mismatch"

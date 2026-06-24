@@ -178,6 +178,112 @@ def extract_hold_token(feedback_file: str) -> str | None:
     return m.group(1) if m else None
 
 
+# Issue #96: letter-grade ranking for the regression check. Standard US scale
+# F → A+, no F+/F-/D+? edge cases. Most schools (and Canvas's letter_grade
+# grading_type) use these 13 distinct strings; pull-back order is enforced via
+# the integer rank. Two-character strings ("A-", "B+") are checked BEFORE
+# single-character strings so "A-" doesn't get split as "A" + extra. The map
+# is case-insensitive at lookup time.
+_LETTER_GRADE_RANK: dict[str, int] = {
+    "F":  0,
+    "D-": 1, "D": 2, "D+": 3,
+    "C-": 4, "C": 5, "C+": 6,
+    "B-": 7, "B": 8, "B+": 9,
+    "A-": 10, "A": 11, "A+": 12,
+}
+
+# Pass/fail strings Canvas returns for the `pass_fail` grading_type. "C" /
+# "I" / "P" / "F" single-char aliases are NOT included here — those collide
+# with letter grades. Canvas's actual API returns the spelled-out forms.
+_PASS_FAIL_RANK: dict[str, int] = {
+    "incomplete": 0,
+    "complete":   1,
+}
+
+
+def normalize_grade(value: object) -> tuple[str, float | None]:
+    """Issue #96: classify a grade value for regression comparison.
+
+    Returns one of:
+      ('empty',   None)  — None, "", "-", "EX" (excused; treated as empty for
+                            comparison so a first grade isn't blocked, but
+                            callers should still surface excused → graded
+                            transitions explicitly).
+      ('numeric', float) — int, float, or numeric string (incl. "92%" / "3.5").
+      ('letter',  int)   — recognized letter grade (case-insensitive); rank is
+                            integer 0–12 per _LETTER_GRADE_RANK.
+      ('pass_fail', int) — "complete" / "incomplete" (case-insensitive); rank
+                            0 or 1.
+      ('unknown', None)  — anything else (e.g. a custom rubric tag, a partial
+                            string). Callers MUST halt on this rather than
+                            silently allow — a grade we can't classify is a
+                            grade we can't direction-check.
+
+    The rank is the second tuple element for the three orderable classes;
+    higher rank = better grade. For mixed-class comparison (e.g. existing is
+    letter, new is numeric) the caller should treat the comparison as
+    'mismatch' and halt regardless of rank.
+    """
+    if value is None:
+        return "empty", None
+    s = str(value).strip()
+    if s == "" or s == "-" or s.upper() == "EX":
+        return "empty", None
+    # Numeric (incl. "92%" with trailing percent)
+    try:
+        cleaned = s.rstrip("%").strip()
+        n = float(cleaned)
+        return "numeric", n
+    except (TypeError, ValueError):
+        pass
+    # Letter grade — uppercase normalization
+    upper = s.upper()
+    if upper in _LETTER_GRADE_RANK:
+        return "letter", float(_LETTER_GRADE_RANK[upper])
+    # Pass/fail — lowercase normalization
+    lower = s.lower()
+    if lower in _PASS_FAIL_RANK:
+        return "pass_fail", float(_PASS_FAIL_RANK[lower])
+    return "unknown", None
+
+
+def regression_check(existing: object, new: object) -> str:
+    """Issue #96: compare a new grade against the student's current Canvas
+    grade. Returns one of:
+
+      'first_fill' — existing is empty (None / "" / "-" / "EX"); pushing a
+                     new grade is fine.
+      'ok'         — same class; new rank >= existing rank (raise or hold).
+      'regression' — same class; new rank <  existing rank (LOWERING).
+                     The caller refuses unless --allow-lower was passed.
+      'mismatch'   — different classes (letter vs numeric, etc.) — can't
+                     direction-check safely; refuse + ask operator.
+      'unknown'    — at least one of existing/new is 'unknown' class; refuse
+                     + ask operator (a grade we can't classify is a grade we
+                     can't direction-check).
+
+    Note: 'first_fill' includes the EX → graded transition. That's
+    arguably worth surfacing distinctly later, but for v1 it's not a
+    regression (no earned grade is being lowered)."""
+    ec, er = normalize_grade(existing)
+    nc, nr = normalize_grade(new)
+    if nc == "unknown" or ec == "unknown":
+        return "unknown"
+    if ec == "empty":
+        return "first_fill"
+    # By this point existing has a known orderable class and rank. If new is
+    # empty/None we treat it as a non-push (the push loop will skip rows with
+    # no grade anyway) — mark as 'mismatch' to surface rather than allow.
+    if nc == "empty":
+        return "mismatch"
+    if ec != nc:
+        return "mismatch"
+    assert er is not None and nr is not None  # guaranteed by class != 'empty'/'unknown'
+    if nr < er:
+        return "regression"
+    return "ok"
+
+
 def consensus_gate_status(fbdir: Path) -> tuple[str, list[Path]]:
     """Issue #95: consensus-presence + freshness check.
 
@@ -207,8 +313,12 @@ def fetch_submissions(base: str, cid: str, headers: dict, aid: str,
                       include_comments: bool = False) -> list[dict]:
     """All submissions for the assignment.
 
-    Default: returns lean {user_id, id} per submission (the existing
-    behavior).
+    Default: returns lean {user_id, id, grade, score} per submission.
+    `grade` is the displayed string ("3.5" / "B+" / "complete" / None);
+    `score` is the numeric value (float or None). Both are needed for
+    the issue #96 regression check (numeric vs letter vs pass/fail
+    direction comparison).
+
     If `include_comments`, paginates with include[]=submission_comments
     and returns the full Canvas submission payloads (each dict has a
     `submission_comments` list of raw comments — caller MUST pass that
@@ -231,7 +341,15 @@ def fetch_submissions(base: str, cid: str, headers: dict, aid: str,
         if include_comments:
             subs += batch
         else:
-            subs += [{"user_id": s["user_id"], "id": s["id"]} for s in batch]
+            subs += [
+                {
+                    "user_id": s["user_id"],
+                    "id": s["id"],
+                    "grade": s.get("grade"),
+                    "score": s.get("score"),
+                }
+                for s in batch
+            ]
         page += 1
     return subs
 
@@ -668,6 +786,14 @@ def main() -> int:
                          "passes, not a stale prior run). Pass this flag for the rare intentional "
                          "case (e.g. a calibration cohort already gated by --mark-calibrated, or "
                          "a one-off where the operator has explicitly accepted single-pass risk).")
+    ap.add_argument("--allow-lower", action="store_true",
+                    help="Issue #96: explicit opt-out from the regression-direction gate. By "
+                         "default, grader_push refuses to LOWER an existing non-empty Canvas grade "
+                         "(numeric / letter / pass-fail aware). A regression skips the row and "
+                         "logs '[REGRESSION] uid X: existing → new'. Raising a grade or filling "
+                         "an empty grade is unaffected. Pass this flag when a re-grade legitimately "
+                         "needs to lower (e.g. an academic-integrity reversal). The bypass is "
+                         "logged per row so the audit trail shows the intentional regrade.")
     args = ap.parse_args()
 
     challenge = resolve_challenge_dir(args.challenge_dir, verb="pushing from")
@@ -859,6 +985,15 @@ def main() -> int:
              if pushed_keys and not args.force else "")
     print(f"Assignment {args.assignment_id}: {len(subs)} Canvas submissions, "
           f"{len(rows)} review rows{extra}\n")
+
+    # Issue #96: index existing Canvas grades by uid for the regression gate.
+    # fetch_submissions now includes `grade` (display string) + `score` (numeric)
+    # per row. The push loop looks up by uid to print before → after and refuse
+    # silent regressions (lower-direction grade writes).
+    existing_by_uid: dict[int, dict] = {
+        int(s["user_id"]): {"grade": s.get("grade"), "score": s.get("score")}
+        for s in subs if s.get("user_id") is not None
+    }
 
     # Surface what was filtered so the operator sees it BEFORE the plan.
     if excluded_test or excluded_inactive:
@@ -1100,12 +1235,49 @@ def main() -> int:
 
     pushed = 0
     held = 0
+    regressions_skipped = 0
     failed: list[str] = []
     with log.open("a", encoding="utf-8") as lg:
         for key, uid, grade, comment, _ in pushable:
             # Issue #72: held rows post the qualitative comment but
             # WITHHOLD the grade write.
             hold_token = hold_by_key.get(key)
+
+            # Issue #96: regression gate (numeric / letter / pass-fail). Skip
+            # for HELD rows (those don't write the grade). Skip when --allow-lower
+            # is set (logged inline so the bypass is auditable).
+            existing = existing_by_uid.get(uid, {}) if uid is not None else {}
+            existing_grade = existing.get("grade")
+            before_repr = (str(existing_grade)
+                           if existing_grade is not None and str(existing_grade) != ""
+                           else "—")
+            if not hold_token:
+                rc = regression_check(existing_grade, grade)
+                if rc == "regression" and not args.allow_lower:
+                    print(f"  ⛔ [REGRESSION] {key}: uid={uid}: {before_repr} → {grade}  "
+                          f"— refusing to LOWER (pass --allow-lower to permit)")
+                    lg.write(f"- {key}: regression-blocked uid={uid} grade {before_repr} → {grade} "
+                             f"on assignment {args.assignment_id} (--allow-lower not set)\n")
+                    regressions_skipped += 1
+                    continue
+                if rc == "mismatch":
+                    print(f"  ⛔ [MISMATCH] {key}: uid={uid}: existing={before_repr} new={grade} "
+                          f"— grade types differ; cannot direction-check. Skipped (review manually).")
+                    lg.write(f"- {key}: regression-mismatch uid={uid} existing={before_repr} "
+                             f"new={grade} on assignment {args.assignment_id} (manual review required)\n")
+                    regressions_skipped += 1
+                    continue
+                if rc == "unknown":
+                    print(f"  ⛔ [UNKNOWN-CLASS] {key}: uid={uid}: existing={before_repr} new={grade} "
+                          f"— can't classify grade. Skipped (review manually).")
+                    lg.write(f"- {key}: regression-unknown uid={uid} existing={before_repr} "
+                             f"new={grade} on assignment {args.assignment_id} (manual review required)\n")
+                    regressions_skipped += 1
+                    continue
+                if rc == "regression" and args.allow_lower:
+                    print(f"  ⚠️  --allow-lower: {key}: uid={uid}: {before_repr} → {grade}  "
+                          f"(intentional regression)")
+
             data: dict[str, object] = {}
             if hold_token:
                 if not comment:
@@ -1129,8 +1301,9 @@ def main() -> int:
                              f"{args.assignment_id} (grade {grade} withheld)\n")
                     held += 1
                 else:
-                    print(f"  pushed {key}: {grade}")
-                    lg.write(f"- {key}: grade {grade} pushed to assignment {args.assignment_id}\n")
+                    print(f"  pushed {key}: {before_repr} → {grade}")
+                    lg.write(f"- {key}: grade {before_repr} → {grade} pushed to assignment "
+                             f"{args.assignment_id}\n")
                     pushed += 1
                 # Issue #63: capture the new comment_id (if any) so --retract
                 # can DELETE it later. Canvas's PUT response includes
@@ -1157,6 +1330,10 @@ def main() -> int:
     summary_line = f"Pushed {pushed}/{len(pushable)}"
     if held:
         summary_line += f"; held {held} (comment posted; grade withheld — clear the HOLD_<DIM> token + re-push)"
+    if regressions_skipped:
+        summary_line += (f"; {regressions_skipped} regression/mismatch row(s) skipped "
+                         f"(see [REGRESSION] / [MISMATCH] / [UNKNOWN-CLASS] above; "
+                         f"--allow-lower forces a regression through, manual review needed for the others)")
     print(f"\n{summary_line}. Logged to {log} (keyed, gitignored).")
     if failed:
         print(f"Failed: {failed}")
