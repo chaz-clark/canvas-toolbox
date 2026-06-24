@@ -85,6 +85,7 @@ handoffs/
 **/.keymap.json
 **/.known_names.txt
 **/.fetch_log.json
+**/_existing_grades.csv
 **/feedback/
 **/.review.csv
 **/.review*.csv

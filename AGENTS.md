@@ -248,6 +248,78 @@ private channel is for security.
 
 _Last updated: 2026-06-24_
 
+### Recent: grader_fetch surfaces existing Canvas grades for re-grade detection — issue #96 part 3 (v0.61.0, 2026-06-24)
+
+**v0.61.0** — completes the upstream half of issue #96. The
+downstream push-side regression gate (v0.60.0) is the SAFETY NET; this
+release adds the UPSTREAM PREVENTATIVE so the agent recognizes a
+re-grade BEFORE doing the work of grading cold.
+
+**The artifact:** `<challenge-dir>/_existing_grades.csv` (gitignored,
+FERPA-safe — opaque key only, no PII):
+
+```csv
+key,existing_grade,existing_score,workflow_state
+KC1-A1B2C3,3.75,3.75,graded
+KC1-D4E5F6,B+,87.0,graded
+KC1-G7H8I9,complete,100.0,graded
+```
+
+- **Keyed by the same opaque SHA-256 key** the agent sees later via
+  `key_for(filename, prefix)`. Imported from
+  `grader_deidentify_databricks` to guarantee derivation parity.
+- **Filtered to `workflow_state == "graded"`** — only existing prior
+  grades surface (per operator preference; non-graded states absent
+  until a use case demands otherwise).
+- **Always written** — header-only file = fresh cohort with no prior
+  grades. Presence of file = fetch completed.
+
+**Two pure helpers** in [grader_fetch.py](lib/tools/grader_fetch.py):
+
+- `existing_grades_rows(raw_dir, subs, prefix)` — walks raw_dir,
+  joins each `<prefix>_<uid>.<ext>` filename to the matching
+  submission by uid, filters to graded, derives keys via `key_for`.
+- `write_existing_grades_csv(challenge_dir, rows)` — header-stable
+  emit; overwrites on re-run so stale data can't mislead the agent.
+
+**Wired into all three fetch paths** (discussion / quiz / default
+attachment). The discussion path didn't previously call
+`fetch_submissions`; one extra API call surfaces the grade + score +
+state. Quiz + default paths reuse the `subs` already in scope.
+
+**[grader_knowledge.md §10](lib/agents/knowledge/grader_knowledge.md)**
+— new "Re-grade detection — consult `_existing_grades.csv` before
+assigning a score" subsection. Codifies the Standard Work:
+
+1. Look up the key in `_existing_grades.csv` before scoring.
+2. If `existing_grade` non-empty → RE-GRADE. Apply re-grade rules:
+   anchor to existing, surface explicitly in reason column, NEVER
+   silently lower.
+3. Consensus still runs; high spread on a re-grade lands in
+   NEEDS-REVIEW.
+
+The push-side regression gate from v0.60.0 remains the final safety
+net (refuses to LOWER without `--allow-lower`), but the upstream
+surface means the conflict, when it exists, is visible from the
+first pass rather than emerging at push time.
+
+**12 new tests** in [test_grader_fetch_helpers.py](lib/tests/test_grader_fetch_helpers.py)
+covering filter-to-graded, key-derivation parity with `key_for`,
+None handling, stale-prefix skipping, missing-submission skipping,
+empty-dir behavior, multi-attachment suffix support, letter-grade +
+pass-fail value preservation, header-only emit, full row emit,
+overwrite semantics.
+
+**Open next:** issue #97 (review-gate enforcement). Investigation
+confirmed fix 1 of the issue is already in place
+([grader_push.py:1171-1204](lib/tools/grader_push.py#L1171-L1204) —
+the `.reviewed` marker is required for `--push` and auto-invalidates
+on review-surface changes). The real gap is: `--mark-reviewed --yes`
+on the LLM-comment sub-path bypasses the interactive "Type
+'reviewed' to confirm" prompt. The fix is one conditional refusing
+`--yes` on that sub-path + an agent-knowledge update saying "grade X"
+stops at `_all_comments.md` and never auto-pushes. Scoped as v0.62.0.
+
 ### Recent: grader_push refuses to silently LOWER an existing grade — issue #96 (v0.60.0, 2026-06-24)
 
 **v0.60.0** — closes issue #96 ("grader_push must never silently

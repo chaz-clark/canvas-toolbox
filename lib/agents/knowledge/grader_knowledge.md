@@ -451,6 +451,38 @@ Files arrive outside Canvas (Slack/email) without a Canvas filename, or as a **r
 - Every row prints `pushed KEY: before → after` so the operator sees the diff.
 - The local-files-only re-submission check stays — the push-side gate is the safety net that catches the Slack-drop-style holes it doesn't.
 
+### Re-grade detection — consult `_existing_grades.csv` before assigning a score (issue #96 part 3, v0.61.0+)
+
+The push-side regression gate (above) is the SAFETY NET — it catches a silent lower at the seam. The **upstream preventative** layer surfaces existing Canvas grades to the agent BEFORE grading starts, so the agent can recognize a re-grade and apply re-grade rules rather than treating every submission as a fresh evaluation.
+
+**The file.** `grader_fetch.py` now writes `<challenge-dir>/_existing_grades.csv` (gitignored, FERPA-safe — opaque key only, no PII):
+
+```csv
+key,existing_grade,existing_score,workflow_state
+KC1-A1B2C3,3.75,3.75,graded
+KC1-D4E5F6,B+,87.0,graded
+KC1-G7H8I9,complete,100.0,graded
+```
+
+- **Keyed by the same opaque key** the agent sees in `_grader<n>.csv` — derived via the deterministic SHA-256 `key_for(filename, prefix)` used by every de-id adapter, so the keys line up at lookup time.
+- **Filtered to `workflow_state == "graded"`** — only existing prior grades surface. Absent key = no prior grade for that student (clean cohort path).
+- **Empty file** (header-only) = fetch ran but nothing to re-grade against (fresh assignment, first-ever pass).
+
+**The Standard Work — agent grading protocol.**
+
+Before assigning a score to a key:
+
+1. **Look up the key in `_existing_grades.csv`.** If absent → first-time grade; proceed normally.
+2. **If `existing_grade` is non-empty → this is a RE-GRADE.** Apply re-grade rules:
+   - **Anchor to the existing grade.** The default is to confirm or RAISE; deviation downward requires evidence stronger than a fresh-cohort judgment would warrant.
+   - **Surface explicitly in your `reason` column.** Write `re-grade: existing 3.75; new 3.75 (confirmed)` or `re-grade: existing 3.75; new 4.0 because <evidence>`. The reason is what the consensus + operator review will read; the explicit `re-grade:` prefix signals the case clearly.
+   - **NEVER silently lower.** If the evidence supports lowering, surface it loudly: `re-grade: existing 3.75; new 3.5 because <evidence> — operator should review`. The push-side regression gate will refuse it without `--allow-lower` anyway, but the agent's reason column is where the operator FIRST sees the proposed deviation.
+3. **Consensus still runs.** The 3-pass + spread check from §4 still applies. A re-grade with high spread between passes (especially if any pass would lower) MUST land in NEEDS-REVIEW.
+
+**Why this exists.** Without the upstream surface, the agent grades each submission cold, with no awareness that the student already has a Canvas grade. The push gate then catches the regression at the seam — but the agent has already done the work of producing a lower score that conflicts with the existing one, and the operator is now in a position of having to decide between two judgments. With the upstream surface, the agent's first pass starts from the right prior, and the conflict (if any) is surfaced cleanly: "I'm proposing to deviate from the existing because X."
+
+**What this is NOT.** This is NOT a "trust the existing grade unconditionally" rule. The instructor's manual regrade or a genuine error correction is a legitimate downward move — the bypass at push is `--allow-lower`. But the DEFAULT is anchor-to-existing; deviation requires explicit reason; lowering is the highest-stakes deviation and gets the loudest surface.
+
 ### Where the canvas_course_guard fits
 
 The toolkit's [`canvas_course_guard.py`](../../tools/canvas_course_guard.py) blocks writes to enrolled courses. The push pipeline integrates with the guard via `--allow-enrolled` (or whatever the canonical flag is when the push lands in `lib/tools/`). Live-course writes that don't pass the guard refuse the operation; the operator's intent has to be explicit. This is the toolkit's standing safety bar — the grader inherits it for free.

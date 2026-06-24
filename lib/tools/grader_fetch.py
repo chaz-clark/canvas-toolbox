@@ -103,6 +103,7 @@ REQUIRES in .env: CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import re
@@ -126,6 +127,16 @@ try:
     load_env()
 except ImportError:
     pass
+
+# Reuse the deterministic SHA-256 key derivation used by every de-id adapter.
+# That guarantees the key written to _existing_grades.csv at fetch time
+# matches the key the agent sees in _grader<n>.csv / consensus output later.
+# Lazy import: grader_fetch is callable for --help / --version without the
+# adapter present.
+try:
+    from grader_deidentify_databricks import key_for as _key_for
+except ImportError:  # pragma: no cover — adapter missing is a packaging failure
+    _key_for = None  # type: ignore[assignment]
 
 _TIMEOUT = 30
 _TEST_STUDENT_NAME = "Test Student"  # Canvas's standard test-user display name
@@ -311,6 +322,93 @@ def write_body_file(body: str, out_path: Path) -> int:
     data = (body or "").encode("utf-8")
     out_path.write_bytes(data)
     return len(data)
+
+
+# Issue #96 part 3: re-grade detection surface. After the fetch + download
+# loop completes, walk submissions_raw/ and emit _existing_grades.csv —
+# keyed by the same opaque key the de-id adapters will derive from the same
+# filename. The agent reads this BEFORE grading; if a student already has a
+# Canvas grade, this is a RE-GRADE (see grader_knowledge.md §10).
+#
+# FERPA: keys are opaque, grades are objective pedagogical data, no PII.
+# The file is gitignored per the established challenge-dir convention.
+
+_RAW_FILENAME_RE = re.compile(r"^(?P<prefix>[A-Za-z0-9-]+)_(?P<uid>\d+)(?:_[A-Za-z0-9]+)?\.[A-Za-z0-9.]+$")
+
+
+def existing_grades_rows(raw_dir: Path, subs: list[dict], prefix: str) -> list[dict]:
+    """Issue #96 part 3: build _existing_grades.csv rows by joining the
+    files actually written to raw_dir/ to the Canvas submissions list.
+
+    For each `<prefix>_<uid>.<ext>` file in raw_dir/:
+      1. Extract the uid from the filename
+      2. Look up the matching submission in `subs` by user_id
+      3. Skip if workflow_state != 'graded' (only existing GRADES surface
+         here — non-graded / pending_review / unsubmitted rows are absent)
+      4. Compute the key via key_for(filename, prefix) — same derivation
+         the de-id adapter will use when it processes the file later, so
+         the keys line up
+
+    Returns rows of dicts ready for csv.DictWriter. Empty list = clean
+    cohort with no prior grades (a fresh cohort run).
+    """
+    if _key_for is None:
+        # Defensive: if the key_for import failed at module load, we can't
+        # produce keyed output. Return empty rows so the caller writes a
+        # header-only file rather than crashing the fetch.
+        return []
+    subs_by_uid: dict[int, dict] = {}
+    for s in subs:
+        uid = s.get("user_id")
+        if uid is None:
+            continue
+        try:
+            subs_by_uid[int(uid)] = s
+        except (TypeError, ValueError):
+            continue
+    rows: list[dict] = []
+    for f in sorted(raw_dir.iterdir()):
+        if not f.is_file():
+            continue
+        m = _RAW_FILENAME_RE.match(f.name)
+        if not m:
+            continue
+        # Filename prefix must match the canonical prefix we're writing. A
+        # mismatch means we're picking up a stale file from a prior cohort
+        # under a different prefix — skip it (legacy de-id stale-prefix
+        # detection handles that surface separately).
+        if m.group("prefix").lower() != prefix.lower():
+            continue
+        try:
+            uid = int(m.group("uid"))
+        except (TypeError, ValueError):
+            continue
+        s = subs_by_uid.get(uid)
+        if not s:
+            continue
+        if s.get("workflow_state") != "graded":
+            continue
+        rows.append({
+            "key": _key_for(f.name, prefix),
+            "existing_grade": s.get("grade") or "",
+            "existing_score": "" if s.get("score") is None else s.get("score"),
+            "workflow_state": s.get("workflow_state", ""),
+        })
+    return rows
+
+
+def write_existing_grades_csv(challenge_dir: Path, rows: list[dict]) -> Path:
+    """Issue #96 part 3: write _existing_grades.csv to <challenge-dir>/.
+    Always writes — even with no rows — so the agent + downstream tools
+    can rely on the file's presence as a fetch-completion signal."""
+    out = challenge_dir / "_existing_grades.csv"
+    fieldnames = ["key", "existing_grade", "existing_score", "workflow_state"]
+    with out.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=fieldnames)
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+    return out
 
 
 def flatten_discussion_view(view_payload: dict) -> dict[int, list[dict]]:
@@ -761,6 +859,19 @@ def main() -> int:
             json.dumps(fetch_log_data, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+
+        # Issue #96 part 3: write _existing_grades.csv for re-grade detection.
+        # Discussion path doesn't already have `subs`; one extra API call to
+        # the assignment submissions endpoint surfaces grade + score + state.
+        try:
+            disc_subs = fetch_submissions(base, cid, headers, args.assignment_id)
+        except requests.HTTPError:
+            disc_subs = []  # graceful — _existing_grades.csv will be header-only
+        existing_rows = existing_grades_rows(raw_dir, disc_subs, prefix)
+        egp = write_existing_grades_csv(cd, existing_rows)
+        print(f"  {len(existing_rows)} existing grade(s) captured → {egp.name} "
+              f"(re-grade detection; agent consults BEFORE grading)")
+
         print(f"\nDiscussion fetch: {ok} students written, {skipped} skipped "
               f"(existing — use --force), {failed} failed. {added} new name(s) "
               f"appended to {names_file.name}.")
@@ -876,6 +987,14 @@ def main() -> int:
             json.dumps(fetch_log_data, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+
+        # Issue #96 part 3: write _existing_grades.csv for re-grade detection.
+        # `subs` is already in scope from the quiz-path fetch above.
+        existing_rows = existing_grades_rows(raw_dir, subs, prefix)
+        egp = write_existing_grades_csv(cd, existing_rows)
+        print(f"  {len(existing_rows)} existing grade(s) captured → {egp.name} "
+              f"(re-grade detection; agent consults BEFORE grading)")
+
         print(f"\nQuiz fetch: {ok} students written, {skipped} skipped "
               f"(existing — use --force), {failed} failed. {added} new name(s) "
               f"appended to {names_file.name}.")
@@ -1033,6 +1152,13 @@ def main() -> int:
         json.dumps(fetch_log_data, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
+
+    # Issue #96 part 3: write _existing_grades.csv for re-grade detection.
+    # `subs` is already in scope from the default-path fetch above.
+    existing_rows = existing_grades_rows(raw_dir, subs, prefix)
+    egp = write_existing_grades_csv(cd, existing_rows)
+    print(f"  {len(existing_rows)} existing grade(s) captured → {egp.name} "
+          f"(re-grade detection; agent consults BEFORE grading)")
 
     # Final summary — FERPA: counts only, never a name. Issue #66: also
     # report the TOTAL roster size (not just `added`), since the
