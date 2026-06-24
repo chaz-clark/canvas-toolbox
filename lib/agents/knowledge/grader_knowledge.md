@@ -216,6 +216,23 @@ A single LLM judgment is not stable enough for grading. Three independent grader
 
 Validation: on a 5-submission round-1 panel, 3/5 exact agreement, 5/5 within 0.5 of each other, mean spread 0.15 — and the one real borderline correctly surfaced.
 
+### Standard Work — the 3-pass default is enforced, not advisory (issue #95, v0.59.0+)
+
+The 3-pass consensus protocol is the design's inter-rater-reliability + bias guard. It only protects grades if it actually runs. A documented-but-unenforced protocol fails exactly when the operator is busy — and in fact did, on a DS 460 Key-Challenge batch: a single pass nearly shipped, and when the 3-pass was retroactively run, **6 of 15 scores moved on consensus + 7 of 15 flagged NEEDS-REVIEW**. The protocol is now enforced at the push seam, not by memory.
+
+**Default — keyless agent path:** when grading a batch under the agent-in-the-loop path, produce **3 independent passes** by default. Each pass writes its own `_grader<n>.csv` into `feedback/`; the operator runs `grader_consensus.py` to produce `_consensus.csv`. The mechanism above describes the file shapes.
+
+**OFFER, don't assume.** Before finalizing or pushing any LLM-graded batch, **explicitly offer the 3-pass consensus** and get the operator's explicit decline before proceeding single-pass. Do not silently collapse to 1 pass under "just grade them in parallel" pressure. The cost of the extra 2 passes is small; the cost of shipping wrong grades is large.
+
+**Enforced at the push seam:** [grader_push.py](../../tools/grader_push.py) `--mark-reviewed` refuses to mark an LLM-graded run reviewed (and therefore `--push`-eligible) unless:
+
+1. `feedback/_consensus.csv` exists, AND
+2. it is at least as fresh as the newest `feedback/_grader*.csv` (so the consensus reflects the current passes, not a stale prior run).
+
+The bypass is `--allow-single-pass` — an explicit, logged opt-out. Use it for genuine calibration cohorts (already gated upstream by `--mark-calibrated`) or for one-off intentional acceptance of single-pass risk. Single-pass push without the flag now fails fast with a clear error pointing at `grader_consensus.py`.
+
+**Surface the value.** When consensus runs, [grader_consensus.py](../../tools/grader_consensus.py) logs the consistency stats (exact / within-0.25 / within-0.5 / mean spread) + the NEEDS-REVIEW count. Watch these — they show what the extra passes caught. If exact rate is >95%+ across a stable cohort, the 3rd pass is mostly redundancy; if spread is wide, the rubric or anchors need calibration before more passes will help.
+
 ### Parallel graders need shared anchors
 
 For the three graders to be comparable, they must read the **same rubric** and the **same calibration anchors** (the worked examples — see §6). Otherwise each is grading against a different mental scale and majority rule is meaningless.

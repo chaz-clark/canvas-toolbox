@@ -178,6 +178,31 @@ def extract_hold_token(feedback_file: str) -> str | None:
     return m.group(1) if m else None
 
 
+def consensus_gate_status(fbdir: Path) -> tuple[str, list[Path]]:
+    """Issue #95: consensus-presence + freshness check.
+
+    Returns one of:
+      ('ok', [grader_csvs])      — _consensus.csv exists and is at-or-newer than the
+                                   newest _grader*.csv. Push may proceed.
+      ('missing', [grader_csvs]) — _consensus.csv does not exist in fbdir.
+      ('stale', [grader_csvs])   — _consensus.csv exists but is older than the
+                                   newest _grader*.csv (a grader pass was re-run
+                                   after consensus; rerun consensus).
+
+    Callers should bypass this check entirely when --allow-single-pass is set.
+    The grader_csvs list is returned for the error message regardless of status.
+    """
+    consensus = fbdir / "_consensus.csv"
+    grader_csvs = sorted(fbdir.glob("_grader*.csv"))
+    if not consensus.exists():
+        return "missing", grader_csvs
+    if grader_csvs:
+        newest_grader_mtime = max(g.stat().st_mtime for g in grader_csvs)
+        if consensus.stat().st_mtime < newest_grader_mtime:
+            return "stale", grader_csvs
+    return "ok", grader_csvs
+
+
 def fetch_submissions(base: str, cid: str, headers: dict, aid: str,
                       include_comments: bool = False) -> list[dict]:
     """All submissions for the assignment.
@@ -635,6 +660,14 @@ def main() -> int:
                          "causes grader_push to POST the comment but WITHHOLD the grade write "
                          "(student must reply with the missing self-reported value first). "
                          "Pass this flag for cohorts where the convention doesn't apply.")
+    ap.add_argument("--allow-single-pass", action="store_true",
+                    help="Issue #95: explicit opt-out from the 3-pass consensus gate. By default, "
+                         "--mark-reviewed refuses to mark an LLM-graded run reviewed unless "
+                         "feedback/_consensus.csv exists AND is at least as fresh as the newest "
+                         "feedback/_grader*.csv (so the consensus reflects the current grader "
+                         "passes, not a stale prior run). Pass this flag for the rare intentional "
+                         "case (e.g. a calibration cohort already gated by --mark-calibrated, or "
+                         "a one-off where the operator has explicitly accepted single-pass risk).")
     args = ap.parse_args()
 
     challenge = resolve_challenge_dir(args.challenge_dir, verb="pushing from")
@@ -661,6 +694,47 @@ def main() -> int:
         if comment_files:
             # LLM-comment run — original messaging
             n = len(comment_files)
+
+            # Issue #95: consensus-presence + freshness gate. An LLM-graded run
+            # without _consensus.csv (or with a stale one that predates the
+            # newest _grader*.csv) means the 3-pass consensus protocol either
+            # never ran or doesn't reflect the current grader output. Refuse
+            # unless the operator explicitly opted out via --allow-single-pass.
+            # Bypass on calibration runs is implicit: the .calibrated marker
+            # already gates --bulk; --single calibration cohorts hit a
+            # different review surface and aren't this path.
+            if not args.allow_single_pass:
+                gate, grader_csvs = consensus_gate_status(fbdir)
+                if gate == "missing":
+                    print(f"\n⛔ {fbdir.relative_to(challenge)}/_consensus.csv is missing.",
+                          file=sys.stderr)
+                    print("   The 3-pass consensus protocol either never ran or "
+                          "its output was deleted.", file=sys.stderr)
+                    print(f"   Found {len(grader_csvs)} grader pass(es): "
+                          f"{[g.name for g in grader_csvs]}", file=sys.stderr)
+                    print("   Fix: run `uv run python lib/tools/grader_consensus.py "
+                          f"--challenge-dir {args.challenge_dir}` (after producing the "
+                          "missing passes; grader_grade --bulk runs 3 by default).",
+                          file=sys.stderr)
+                    print("   Bypass (rare; logged): re-run with --allow-single-pass "
+                          "to accept the risk.", file=sys.stderr)
+                    return 1
+                if gate == "stale":
+                    print(f"\n⛔ {fbdir.relative_to(challenge)}/_consensus.csv is "
+                          f"older than the newest _grader*.csv — stale consensus.",
+                          file=sys.stderr)
+                    print("   A grader pass was re-run after consensus was computed. "
+                          "Re-run consensus so it reflects the current passes.",
+                          file=sys.stderr)
+                    print("   Fix: `uv run python lib/tools/grader_consensus.py "
+                          f"--challenge-dir {args.challenge_dir}`", file=sys.stderr)
+                    print("   Bypass: --allow-single-pass.", file=sys.stderr)
+                    return 1
+            else:
+                print(f"⚠️  --allow-single-pass: skipping the consensus-presence/freshness gate "
+                      f"for {fbdir.relative_to(challenge)}/. "
+                      "Single-pass grading bypasses the inter-rater-reliability check.")
+
             print(f"You are confirming you reviewed all {n} comments + scores in {fbdir}/")
             print(f"(the overall {fbdir}/_all_comments.md and each per-student {prefix}-*.md justification).")
         elif review_csvs:

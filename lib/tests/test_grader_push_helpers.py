@@ -17,6 +17,7 @@ from grader_push import (  # noqa: E402
     extract_hold_token,
     comment_has_resubmit_language,
     collision_warnings_for_submission,
+    consensus_gate_status,
 )
 
 
@@ -177,3 +178,105 @@ def test_collision_warnings_skips_unparseable_created_at():
         comments, window_days=7, now=_NOW,
     )
     assert len(others) == 1  # only the parseable one
+
+
+# ---------------------------------------------------------------------------
+# consensus_gate_status — issue #95 (3-pass consensus enforced at push seam)
+# ---------------------------------------------------------------------------
+
+def test_consensus_gate_missing(tmp_path):
+    """No _consensus.csv → 'missing'; the gate refuses the push."""
+    (tmp_path / "_grader1.csv").write_text("key,score\nA1,4\n", encoding="utf-8")
+    status, grader_csvs = consensus_gate_status(tmp_path)
+    assert status == "missing"
+    assert [g.name for g in grader_csvs] == ["_grader1.csv"]
+
+
+def test_consensus_gate_missing_zero_graders(tmp_path):
+    """Empty fbdir → 'missing' (no consensus, no graders); refuse."""
+    status, grader_csvs = consensus_gate_status(tmp_path)
+    assert status == "missing"
+    assert grader_csvs == []
+
+
+def test_consensus_gate_ok_with_fresh_consensus(tmp_path):
+    """Consensus newer than all grader passes → 'ok'."""
+    (tmp_path / "_grader1.csv").write_text("k,s\nA,4\n", encoding="utf-8")
+    (tmp_path / "_grader2.csv").write_text("k,s\nA,3\n", encoding="utf-8")
+    (tmp_path / "_grader3.csv").write_text("k,s\nA,4\n", encoding="utf-8")
+    consensus = tmp_path / "_consensus.csv"
+    consensus.write_text("k,s,consensus,spread\nA,4|3|4,4,1\n", encoding="utf-8")
+    # bump consensus mtime to 60s after the graders so it's unambiguously newer
+    import os
+    newest = max(
+        (tmp_path / f"_grader{n}.csv").stat().st_mtime for n in (1, 2, 3)
+    )
+    os.utime(consensus, (newest + 60, newest + 60))
+    status, grader_csvs = consensus_gate_status(tmp_path)
+    assert status == "ok"
+    assert len(grader_csvs) == 3
+
+
+def test_consensus_gate_ok_with_equal_mtime(tmp_path):
+    """Consensus mtime == newest grader mtime is OK (not strictly older)."""
+    import os
+    g = tmp_path / "_grader1.csv"
+    g.write_text("k,s\nA,4\n", encoding="utf-8")
+    c = tmp_path / "_consensus.csv"
+    c.write_text("k,s,consensus,spread\nA,4,4,0\n", encoding="utf-8")
+    mt = g.stat().st_mtime
+    os.utime(c, (mt, mt))
+    status, _ = consensus_gate_status(tmp_path)
+    assert status == "ok"
+
+
+def test_consensus_gate_stale_when_consensus_older(tmp_path):
+    """A grader pass re-run AFTER consensus → 'stale'; rerun consensus."""
+    import os
+    consensus = tmp_path / "_consensus.csv"
+    consensus.write_text("k,s,consensus,spread\nA,4,4,0\n", encoding="utf-8")
+    grader = tmp_path / "_grader1.csv"
+    grader.write_text("k,s\nA,4\n", encoding="utf-8")
+    # bump grader mtime to 60s after the consensus to simulate re-run
+    base = consensus.stat().st_mtime
+    os.utime(grader, (base + 60, base + 60))
+    status, grader_csvs = consensus_gate_status(tmp_path)
+    assert status == "stale"
+    assert [g.name for g in grader_csvs] == ["_grader1.csv"]
+
+
+def test_consensus_gate_stale_uses_newest_grader_mtime(tmp_path):
+    """When multiple grader passes exist, the gate must compare to the NEWEST one.
+    A stale grader1 doesn't unstale a fresh consensus if grader3 is freshest."""
+    import os
+    consensus = tmp_path / "_consensus.csv"
+    consensus.write_text("k,s,consensus,spread\nA,4,4,0\n", encoding="utf-8")
+    g1 = tmp_path / "_grader1.csv"
+    g1.write_text("k,s\nA,4\n", encoding="utf-8")
+    g2 = tmp_path / "_grader2.csv"
+    g2.write_text("k,s\nA,3\n", encoding="utf-8")
+    g3 = tmp_path / "_grader3.csv"
+    g3.write_text("k,s\nA,4\n", encoding="utf-8")
+    base = consensus.stat().st_mtime
+    # g1 + g2 older than consensus; g3 newer → overall newest is newer → stale
+    os.utime(g1, (base - 120, base - 120))
+    os.utime(g2, (base - 60, base - 60))
+    os.utime(g3, (base + 60, base + 60))
+    status, _ = consensus_gate_status(tmp_path)
+    assert status == "stale"
+
+
+def test_consensus_gate_ok_when_consensus_present_but_no_graders(tmp_path):
+    """Edge case: consensus.csv present, no _grader*.csv files. The freshness
+    check requires at least one grader file to compare against; with none,
+    the gate doesn't have evidence of a stale consensus and returns 'ok'.
+    (In practice this branch is unreachable from --mark-reviewed because
+    consensus.py itself refuses to write _consensus.csv without grader passes;
+    documenting the behavior so a future refactor doesn't accidentally
+    reverse it.)"""
+    (tmp_path / "_consensus.csv").write_text(
+        "k,s,consensus,spread\nA,4,4,0\n", encoding="utf-8"
+    )
+    status, grader_csvs = consensus_gate_status(tmp_path)
+    assert status == "ok"
+    assert grader_csvs == []

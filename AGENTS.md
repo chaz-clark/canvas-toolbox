@@ -246,7 +246,63 @@ private channel is for security.
 
 ## Active Context
 
-_Last updated: 2026-06-23_
+_Last updated: 2026-06-24_
+
+### Recent: 3-pass consensus is now enforced at the push seam — issue #95 (v0.59.0, 2026-06-24)
+
+**v0.59.0** — closes issue #95 ("make 3-grader consensus the default
+with a hard opt-out"). Lived (DS 460 Key-Challenge batch): a single
+grader pass nearly shipped because the keyless agent collapsed to 1
+pass under parallel-grading pressure. When the 3-pass consensus was
+retroactively run, **6 of 15 scores moved + 7 of 15 flagged
+NEEDS-REVIEW**. The documented 3-pass protocol was advisory, not
+enforced — exactly the failure mode the "doc-only protocols fail
+when the operator is busy" lesson predicts.
+
+**Root cause + fix:** the seams enforcement was incomplete. The
+existing safeguards are good — `grader_consensus.py` already defaults
+to `--expected 3` and halts on too-few graders; `grader_grade.py`
+already has the `--single`/`--bulk`/`.calibrated` triad — but
+`grader_push.py` had no gate. A keyless agent could write
+`_grader1.csv` + per-student feedback files directly and push without
+ever invoking consensus.
+
+**What changed:**
+
+1. **[grader_push.py:181-203](lib/tools/grader_push.py#L181-L203)** —
+   new pure helper `consensus_gate_status(fbdir)` returns `'ok'`,
+   `'missing'`, or `'stale'` based on `_consensus.csv` presence +
+   mtime vs. the newest `_grader*.csv`.
+2. **[grader_push.py](lib/tools/grader_push.py) `--mark-reviewed` path** —
+   for LLM-graded runs (path with `prefix-*.md` files present), the
+   gate refuses to write `.reviewed` (and therefore `--push` refuses
+   in turn) unless `_consensus.csv` exists AND is fresh. Clear error
+   message points at `grader_consensus.py`. The value-only /
+   human-graded sub-path is unaffected (no graders → no gate).
+3. **New flag `--allow-single-pass`** — explicit, logged opt-out.
+   Follows the existing `--allow-collisions` / `--allow-enrolled` /
+   `--allow-locked-resubmit` convention. Logs a warning when used so
+   the bypass is visible in the operator's terminal.
+4. **[grader_knowledge.md §4](lib/agents/knowledge/grader_knowledge.md)** —
+   new "Standard Work — the 3-pass default is enforced, not advisory"
+   subsection. Codifies: produce 3 passes by default on the keyless
+   agent path; OFFER the 3-pass run before any LLM-graded batch and
+   get explicit operator decline before single-pass; the seam check
+   is the safety net, not the only line of defense.
+5. **7 new tests** in [test_grader_push_helpers.py](lib/tests/test_grader_push_helpers.py) —
+   missing / stale / fresh / equal-mtime / newest-mtime-of-many /
+   no-graders edge cases.
+
+**What's NOT in scope:** existing safeguards (consensus.py's
+`--expected 3` halt; grader_grade.py's `.calibrated` marker; the
+mechanism doc itself) are already correct and untouched. Surgical
+change at the one seam that actually leaked.
+
+**Cross-repo implication:** DS 460 + DS 250 + any future grader-fork
+inherits this gate automatically on their next pull. Operators who
+were running single-pass intentionally (calibration cohorts) need
+`--allow-single-pass` — but the `--mark-calibrated` upstream gate
+should mean those flows don't hit `--mark-reviewed` to begin with.
 
 ### Recent: Cline added as Ollama alternative; Continue.dev still preferred (v0.58.2, 2026-06-23)
 
