@@ -483,6 +483,36 @@ Before assigning a score to a key:
 
 **What this is NOT.** This is NOT a "trust the existing grade unconditionally" rule. The instructor's manual regrade or a genuine error correction is a legitimate downward move — the bypass at push is `--allow-lower`. But the DEFAULT is anchor-to-existing; deviation requires explicit reason; lowering is the highest-stakes deviation and gets the loudest surface.
 
+### Standard Work — the task page is the source of truth, NOT the answer key (issue #102, v0.63.0+)
+
+The DS 250 U4T3 incident (2026-06-25) surfaced a high-stakes failure mode that's distinct from the regression / consensus / review-gate threads. The rubric was built from the **solution code** (which plotted feature importances) and required a chart. The student-facing task page said *"it doesn't say you have to graph the permutation importances, but I would like to"* — the chart was OPTIONAL. The rubric inherited a REQUIREMENT from the answer key that the task page explicitly called OPTIONAL. Result: confident, unanimous (3/3) consensus on the wrong rubric → 4 students wrongly marked incomplete.
+
+**The three-artifact discipline:**
+
+| Artifact | Role | Authority |
+|---|---|---|
+| **Task page** (course-site URL the Canvas assignment links to; captured as `assignment_spec.md` at fetch time) | What is being asked of students — the contract | **Source of truth for REQUIRED** |
+| **Answer key** (`MASTER_solutions/*`) | One valid reference implementation of the task | **Reference**, not requirements |
+| **Rubric** | Grading criteria | **Derived from the task page**, validated against the answer key |
+
+**The hard rule for the keyless agent + the keyholder orchestrator alike:**
+
+When grading any submission, **read `assignment_spec.md` first**. That file is the captured student-facing task definition (Canvas description + the linked course-site task page text — see `grader_fetch.py` issue #102). The rubric requirements must align with what `assignment_spec.md` SAYS the students must do.
+
+**Anything in the answer key that is NOT named in `assignment_spec.md` is OPTIONAL by default.** Do not promote optional answer-key features to required features just because the reference implementation includes them. The answer-key author may have added optional niceties, side-quests, or aesthetic touches that the task did not require.
+
+**The diagnostic for any rubric requirement under review:**
+
+1. Search `assignment_spec.md` for the requirement (or a paraphrase of it).
+2. If found explicitly → REQUIRED.
+3. If absent or only implied → OPTIONAL by default. If the rubric promotes it to required, surface the mismatch in your grading reason column for operator review:
+   > `re: <KEY>: rubric required X; task spec doesn't mention X explicitly. Defaulted to OPTIONAL. If operator confirms REQUIRED, escalate.`
+4. **NEVER** silently apply a requirement that's in the answer key but not in the task spec. That's the exact failure mode that drove this rule.
+
+**Why this matters more on uncalibrated cohorts (paired with issue #101).** On an uncalibrated cohort, the spread stats can't catch this error — they measure inter-pass consistency, and a SHARED rubric error gives unanimous wrong results. The only catch BEFORE students see the grade is to anchor on the task page itself. The new `assignment_spec.md` artifact + this rule are that catch.
+
+**`assignment_spec.md` is FERPA-safe** — it contains the assignment description + task page text (both student-facing public-by-design content). No PII. Gitignored per the per-challenge-artifact convention, but agent-readable and operator-editable. If the captured spec is wrong or incomplete (rare — happens when the task page has dynamic content or is auth-gated), the operator can hand-edit it before grading begins.
+
 ### Standard Work — "grade X" stops at `_all_comments.md`; pushing is a separate, human-approved step (issue #97, v0.62.0+)
 
 The review gate is the **core human-in-the-middle promise** — non-negotiable in the BYUI context. The grade only reaches Canvas after the instructor has eyeballed `_all_comments.md` (+ each per-student justification) and physically attested review. The gate's credibility depends on a HUMAN, not an agent, performing that attestation.

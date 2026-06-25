@@ -336,6 +336,169 @@ def write_body_file(body: str, out_path: Path) -> int:
 _RAW_FILENAME_RE = re.compile(r"^(?P<prefix>[A-Za-z0-9-]+)_(?P<uid>\d+)(?:_[A-Za-z0-9]+)?\.[A-Za-z0-9.]+$")
 
 
+# Issue #102: task-page link detection + assignment_spec.md capture.
+# The student-facing task definition is the AUTHORITATIVE source of truth
+# for what is REQUIRED. Canvas assignment descriptions are often just a
+# pointer ("Open Task Page →") to a separate course-site page where the
+# real spec lives. The answer key / MASTER_solutions is a reference
+# implementation, NOT a requirements source — anything in the answer key
+# that isn't named in the task spec is OPTIONAL by default.
+
+# Heuristic: link text strongly suggests "this is the task spec link."
+# Matches things like "Open Task Page", "View Task", "Task Page →", etc.
+_TASK_LINK_PATTERNS: tuple[str, ...] = (
+    "task page", "open task", "view task", "course site task",
+    "assignment page", "course-site",
+)
+
+
+def extract_task_page_url(canvas_description_html: str) -> str | None:
+    """Issue #102: scan a Canvas assignment description for an outbound link
+    to the student-facing task page.
+
+    The pattern (real DS 250 U4T3 example): the Canvas description is just
+    `<p>Work through this task on the course site... <a href="...">Open Task
+    Page →</a></p>`. The actual spec lives at the linked URL. This function
+    extracts that link so the caller can fetch the real spec.
+
+    Returns the first qualifying URL or None if the description has no
+    matching outbound link (in which case the Canvas description itself is
+    the spec).
+
+    Heuristic — a link qualifies if EITHER:
+      - its visible link text contains a task-page indicator phrase
+        ('task page' / 'open task' / 'view task' / etc.), OR
+      - its href points OUTSIDE any common Canvas instance hostname
+        (i.e., it's a course-site URL, not an internal Canvas link)
+
+    The heuristic favors precision over recall — if a description has
+    multiple links, the first task-page-keyed one wins. False positives
+    on the recall side are caught by the operator reading the produced
+    assignment_spec.md.
+    """
+    if not canvas_description_html:
+        return None
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:  # pragma: no cover — bs4 is a required dep
+        return None
+    soup = BeautifulSoup(canvas_description_html, "html.parser")
+    for a in soup.find_all("a", href=True):
+        href = (a.get("href") or "").strip()
+        text = (a.get_text() or "").strip().lower()
+        if not href:
+            continue
+        for pattern in _TASK_LINK_PATTERNS:
+            if pattern in text:
+                return href
+    # No keyword match — try the second heuristic (link to a non-Canvas host)
+    for a in soup.find_all("a", href=True):
+        href = (a.get("href") or "").strip()
+        if not href or href.startswith("#") or href.startswith("mailto:"):
+            continue
+        # Skip self-links / Canvas-internal links
+        href_low = href.lower()
+        if "instructure.com" in href_low or "/courses/" in href_low:
+            continue
+        # An external link in the description — plausible task-page candidate
+        return href
+    return None
+
+
+def fetch_task_page_text(url: str, timeout: int = 30) -> str:
+    """Issue #102: fetch a course-site task page URL and convert its body
+    HTML to readable Markdown text.
+
+    No auth headers — task pages are typically public course-site pages
+    (e.g. GitHub Pages, instructor-hosted course site). If the URL requires
+    auth, the fetch will fail and the caller falls back to URL-only capture.
+    """
+    r = requests.get(url, timeout=timeout, allow_redirects=True)
+    r.raise_for_status()
+    try:
+        from markdownify import markdownify
+    except ImportError:  # pragma: no cover — markdownify is a required dep
+        return r.text
+    return markdownify(r.text, heading_style="ATX")
+
+
+def render_assignment_spec(
+    canvas_description_html: str,
+    task_page_url: str | None,
+    task_page_text: str | None,
+) -> str:
+    """Issue #102: render the assignment_spec.md content (pure function — no
+    file I/O). Caller writes to disk separately so this is unit-testable
+    without a tmp_path."""
+    try:
+        from markdownify import markdownify
+    except ImportError:  # pragma: no cover
+        markdownify = None  # type: ignore[assignment]
+    if markdownify and canvas_description_html:
+        desc_md = markdownify(canvas_description_html, heading_style="ATX").strip()
+    else:
+        desc_md = (canvas_description_html or "").strip()
+    parts: list[str] = [
+        "# Assignment Spec",
+        "",
+        "> **Source of truth for what is REQUIRED of students** (issue #102).",
+        "> ",
+        "> Grade against THIS, not the solution code. The answer key /",
+        "> MASTER_solutions is a reference implementation — it can include",
+        "> optional niceties. Anything in the answer key that isn't named in",
+        "> this spec is OPTIONAL by default; promote to REQUIRED only if this",
+        "> spec explicitly says so (e.g. 'you must...', 'required:', 'submit a...').",
+        "",
+        "## Canvas Assignment Description",
+        "",
+        desc_md if desc_md else "_(empty Canvas description)_",
+    ]
+    if task_page_url:
+        parts.extend([
+            "",
+            "## Linked Task Page (the actual spec)",
+            "",
+            f"**URL:** {task_page_url}",
+            "",
+        ])
+        if task_page_text and task_page_text.strip():
+            parts.append(task_page_text.strip())
+        else:
+            parts.append(
+                "_(task page fetch failed — review the URL above manually before grading.)_"
+            )
+    else:
+        parts.extend([
+            "",
+            "## No Linked Task Page Detected",
+            "",
+            "The Canvas description above is the complete spec — no outbound",
+            "link to a separate course-site task page was detected. If a task",
+            "page exists elsewhere, add it to this file manually before grading.",
+        ])
+    return "\n".join(parts) + "\n"
+
+
+def write_assignment_spec_md(
+    challenge_dir: Path,
+    canvas_description_html: str,
+    task_page_url: str | None,
+    task_page_text: str | None,
+) -> Path:
+    """Issue #102: write <challenge-dir>/assignment_spec.md.
+
+    FERPA-safe: contains only the assignment description + task page (both
+    student-facing, no PII). Gitignored per the convention but tracked in
+    the operator's local copy for reference + agent-readable.
+    """
+    out = challenge_dir / "assignment_spec.md"
+    content = render_assignment_spec(
+        canvas_description_html, task_page_url, task_page_text
+    )
+    out.write_text(content, encoding="utf-8")
+    return out
+
+
 def existing_grades_rows(raw_dir: Path, subs: list[dict], prefix: str) -> list[dict]:
     """Issue #96 part 3: build _existing_grades.csv rows by joining the
     files actually written to raw_dir/ to the Canvas submissions list.
@@ -776,6 +939,31 @@ def main() -> int:
               f"{args.assignment_id} (metadata lookup). Check CANVAS_COURSE_ID + "
               "token scope.", file=sys.stderr)
         return 2
+
+    # Issue #102: capture the student-facing task definition as the
+    # rubric-authoritative spec. The Canvas description is often just a
+    # pointer to a course-site page where the real spec lives — follow the
+    # link when present so the agent grades against what students were
+    # actually asked to do, NOT the solution code.
+    canvas_desc_html = asg_meta.get("description") or ""
+    task_page_url = extract_task_page_url(canvas_desc_html)
+    task_page_text: str | None = None
+    if task_page_url:
+        try:
+            task_page_text = fetch_task_page_text(task_page_url)
+            print(f"Task page detected + fetched: {task_page_url} "
+                  f"({len(task_page_text)} chars of spec text)")
+        except (requests.HTTPError, requests.RequestException) as e:
+            print(f"WARN: task page fetch failed ({type(e).__name__}: {e}); "
+                  f"assignment_spec.md will reference the URL only — "
+                  f"review the link manually before grading.",
+                  file=sys.stderr)
+    spec_path = write_assignment_spec_md(
+        cd, canvas_desc_html, task_page_url, task_page_text
+    )
+    print(f"Assignment spec captured -> {spec_path.relative_to(cd)} "
+          f"(task page = source of truth for what is REQUIRED; "
+          f"answer key = reference).")
 
     sub_types = asg_meta.get("submission_types") or []
 

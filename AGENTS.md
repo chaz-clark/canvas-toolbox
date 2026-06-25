@@ -246,7 +246,93 @@ private channel is for security.
 
 ## Active Context
 
-_Last updated: 2026-06-24_
+_Last updated: 2026-06-25_
+
+### Recent: three paired "silent-success looks like success" gates — issues #99 / #101 / #102 (v0.63.0, 2026-06-25)
+
+**v0.63.0** — closes three DS 250 issues filed yesterday afternoon /
+this morning, all surfacing the same failure pattern: **the tool
+reports a green signal that conceals a systematic error.** Different
+seams, same lesson — make the tool fail loudly when the underlying
+assumption is unsafe.
+
+| Issue | Failure mode | Coded gate |
+|---|---|---|
+| **#99** | Operator blanks `final_grade` to hold a row; `recommended_score` fallback fires; sentinel `(held)` gets coerced by Canvas to incomplete/score=0 on pass_fail; a student's COMPLETE silently became FAIL | New pure helper `validate_grade_for_grading_type` refuses sentinels + invalid grades pre-PUT, surfaces clearly per row, counts in summary line |
+| **#101** | Solution-derived rubric required an OPTIONAL chart; 3/3 grader passes unanimous (spread 0.00); 4 students wrongly marked incomplete; consensus output read as "high confidence" because spread stats measure inter-grader consistency, not rubric correctness | New pure helper `detect_calibration_anchor` + prominent UNCALIBRATED-COHORT warning that inverts the spread framing on uncalibrated runs; `--uncalibrated` flag for soft acknowledgment |
+| **#102** | Rubric inherited a requirement from the answer key that the task page explicitly called OPTIONAL — same DS 250 U4T3 incident as #101, input side | New `assignment_spec.md` artifact written by `grader_fetch.py` capturing the Canvas description + the linked course-site task page text; agent reads it BEFORE grading; knowledge files codify "task page = source of truth, answer key = reference" |
+
+**The cross-issue thread.** Yesterday's #95/#96/#97 sprint was
+"documented-but-unenforced gates." Today's #99/#101/#102 sprint is the
+companion thread:
+
+> **"The gate's signal looks like success but is silently wrong."**
+
+#99 — sentinel LOOKS pushed; coerced silently. #101 — consensus LOOKS
+confident; rubric was wrong. #102 — Canvas description LOOKS like the
+spec; it's just a pointer.
+
+Together: 6 production safety gates shipped across 24 hours (v0.59.0
+→ v0.63.0). All bug-intake-worker driven (issues #95-#98 + #99 + #101
++ #102). 100% lived-experience scope; zero speculative.
+
+**Code shape:**
+
+1. **[grader_push.py:181-264](lib/tools/grader_push.py#L181-L264)**:
+   new `validate_grade_for_grading_type(grade, grading_type)` returning
+   `'ok' / 'sentinel' / 'invalid' / 'not_graded' / 'unknown_type'`.
+   Recognizes parenthesized sentinels (`(held)`, `(not graded)`,
+   `(skip)`), bare keywords (`held`, `n/a`, `tbd`, `pending`), and
+   validates against `grading_type` (`pass_fail`, `points`, `percent`,
+   `gpa_scale`, `letter_grade`, `not_graded`).
+2. **`fetch_assignment_lock_state` extended** to return `grading_type`
+   from the same `/assignments/:aid` call (no extra API round-trip).
+3. **[grader_consensus.py:81-130](lib/tools/grader_consensus.py#L81-L130)**:
+   new `detect_calibration_anchor(challenge_dir, feedback_dir)`
+   scanning for `ta_grades*.json/csv` + `_groundtruth.json/csv`.
+   Warning header is prominent (78-char banner) on uncalibrated runs;
+   consistency-stats footer adds the "consistency ≠ correctness" line
+   on uncalibrated cohorts.
+4. **[grader_fetch.py](lib/tools/grader_fetch.py)**: new
+   `extract_task_page_url(canvas_description_html)` +
+   `fetch_task_page_text(url)` + `render_assignment_spec(...)` +
+   `write_assignment_spec_md(...)`. Wired into `main()` right after
+   `fetch_assignment_metadata` — runs once per fetch, covers all three
+   sub-paths (discussion / quiz / default).
+5. **Knowledge file updates:**
+   - [grader_knowledge.md §10](lib/agents/knowledge/grader_knowledge.md):
+     new "Standard Work — task page = source of truth" subsection.
+     Three-artifact discipline table (task page / answer key / rubric)
+     + the OPTIONAL-by-default rule + the diagnostic for rubric
+     requirements under review.
+   - [grader_setup_knowledge.md §Step 2](lib/agents/knowledge/grader_setup_knowledge.md):
+     new "Precondition for ALL three paths — task spec is source of
+     truth" sub-section. Applies to rubric-construction in Path C +
+     rubric-validation in Paths A and B.
+6. **37 new tests** across `test_grader_push_helpers.py` (+15
+   `validate_grade_for_grading_type` cases), new
+   `test_grader_consensus_helpers.py` (9 `detect_calibration_anchor`
+   cases), and `test_grader_fetch_helpers.py` (+13 `extract_task_page_url`
+   + `render_assignment_spec` cases). Total tests now 338 (up from
+   307).
+7. **`.gitignore`** adds `**/assignment_spec.md` for consistency with
+   the other per-challenge artifacts.
+
+**What's NOT in scope** (deferred for follow-up if DS 250 surfaces
+need): the automated rubric-vs-spec mismatch check. The spec capture
++ knowledge update is the actionable lever; the automated check is a
+backstop that can land later if the human-readable spec doesn't
+catch the same class of error.
+
+**Cross-issue cumulative guarantee (now 6 gates strong):**
+
+> The grade reaching Canvas is **consensus-backed** (#95), **never
+> accidentally lower than what the student already had** (#96), **never
+> pushed without explicit human review** (#97), **uses the
+> de-identified comment thread for triage** (#98), **passes
+> grading-type validation** (#99), **fails loudly on uncalibrated
+> unanimity** (#101), and **is graded against the student-facing task
+> spec, not the answer key** (#102).
 
 ### Recent: --skip-if-student-replied surfaces the de-id'd latest comment inline — issue #98 (v0.62.1, 2026-06-24)
 

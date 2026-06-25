@@ -86,6 +86,7 @@ handoffs/
 **/.known_names.txt
 **/.fetch_log.json
 **/_existing_grades.csv
+**/assignment_spec.md
 **/feedback/
 **/.review.csv
 **/.review*.csv

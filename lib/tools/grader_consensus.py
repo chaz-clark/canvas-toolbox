@@ -74,6 +74,56 @@ except ImportError:
     __version__ = "0.0.0+unknown"
 
 
+# Issue #101: calibration anchor detection. Consensus measures inter-grader
+# CONSISTENCY, not rubric CORRECTNESS. A systematic rubric error produces
+# confident, unanimous, wrong results — the most dangerous false-positive on
+# an uncalibrated cohort. The presence of a ground-truth anchor (TA grades or
+# an explicit groundtruth file) is what gives consensus its correctness
+# semantics; without it, low spread only confirms the (unvalidated) rubric
+# was applied consistently.
+_CALIBRATION_ANCHOR_PATTERNS: tuple[str, ...] = (
+    "ta_grades*.json",
+    "ta_grades*.csv",
+    "_groundtruth.json",
+    "_groundtruth.csv",
+)
+
+
+def detect_calibration_anchor(
+    challenge_dir: Path | None, feedback_dir: Path
+) -> tuple[bool, str]:
+    """Issue #101: detect whether a ground-truth calibration anchor exists.
+
+    Returns (is_calibrated, evidence_str). Looks in BOTH challenge_dir and
+    feedback_dir (anchor files commonly live at the challenge-dir top level
+    next to the rubric + answer key, but some workflows drop them in
+    feedback/ next to the grader CSVs).
+
+    Patterns scanned:
+      - ta_grades*.json / ta_grades*.csv  — TA-graded reference set
+      - _groundtruth.json / _groundtruth.csv  — explicit ground-truth scores
+
+    Returns False if none found — the operator should produce a ground-truth
+    set OR pass --uncalibrated to acknowledge the cohort is being graded
+    against a rubric that has not been validated against any anchor.
+    """
+    candidates: list[Path] = []
+    search_dirs = [d for d in (challenge_dir, feedback_dir) if d is not None]
+    for d in search_dirs:
+        if not d.is_dir():
+            continue
+        for pattern in _CALIBRATION_ANCHOR_PATTERNS:
+            candidates.extend(d.glob(pattern))
+    if candidates:
+        names = ", ".join(c.name for c in candidates[:3])
+        more = f" (+{len(candidates) - 3} more)" if len(candidates) > 3 else ""
+        return True, f"calibration anchor(s) found: {names}{more}"
+    return False, (
+        "no ta_grades*.{json,csv} or _groundtruth.{json,csv} found in "
+        "the challenge dir or feedback dir"
+    )
+
+
 def load(path: Path) -> dict[str, float]:
     """Read a single grader's CSV. Expects columns `key,score`. Ignores rows with bad score."""
     out: dict[str, float] = {}
@@ -242,6 +292,15 @@ def main() -> int:
     ap.add_argument("--score-max", default=None,
                     help="Optional max-score label (e.g. '4') for the _all_comments.md headers. "
                          "Renders '<KEY>  ·  <score>/<max>'. Omit for '<KEY>  ·  <score>'.")
+    ap.add_argument("--uncalibrated", action="store_true",
+                    help="Issue #101: acknowledge that this cohort has no ground-truth "
+                         "calibration anchor (no ta_grades*.json or _groundtruth.json). "
+                         "Without this flag, the tool prints a prominent UNCALIBRATED-COHORT "
+                         "warning explaining that unanimous agreement reflects rubric "
+                         "CONSISTENCY, not CORRECTNESS. With this flag, the warning becomes "
+                         "a softer one-line acknowledgment. Pass when you know the cohort "
+                         "is uncalibrated by design (e.g. a fresh assignment with no prior "
+                         "TA grades to anchor against).")
     args = ap.parse_args()
 
     if args.challenge_dir:
@@ -319,6 +378,48 @@ def main() -> int:
                   f"for instructor review/edit)")
         return 0
 
+    # Issue #101: calibration-anchor check on multi-pass runs. Consensus
+    # measures inter-grader CONSISTENCY, not rubric CORRECTNESS. A
+    # SYSTEMATIC rubric error produces confident, unanimous, wrong results
+    # — the most dangerous false-positive when no ground-truth anchor
+    # exists. Warn loudly so the human-in-the-middle review re-anchors on
+    # the rubric premise, not on the (misleading) spread stats.
+    challenge_path = (Path(args.challenge_dir) if args.challenge_dir else None)
+    is_calibrated, anchor_evidence = detect_calibration_anchor(challenge_path, fb)
+    if is_calibrated:
+        print(f"\n✓ Calibration: {anchor_evidence}.")
+        print("  (Consensus stats below reflect agreement against an anchored rubric.)\n")
+        uncalibrated_run = False
+    elif args.uncalibrated:
+        print(f"\n⚠️  --uncalibrated: acknowledged. {anchor_evidence}.")
+        print("   Unanimity below does NOT confirm rubric correctness. Re-validate")
+        print("   the rubric's REQUIRED vs OPTIONAL against the student-facing task")
+        print("   page (issue #102) before approving the push.\n")
+        uncalibrated_run = True
+    else:
+        print()
+        print("=" * 78)
+        print("⚠️  UNCALIBRATED COHORT — no calibration anchor detected.")
+        print("=" * 78)
+        print(f"  {anchor_evidence}.")
+        print()
+        print("  Consensus measures inter-grader CONSISTENCY, not rubric CORRECTNESS.")
+        print("  A SHARED rubric error yields confident, unanimous, wrong results —")
+        print("  on an uncalibrated cohort there is no ground-truth anchor to surface")
+        print("  the error. LOW SPREAD IS NOT A GREEN LIGHT — it only confirms the")
+        print("  (unvalidated) rubric was applied consistently.")
+        print()
+        print("  Before the human-in-the-middle review:")
+        print("    1. Validate the rubric's REQUIRED vs OPTIONAL against the STUDENT-")
+        print("       FACING TASK PAGE (issue #102), not the solution code.")
+        print("    2. If TA grades exist for any subset, drop them as ta_grades*.json")
+        print("       in the challenge dir; re-run consensus.")
+        print("    3. To suppress this banner: pass --uncalibrated (a softer")
+        print("       acknowledgment that you know the cohort is uncalibrated by design).")
+        print("=" * 78)
+        print()
+        uncalibrated_run = True
+
     # Multi-pass: majority + spread + flag
     graders = [per_pass[pn] for pn in sorted(per_pass)]  # ordered by pass number
     pass_numbers = sorted(per_pass)
@@ -380,6 +481,14 @@ def main() -> int:
     print(f"\nConsistency over {n} submissions ({len(graders)} graders): "
           f"exact {exact}/{n}, within 0.25 {within25}/{n}, within 0.5 {within50}/{n}; "
           f"mean spread {statistics.mean(r['spread'] for r in rows):.2f}")
+    # Issue #101: invert the framing on uncalibrated runs so the operator
+    # doesn't read "high consistency = high quality." Low spread on an
+    # uncalibrated cohort means the rubric was applied consistently — that
+    # property is also what a SHARED rubric ERROR would produce.
+    if uncalibrated_run:
+        print("  (uncalibrated cohort — these stats measure rubric CONSISTENCY across")
+        print("   passes, NOT rubric CORRECTNESS. Re-validate rubric premise against")
+        print("   the task page before approving the push.)")
     if flagged:
         print(f"\nNEEDS-REVIEW queue (spread >= {args.flag}) — review these first:")
         for k, sc, con, sp in flagged:

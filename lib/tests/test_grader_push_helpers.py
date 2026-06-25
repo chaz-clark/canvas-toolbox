@@ -22,6 +22,7 @@ from grader_push import (  # noqa: E402
     regression_check,
     is_yes_refused_on_review,
     truncate_comment_preview,
+    validate_grade_for_grading_type,
 )
 
 
@@ -521,3 +522,133 @@ def test_truncate_comment_preview_none_and_empty():
     assert truncate_comment_preview(None) == ""
     assert truncate_comment_preview("") == ""
     assert truncate_comment_preview("   ") == ""
+
+
+# ---------------------------------------------------------------------------
+# validate_grade_for_grading_type — issue #99 (Canvas grade-type coercion guard)
+# ---------------------------------------------------------------------------
+
+def test_validate_grade_blank_is_sentinel():
+    """A blank grade is the result of an operator blanking final_grade to
+    'hold' a row; the recommended_score fallback is what causes the lived
+    silent-coerce. Catching blanks at the validator turns the operator's
+    intent (hold) into the actual behavior (hold)."""
+    status, _ = validate_grade_for_grading_type("", "pass_fail")
+    assert status == "sentinel"
+    status, _ = validate_grade_for_grading_type("   ", "pass_fail")
+    assert status == "sentinel"
+    status, _ = validate_grade_for_grading_type(None, "pass_fail")
+    assert status == "sentinel"
+
+
+def test_validate_grade_parenthesized_is_sentinel():
+    """The exact DS 250 incident: `(held)` got coerced to incomplete on
+    pass_fail. Anything in parens is suspicious operator notation."""
+    for s in ("(held)", "(not graded)", "(skip)", "(pending)", "(TBD)"):
+        status, _ = validate_grade_for_grading_type(s, "pass_fail")
+        assert status == "sentinel", f"expected sentinel for {s!r}, got {status!r}"
+
+
+def test_validate_grade_sentinel_keywords_caught_unboxed():
+    """Bare keywords without parens — operator might type just 'held'
+    rather than '(held)'. Same intent, same trap."""
+    for s in ("held", "Hold", "NOT GRADED", "skip", "n/a", "TBD"):
+        status, _ = validate_grade_for_grading_type(s, "pass_fail")
+        assert status == "sentinel", f"expected sentinel for {s!r}, got {status!r}"
+
+
+def test_validate_grade_pass_fail_ok():
+    """Valid pass_fail grades pass."""
+    for s in ("complete", "Complete", "INCOMPLETE", "pass", "fail"):
+        status, _ = validate_grade_for_grading_type(s, "pass_fail")
+        assert status == "ok", f"expected ok for {s!r}, got {status!r}"
+
+
+def test_validate_grade_pass_fail_rejects_numeric():
+    """Numeric on pass_fail is the inverse of the lived case — refuse it
+    too. Canvas would coerce '3.5' on pass_fail to... whatever; we
+    refuse explicitly."""
+    status, reason = validate_grade_for_grading_type("3.5", "pass_fail")
+    assert status == "invalid"
+    assert "pass_fail" in reason
+
+
+def test_validate_grade_pass_fail_rejects_letter():
+    """Letter grade on pass_fail is also invalid."""
+    status, _ = validate_grade_for_grading_type("B+", "pass_fail")
+    assert status == "invalid"
+
+
+def test_validate_grade_numeric_types_ok():
+    """points / percent / gpa_scale accept numeric strings."""
+    for gt in ("points", "percent", "gpa_scale"):
+        status, _ = validate_grade_for_grading_type("3.5", gt)
+        assert status == "ok"
+        status, _ = validate_grade_for_grading_type("92%", "percent")
+        assert status == "ok"
+        status, _ = validate_grade_for_grading_type("0", gt)
+        assert status == "ok"
+
+
+def test_validate_grade_numeric_types_reject_non_numeric():
+    """Letter on a points/percent/gpa_scale assignment is invalid."""
+    for gt in ("points", "percent", "gpa_scale"):
+        status, reason = validate_grade_for_grading_type("B+", gt)
+        assert status == "invalid"
+        assert "numeric" in reason
+
+
+def test_validate_grade_letter_grade_ok():
+    """letter_grade accepts F through A+."""
+    for s in ("F", "D-", "D", "D+", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+"):
+        status, _ = validate_grade_for_grading_type(s, "letter_grade")
+        assert status == "ok", f"expected ok for {s!r}, got {status!r}"
+
+
+def test_validate_grade_letter_grade_case_insensitive():
+    """Lowercase letter grades work."""
+    status, _ = validate_grade_for_grading_type("b+", "letter_grade")
+    assert status == "ok"
+
+
+def test_validate_grade_letter_grade_rejects_invalid_letter():
+    """'E' isn't on the US letter scale; 'P' could be pass-fail; both
+    refused as letter grades."""
+    for s in ("E", "P", "G"):
+        status, _ = validate_grade_for_grading_type(s, "letter_grade")
+        assert status == "invalid"
+
+
+def test_validate_grade_not_graded_refuses_everything():
+    """grading_type=not_graded means Canvas refuses grades at the source
+    of truth. Don't even try."""
+    status, reason = validate_grade_for_grading_type("3.5", "not_graded")
+    assert status == "not_graded"
+    assert "no grades" in reason or "no posts" in reason
+
+
+def test_validate_grade_unknown_type_proceeds_with_warning():
+    """Unfamiliar grading_type (e.g. a future Canvas grading mode) shouldn't
+    block the push — return unknown_type and let the caller proceed with
+    a one-time warning."""
+    status, _ = validate_grade_for_grading_type("3.5", "some_future_type")
+    assert status == "unknown_type"
+
+
+def test_validate_grade_empty_type_is_unknown():
+    """Missing grading_type (metadata fetch failed; default empty string)
+    should fall through as unknown_type — don't block the push when the
+    fetch genuinely failed."""
+    status, _ = validate_grade_for_grading_type("3.5", "")
+    assert status == "unknown_type"
+    status, _ = validate_grade_for_grading_type("3.5", None)
+    assert status == "unknown_type"
+
+
+def test_validate_grade_pass_fail_aliases_pass_and_fail():
+    """Canvas's pass_fail nominally returns 'complete'/'incomplete' but
+    a few institutions configure 'pass'/'fail' as aliases. Both accepted."""
+    status, _ = validate_grade_for_grading_type("pass", "pass_fail")
+    assert status == "ok"
+    status, _ = validate_grade_for_grading_type("fail", "pass_fail")
+    assert status == "ok"

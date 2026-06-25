@@ -69,7 +69,27 @@ interview's remaining steps + flagging edge cases.
 
 **Ask:** "Do you have a rubric for this assignment?"
 
-The branching is the most important moment in the interview. Three paths:
+The branching is the most important moment in the interview. Three paths.
+
+#### Precondition for ALL three paths — the task spec is the source of truth (issue #102, v0.63.0+)
+
+Before constructing or validating a rubric, **capture the student-facing task definition** as `assignment_spec.md` in the challenge dir. `grader_fetch.py` does this automatically when you point it at the assignment id — it captures the Canvas description AND, when the description links out to a course-site task page, the linked page text.
+
+**Why this precondition matters:** the rubric's REQUIRED vs OPTIONAL items must come from what students are ACTUALLY asked to do (the task spec), not from what the reference implementation happens to include (the answer key). The DS 250 U4T3 incident (2026-06-25) is the canonical failure: a rubric built from the solution code required an OPTIONAL chart, three grader passes unanimously applied the wrong rubric, 4 students were wrongly marked incomplete.
+
+| Path | How the task spec applies |
+|---|---|
+| **A — Has a rubric** | After loading the rubric, **cross-check every requirement against `assignment_spec.md`**. Anything the rubric requires that isn't named in the spec is suspect — defer to the spec unless the operator can point at the spec text that requires it. |
+| **B — Has an outcomes model** | Same cross-check — outcome thresholds must trace back to behaviors the task spec asks for. |
+| **C — Building a rubric from scratch** | **Derive criteria from the task spec, not the answer key.** Walk the spec section by section; each named deliverable becomes a candidate criterion. The answer key is a useful sanity check ("did the reference produce what the spec asked for?") but NEVER the requirements source. |
+
+**The rule that anchors all three paths:**
+
+> The task page is the source of truth for what is REQUIRED. The answer key is a reference implementation — it can include optional niceties. Anything that appears in the answer key but NOT in the task page is OPTIONAL by default; promote to REQUIRED only when the task page explicitly says so ("you must…", "required:", "submit a…").
+
+If `assignment_spec.md` is missing (because the operator hasn't run `grader_fetch.py` yet), pause the interview: run fetch first, get the spec captured, then resume. The rubric work depends on the spec being on disk.
+
+
 
 #### Path A — Has a rubric
 

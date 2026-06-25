@@ -284,6 +284,85 @@ def regression_check(existing: object, new: object) -> str:
     return "ok"
 
 
+# Issue #99: sentinel patterns that should HOLD a row rather than push it.
+# Operators have historically blanked `final_grade` in the .review.csv to
+# "hold" a row, but the push code falls back to `recommended_score` — which
+# often contains a placeholder string like `(held)`. On pass_fail
+# assignments Canvas silently coerces any non-"complete" string to
+# `incomplete` (score 0.0), turning a hold into a wrong fail.
+_SENTINEL_KEYWORDS: set[str] = {
+    "held", "hold", "not graded", "ungraded", "skip", "skipped",
+    "pending", "n/a", "na", "tbd", "todo",
+}
+_SENTINEL_PAREN_RE = re.compile(r"^\((.+)\)$")
+
+
+def validate_grade_for_grading_type(grade: str | None, grading_type: str | None) -> tuple[str, str]:
+    """Issue #99: validate a posted_grade against the assignment's
+    grading_type BEFORE the PUT. Canvas accepts arbitrary strings and
+    silently coerces them — e.g. `"(held)"` on a pass_fail assignment
+    becomes `incomplete` with score 0.0. This validator refuses the push
+    instead of letting the coercion happen.
+
+    Returns one of:
+      ('ok',           '')                — grade is legal; push proceeds
+      ('sentinel',     <text>)            — recognized placeholder (held /
+                                             blank / parenthesized note);
+                                             treat as explicit hold, not a
+                                             push
+      ('invalid',      <text>)            — not a legal grade for this
+                                             grading_type; refuse + surface
+      ('not_graded',   <text>)            — assignment grading_type is
+                                             `not_graded`; no posts allowed
+      ('unknown_type', <text>)            — unrecognized grading_type;
+                                             proceed without validation
+                                             (don't block on
+                                             unfamiliar configurations)
+
+    The caller maps these to skip/halt/proceed behaviors.
+    """
+    s = (grade or "").strip()
+    if not s:
+        return "sentinel", "blank grade"
+    # Sentinel — anything in parens is suspicious (operator notation)
+    if _SENTINEL_PAREN_RE.match(s):
+        return "sentinel", f"parenthesized sentinel {s!r}"
+    if s.lower() in _SENTINEL_KEYWORDS:
+        return "sentinel", f"sentinel keyword {s!r}"
+
+    gt = (grading_type or "").lower().strip()
+    if not gt:
+        return "unknown_type", "no grading_type captured from assignment metadata"
+    if gt == "not_graded":
+        return "not_graded", (
+            "assignment grading_type=not_graded; Canvas accepts no grades here. "
+            "If grading is intended, change the assignment's grading_type in Canvas."
+        )
+    if gt == "pass_fail":
+        if s.lower() in {"complete", "incomplete", "pass", "fail"}:
+            return "ok", ""
+        return "invalid", (
+            f"{s!r} is not a valid pass_fail grade "
+            "(expected: complete / incomplete / pass / fail)"
+        )
+    if gt in {"points", "percent", "gpa_scale"}:
+        try:
+            float(s.rstrip("%").strip())
+            return "ok", ""
+        except (ValueError, TypeError):
+            return "invalid", (
+                f"{s!r} is not numeric — grading_type={gt} requires a number"
+            )
+    if gt == "letter_grade":
+        if s.upper() in _LETTER_GRADE_RANK:
+            return "ok", ""
+        return "invalid", (
+            f"{s!r} is not a recognized letter grade "
+            "(F / D- / D / D+ / C- / C / C+ / B- / B / B+ / A- / A / A+)"
+        )
+    return "unknown_type", f"unrecognized grading_type {gt!r}; proceeding without validation"
+
+
 def truncate_comment_preview(text: str | None, limit: int = 240) -> str:
     """Issue #98: produce a one-line truncated preview of a comment for the
     `--skip-if-student-replied` skip-print. Newlines collapse to single
@@ -557,7 +636,13 @@ def fetch_assignment_lock_state(
         locked_now = True
         reason = f"unlock_at={unlock_dt.date()} is in the future"
     return {"locked_now": locked_now, "lock_at": lock_at, "unlock_at": unlock_at,
-            "reason": reason}
+            "reason": reason,
+            # Issue #99: capture grading_type from the same /assignments/:aid
+            # call so the push loop can validate posted_grade against it
+            # before the PUT (Canvas otherwise silently coerces invalid
+            # strings to wrong grades — e.g. "(held)" → incomplete on
+            # pass_fail).
+            "grading_type": a.get("grading_type") or ""}
 
 
 def comment_has_resubmit_language(text: str) -> bool:
@@ -1108,26 +1193,31 @@ def main() -> int:
               f"comment=\"{comment[:50].replace(chr(10), ' ')}…\"{why}")
 
     # ---- Issue #63 part 1: availability awareness ------------------------
-    # If the assignment is locked (lock_at passed, or unlock_at not yet
-    # reached) AND a pushable row's comment text contains resubmit-style
-    # language, the comment asks the student to do something they
-    # literally can't. Warn loudly; require explicit ack before push.
+    # ---- Issue #99: grading_type capture for posted_grade validation -----
+    # Both checks read /assignments/:aid; one fetch serves both. Lifted out
+    # of the lock-check conditional because #99's validator needs
+    # grading_type even on --grade-only / --no-lock-check pushes (those are
+    # the most coercion-prone: a sentinel string on a pass_fail assignment
+    # silently became `incomplete` in the DS 250 lived incident).
     locked_resubmit_keys: list[tuple[str, str]] = []
     lock_state: dict = {}
-    if not args.no_lock_check and not args.grade_only:
-        try:
-            lock_state = fetch_assignment_lock_state(base, cid, headers, args.assignment_id)
-        except requests.HTTPError as e:
-            print(f"WARN: lock-state check disabled — assignment metadata fetch failed "
-                  f"({type(e).__name__}: {e}).", file=sys.stderr)
-            lock_state = {"locked_now": False}
-        if lock_state.get("locked_now"):
-            for r in rows:
-                key = r.get("key", "")
-                comment = comment_for(r.get("feedback_file", "")) or args.default_comment
-                if comment and comment_has_resubmit_language(comment):
-                    locked_resubmit_keys.append((key, comment))
-    # ---- end availability awareness --------------------------------------
+    try:
+        lock_state = fetch_assignment_lock_state(base, cid, headers, args.assignment_id)
+    except requests.HTTPError as e:
+        print(f"WARN: assignment metadata fetch failed "
+              f"({type(e).__name__}: {e}); lock-state + grading-type checks disabled.",
+              file=sys.stderr)
+        lock_state = {"locked_now": False, "grading_type": ""}
+    grading_type = (lock_state.get("grading_type") or "").strip()
+    # The resubmit-language check is still gated by the flags; only the
+    # underlying fetch was lifted.
+    if not args.no_lock_check and not args.grade_only and lock_state.get("locked_now"):
+        for r in rows:
+            key = r.get("key", "")
+            comment = comment_for(r.get("feedback_file", "")) or args.default_comment
+            if comment and comment_has_resubmit_language(comment):
+                locked_resubmit_keys.append((key, comment))
+    # ---- end availability + grading-type metadata -----------------------
 
     # ---- Issue #62: pre-push comment-collision guard --------------------
     # Only run when comments will actually be posted. --grade-only pushes
@@ -1307,12 +1397,50 @@ def main() -> int:
     pushed = 0
     held = 0
     regressions_skipped = 0
+    grade_type_skipped = 0
     failed: list[str] = []
     with log.open("a", encoding="utf-8") as lg:
         for key, uid, grade, comment, _ in pushable:
             # Issue #72: held rows post the qualitative comment but
             # WITHHOLD the grade write.
             hold_token = hold_by_key.get(key)
+
+            # Issue #99: grading_type validator. Pre-PUT check that the grade
+            # is legal for the assignment's grading_type — refuses sentinels
+            # like "(held)" / "not graded" / blanks that Canvas would
+            # otherwise silently coerce (e.g. on pass_fail, a non-"complete"
+            # string becomes incomplete + score 0.0). Skipped for held rows
+            # (those withhold the grade write anyway) and for --grade-only=False
+            # rows with no grade (legitimate comment-only / hold-token rows).
+            if not hold_token:
+                gv_status, gv_reason = validate_grade_for_grading_type(grade, grading_type)
+                if gv_status == "sentinel":
+                    print(f"  [HOLD] {key}: {gv_reason} — treating as held (no grade pushed)")
+                    lg.write(f"- {key}: grade-type-hold uid={uid} grade={grade!r} {gv_reason} "
+                             f"on assignment {args.assignment_id}\n")
+                    grade_type_skipped += 1
+                    continue
+                if gv_status == "invalid":
+                    print(f"  ⛔ [INVALID-GRADE] {key}: uid={uid}: {gv_reason} — refusing to push")
+                    lg.write(f"- {key}: grade-type-invalid uid={uid} grade={grade!r} {gv_reason} "
+                             f"on assignment {args.assignment_id}\n")
+                    grade_type_skipped += 1
+                    continue
+                if gv_status == "not_graded":
+                    print(f"  ⛔ [NOT-GRADED] {key}: {gv_reason}")
+                    lg.write(f"- {key}: grade-type-not_graded uid={uid} {gv_reason} "
+                             f"on assignment {args.assignment_id}\n")
+                    grade_type_skipped += 1
+                    continue
+                # 'unknown_type' falls through with a one-time warning so the
+                # push isn't blocked on unfamiliar grading types.
+                if gv_status == "unknown_type":
+                    # Print once per push, not per row, by stashing on the
+                    # locals — cheap deduplication.
+                    if not getattr(main, "_grade_type_warned", False):
+                        print(f"  ⚠️  grading_type {grading_type!r} not recognized — "
+                              f"posting grades without per-row validation. ({gv_reason})")
+                        main._grade_type_warned = True  # type: ignore[attr-defined]
 
             # Issue #96: regression gate (numeric / letter / pass-fail). Skip
             # for HELD rows (those don't write the grade). Skip when --allow-lower
@@ -1405,6 +1533,9 @@ def main() -> int:
         summary_line += (f"; {regressions_skipped} regression/mismatch row(s) skipped "
                          f"(see [REGRESSION] / [MISMATCH] / [UNKNOWN-CLASS] above; "
                          f"--allow-lower forces a regression through, manual review needed for the others)")
+    if grade_type_skipped:
+        summary_line += (f"; {grade_type_skipped} grade-type row(s) skipped "
+                         f"(see [HOLD] / [INVALID-GRADE] / [NOT-GRADED] above — issue #99)")
     print(f"\n{summary_line}. Logged to {log} (keyed, gitignored).")
     if failed:
         print(f"Failed: {failed}")
