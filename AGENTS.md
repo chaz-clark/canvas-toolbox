@@ -248,6 +248,114 @@ private channel is for security.
 
 _Last updated: 2026-06-25_
 
+### Recent: voice_coaching_knowledge.md — upstream scaffolding for the per-instructor voice file (v0.65.0, 2026-06-25)
+
+**v0.65.0** — first knowledge file produced under canvas-toolbox's
+research-grounded path (Option C from the planning conversation:
+research synthesis doc + draft knowledge file, both committed to
+audit-trail). Closes parking-lot idea A (voicing coach) from the
+2026-06-24 meeting.
+
+**Operator-set constraint:** preserve the faculty's voice; add value
+through phrasing while keeping the voicing intact. Apply the 80/20
+rule. This constraint reshaped the entire deliverable — instead of a
+"here's how to give better feedback" file that would have flattened
+faculty into a generic best-practices yardstick, the file separates
+WHAT (universal effectiveness — checkable; agent-applied) from HOW
+(per-instructor voice — preserved; agent-respected).
+
+**What landed:**
+
+1. **[lib/agents/knowledge/voice_coaching_knowledge.md](lib/agents/knowledge/voice_coaching_knowledge.md)**
+   (~3,900 words) — the v1.0 shippable artifact. 8 sections:
+   - §1 — The WHAT/HOW split, named explicitly
+   - §2 — The WHAT: 4-point universal effectiveness check (Hattie
+     three questions + cognitive-load 1-2 priority items)
+   - §3 — The HOW: 8 voice dimensions with synthetic worked
+     examples ("same WHAT, different HOWs")
+   - §4 — The 80/20 boundary made visible
+   - §5 — First-time voice articulation interview (5 questions, ~30
+     min, produces a starter `student_feedback_voice_<instructor>.md`)
+   - §6 — Edge cases: surface-don't-override pattern when voice and
+     effectiveness conflict
+   - §7 — Cross-walk to existing voice infrastructure
+   - §8 — Research citations
+2. **handoffs/2026-06-25_voice-coaching-research.md** (~3,900 words,
+   gitignored) — the audit-trail research synthesis. 8 frameworks
+   analyzed, DS 250 + DS 460 voice artifacts compared, decisions
+   that shaped the knowledge file documented. Available locally for
+   anyone who wants to see WHY each section is structured as it is.
+3. **[lib/agents/knowledge/README.md](lib/agents/knowledge/README.md)** —
+   updated routing table + new "The files" entry following the
+   established pattern.
+
+**The research foundation** (8 frameworks):
+
+- **Hattie & Timperley (2007)** — three feedback questions (Where am
+  I? How am I? Where to next?). The spine.
+- **Wiggins (2012)** — seven keys: goal-referenced, tangible,
+  actionable, user-friendly, timely, ongoing, consistent.
+- **Dweck (1998-ongoing)** — process vs ability praise. Treated as a
+  DIMENSION (not a rule) per operator preference — "nothing should be
+  'hard' or 'rules'."
+- **Brookhart (2008/2017)** — content + strategy element framework.
+- **Cognitive Load Theory (Sweller 1988-ongoing)** — working memory
+  limits → 1-2 priority items rule.
+- **Warm-demander pedagogy (Hammond 2014; Delpit; Kleinfeld)** —
+  high expectations + high warmth + culturally-grounded.
+- **Black & Wiliam (1998/2009)** — closing-the-gap formative
+  feedback. Almost identical to Hattie three; reinforces the spine.
+- **AI voice preservation literature (2025-2026)** — voice fidelity
+  is THE adoption barrier; teacher-as-collaborator framing.
+
+**DS 250 + DS 460 cross-course voice signature** (extracted via
+Explore-agent mapping of both repos):
+
+- "To be unclear is to be unkind" — appears in BOTH repos as a core
+  value (Chaz Clark's voice signature)
+- Anti-meta-scaffolding ("Cut 'I want to be clear...'") in BOTH
+- "These students are adults" / "consulting engagement" — peer-
+  professional register in BOTH
+- Forward-looking + concise + specific-praise-only — consistent
+  across both courses
+
+The coaching file uses synthetic worked examples (not corpus
+extracts) per operator preference — "synthetic + label ok" — to
+avoid biasing toward Chaz's voice as "the example."
+
+**Operator decisions baked into the file** (from the scoping pass):
+
+| Question | Operator answer | Implementation |
+|---|---|---|
+| Worked examples shape | Synthetic + labeled | §3 examples are clearly marked synthetic |
+| Dweck framing | Dimension, not rule | Axis 6 treats process/ability as a position |
+| Override behavior on edge cases | Never unilateral | §6 "surface, don't override" |
+| Edits to existing voice file? | No — standalone | `grader_voice_knowledge.md` unchanged |
+| Length | OK at ~3,900 words | Kept as drafted |
+
+**What's NOT in scope:**
+
+- Edits to `grader_voice_knowledge.md` — kept standalone per operator
+  decision (avoid bloat)
+- Companion JSON file — the knowledge file is markdown-only for v1.0;
+  if downstream tools need structured access, that's a follow-up
+- Sample-feedback corpus extracts in examples — synthetic per
+  operator preference
+- Automated WHAT-check validation tool — knowledge file is reference;
+  the agent applies the 4-point check on each draft comment
+
+**Cross-repo implication:** DS 250, DS 460, CE 162 (and any future
+adopter) inherit the coaching file on next pull. The file is
+particularly valuable for first-time instructors who don't yet have
+a per-instructor voice file the existing edit roundtrip can refine
+— Section 5's articulation interview produces a starter voice file in
+~30 minutes.
+
+**Pairs with the broader marketing positioning** (parking lot —
+"AI-assisted grading where the instructor stays the author, not the
+AI"). The voice-preservation contract in §1 is the architectural
+proof that this positioning is real, not just rhetoric.
+
 ### Recent: first-class Canvas group-assignment workflow — issue #100 (v0.64.0, 2026-06-25)
 
 **v0.64.0** — closes issue #100. First non-DS-250/DS-460 issue this

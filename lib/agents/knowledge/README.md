@@ -29,6 +29,7 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 | Writing a precise change plan for a flagged issue | [`toyota_gap_analysis_knowledge.md`](toyota_gap_analysis_knowledge.md) |
 | Setting up + running a FERPA-safe AI-assisted grading pipeline (core lessons) | [`grader_knowledge.md`](grader_knowledge.md) |
 | Per-instructor comment voice for the grading pipeline | [`grader_voice_knowledge.md`](grader_voice_knowledge.md) |
+| Coaching a new faculty on feedback style — research-grounded WHAT/HOW split + first-time voice articulation | [`voice_coaching_knowledge.md`](voice_coaching_knowledge.md) |
 | Onboarding a new instructor / assignment to the grader (6-step interview) | [`grader_setup_knowledge.md`](grader_setup_knowledge.md) |
 
 ---
@@ -259,6 +260,17 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 **Audit tag:** none.
 **Status:** ✅ **v1.0** (the 6-step interview was run informally for ds460 round 1 KC1 + round 2 Mid Review, producing runnable configs both times; the structured form here is the formalization). BAR-2 Path C (no-rubric case) deferred to a real example but not a v1.0 gate.
 **Consumed by:** `canvas_grader.md`. **Pairs with:** [`grader_knowledge.md`](grader_knowledge.md), [`grader_voice_knowledge.md`](grader_voice_knowledge.md).
+
+---
+
+### [`voice_coaching_knowledge.md`](voice_coaching_knowledge.md)
+
+**Sources:** Hattie & Timperley (2007) *The Power of Feedback* — three feedback questions; Wiggins (2012) *Seven Keys to Effective Feedback* (ASCD); Dweck (1998-ongoing) process vs ability praise; Brookhart (2008/2017) *How to Give Effective Feedback*; Sweller (1988-ongoing) Cognitive Load Theory; Hammond (2014) *Culturally Responsive Teaching and the Brain* (warm-demander pedagogy); Black & Wiliam (1998/2009) *Inside the Black Box* + *Assessment for Learning* (formative-feedback closing-the-gap); AI voice preservation literature (2025-2026); validated against DS 250 + DS 460 voice artifacts. Full audit trail at `handoffs/2026-06-25_voice-coaching-research.md` (gitignored).
+**Core idea:** Upstream coaching scaffolding for the per-instructor voice file. Separates the **WHAT** (universal effectiveness criteria: hits the three Hattie questions, anchored to specific evidence, scoped to 1-2 priority items, forward-looking) from the **HOW** (per-instructor voice: 8 dimensions — warmth / directness / technical density / encouragement frequency / brevity / praise focus / question style / cultural register). Applies the canvas-toolbox 80/20 — this coaching file delivers the 80% via universal WHAT criteria; the existing edit roundtrip (`grader_voice_knowledge.md §4`) tunes per-instructor HOW. Includes a 5-question articulation interview for first-time faculty who don't yet have a voice file the existing roundtrip can refine. Edge cases (voice vs effectiveness conflicts) are handled via "surface, don't override" — agent flags with research citation; operator decides.
+**When to use:** Anywhere a faculty member is being coached on grading-comment voice — first-time setup (before the edit roundtrip can refine), conflicts between voice habits and research-grounded effectiveness, or when articulating the WHAT/HOW boundary for an adopter who's confused about what the AI does and doesn't change.
+**Audit tag:** none (coaching reference; consumed via fact lookup).
+**Status:** ✅ **v1.0** — research-grounded across 8 pedagogical frameworks; validated against DS 250 + DS 460 voice artifacts. The voice-preservation contract honors the operator-set constraint that the AI must add value in PHRASING without losing the faculty's voice.
+**Consumed by:** [`canvas_grader.md`](canvas_grader.md), the agent grading any LLM-comment cohort. **Pairs with:** [`grader_voice_knowledge.md`](grader_voice_knowledge.md) (structure + per-instructor file contract + edit roundtrip — the downstream operational layer), [`grader_setup_knowledge.md`](grader_setup_knowledge.md) (per-assignment config interview), [`grader_knowledge.md`](grader_knowledge.md) (push pipeline + safety gates the voice rides on top of).
 
 ---
 
