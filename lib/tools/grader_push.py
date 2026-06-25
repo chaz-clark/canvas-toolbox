@@ -96,6 +96,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import os
 import re
 import sys
@@ -397,6 +398,49 @@ def is_yes_refused_on_review(comment_files: list, yes_flag: bool) -> bool:
     Returns True if the caller should refuse the command and exit.
     """
     return bool(comment_files) and bool(yes_flag)
+
+
+def is_group_mirror_row(row: dict) -> bool:
+    """Issue #100: a .review.csv row is a 'group mirror' if its
+    `group_mirror_of` column is non-empty — it's not the representative
+    submitter for its group; in shared-grade mode, the rep's push
+    distributes the grade + comment to this row's student automatically.
+    """
+    return bool((row.get("group_mirror_of") or "").strip())
+
+
+def filter_group_mirror_rows(
+    rows: list[dict], group_context: dict | None
+) -> tuple[list[dict], list[dict]]:
+    """Issue #100: on a shared-grade group assignment, split rows into
+    (kept, dropped). Mirrored rows whose operator didn't override the
+    grade (blank `final_grade`) are dropped — Canvas distributes the
+    rep's grade + comment via `comment[group_comment]=true`. Mirrored
+    rows where the operator HAS set `final_grade` are kept as explicit
+    overrides (individual push for that one student).
+
+    On individual-grade mode or non-group assignments, dropped is
+    always empty and rows pass through unchanged.
+    """
+    if not group_context:
+        return rows, []
+    if group_context.get("grade_group_students_individually"):
+        return rows, []
+    kept: list[dict] = []
+    dropped: list[dict] = []
+    for r in rows:
+        if not is_group_mirror_row(r):
+            kept.append(r)  # rep row (or non-group row, in mixed contexts)
+            continue
+        # Mirrored row — operator can override by setting final_grade
+        final = (r.get("final_grade") or "").strip()
+        if final:
+            kept.append(r)  # explicit operator override; push individually
+        else:
+            dropped.append(r)  # Canvas distributes from the rep
+
+
+    return kept, dropped
 
 
 def consensus_gate_status(fbdir: Path) -> tuple[str, list[Path]]:
@@ -1101,6 +1145,39 @@ def main() -> int:
         return _retract_main(base, cid, headers, args, log, prefix)
 
     rows = list(csv.DictReader(review.open(encoding="utf-8")))
+
+    # Issue #100: read group_context from .fetch_log.json (written by
+    # grader_fetch on group assignments). Used below to filter mirror
+    # rows (shared-grade mode → Canvas distributes from the rep) and
+    # to set comment[group_comment]=true on rep pushes.
+    group_context: dict | None = None
+    fetch_log_path = challenge / ".fetch_log.json"
+    if fetch_log_path.exists():
+        try:
+            fl = json.loads(fetch_log_path.read_text(encoding="utf-8"))
+            group_context = fl.get("group_context")
+        except (json.JSONDecodeError, OSError):
+            group_context = None
+
+    # Filter mirror rows for shared-grade group assignments. Rows whose
+    # operator left final_grade blank get dropped (Canvas distributes
+    # the rep's grade); rows where the operator set final_grade are
+    # kept as explicit individual overrides.
+    is_shared_group_mode = bool(
+        group_context and not group_context.get("grade_group_students_individually")
+    )
+    if is_shared_group_mode:
+        rows, dropped_mirror_rows = filter_group_mirror_rows(rows, group_context)
+        if dropped_mirror_rows:
+            print(f"Issue #100: {len(dropped_mirror_rows)} mirrored group-member "
+                  f"row(s) dropped from push plan (shared-grade mode — Canvas "
+                  f"distributes the representative's grade + comment to them).")
+
+    # Issue #100: build a key → row lookup so the push loop can check
+    # `group_mirror_of` (for setting comment[group_comment]=true on rep
+    # rows in shared-grade mode).
+    key_to_row: dict[str, dict] = {r.get("key", ""): r for r in rows}
+
     subs = fetch_submissions(base, cid, headers, args.assignment_id)
 
     # Issue #61: default-exclude Test Student + inactive/withdrawn enrollments.
@@ -1490,6 +1567,16 @@ def main() -> int:
                 data["submission[posted_grade]"] = grade
                 if comment:
                     data["comment[text_comment]"] = comment
+            # Issue #100: on shared-grade group assignments, set
+            # comment[group_comment]=true for REP rows (where
+            # group_mirror_of is empty) so Canvas distributes the
+            # comment to all group members. Rows where the operator
+            # explicitly set final_grade on a mirrored member skip the
+            # flag — those are intentional individual overrides.
+            if is_shared_group_mode and comment:
+                row_meta = key_to_row.get(key, {})
+                if not (row_meta.get("group_mirror_of") or "").strip():
+                    data["comment[group_comment]"] = "true"
             resp = requests.put(
                 f"{base}/api/v1/courses/{cid}/assignments/{args.assignment_id}/submissions/{uid}",
                 headers=headers, data=data, timeout=_TIMEOUT)

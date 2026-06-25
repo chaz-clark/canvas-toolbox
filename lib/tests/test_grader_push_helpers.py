@@ -23,6 +23,8 @@ from grader_push import (  # noqa: E402
     is_yes_refused_on_review,
     truncate_comment_preview,
     validate_grade_for_grading_type,
+    is_group_mirror_row,
+    filter_group_mirror_rows,
 )
 
 
@@ -652,3 +654,108 @@ def test_validate_grade_pass_fail_aliases_pass_and_fail():
     assert status == "ok"
     status, _ = validate_grade_for_grading_type("fail", "pass_fail")
     assert status == "ok"
+
+
+# ---------------------------------------------------------------------------
+# is_group_mirror_row / filter_group_mirror_rows — issue #100 (group push)
+# ---------------------------------------------------------------------------
+
+def _push_row(key, group_mirror_of="", final_grade=""):
+    """Test helper: build a .review.csv-shaped row."""
+    return {
+        "key": key,
+        "group_mirror_of": group_mirror_of,
+        "final_grade": final_grade,
+        # Other columns omitted; not exercised by these helpers.
+    }
+
+
+def test_is_group_mirror_row_true_when_set():
+    """Non-empty group_mirror_of → True."""
+    assert is_group_mirror_row(_push_row("X", group_mirror_of="X-REP")) is True
+
+
+def test_is_group_mirror_row_false_when_empty():
+    """Blank / missing → False."""
+    assert is_group_mirror_row(_push_row("X")) is False
+    assert is_group_mirror_row(_push_row("X", group_mirror_of="")) is False
+    assert is_group_mirror_row({"key": "X"}) is False  # column missing entirely
+
+
+def test_is_group_mirror_row_strips_whitespace():
+    """Whitespace-only group_mirror_of values count as empty (no mirror)."""
+    assert is_group_mirror_row(_push_row("X", group_mirror_of="   ")) is False
+
+
+def test_filter_group_mirror_no_context_pass_through():
+    """No group_context → all rows kept, none dropped."""
+    rows = [_push_row("A"), _push_row("B", group_mirror_of="A")]
+    kept, dropped = filter_group_mirror_rows(rows, None)
+    assert len(kept) == 2
+    assert dropped == []
+
+
+def test_filter_group_mirror_individual_mode_pass_through():
+    """grade_group_students_individually=True → all rows kept (Canvas
+    grades each member separately; no need to drop mirrors)."""
+    ctx = {"grade_group_students_individually": True}
+    rows = [_push_row("A"), _push_row("B", group_mirror_of="A")]
+    kept, dropped = filter_group_mirror_rows(rows, ctx)
+    assert len(kept) == 2
+    assert dropped == []
+
+
+def test_filter_group_mirror_shared_mode_drops_mirrors():
+    """Shared-grade mode + mirror row with NO final_grade override →
+    mirror row dropped (Canvas distributes from the rep)."""
+    ctx = {"grade_group_students_individually": False}
+    rows = [
+        _push_row("REP"),
+        _push_row("MIRROR-1", group_mirror_of="REP"),
+        _push_row("MIRROR-2", group_mirror_of="REP"),
+    ]
+    kept, dropped = filter_group_mirror_rows(rows, ctx)
+    kept_keys = {r["key"] for r in kept}
+    dropped_keys = {r["key"] for r in dropped}
+    assert kept_keys == {"REP"}
+    assert dropped_keys == {"MIRROR-1", "MIRROR-2"}
+
+
+def test_filter_group_mirror_keeps_explicit_override():
+    """Operator set final_grade on a mirrored row → kept (individual
+    override beats default mirror)."""
+    ctx = {"grade_group_students_individually": False}
+    rows = [
+        _push_row("REP"),
+        _push_row("MIRROR-OVERRIDE", group_mirror_of="REP", final_grade="3.0"),
+        _push_row("MIRROR-DEFAULT", group_mirror_of="REP"),
+    ]
+    kept, dropped = filter_group_mirror_rows(rows, ctx)
+    kept_keys = {r["key"] for r in kept}
+    assert kept_keys == {"REP", "MIRROR-OVERRIDE"}
+    assert [r["key"] for r in dropped] == ["MIRROR-DEFAULT"]
+
+
+def test_filter_group_mirror_non_group_rows_kept_in_mixed():
+    """A row with no group_mirror_of (non-group OR rep) is always kept,
+    regardless of group_context state."""
+    ctx = {"grade_group_students_individually": False}
+    rows = [_push_row("REP-OR-SOLO"), _push_row("MIRROR", group_mirror_of="REP-OR-SOLO")]
+    kept, dropped = filter_group_mirror_rows(rows, ctx)
+    assert "REP-OR-SOLO" in {r["key"] for r in kept}
+
+
+def test_filter_group_mirror_empty_rows():
+    """Empty input is safe — empty kept + empty dropped."""
+    kept, dropped = filter_group_mirror_rows([], {"grade_group_students_individually": False})
+    assert kept == []
+    assert dropped == []
+
+
+def test_filter_group_mirror_whitespace_final_grade_treated_as_blank():
+    """Operator put '   ' in final_grade → treated as no override, drop."""
+    ctx = {"grade_group_students_individually": False}
+    rows = [_push_row("REP"), _push_row("M", group_mirror_of="REP", final_grade="   ")]
+    kept, dropped = filter_group_mirror_rows(rows, ctx)
+    assert {r["key"] for r in kept} == {"REP"}
+    assert {r["key"] for r in dropped} == {"M"}

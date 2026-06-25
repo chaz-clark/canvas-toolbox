@@ -513,6 +513,42 @@ When grading any submission, **read `assignment_spec.md` first**. That file is t
 
 **`assignment_spec.md` is FERPA-safe** — it contains the assignment description + task page text (both student-facing public-by-design content). No PII. Gitignored per the per-challenge-artifact convention, but agent-readable and operator-editable. If the captured spec is wrong or incomplete (rare — happens when the task page has dynamic content or is auth-gated), the operator can hand-edit it before grading begins.
 
+### Group assignments — grade one representative per group; mirror feedback to members (issue #100, v0.64.0+)
+
+Canvas group assignments (those with a non-zero `group_category_id`) deliberately produce one submission row per member, mirroring the same file content. The instructor's workflow is "grade ONE memo per submitted group, apply to the whole group" — naively grading each per-student row wastes work AND risks inconsistent grades/comments across members of the same group. **First-class group support landed in v0.64.0:** the toolkit now detects group context at fetch time, picks a representative per group, mirrors the representative's feedback to group-mates at reidentify time, and collapses the push plan in shared-grade mode so Canvas's built-in group-grade distribution handles the propagation.
+
+**The three group artifacts (FERPA-safe — opaque keys + user_ids only, no names):**
+
+| Artifact | Written by | Read by | Purpose |
+|---|---|---|---|
+| `.fetch_log.json` `"group_context"` block | `grader_fetch.py` | `grader_reidentify.py`, `grader_push.py` | Canonical user_id → group mapping + mode flag |
+| `UNIQUE_GROUP_MEMOS.md` | `grader_fetch.py` | The agent + operator | Human-readable list: which key per group to grade |
+| `.review.csv` `group_mirror_of` column | `grader_reidentify.py` | `grader_push.py` | Mirror-rep traceability for push planning |
+
+**Two Canvas group modes** — the toolkit honors both:
+
+1. **Shared-grade group** (Canvas default: `grade_group_students_individually=false`). One grade applies to the whole group. **The toolkit's workflow:**
+   - Fetch detects group context, builds the map, picks the smallest-user_id submitter per group as the representative
+   - Writes `UNIQUE_GROUP_MEMOS.md` listing rep + mirrored + non-submitting members per group
+   - The agent grades ONLY the representative's key per group (saves N× the work)
+   - Reidentify mirrors the rep's score + reason + feedback file to mirrored member rows + sets `group_mirror_of=<rep_key>`
+   - Push drops mirrored rows (operator left `final_grade` blank) from the push plan; pushes ONLY the rep with `comment[group_comment]=true` so Canvas distributes the grade + comment to all members
+2. **Individual-grade group** (`grade_group_students_individually=true`). Each member is graded separately. **The toolkit's workflow:**
+   - Same group context written to `.fetch_log.json` + `UNIQUE_GROUP_MEMOS.md` (so the agent has visibility)
+   - Reidentify does NOT mirror (each member's row stands alone)
+   - Push pushes every row as today
+
+**Operator override on shared-grade.** Sometimes one member of a shared-grade group needs an individual grade (didn't contribute, extension granted, etc.). The operator sets `final_grade` on that member's mirrored row. The push gate keeps the row (instead of dropping it) and pushes it individually WITHOUT `comment[group_comment]=true` — Canvas grades just that one member; the rep's row still distributes the shared grade to the others.
+
+**Standard Work — the agent's grading flow on a group assignment:**
+
+1. **Read `UNIQUE_GROUP_MEMOS.md` BEFORE grading.** It tells you which keys are representatives + which are mirrors.
+2. **Grade ONLY the representative's key per group.** Skip mirrored keys; they'll inherit the rep's score via reidentify.
+3. **In your reason column, name the group** — `re: Survey Team Alpha (3 members)` rather than per-student framing. The feedback is a group-level evaluation; the prose should reflect that.
+4. **If a member's contribution is materially different and the operator wants individual grading,** that's a Canvas-side configuration choice (`grade_group_students_individually=true`) — the operator changes the assignment and re-runs fetch. Don't try to hand-author individual grades on a shared-grade assignment; the push gate distributes via Canvas regardless of what's in your CSV.
+
+**Why this matters.** Before v0.64.0, an instructor grading a 7-group, 3-members-each assignment had to either (a) hand-edit the CSV to dedupe rows + manually copy feedback files across mirrors (the CE 162 Land Surveying workaround), or (b) accept that the agent would re-grade 21 identical submissions independently and risk inconsistent grades. Both are real cohort-level grading failures. The first-class group workflow eliminates both.
+
 ### Standard Work — "grade X" stops at `_all_comments.md`; pushing is a separate, human-approved step (issue #97, v0.62.0+)
 
 The review gate is the **core human-in-the-middle promise** — non-negotiable in the BYUI context. The grade only reaches Canvas after the instructor has eyeballed `_all_comments.md` (+ each per-student justification) and physically attested review. The gate's credibility depends on a HUMAN, not an agent, performing that attestation.

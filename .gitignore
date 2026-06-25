@@ -87,6 +87,7 @@ handoffs/
 **/.fetch_log.json
 **/_existing_grades.csv
 **/assignment_spec.md
+**/UNIQUE_GROUP_MEMOS.md
 **/feedback/
 **/.review.csv
 **/.review*.csv

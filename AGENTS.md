@@ -248,6 +248,95 @@ private channel is for security.
 
 _Last updated: 2026-06-25_
 
+### Recent: first-class Canvas group-assignment workflow — issue #100 (v0.64.0, 2026-06-25)
+
+**v0.64.0** — closes issue #100. First non-DS-250/DS-460 issue this
+session — filed from **CE 162 Land Surveying (BYUI)**, a different
+course/instructor adopting the toolkit. The course had a real
+multi-tool workaround for Canvas group assignments (lab memos, one
+per group, but Canvas creates per-member submission rows that
+duplicate the content); they wanted first-class support upstream
+rather than carrying the workaround forward per cohort.
+
+**Three-phase implementation across three tools, plus knowledge:**
+
+**Phase A — `grader_fetch.py`** detects group context, fetches groups
++ members, writes two new artifacts. New pure helpers:
+`is_group_assignment(asg_meta)`, `grades_individually(asg_meta)`,
+`build_group_map(groups, members_by_group)`,
+`pick_group_representatives(group_map, submitter_uids)`,
+`render_unique_group_memos_md(...)`,
+`group_context_for_fetch_log(...)`. New Canvas API helpers:
+`fetch_group_category_groups`, `fetch_group_members`. Wired into all
+three sub-paths (discussion / quiz / default).
+
+Artifacts (both FERPA-safe — user_ids + group_ids, no names):
+- `<challenge-dir>/UNIQUE_GROUP_MEMOS.md` — human-readable per-group
+  listing (representative submitter / mirrored members /
+  non-submitters / groups without submissions). Agent reads this
+  BEFORE grading.
+- `.fetch_log.json` `"group_context"` block — JSON
+  user_id → {group_id, group_name, member_user_ids} mapping.
+  Consumed by reidentify + push.
+
+**Phase B — `grader_reidentify.py`** mirrors the rep's score + reason
++ feedback file to mirrored group-member rows in `.review.csv`. New
+pure helpers: `build_user_to_keys(keymap)`,
+`pick_group_representatives_from_context(...)`,
+`mirror_group_rows(...)`. New column on `.review.csv`:
+`group_mirror_of` (empty for non-mirror rows; rep_key for mirrors).
+
+**Phase C — `grader_push.py`** drops mirrored rows from the push plan
+in shared-grade mode (Canvas distributes the rep's grade via
+`comment[group_comment]=true`); preserves them in individual-grade
+mode. Operator can override per-row by setting `final_grade` on a
+mirrored row — kept as an explicit individual push. New pure
+helpers: `is_group_mirror_row(row)`,
+`filter_group_mirror_rows(rows, group_context)`.
+
+**Phase D — knowledge**. New "Group assignments — grade one
+representative per group" subsection in `grader_knowledge.md §10`.
+Three-artifact table + two-mode behavior + agent Standard Work for
+the group grading flow + operator override rule.
+
+**`.gitignore`** adds `**/UNIQUE_GROUP_MEMOS.md` for consistency
+with the other per-challenge artifacts.
+
+**46 new tests** across three test files:
+- `test_grader_fetch_helpers.py` +21 (group detection, group_map
+  building, rep picking, MEMOS rendering, fetch_log context shape)
+- `test_grader_reidentify_helpers.py` +15 (NEW FILE — `build_user_to_keys`,
+  `pick_reps_from_context`, `mirror_group_rows` with mirror /
+  override / multi-group / missing-rep-feedback edge cases)
+- `test_grader_push_helpers.py` +10 (is_group_mirror_row +
+  filter_group_mirror_rows behavior across shared / individual /
+  operator-override modes)
+
+Total tests 390 (up from 344).
+
+**The lived failure the workaround surfaced (and why upstream
+support matters).** Without group support, an instructor grading a
+7-group × 3-members-each assignment had to either:
+- (a) Hand-edit the CSV to dedupe rows + manually copy feedback
+  files across mirrors (the CE 162 workaround), OR
+- (b) Accept that the agent would re-grade 21 identical
+  submissions independently and risk inconsistent grades/comments
+  across members of the same group
+
+Both are real cohort-level grading failures. The first-class
+workflow eliminates both: agent grades the 7 representatives;
+mirror logic propagates to the 14 group-mates; push collapses to
+7 PUTs (each with `group_comment=true`) instead of 21.
+
+**Cross-repo adoption signal.** CE 162 filed the issue with a
+fully-worked local solution (their `UNIQUE_GROUP_MEMOS.md`
+prototype) AND specific advice on which Canvas API endpoints to hit
++ which fields matter. That's mature adopter behavior — they're
+running canvas-toolbox in production on Windows and shipping
+contributions back. Worth surfacing for the LinkedIn marketing
+story (parking-lot positioning section): "first non-DS-cohort
+contribution arrived 2026-06-24."
+
 ### Recent: three paired "silent-success looks like success" gates — issues #99 / #101 / #102 (v0.63.0, 2026-06-25)
 
 **v0.63.0** — closes three DS 250 issues filed yesterday afternoon /

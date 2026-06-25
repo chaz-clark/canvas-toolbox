@@ -21,6 +21,12 @@ from grader_fetch import (  # noqa: E402
     write_existing_grades_csv,
     extract_task_page_url,
     render_assignment_spec,
+    is_group_assignment,
+    grades_individually,
+    build_group_map,
+    pick_group_representatives,
+    render_unique_group_memos_md,
+    group_context_for_fetch_log,
 )
 from grader_deidentify_databricks import key_for  # noqa: E402
 
@@ -307,3 +313,253 @@ def test_render_assignment_spec_with_empty_description():
     """Empty Canvas description still renders — but flagged as such."""
     out = render_assignment_spec("", None, None)
     assert "empty Canvas description" in out
+
+
+# ---------------------------------------------------------------------------
+# is_group_assignment / grades_individually — issue #100 (group detection)
+# ---------------------------------------------------------------------------
+
+def test_is_group_assignment_true_when_gcat_set():
+    """group_category_id present (non-zero) → group assignment."""
+    assert is_group_assignment({"group_category_id": 42}) is True
+
+
+def test_is_group_assignment_false_when_gcat_missing_or_zero():
+    """No group_category_id (or zero) → not a group assignment."""
+    assert is_group_assignment({}) is False
+    assert is_group_assignment({"group_category_id": None}) is False
+    assert is_group_assignment({"group_category_id": 0}) is False
+
+
+def test_grades_individually_default_is_false():
+    """Canvas default for grade_group_students_individually is false
+    (shared grade for the whole group)."""
+    assert grades_individually({}) is False
+    assert grades_individually({"grade_group_students_individually": False}) is False
+
+
+def test_grades_individually_true_when_set():
+    """Explicit true → each member grades independently."""
+    assert grades_individually({"grade_group_students_individually": True}) is True
+
+
+# ---------------------------------------------------------------------------
+# build_group_map — issue #100 (user_id → group context)
+# ---------------------------------------------------------------------------
+
+def test_build_group_map_basic():
+    """Two groups, three members each → map has 6 user_id entries."""
+    groups = [
+        {"id": 10, "name": "Group A"},
+        {"id": 20, "name": "Group B"},
+    ]
+    members_by_group = {
+        10: [{"id": 1}, {"id": 2}, {"id": 3}],
+        20: [{"id": 4}, {"id": 5}, {"id": 6}],
+    }
+    m = build_group_map(groups, members_by_group)
+    assert len(m) == 6
+    assert m[1]["group_id"] == 10
+    assert m[1]["group_name"] == "Group A"
+    assert m[1]["member_user_ids"] == [1, 2, 3]
+    assert m[4]["group_id"] == 20
+    assert m[4]["member_user_ids"] == [4, 5, 6]
+
+
+def test_build_group_map_default_name_when_missing():
+    """Group without a name → falls back to 'Group <id>'."""
+    groups = [{"id": 99}]
+    members_by_group = {99: [{"id": 1}]}
+    m = build_group_map(groups, members_by_group)
+    assert m[1]["group_name"] == "Group 99"
+
+
+def test_build_group_map_empty_group_skipped():
+    """A group with no members produces no map entries (no error)."""
+    groups = [{"id": 10, "name": "Empty"}]
+    members_by_group = {10: []}
+    m = build_group_map(groups, members_by_group)
+    assert m == {}
+
+
+def test_build_group_map_handles_non_integer_ids():
+    """Garbage id values are silently skipped (Canvas-string-id mode)."""
+    groups = [{"id": "abc", "name": "Bad"}, {"id": 10, "name": "Good"}]
+    members_by_group = {10: [{"id": "not-an-int"}, {"id": 5}]}
+    m = build_group_map(groups, members_by_group)
+    assert 5 in m
+    assert len(m) == 1
+
+
+# ---------------------------------------------------------------------------
+# pick_group_representatives — issue #100
+# ---------------------------------------------------------------------------
+
+def test_pick_group_representatives_smallest_submitter_wins():
+    """Rep is the smallest user_id among submitters in the group."""
+    group_map = {
+        1: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2, 3]},
+        2: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2, 3]},
+        3: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2, 3]},
+    }
+    submitters = {2, 3}  # uid 1 didn't submit
+    reps = pick_group_representatives(group_map, submitters)
+    assert reps == {10: 2}
+
+
+def test_pick_group_representatives_no_submitter_skipped():
+    """Group with no submitting members is absent from the result."""
+    group_map = {
+        1: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2]},
+    }
+    submitters: set = set()
+    reps = pick_group_representatives(group_map, submitters)
+    assert reps == {}
+
+
+def test_pick_group_representatives_multi_group():
+    """Multiple groups → one rep per group."""
+    group_map = {
+        1: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2]},
+        2: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2]},
+        3: {"group_id": 20, "group_name": "B", "member_user_ids": [3, 4]},
+        4: {"group_id": 20, "group_name": "B", "member_user_ids": [3, 4]},
+    }
+    submitters = {1, 2, 3, 4}
+    reps = pick_group_representatives(group_map, submitters)
+    assert reps == {10: 1, 20: 3}
+
+
+def test_pick_group_representatives_deterministic():
+    """Re-running with the same inputs returns the same reps — critical for
+    workflow repeatability."""
+    group_map = {
+        1: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2, 3]},
+        2: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2, 3]},
+        3: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2, 3]},
+    }
+    submitters = {3, 1, 2}  # order varies
+    reps1 = pick_group_representatives(group_map, submitters)
+    reps2 = pick_group_representatives(group_map, submitters)
+    assert reps1 == reps2 == {10: 1}
+
+
+# ---------------------------------------------------------------------------
+# render_unique_group_memos_md — issue #100
+# ---------------------------------------------------------------------------
+
+def test_render_unique_group_memos_md_marks_representative():
+    """The rep submitter is explicitly named as 'grade this one'."""
+    group_map = {
+        1: {"group_id": 10, "group_name": "Survey Team Alpha", "member_user_ids": [1, 2, 3]},
+        2: {"group_id": 10, "group_name": "Survey Team Alpha", "member_user_ids": [1, 2, 3]},
+        3: {"group_id": 10, "group_name": "Survey Team Alpha", "member_user_ids": [1, 2, 3]},
+    }
+    submitters = {1, 2, 3}
+    reps = {10: 1}
+    out = render_unique_group_memos_md(group_map, submitters, reps, False, "ce162lab")
+    assert "Representative submitter (grade this one):" in out
+    assert "user_id=1" in out
+    assert "Survey Team Alpha" in out
+
+
+def test_render_unique_group_memos_md_lists_mirrored_members():
+    """Non-rep submitters in the same group are listed as mirrored."""
+    group_map = {
+        1: {"group_id": 10, "group_name": "Alpha", "member_user_ids": [1, 2, 3]},
+        2: {"group_id": 10, "group_name": "Alpha", "member_user_ids": [1, 2, 3]},
+        3: {"group_id": 10, "group_name": "Alpha", "member_user_ids": [1, 2, 3]},
+    }
+    submitters = {1, 2, 3}
+    reps = {10: 1}
+    out = render_unique_group_memos_md(group_map, submitters, reps, False, "lab")
+    assert "Mirrored submitters" in out
+    assert "user_id=2" in out
+    assert "user_id=3" in out
+
+
+def test_render_unique_group_memos_md_lists_non_submitters():
+    """Members who didn't submit get their own line — important for the
+    shared-grade case where they still receive the grade via Canvas."""
+    group_map = {
+        1: {"group_id": 10, "group_name": "Alpha", "member_user_ids": [1, 2, 3]},
+        2: {"group_id": 10, "group_name": "Alpha", "member_user_ids": [1, 2, 3]},
+        3: {"group_id": 10, "group_name": "Alpha", "member_user_ids": [1, 2, 3]},
+    }
+    submitters = {1}  # uid 2 + 3 didn't submit
+    reps = {10: 1}
+    out = render_unique_group_memos_md(group_map, submitters, reps, False, "lab")
+    assert "Non-submitting members" in out
+
+
+def test_render_unique_group_memos_md_lists_groups_without_submissions():
+    """Groups with zero submitters from any member appear in a separate
+    'Groups with no submissions' section."""
+    group_map = {
+        1: {"group_id": 10, "group_name": "Alpha", "member_user_ids": [1]},
+        2: {"group_id": 20, "group_name": "Beta", "member_user_ids": [2]},
+    }
+    submitters = {1}  # uid 2 (Beta's only member) didn't submit
+    reps = {10: 1}
+    out = render_unique_group_memos_md(group_map, submitters, reps, False, "lab")
+    assert "Groups with no submissions" in out
+    assert "Beta" in out
+
+
+def test_render_unique_group_memos_md_marks_individual_mode():
+    """grade_individually=True → output names the mode explicitly so the
+    operator/agent knows NOT to collapse rows at push time."""
+    group_map = {
+        1: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2]},
+        2: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2]},
+    }
+    submitters = {1, 2}
+    reps = {10: 1}
+    out_shared = render_unique_group_memos_md(group_map, submitters, reps, False, "lab")
+    out_individ = render_unique_group_memos_md(group_map, submitters, reps, True, "lab")
+    assert "individual grades per member" in out_individ
+    assert "shared grade per group" in out_shared
+
+
+# ---------------------------------------------------------------------------
+# group_context_for_fetch_log — issue #100
+# ---------------------------------------------------------------------------
+
+def test_group_context_for_fetch_log_none_when_no_groups():
+    """Empty group_map → None (no 'group_context' key gets embedded)."""
+    assert group_context_for_fetch_log({}, 42, False) is None
+
+
+def test_group_context_for_fetch_log_basic_shape():
+    """Returns the expected shape — gcat_id, mode flag, and the
+    user_id-keyed user_to_group map (JSON-serializable string keys)."""
+    group_map = {
+        1: {"group_id": 10, "group_name": "Alpha", "member_user_ids": [1, 2]},
+        2: {"group_id": 10, "group_name": "Alpha", "member_user_ids": [1, 2]},
+    }
+    out = group_context_for_fetch_log(group_map, 42, False)
+    assert out is not None
+    assert out["group_category_id"] == 42
+    assert out["grade_group_students_individually"] is False
+    assert set(out["user_to_group"].keys()) == {"1", "2"}
+    assert out["user_to_group"]["1"]["group_id"] == 10
+    assert out["user_to_group"]["1"]["group_name"] == "Alpha"
+    assert out["user_to_group"]["1"]["member_user_ids"] == [1, 2]
+
+
+def test_group_context_for_fetch_log_handles_string_gcat():
+    """Canvas-string-id mode might pass '42' as a string; coerce safely."""
+    group_map = {1: {"group_id": 10, "group_name": "A", "member_user_ids": [1]}}
+    out = group_context_for_fetch_log(group_map, "42", False)
+    assert out["group_category_id"] == 42
+
+
+def test_group_context_for_fetch_log_serializable():
+    """The output must round-trip through json.dumps (since we embed it
+    into .fetch_log.json)."""
+    import json as _json
+    group_map = {1: {"group_id": 10, "group_name": "A", "member_user_ids": [1, 2]}}
+    out = group_context_for_fetch_log(group_map, 42, True)
+    s = _json.dumps(out)
+    assert "group_category_id" in s
+    assert "grade_group_students_individually" in s

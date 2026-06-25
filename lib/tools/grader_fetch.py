@@ -213,6 +213,103 @@ def fetch_roster(base: str, cid: str, headers: dict) -> list[dict]:
     return roster
 
 
+def group_context_for_fetch_log(
+    group_map: dict[int, dict],
+    gcat_id,
+    grade_individually: bool,
+) -> dict | None:
+    """Issue #100: produce a JSON-serializable group_context block to embed
+    in .fetch_log.json. Returns None if not a group assignment.
+
+    Consumers (reidentify + push) read this block to look up a user's group
+    + co-members so feedback files can be mirrored to group-mates (shared
+    grade mode) and push rows can be collapsed appropriately.
+    """
+    if not group_map:
+        return None
+    try:
+        gcat_int = int(gcat_id) if gcat_id else None
+    except (TypeError, ValueError):
+        gcat_int = None
+    return {
+        "group_category_id": gcat_int,
+        "grade_group_students_individually": bool(grade_individually),
+        "user_to_group": {
+            # JSON-serializable: stringify the int user_id key
+            str(uid): {
+                "group_id": ctx["group_id"],
+                "group_name": ctx["group_name"],
+                "member_user_ids": list(ctx["member_user_ids"]),
+            }
+            for uid, ctx in group_map.items()
+        },
+    }
+
+
+def fetch_group_category_groups(
+    base: str, headers: dict, group_category_id: int, timeout: int = _TIMEOUT
+) -> list[dict]:
+    """Issue #100: list groups in a Canvas group category.
+
+    Paginates via `?per_page=100&page=N`. Returns the raw group dicts
+    (each has id, name, members_count, group_category_id, etc.).
+    """
+    out: list[dict] = []
+    page = 1
+    while True:
+        r = requests.get(
+            f"{base}/api/v1/group_categories/{group_category_id}/groups",
+            headers=headers,
+            params={"per_page": 100, "page": page},
+            timeout=timeout,
+        )
+        r.raise_for_status()
+        batch = r.json() or []
+        if not batch:
+            break
+        out += batch
+        page += 1
+    return out
+
+
+def fetch_group_members(
+    base: str, headers: dict, group_id: int, timeout: int = _TIMEOUT
+) -> list[dict]:
+    """Issue #100: list users in a Canvas group.
+
+    Paginates via `?per_page=100&page=N`. Returns user dicts (each has
+    id, name, sortable_name, etc. — caller must NOT log these
+    name-bearing fields per FERPA).
+    """
+    out: list[dict] = []
+    page = 1
+    while True:
+        r = requests.get(
+            f"{base}/api/v1/groups/{group_id}/users",
+            headers=headers,
+            params={"per_page": 100, "page": page},
+            timeout=timeout,
+        )
+        r.raise_for_status()
+        batch = r.json() or []
+        if not batch:
+            break
+        out += batch
+        page += 1
+    return out
+
+
+def write_unique_group_memos_md(challenge_dir: Path, content: str) -> Path:
+    """Issue #100: write UNIQUE_GROUP_MEMOS.md to the challenge dir.
+
+    FERPA-safe: contains only user_ids + group names + group ids — no
+    student names. Gitignored per the per-challenge-artifact convention.
+    """
+    out = challenge_dir / "UNIQUE_GROUP_MEMOS.md"
+    out.write_text(content, encoding="utf-8")
+    return out
+
+
 def fetch_assignment_metadata(base: str, cid: str, headers: dict, aid: str) -> dict:
     """One-call lookup of the assignment object so the tool can branch by
     submission_type (online_upload / online_text_entry / discussion_topic /
@@ -334,6 +431,198 @@ def write_body_file(body: str, out_path: Path) -> int:
 # The file is gitignored per the established challenge-dir convention.
 
 _RAW_FILENAME_RE = re.compile(r"^(?P<prefix>[A-Za-z0-9-]+)_(?P<uid>\d+)(?:_[A-Za-z0-9]+)?\.[A-Za-z0-9.]+$")
+
+
+# Issue #100: group-assignment workflow. Canvas's group assignments produce
+# multiple per-student submission rows for what is conceptually ONE group
+# deliverable. The instructor's grading workflow is "grade one memo per
+# submitted group, apply to the group." Naively grading each per-student
+# row wastes work AND risks inconsistent grades/comments across members of
+# the same group. The helpers below detect group context, build a
+# user_id → group map, pick a representative submitter per group, and
+# render UNIQUE_GROUP_MEMOS.md so the agent grades only representatives.
+
+def is_group_assignment(asg_meta: dict) -> bool:
+    """Issue #100: detect whether this is a Canvas group assignment.
+    Returns True if `group_category_id` is set (non-None, non-zero)."""
+    gcat = asg_meta.get("group_category_id")
+    return bool(gcat)
+
+
+def grades_individually(asg_meta: dict) -> bool:
+    """Issue #100: is this group assignment configured to grade members
+    INDIVIDUALLY (each member gets their own grade) vs. as a SHARED grade
+    (one grade applies to the whole group)?
+
+    Canvas exposes `grade_group_students_individually` (default false →
+    shared grade). True means the workflow should preserve per-student
+    rows; False (the default) means the push should collapse mirrored
+    rows so Canvas's group-grade distribution kicks in.
+    """
+    return bool(asg_meta.get("grade_group_students_individually"))
+
+
+def build_group_map(
+    groups: list[dict], members_by_group: dict[int, list[dict]]
+) -> dict[int, dict]:
+    """Issue #100: build a user_id → group context map.
+
+    Args:
+      groups: list of {id, name, members_count, ...} from
+              GET /group_categories/:gcat_id/groups
+      members_by_group: dict {group_id: [{id, sortable_name?, ...}, ...]}
+                        from GET /groups/:gid/users per group
+
+    Returns: {user_id: {
+                "group_id": int,
+                "group_name": str,
+                "member_user_ids": [int, ...],   # all members of THIS group
+              }}
+
+    Users who are in NO group end up absent from the returned dict (caller
+    can detect "no group context for this user_id" by `.get(uid)` returning
+    None — typically means the student isn't enrolled in any group, which
+    is a real edge case Canvas allows).
+    """
+    out: dict[int, dict] = {}
+    for g in groups:
+        try:
+            gid = int(g.get("id"))
+        except (TypeError, ValueError):
+            continue
+        gname = (g.get("name") or "").strip() or f"Group {gid}"
+        members = members_by_group.get(gid, []) or []
+        member_uids: list[int] = []
+        for m in members:
+            try:
+                member_uids.append(int(m.get("id")))
+            except (TypeError, ValueError):
+                continue
+        for uid in member_uids:
+            out[uid] = {
+                "group_id": gid,
+                "group_name": gname,
+                "member_user_ids": sorted(member_uids),
+            }
+    return out
+
+
+def pick_group_representatives(
+    group_map: dict[int, dict], submitter_uids: set[int]
+) -> dict[int, int]:
+    """Issue #100: pick ONE representative submitter per group.
+
+    The rep is the SMALLEST user_id among the group's submitting members
+    (deterministic + reproducible across re-runs). Groups with no
+    submitting members are absent from the result (caller surfaces them
+    as 'missing' groups in UNIQUE_GROUP_MEMOS.md).
+
+    Returns: {group_id: rep_user_id}
+    """
+    # Collect groups present in the map
+    by_group: dict[int, list[int]] = {}
+    for uid, ctx in group_map.items():
+        gid = ctx["group_id"]
+        by_group.setdefault(gid, []).append(uid)
+    reps: dict[int, int] = {}
+    for gid, member_uids in by_group.items():
+        submitters_in_group = sorted(u for u in member_uids if u in submitter_uids)
+        if submitters_in_group:
+            reps[gid] = submitters_in_group[0]
+    return reps
+
+
+def render_unique_group_memos_md(
+    group_map: dict[int, dict],
+    submitter_uids: set[int],
+    representatives: dict[int, int],
+    grade_individually: bool,
+    prefix: str,
+) -> str:
+    """Issue #100: render UNIQUE_GROUP_MEMOS.md content (pure function — no
+    file I/O). Listed per group:
+      - Representative submitter (the one whose key the agent grades)
+      - Mirrored member submitters (their keys; same content, same grade
+        in shared-grade mode)
+      - Non-submitting members (the agent doesn't grade these; they still
+        receive the shared grade via Canvas if mode is shared)
+      - Missing groups (groups in the category with NO submitters at all)
+
+    `prefix` is the challenge prefix used to construct keyed filenames
+    (e.g. 'kc1' → keys live at `kc1_<uid>.<ext>`); not strictly required
+    for the rendering, but included in the heading so the agent can
+    correlate keys.
+    """
+    # Group all groups by gid
+    by_group: dict[int, dict] = {}
+    for uid, ctx in group_map.items():
+        gid = ctx["group_id"]
+        if gid not in by_group:
+            by_group[gid] = {
+                "name": ctx["group_name"],
+                "members": list(ctx["member_user_ids"]),
+            }
+    parts: list[str] = [
+        f"# UNIQUE_GROUP_MEMOS — {prefix}",
+        "",
+        f"**Group assignment** ({'individual grades per member' if grade_individually else 'shared grade per group'}).",
+        "",
+    ]
+    if grade_individually:
+        parts.append(
+            "> Mode: `grade_group_students_individually=true`. Each member gets a "
+            "separate grade — grade every row independently. This list is "
+            "advisory; no row collapsing happens at push time."
+        )
+    else:
+        parts.append(
+            "> Mode: shared grade (Canvas default for group assignments). "
+            "Grade ONE representative per group; the push collapses mirrored "
+            "rows so Canvas's group-grade distribution applies one grade to "
+            "all members."
+        )
+    parts.extend(["", "## Groups"])
+    groups_with_subs: list[int] = []
+    groups_without_subs: list[int] = []
+    for gid in sorted(by_group):
+        members = by_group[gid]["members"]
+        if any(u in submitter_uids for u in members):
+            groups_with_subs.append(gid)
+        else:
+            groups_without_subs.append(gid)
+
+    for gid in groups_with_subs:
+        meta = by_group[gid]
+        rep_uid = representatives.get(gid)
+        parts.append("")
+        parts.append(f"### {meta['name']} (group_id={gid})")
+        parts.append("")
+        if rep_uid is not None:
+            parts.append(f"- **Representative submitter (grade this one):** user_id={rep_uid}")
+        else:
+            parts.append("- ⚠️ No submitting members in this group")
+        mirrored = [u for u in meta["members"] if u in submitter_uids and u != rep_uid]
+        if mirrored:
+            parts.append(f"- Mirrored submitters (same group; shared grade): "
+                         f"{', '.join(f'user_id={u}' for u in mirrored)}")
+        non_submitters = [u for u in meta["members"] if u not in submitter_uids]
+        if non_submitters:
+            parts.append(f"- Non-submitting members (group inherits the shared grade in "
+                         f"Canvas if shared-grade mode): "
+                         f"{', '.join(f'user_id={u}' for u in non_submitters)}")
+
+    if groups_without_subs:
+        parts.extend(["", "## Groups with no submissions"])
+        for gid in groups_without_subs:
+            meta = by_group[gid]
+            members_str = ", ".join(f"user_id={u}" for u in meta["members"])
+            parts.append(f"- **{meta['name']}** (group_id={gid}) — members: {members_str}")
+
+    if not groups_with_subs and not groups_without_subs:
+        parts.extend(["", "_(no group context found — this assignment may not be a group "
+                          "assignment despite having a group_category_id)_"])
+
+    return "\n".join(parts) + "\n"
 
 
 # Issue #102: task-page link detection + assignment_spec.md capture.
@@ -965,6 +1254,42 @@ def main() -> int:
           f"(task page = source of truth for what is REQUIRED; "
           f"answer key = reference).")
 
+    # Issue #100: group-assignment context. If group_category_id is set,
+    # fetch the groups + their members so the workflow can grade ONE
+    # representative per group (shared-grade) instead of N times the work.
+    # Group context lands in .fetch_log.json (added later in the path-
+    # specific code) and UNIQUE_GROUP_MEMOS.md (written here, agent-readable).
+    group_map: dict[int, dict] = {}
+    group_representatives: dict[int, int] = {}
+    grade_individually_flag = False
+    if is_group_assignment(asg_meta):
+        gcat_id = asg_meta.get("group_category_id")
+        grade_individually_flag = grades_individually(asg_meta)
+        try:
+            groups = fetch_group_category_groups(base, headers, int(gcat_id))
+            members_by_group: dict[int, list[dict]] = {}
+            for g in groups:
+                try:
+                    gid_int = int(g.get("id"))
+                except (TypeError, ValueError):
+                    continue
+                try:
+                    members_by_group[gid_int] = fetch_group_members(base, headers, gid_int)
+                except (requests.HTTPError, requests.RequestException) as e:
+                    print(f"WARN: failed to fetch members for group {gid_int} "
+                          f"({type(e).__name__}: {e}); group will appear with no "
+                          f"members in UNIQUE_GROUP_MEMOS.md.", file=sys.stderr)
+                    members_by_group[gid_int] = []
+            group_map = build_group_map(groups, members_by_group)
+            mode = "individual grades per member" if grade_individually_flag else "shared grade per group"
+            print(f"Group assignment detected (group_category_id={gcat_id}, "
+                  f"mode={mode}; {len(groups)} group(s), "
+                  f"{sum(len(m) for m in members_by_group.values())} total member(s)).")
+        except (requests.HTTPError, requests.RequestException) as e:
+            print(f"WARN: group context fetch failed ({type(e).__name__}: {e}); "
+                  f"falling back to per-student grading (Canvas group features "
+                  f"won't be used).", file=sys.stderr)
+
     sub_types = asg_meta.get("submission_types") or []
 
     # Discussion path — graded discussions store the gradeable content in the
@@ -1043,6 +1368,14 @@ def main() -> int:
             }
 
         added = update_known_names(names_file, new_names) if new_names else 0
+        # Issue #100: embed group_context in .fetch_log.json if this is a
+        # group assignment. Consumed by reidentify (mirror rep feedback to
+        # group-mates) and push (collapse shared-grade rows).
+        gctx = group_context_for_fetch_log(
+            group_map, asg_meta.get("group_category_id"), grade_individually_flag
+        )
+        if gctx:
+            fetch_log_data["group_context"] = gctx
         fetch_log.write_text(
             json.dumps(fetch_log_data, indent=2, ensure_ascii=False),
             encoding="utf-8",
@@ -1059,6 +1392,20 @@ def main() -> int:
         egp = write_existing_grades_csv(cd, existing_rows)
         print(f"  {len(existing_rows)} existing grade(s) captured → {egp.name} "
               f"(re-grade detection; agent consults BEFORE grading)")
+
+        # Issue #100: write UNIQUE_GROUP_MEMOS.md if this is a group assignment
+        if group_map:
+            submitter_uids = {int(s["user_id"]) for s in disc_subs
+                              if s.get("user_id") is not None}
+            group_representatives = pick_group_representatives(group_map, submitter_uids)
+            memos_content = render_unique_group_memos_md(
+                group_map, submitter_uids, group_representatives,
+                grade_individually_flag, prefix,
+            )
+            memos_path = write_unique_group_memos_md(cd, memos_content)
+            n_groups = len({ctx["group_id"] for ctx in group_map.values()})
+            print(f"  Group context: {len(group_representatives)}/{n_groups} groups "
+                  f"have a submitting representative → {memos_path.name}")
 
         print(f"\nDiscussion fetch: {ok} students written, {skipped} skipped "
               f"(existing — use --force), {failed} failed. {added} new name(s) "
@@ -1171,6 +1518,14 @@ def main() -> int:
             }
 
         added = update_known_names(names_file, new_names) if new_names else 0
+        # Issue #100: embed group_context in .fetch_log.json if this is a
+        # group assignment. Consumed by reidentify (mirror rep feedback to
+        # group-mates) and push (collapse shared-grade rows).
+        gctx = group_context_for_fetch_log(
+            group_map, asg_meta.get("group_category_id"), grade_individually_flag
+        )
+        if gctx:
+            fetch_log_data["group_context"] = gctx
         fetch_log.write_text(
             json.dumps(fetch_log_data, indent=2, ensure_ascii=False),
             encoding="utf-8",
@@ -1182,6 +1537,20 @@ def main() -> int:
         egp = write_existing_grades_csv(cd, existing_rows)
         print(f"  {len(existing_rows)} existing grade(s) captured → {egp.name} "
               f"(re-grade detection; agent consults BEFORE grading)")
+
+        # Issue #100: write UNIQUE_GROUP_MEMOS.md if this is a group assignment
+        if group_map:
+            submitter_uids = {int(s["user_id"]) for s in subs
+                              if s.get("user_id") is not None}
+            group_representatives = pick_group_representatives(group_map, submitter_uids)
+            memos_content = render_unique_group_memos_md(
+                group_map, submitter_uids, group_representatives,
+                grade_individually_flag, prefix,
+            )
+            memos_path = write_unique_group_memos_md(cd, memos_content)
+            n_groups = len({ctx["group_id"] for ctx in group_map.values()})
+            print(f"  Group context: {len(group_representatives)}/{n_groups} groups "
+                  f"have a submitting representative → {memos_path.name}")
 
         print(f"\nQuiz fetch: {ok} students written, {skipped} skipped "
               f"(existing — use --force), {failed} failed. {added} new name(s) "
@@ -1335,6 +1704,15 @@ def main() -> int:
     # Update .known_names.txt (peer-mention scrub roster) — dedup case-insensitively
     added = update_known_names(names_file, new_names) if new_names else 0
 
+    # Issue #100: embed group_context in .fetch_log.json if this is a group
+    # assignment. Consumed by reidentify (mirror rep feedback to group-mates)
+    # and push (collapse shared-grade rows).
+    gctx = group_context_for_fetch_log(
+        group_map, asg_meta.get("group_category_id"), grade_individually_flag
+    )
+    if gctx:
+        fetch_log_data["group_context"] = gctx
+
     # Write .fetch_log.json (gitignored, never read by AI; for operator audit only)
     fetch_log.write_text(
         json.dumps(fetch_log_data, indent=2, ensure_ascii=False),
@@ -1347,6 +1725,20 @@ def main() -> int:
     egp = write_existing_grades_csv(cd, existing_rows)
     print(f"  {len(existing_rows)} existing grade(s) captured → {egp.name} "
           f"(re-grade detection; agent consults BEFORE grading)")
+
+    # Issue #100: write UNIQUE_GROUP_MEMOS.md if this is a group assignment
+    if group_map:
+        submitter_uids = {int(s["user_id"]) for s in subs
+                          if s.get("user_id") is not None}
+        group_representatives = pick_group_representatives(group_map, submitter_uids)
+        memos_content = render_unique_group_memos_md(
+            group_map, submitter_uids, group_representatives,
+            grade_individually_flag, prefix,
+        )
+        memos_path = write_unique_group_memos_md(cd, memos_content)
+        n_groups = len({ctx["group_id"] for ctx in group_map.values()})
+        print(f"  Group context: {len(group_representatives)}/{n_groups} groups "
+              f"have a submitting representative → {memos_path.name}")
 
     # Final summary — FERPA: counts only, never a name. Issue #66: also
     # report the TOTAL roster size (not just `added`), since the
