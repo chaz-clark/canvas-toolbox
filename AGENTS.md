@@ -248,6 +248,79 @@ private channel is for security.
 
 _Last updated: 2026-06-25_
 
+### Recent: grader_fetch pulls latest attempt by default — issue #103 (v0.66.0, 2026-06-25)
+
+**v0.66.0** — closes issue #103. **High-severity bug:** before this
+fix, `grader_fetch.py` skipped re-downloading when a file of the same
+filename already existed locally. Canvas filenames are stable across
+attempts → student resubmits → toolkit silently kept stale attempt-1
+file → operator graded stale content → 3 DS 250 students were pushed
+"still needs revision" comments while they had actually fixed and
+resubmitted. The worst failure mode.
+
+**Root cause:** the skip decision was by filename existence, not
+attempt freshness. Nothing compared the local file to the remote
+submission's `attempt` / `submitted_at`.
+
+**The fix (default behavior change — strictly more correct):**
+
+1. **New pure helper `needs_refetch(local_exists, recorded_attempt,
+   remote_attempt, recorded_submitted_at, remote_submitted_at)`** in
+   [grader_fetch.py:399-456](lib/tools/grader_fetch.py#L399-L456).
+   Returns True when there's positive evidence the remote is newer.
+   Defensive across None/missing/non-numeric values — partial data
+   never CAUSES a refetch and never PREVENTS one.
+
+2. **`.fetch_log.json` entry schema extended** to record `attempt` +
+   `submitted_at` per file (default path + quiz path) and
+   `latest_activity_at` per user (discussion path). Old logs without
+   these fields still readable — `needs_refetch` falls back to local-
+   exists semantics when prior signals are missing.
+
+3. **All three fetch paths wired** (discussion / quiz / default). The
+   default path covers attachments + online_text_entry + online_url
+   sub-branches. Discussion path uses the max `created_at`/`updated_at`
+   across the user's entries (discussions have no attempt# concept).
+
+4. **`--force` semantics unchanged** — still "re-download everything
+   regardless." The new default only re-pulls when remote is genuinely
+   newer (cheap and correct).
+
+5. **Visibility** — refetched rows print `(refetched: attempt N → N+1)`
+   so the operator sees what changed. For discussion-path refetches,
+   `(refetched: discussion updated)`.
+
+6. **11 new tests** in `test_grader_fetch_helpers.py` covering the
+   `needs_refetch` decision matrix (local missing → fetch; remote
+   attempt newer → fetch; remote submitted_at newer → fetch; same
+   attempt → skip; same submitted_at → skip; attempt-disagreement-
+   with-timestamp → attempt wins; no recorded data + local exists →
+   skip / don't speculatively refetch; non-numeric attempts safely
+   ignored; partial signals don't trigger false refetch; empty-string
+   timestamps treated as missing; remote attempt older → no refetch).
+
+7. **[grader_knowledge.md §10](lib/agents/knowledge/grader_knowledge.md)** —
+   added pull-latest-by-default subsection paired with the v0.60.0
+   regression-gate story. Names the two layers explicitly: upstream
+   (#103) ensures the local file IS the latest attempt; downstream
+   (#96) ensures the push doesn't accidentally lower a grade. They
+   compose: the grade reaching Canvas was computed from the LATEST
+   submission AND won't accidentally drop below what the student
+   already had.
+
+**Total tests now 401 (up from 390).** All pre-commit hooks pass.
+
+**Cross-issue thread.** This is the 4th lived-experience-driven
+grading-safety fix from DS 250 this week (#95 / #96 / #97 / #98 / #99
+/ #101 / #102 from yesterday + today's earlier batch, now #103).
+Pattern continues: bug-intake-worker → GH issue → lived RCA →
+shipped fix → cohort inherits on pull.
+
+**Cross-repo:** DS 250 + DS 460 + CE 162 inherit on next pull. The
+new behavior is strictly more correct than the old; operators who
+were relying on `--force` to handle resubmissions will see them
+detected automatically going forward.
+
 ### Recent: voice_coaching_knowledge.md — upstream scaffolding for the per-instructor voice file (v0.65.0, 2026-06-25)
 
 **v0.65.0** — first knowledge file produced under canvas-toolbox's

@@ -397,6 +397,56 @@ def is_actual_submission(s: dict) -> bool:
     return True
 
 
+def needs_refetch(
+    local_exists: bool,
+    recorded_attempt: object,
+    remote_attempt: object,
+    recorded_submitted_at: object,
+    remote_submitted_at: object,
+) -> bool:
+    """Issue #103: decide whether a previously-downloaded file should be
+    re-downloaded because the remote submission has a newer attempt.
+
+    The bug this fixes: Canvas filenames are stable across attempts. The
+    pre-fix logic skipped "if filename exists on disk." That meant a
+    student's resubmission (attempt 2, same filename) was silently
+    ignored — the operator graded attempt 1 and pushed wrong grades.
+
+    Decision logic (the first that fires wins):
+      1. Local file absent → fetch (initial download).
+      2. Remote attempt > recorded attempt → fetch (genuine resubmission).
+      3. Remote submitted_at > recorded submitted_at → fetch (timestamp-only
+         signal — useful when attempt# isn't reliable on a path).
+      4. Otherwise → SKIP (local is up-to-date).
+
+    The 'recorded' values come from .fetch_log.json's per-uid entry from
+    the prior fetch. If we have no recorded values (first time fetching
+    this uid, or migrating from a pre-#103 log), we defer to "local file
+    exists" semantics — don't re-download speculatively, but the next
+    successful fetch will record the values for next time.
+
+    All comparisons are defensive about None / missing / non-numeric
+    values — partial data should never CAUSE a refetch and never PREVENT
+    one. Returns True ONLY when there's positive evidence of newer remote.
+    """
+    if not local_exists:
+        return True
+    # Compare attempts numerically when both sides have a value
+    try:
+        if recorded_attempt is not None and remote_attempt is not None:
+            if int(remote_attempt) > int(recorded_attempt):
+                return True
+    except (TypeError, ValueError):
+        pass
+    # Compare submitted_at as ISO strings (lexicographic comparison works
+    # for properly-formatted ISO-8601 timestamps with timezone)
+    if recorded_submitted_at and remote_submitted_at:
+        if str(remote_submitted_at) > str(recorded_submitted_at):
+            return True
+    # No positive evidence of newer remote → keep local
+    return False
+
+
 def download_attachment(att: dict, headers: dict, out_path: Path) -> int:
     """Stream an attachment URL to disk; return bytes written. Canvas URLs are
     pre-signed but sending the bearer header is harmless and works on either."""
@@ -1347,13 +1397,34 @@ def main() -> int:
 
             fname = f"{prefix}_{uid_s}.html"
             out_path = raw_dir / fname
-            if out_path.exists() and not args.force:
+            # Issue #103: discussions don't have a per-user attempt#; the
+            # freshness signal is the max(created_at, updated_at) across
+            # this user's entries. Compare to the recorded value from the
+            # prior fetch (stored as latest_activity_at).
+            remote_activity = ""
+            for _e in entries:
+                for _k in ("updated_at", "created_at"):
+                    _v = _e.get(_k) or ""
+                    if _v > remote_activity:
+                        remote_activity = _v
+            remote_activity = remote_activity or None
+            prior_entry = fetch_log_data["entries"].get(uid_s) or {}
+            recorded_activity = prior_entry.get("latest_activity_at")
+            if (not args.force
+                    and not needs_refetch(
+                        out_path.exists(),
+                        None, None,  # discussions have no attempt# concept
+                        recorded_activity, remote_activity,
+                    )):
                 skipped += 1
             else:
                 try:
                     out_path.write_text(render_discussion_html(entries), encoding="utf-8")
                     ok += 1
-                    print(f"  {uid_s}: {fname} (discussion, {len(entries)} entries)")
+                    fresh_marker = ""
+                    if recorded_activity and remote_activity and recorded_activity != remote_activity:
+                        fresh_marker = " (refetched: discussion updated)"
+                    print(f"  {uid_s}: {fname} (discussion, {len(entries)} entries){fresh_marker}")
                 except Exception as e:
                     print(f"  {uid_s}: SKIP — error ({type(e).__name__})")
                     failed += 1
@@ -1365,6 +1436,8 @@ def main() -> int:
                 "name": display_name,
                 "files": [fname],
                 "entry_count": len(entries),
+                # Issue #103: record freshness signal for the next fetch
+                "latest_activity_at": remote_activity,
             }
 
         added = update_known_names(names_file, new_names) if new_names else 0
@@ -1493,7 +1566,18 @@ def main() -> int:
 
             fname = f"{prefix}_{uid_s}.md"
             out_path = raw_dir / fname
-            if out_path.exists() and not args.force:
+            # Issue #103: freshness signals for the quiz path
+            remote_attempt = s.get("attempt")
+            remote_submitted_at = s.get("submitted_at")
+            prior_entry = fetch_log_data["entries"].get(uid_s) or {}
+            recorded_attempt = prior_entry.get("attempt")
+            recorded_submitted_at = prior_entry.get("submitted_at")
+            if (not args.force
+                    and not needs_refetch(
+                        out_path.exists(),
+                        recorded_attempt, remote_attempt,
+                        recorded_submitted_at, remote_submitted_at,
+                    )):
                 skipped += 1
             else:
                 try:
@@ -1502,7 +1586,10 @@ def main() -> int:
                         encoding="utf-8",
                     )
                     ok += 1
-                    print(f"  {uid_s}: {fname} (quiz, {len(sub_data or [])} answers)")
+                    fresh_marker = ""
+                    if recorded_attempt is not None:
+                        fresh_marker = f" (refetched: attempt {recorded_attempt} → {remote_attempt})"
+                    print(f"  {uid_s}: {fname} (quiz, {len(sub_data or [])} answers){fresh_marker}")
                 except Exception as e:
                     print(f"  {uid_s}: SKIP — error ({type(e).__name__})")
                     failed += 1
@@ -1515,6 +1602,9 @@ def main() -> int:
                 "files": [fname],
                 "answer_count": len(sub_data or []),
                 "submission_id": s.get("id"),
+                # Issue #103: record freshness signals for next-fetch comparison
+                "attempt": remote_attempt,
+                "submitted_at": remote_submitted_at,
             }
 
         added = update_known_names(names_file, new_names) if new_names else 0
@@ -1623,6 +1713,16 @@ def main() -> int:
         attachments = s.get("attachments") or []
         files_for_user: list[str] = []
 
+        # Issue #103: freshness signals for the pull-latest-by-default
+        # check. Look up the prior recorded attempt + submitted_at from
+        # the EXISTING fetch_log_data["entries"] (loaded earlier from
+        # disk). If the remote is newer, re-download; otherwise skip.
+        remote_attempt = s.get("attempt")
+        remote_submitted_at = s.get("submitted_at")
+        prior_entry = fetch_log_data["entries"].get(user_id_s) or {}
+        recorded_attempt = prior_entry.get("attempt")
+        recorded_submitted_at = prior_entry.get("submitted_at")
+
         if attachments:
             # Multiple attachments: suffix _a, _b, _c …
             suffixes = ([""] if len(attachments) == 1
@@ -1631,7 +1731,13 @@ def main() -> int:
                 ext = _ext_from_url_or_filename(att.get("url", ""), att.get("filename", ""))
                 fname = f"{prefix}_{user_id_s}{suf}.{ext}"
                 out_path = raw_dir / fname
-                if out_path.exists() and not args.force:
+                # Issue #103: skip only if local is genuinely up-to-date
+                if (not args.force
+                        and not needs_refetch(
+                            out_path.exists(),
+                            recorded_attempt, remote_attempt,
+                            recorded_submitted_at, remote_submitted_at,
+                        )):
                     skipped += 1
                     files_for_user.append(fname)
                     continue
@@ -1640,7 +1746,10 @@ def main() -> int:
                     files_for_user.append(fname)
                     ok += 1
                     # FERPA: print user_id + filename, NEVER the name
-                    print(f"  {user_id_s}: {fname}")
+                    fresh_marker = ""
+                    if out_path.exists() and recorded_attempt is not None:
+                        fresh_marker = f" (refetched: attempt {recorded_attempt} → {remote_attempt})"
+                    print(f"  {user_id_s}: {fname}{fresh_marker}")
                 except requests.HTTPError as e:
                     print(f"  {user_id_s}: SKIP — HTTP {e.response.status_code} on attachment")
                     failed += 1
@@ -1654,7 +1763,13 @@ def main() -> int:
             ext = _NON_ATTACHMENT_EXT["online_text_entry"]
             fname = f"{prefix}_{user_id_s}.{ext}"
             out_path = raw_dir / fname
-            if out_path.exists() and not args.force:
+            # Issue #103: skip only if local is up-to-date
+            if (not args.force
+                    and not needs_refetch(
+                        out_path.exists(),
+                        recorded_attempt, remote_attempt,
+                        recorded_submitted_at, remote_submitted_at,
+                    )):
                 skipped += 1
                 files_for_user.append(fname)
             else:
@@ -1662,7 +1777,10 @@ def main() -> int:
                     write_body_file(body, out_path)
                     files_for_user.append(fname)
                     ok += 1
-                    print(f"  {user_id_s}: {fname} (text_entry)")
+                    fresh_marker = ""
+                    if recorded_attempt is not None and out_path.exists():
+                        fresh_marker = f" (refetched: attempt {recorded_attempt} → {remote_attempt})"
+                    print(f"  {user_id_s}: {fname} (text_entry){fresh_marker}")
                 except Exception as e:
                     print(f"  {user_id_s}: SKIP — error ({type(e).__name__})")
                     failed += 1
@@ -1672,7 +1790,13 @@ def main() -> int:
             ext = _NON_ATTACHMENT_EXT["online_url"]
             fname = f"{prefix}_{user_id_s}.{ext}"
             out_path = raw_dir / fname
-            if out_path.exists() and not args.force:
+            # Issue #103: skip only if local is up-to-date
+            if (not args.force
+                    and not needs_refetch(
+                        out_path.exists(),
+                        recorded_attempt, remote_attempt,
+                        recorded_submitted_at, remote_submitted_at,
+                    )):
                 skipped += 1
                 files_for_user.append(fname)
             else:
@@ -1680,7 +1804,10 @@ def main() -> int:
                     out_path.write_text(url + "\n", encoding="utf-8")
                     files_for_user.append(fname)
                     ok += 1
-                    print(f"  {user_id_s}: {fname} (online_url)")
+                    fresh_marker = ""
+                    if recorded_attempt is not None and out_path.exists():
+                        fresh_marker = f" (refetched: attempt {recorded_attempt} → {remote_attempt})"
+                    print(f"  {user_id_s}: {fname} (online_url){fresh_marker}")
                 except Exception as e:
                     print(f"  {user_id_s}: SKIP — error ({type(e).__name__})")
                     failed += 1
@@ -1699,6 +1826,11 @@ def main() -> int:
             "name": display_name,
             "files": files_for_user,
             "submission_id": s.get("id"),
+            # Issue #103: record freshness signals so the next fetch can
+            # detect a genuine resubmission and re-download (instead of
+            # silently keeping a stale attempt-1 file).
+            "attempt": s.get("attempt"),
+            "submitted_at": s.get("submitted_at"),
         }
 
     # Update .known_names.txt (peer-mention scrub roster) — dedup case-insensitively

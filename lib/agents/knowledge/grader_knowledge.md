@@ -451,6 +451,16 @@ Files arrive outside Canvas (Slack/email) without a Canvas filename, or as a **r
 - Every row prints `pushed KEY: before → after` so the operator sees the diff.
 - The local-files-only re-submission check stays — the push-side gate is the safety net that catches the Slack-drop-style holes it doesn't.
 
+**Pull-latest-by-default (issue #103, v0.66.0+).** A separate but related lived failure: when a student resubmits (a new attempt, same Canvas filename), the pre-v0.66.0 `grader_fetch` skipped the re-download because the local file already existed at that path — and graded the STALE attempt-1 content. Three DS 250 students were pushed "still needs revision" comments while they had actually fixed their work and resubmitted. The fix that landed in v0.66.0:
+
+- `grader_fetch` now records `attempt` + `submitted_at` per file in `.fetch_log.json`
+- On re-fetch, the new helper `needs_refetch()` compares remote `attempt` and `submitted_at` to recorded values; if the remote is newer, the file is re-downloaded by default
+- Discussion path uses the max `created_at`/`updated_at` of the user's entries as the freshness signal (discussions don't have attempt# concept)
+- Refetched rows print `(refetched: attempt N → N+1)` so the operator sees what changed
+- `--force` semantics unchanged (still "re-download everything regardless")
+
+**The two layers compose.** Upstream (#103): `grader_fetch` ensures the LOCAL file is the latest attempt — eliminates the "grade-stale-attempt" failure mode at the source. Downstream (#96): the push gate refuses to LOWER an existing grade — final safety net if anything still slips through. Together: the grade reaching Canvas was computed from the LATEST submission AND won't accidentally drop below what the student already had.
+
 ### Re-grade detection — consult `_existing_grades.csv` before assigning a score (issue #96 part 3, v0.61.0+)
 
 The push-side regression gate (above) is the SAFETY NET — it catches a silent lower at the seam. The **upstream preventative** layer surfaces existing Canvas grades to the agent BEFORE grading starts, so the agent can recognize a re-grade and apply re-grade rules rather than treating every submission as a fresh evaluation.

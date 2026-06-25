@@ -27,6 +27,7 @@ from grader_fetch import (  # noqa: E402
     pick_group_representatives,
     render_unique_group_memos_md,
     group_context_for_fetch_log,
+    needs_refetch,
 )
 from grader_deidentify_databricks import key_for  # noqa: E402
 
@@ -563,3 +564,119 @@ def test_group_context_for_fetch_log_serializable():
     s = _json.dumps(out)
     assert "group_category_id" in s
     assert "grade_group_students_individually" in s
+
+
+# ---------------------------------------------------------------------------
+# needs_refetch — issue #103 (pull-latest-by-default; resubmission detection)
+# ---------------------------------------------------------------------------
+
+def test_needs_refetch_local_missing_always_fetches():
+    """No local file → fetch (initial download). Recorded values are
+    irrelevant; we can't skip what we don't have."""
+    assert needs_refetch(False, None, None, None, None) is True
+    assert needs_refetch(False, 1, 1, "2026-06-25T10:00:00Z", "2026-06-25T10:00:00Z") is True
+
+
+def test_needs_refetch_remote_attempt_newer_triggers_refetch():
+    """The DS 250 canonical case: local has attempt 1; remote has attempt 2
+    (student resubmitted). Refetch — the lived bug we're fixing."""
+    assert needs_refetch(
+        True,
+        recorded_attempt=1, remote_attempt=2,
+        recorded_submitted_at="2026-06-20T10:00:00Z",
+        remote_submitted_at="2026-06-25T15:00:00Z",
+    ) is True
+
+
+def test_needs_refetch_remote_attempt_same_no_refetch():
+    """Same attempt number, local exists → no refetch."""
+    assert needs_refetch(
+        True,
+        recorded_attempt=2, remote_attempt=2,
+        recorded_submitted_at="2026-06-25T10:00:00Z",
+        remote_submitted_at="2026-06-25T10:00:00Z",
+    ) is False
+
+
+def test_needs_refetch_submitted_at_newer_triggers_refetch():
+    """When attempt isn't a reliable signal (discussions, or paths
+    without attempt#), submitted_at being newer is enough."""
+    assert needs_refetch(
+        True,
+        recorded_attempt=None, remote_attempt=None,
+        recorded_submitted_at="2026-06-20T10:00:00Z",
+        remote_submitted_at="2026-06-25T15:00:00Z",
+    ) is True
+
+
+def test_needs_refetch_submitted_at_same_no_refetch():
+    """Same submitted_at, attempts not provided → no refetch."""
+    assert needs_refetch(
+        True,
+        recorded_attempt=None, remote_attempt=None,
+        recorded_submitted_at="2026-06-25T10:00:00Z",
+        remote_submitted_at="2026-06-25T10:00:00Z",
+    ) is False
+
+
+def test_needs_refetch_attempt_wins_over_submitted_at_disagreement():
+    """If attempt says newer but submitted_at says older (unusual but
+    possible — clock skew, Canvas late update), attempt# is the
+    authoritative signal. Refetch on attempt."""
+    assert needs_refetch(
+        True,
+        recorded_attempt=1, remote_attempt=2,
+        recorded_submitted_at="2026-06-25T15:00:00Z",
+        remote_submitted_at="2026-06-20T10:00:00Z",  # earlier, somehow
+    ) is True
+
+
+def test_needs_refetch_no_recorded_data_no_refetch():
+    """If we have a local file but no recorded freshness signals (pre-#103
+    .fetch_log.json or first time seeing this uid), defer to local-exists
+    semantics — don't speculatively refetch. The next successful fetch
+    will record values for next time."""
+    assert needs_refetch(True, None, 2, None, "2026-06-25T10:00:00Z") is False
+
+
+def test_needs_refetch_non_numeric_attempt_safely_ignored():
+    """Defensive: if attempt isn't parseable as int, fall through to
+    submitted_at comparison rather than crash."""
+    # Both bad — only timestamps drive the decision
+    assert needs_refetch(
+        True,
+        recorded_attempt="garbage", remote_attempt="also garbage",
+        recorded_submitted_at="2026-06-20T10:00:00Z",
+        remote_submitted_at="2026-06-25T10:00:00Z",
+    ) is True
+    # Both bad + no timestamps → safe skip
+    assert needs_refetch(True, "x", "y", None, None) is False
+
+
+def test_needs_refetch_partial_signals_dont_cause_false_refetch():
+    """Half-recorded data should NEVER cause a refetch unless there's
+    positive evidence of newer remote. Old logs without freshness signals
+    must remain stable."""
+    # Recorded attempt but no remote → no refetch
+    assert needs_refetch(True, 2, None, None, None) is False
+    # Remote attempt but no recorded → no refetch
+    assert needs_refetch(True, None, 2, None, None) is False
+
+
+def test_needs_refetch_empty_string_submitted_at_treated_as_missing():
+    """Canvas sometimes returns "" instead of None for missing timestamps.
+    Empty strings should be treated as missing — no false-positive refetch."""
+    assert needs_refetch(True, None, None, "", "2026-06-25T10:00:00Z") is False
+    assert needs_refetch(True, None, None, "2026-06-25T10:00:00Z", "") is False
+
+
+def test_needs_refetch_remote_attempt_older_no_refetch():
+    """Should never happen in practice (Canvas attempts monotonically
+    increase), but if remote attempt < recorded, don't refetch — that's
+    likely a stale read from a cached endpoint, not a real downgrade."""
+    assert needs_refetch(
+        True,
+        recorded_attempt=3, remote_attempt=2,
+        recorded_submitted_at="2026-06-25T10:00:00Z",
+        remote_submitted_at="2026-06-25T10:00:00Z",
+    ) is False
