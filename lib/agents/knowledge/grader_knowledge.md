@@ -29,14 +29,19 @@ We just lived the fork-drift failure mode: a stale forked grading tool silently 
 
 The grading pipeline crosses a privacy boundary every time. The architecture, not a checklist, is what keeps it safe.
 
-### The two zones
+### The three tiers of identity-handling
 
-| Zone | What runs there | Sees identity? |
-|---|---|---|
-| **Cloud / AI zone** | LLM grading, signal extraction, comment writing, consensus | **NO** — keys only (`A1`, `B7`, …) |
-| **Local zone** | De-identification, keymap, re-identification, Canvas API writes, instructor review | **YES** — names, emails, gradebook |
+| Tier | Where names live | Sees identity? | Example artifacts |
+|---|---|---|---|
+| **1. Cloud / AI zone** | NO names — opaque keys only (`KC1-A1B2C3`, `B7`) | **NO** | LLM-graded submissions, consensus output, voice files |
+| **2. Local repo, gitignored** | Names allowed; never committed; never read by AI | YES (operator only) | `.fetch_log.json`, `.known_names.txt`, `submissions_raw/<prefix>_<uid>.<ext>`, `.keymap.json` |
+| **3. Outside the repo entirely** *(NEW v0.69.0+)* | Named reports the AI must never touch — physically outside the LLM's working-directory access | YES (operator + report recipients only) | `~/Downloads/engagement-audit-<course-id>-<YYYY-MM-DD>.md` (Title IV UW/UF audit) |
 
-**The rule:** de-identify BEFORE anything reaches the cloud. Keyed outputs (`<KEY>.md`) only. The key↔name map (`.keymap.csv`) stays local and is never read by the AI. The instructor re-identifies locally for review and writes the final Canvas grade.
+**The rule (Tier 1):** de-identify BEFORE anything reaches the cloud. Keyed outputs (`<KEY>.md`) only. The key↔name map (`.keymap.csv`) stays local and is never read by the AI. The instructor re-identifies locally for review and writes the final Canvas grade.
+
+**The rule (Tier 3, new):** named reports that the operator needs but the AI must never read live OUTSIDE the repo entirely — typically in `~/Downloads/`. The first such report is the Title IV course engagement audit (see [`course_engagement_audit_knowledge.md`](course_engagement_audit_knowledge.md)). Tools writing tier-3 reports MUST refuse if the operator passes `--out` with a path inside `cwd` — defense in depth against accidentally pulling the named report into the LLM's read surface.
+
+**Operator discipline (Tier 3):** **don't copy the Downloads report back into the repo**, don't sync it to a cloud folder the IDE indexes, don't paste its contents into an agent prompt. Share via channels the LLM doesn't index (email attachment, institutional file-sharing, etc.).
 
 ### What gets scrubbed
 

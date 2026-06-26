@@ -40,7 +40,7 @@ That's the grading workflow. The toolbox does more — audits, sync, sharing, se
 
 ## What you can ask your AI agent to do
 
-Eight workflows. Each one is a prompt your agent can act on.
+Nine workflows. Each one is a prompt your agent can act on.
 
 | You want to… | Ask your agent | What happens |
 |---|---|---|
@@ -50,6 +50,7 @@ Eight workflows. Each one is a prompt your agent can act on.
 | **Build a Course Map + Schedule** | *"Build a Course Map and 14-week schedule from this course"* | Architects-of-Learning–style map: CLOs, per-module outcomes, 14-week pacing analysis. |
 | **Pull New Quiz response data** | *"Pull the per-student responses from quiz <id>"* | The New Quizzes API doesn't expose responses directly; the toolkit reads them via the student-analysis report. FERPA-safe by default (uid-keyed; names opt-in). |
 | **Grade an assignment end-to-end** | *"Grade the KC1 assignment"* | Fetch → de-identify → 3-pass consensus → review surface (`_all_comments.md`) → push gated behind `--mark-reviewed`. You approve every grade. |
+| **Run a UW / UF check (Title IV)** | *"Run a UW check with UF date 2026-04-15"* or *"Last participation report"* | Classifies each enrolled student as ACTIVE / UW / UF / NEVER_PARTICIPATED by their last academically related activity vs your UF cutoff. PDF + MD report drops in **~/Downloads/** (outside the repo — FERPA tier 3). Compliant with 34 CFR 668.22 + the 2025-2026 FSA Handbook (verified 2026-06-26). |
 | **Share your grader with another faculty teaching the same course** | *"Bundle this course's rubrics and configs to share with another faculty"* | Exports a ZIP with rubrics, task specs, configs, course-level pitfalls. Your personal voice file is REFUSED by the export — by design. They build their own voice. |
 | **Roll out a new semester** | *"Sync my master course to the spring section"* | Master → Blueprint; Canvas handles section distribution. Safety gates keep section edits from leaking back to master. |
 
@@ -75,6 +76,7 @@ Canvas Toolbox is the third option: **AI-assisted everything where the instructo
 | **Editing course content** | Click through Canvas one item at a time | Pull to your computer; edit in any text editor; push back |
 | **Auditing your course** | Hope nothing's broken | 11 read-only audits compose one health report (PDF + MD) |
 | **Grading at scale** | Manual click-through SpeedGrader | FERPA-safe AI-assisted; you stay the author of every word |
+| **Title IV UW/UF reporting** | Manually trawl SpeedGrader + Discussions + Quizzes per student at term-end | One command → classified report in `~/Downloads/`; compliant with 34 CFR 668.22 |
 | **Sharing with another faculty teaching the same course** | Email files; lose track of versions | Bundle + import with voice-preservation built in |
 | **Rolling out a new semester** | Manually copy modules + fix broken IDs | Sync master to Blueprint; Canvas handles section distribution |
 | **Pulling New Quiz response data** | Not directly possible via the API | Via the student-analysis report; uid-keyed by default |
@@ -383,6 +385,37 @@ The push surface refuses by default in the dangerous direction. Every refusal ha
 
 ---
 
+# Title IV last-participation audit (UW / UF reporting)
+
+Federal Title IV (34 CFR 668.22) requires reporting a **last date of academically related activity** for any Title-IV-aid recipient who fails to complete the enrollment period. The R2T4 (Return of Title IV funds) calculation depends on it. Without this audit, the workflow is trawling SpeedGrader + Discussions + Quizzes per student at term-end.
+
+```bash
+uv run python lib/tools/course_engagement_audit.py --uf-date 2026-04-15
+```
+
+The audit:
+
+1. Fetches each enrolled student's last engagement timestamp from **assignment submissions + quiz submissions + discussion entries** (per DOE: *"logging in is not sufficient"* — page views and `last_activity_at` deliberately excluded)
+2. Classifies each student against the operator-provided UF cutoff:
+   - **ACTIVE** — engagement on or after the UF date
+   - **UW** — stopped engaging before UF date, passing-or-unknown grade
+   - **UF** — stopped engaging before UF date AND failing — R2T4 candidate
+   - **NEVER_PARTICIPATED** — enrolled but no engagement on record (no-show rule applies)
+3. Re-identifies user_ids → names ONLY at the last step before writing the report
+4. **Writes the named PDF + MD to `~/Downloads/`** — outside the repo entirely, so the LLM has no working-directory access to the student-named output. This is **FERPA tier 3** (see [`grader_knowledge.md §1`](lib/agents/knowledge/grader_knowledge.md))
+
+**Title IV definitions verified:** 2026-06-26. The 6 canonical sources (CFR text, FSA Handbook chapters, Federal Register notice) are cached locally at [`lib/agents/knowledge/sources/title_iv/`](lib/agents/knowledge/sources/title_iv/) — re-runs of the audit don't require fresh web fetches. Refresh with:
+
+```bash
+uv run python lib/tools/update_title_iv_snapshot.py
+```
+
+The script reports **NEW / UPDATED / UNCHANGED / SUSPICIOUS** per source so material rule changes surface. **Next review of the cached Title IV sources is 2027-06-26** or sooner if DOE issues new R2T4 / distance-ed guidance. The Distance Ed + R2T4 final rules effective **2026-07-01** are the latest material change (and the most recent caching captures them).
+
+Full audit documentation: [`course_engagement_audit_knowledge.md`](lib/agents/knowledge/course_engagement_audit_knowledge.md).
+
+---
+
 # Sharing your grader with another faculty
 
 When two faculty teach the same Canvas course, the second one shouldn't start from scratch.
@@ -469,6 +502,6 @@ The architecture (FERPA two-zone, voice-preservation contract, consensus-based g
 
 ---
 
-**Current version:** v0.68.x · 11 safety gates · 439 unit tests · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
+**Current version:** v0.69.x · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 483 unit tests · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
 
 For help, see the doc tree above or file a `cb-report-bug` (~1 second roundtrip; no GitHub account needed).
