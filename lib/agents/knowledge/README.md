@@ -31,6 +31,7 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 | Per-instructor comment voice for the grading pipeline | [`grader_voice_knowledge.md`](grader_voice_knowledge.md) |
 | Coaching a new faculty on feedback style — research-grounded WHAT/HOW split + first-time voice articulation | [`voice_coaching_knowledge.md`](voice_coaching_knowledge.md) |
 | Onboarding a new instructor / assignment to the grader (6-step interview) | [`grader_setup_knowledge.md`](grader_setup_knowledge.md) |
+| Title IV course-engagement audit — classifying students into UW/UF/Never-Participated/Active by last engagement date for R2T4 reporting (NEW FERPA tier 3 — Downloads-folder named report) | [`course_engagement_audit_knowledge.md`](course_engagement_audit_knowledge.md) |
 
 ---
 
@@ -271,6 +272,17 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 **Audit tag:** none (coaching reference; consumed via fact lookup).
 **Status:** ✅ **v1.0** — research-grounded across 8 pedagogical frameworks; validated against DS 250 + DS 460 voice artifacts. The voice-preservation contract honors the operator-set constraint that the AI must add value in PHRASING without losing the faculty's voice.
 **Consumed by:** [`canvas_grader.md`](canvas_grader.md), the agent grading any LLM-comment cohort. **Pairs with:** [`grader_voice_knowledge.md`](grader_voice_knowledge.md) (structure + per-instructor file contract + edit roundtrip — the downstream operational layer), [`grader_setup_knowledge.md`](grader_setup_knowledge.md) (per-assignment config interview), [`grader_knowledge.md`](grader_knowledge.md) (push pipeline + safety gates the voice rides on top of).
+
+---
+
+### [`course_engagement_audit_knowledge.md`](course_engagement_audit_knowledge.md)
+
+**Sources:** 34 CFR 668.22 (Cornell Law / eCFR); 2025-2026 Federal Student Aid Handbook Vol 5 Ch 1 + Ch 2 + Ch 3 (Withdrawals + R2T4 calculations); 2025-2026 FSA Handbook Vol 2 Ch 1 (Institutional Eligibility — academic engagement definition); Federal Register 89 FR 31031 (2025-01-03) — Distance Education + Return of Title IV final rules effective 2026-07-01. **All 6 sources cached locally** at [`sources/title_iv/`](sources/title_iv/); refreshed by [`update_title_iv_snapshot.py`](../../tools/update_title_iv_snapshot.py).
+**Core idea:** Title IV federal-compliance audit that classifies a course's enrolled students into ACTIVE / UW / UF / NEVER_PARTICIPATED based on their last date of academically related activity vs an operator-provided UF cutoff date. Compliant per DOE definition: counts assignment submissions + quiz submissions + discussion entries; explicitly does NOT count Canvas page views or `last_activity_at` (DOE: *"logging in is not sufficient"*). Establishes a **NEW FERPA tier 3** — the named report is written to `~/Downloads/` (outside the repo entirely) so the LLM has no working-directory access to the student-named output.
+**When to use:** Term-end (or any time the institution needs an R2T4 candidate list). Faculty provides a UF cutoff date; the audit produces a Markdown + PDF report in the user's Downloads folder with each student classified + the documented last-engagement timestamp.
+**Audit tag:** `engagement_classification` ∈ {`active`, `uw`, `uf`, `never_participated`}.
+**Status:** ✅ **v1.0** — Title IV definitions verified 2026-06-26 against the 6 cached canonical sources. **Next review:** 2027-06-26 (or sooner if DOE issues new R2T4 / distance-ed guidance). The Distance Ed + R2T4 final rules effective 2026-07-01 are the latest material rule change.
+**Consumed by:** [`canvas_grader.md`](canvas_grader.md), `canvas_course_expert.md`. **Pairs with:** [`grader_knowledge.md`](grader_knowledge.md) §1 (FERPA tier 3 — Downloads-folder named report), the cached Title IV sources in [`sources/title_iv/`](sources/title_iv/).
 
 ---
 

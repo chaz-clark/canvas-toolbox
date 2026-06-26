@@ -1,0 +1,54 @@
+{
+  "sources": {
+    "cfr-668-22": {
+      "url": "https://www.law.cornell.edu/cfr/text/34/668.22",
+      "label": "34 CFR 668.22 — Treatment of Title IV funds when a student withdraws",
+      "sha256": "4b6a536eef1725c1e1030a9cd91025b3660c0e7e22985d37951699c6e50c2ff4",
+      "char_count": 42671,
+      "fetched_at": "2026-06-26T18:54:32Z",
+      "last_attempt_status": "OK"
+    },
+    "fsa-2025-2026-vol5-ch1": {
+      "url": "https://fsapartners.ed.gov/knowledge-center/fsa-handbook/2025-2026/vol5/ch1-general-requirements-withdrawals-and-return-title-iv-funds",
+      "label": "2025-2026 FSA Handbook, Vol 5 Ch 1 — General Requirements for Withdrawals and R2T4",
+      "sha256": "4db61733374f1722b1c7c37115a7f01e86a5d1b3a267e2ac399733f6ccadb446",
+      "char_count": 130984,
+      "fetched_at": "2026-06-26T18:54:32Z",
+      "last_attempt_status": "OK"
+    },
+    "fsa-2025-2026-vol5-ch2": {
+      "url": "https://fsapartners.ed.gov/knowledge-center/fsa-handbook/2025-2026/vol5/ch2-steps-return-title-iv-aid-calculation-part-1",
+      "label": "2025-2026 FSA Handbook, Vol 5 Ch 2 — Steps in R2T4 Calculation Part 1",
+      "sha256": "a6f8f52ad5cf43d85ac88ace25de69ca2cc04ffe24534d4a27577061c2a7800f",
+      "char_count": 137257,
+      "fetched_at": "2026-06-26T18:54:32Z",
+      "last_attempt_status": "OK"
+    },
+    "fsa-2025-2026-vol5-ch3": {
+      "url": "https://fsapartners.ed.gov/knowledge-center/fsa-handbook/2025-2026/vol5/ch3-return-title-iv-r2t4-funds-case-studies-part-1",
+      "label": "2025-2026 FSA Handbook, Vol 5 Ch 3 — R2T4 Case Studies Part 1",
+      "sha256": "faea5b3c21c91aa30e56682022dd71d3a68b748c9e56e8cbfaa4a56ce4e8ed7a",
+      "char_count": 52873,
+      "fetched_at": "2026-06-26T18:54:32Z",
+      "last_attempt_status": "OK"
+    },
+    "fsa-2025-2026-vol2-ch1": {
+      "url": "https://fsapartners.ed.gov/knowledge-center/fsa-handbook/2025-2026/vol2/ch1-institutional-eligibility",
+      "label": "2025-2026 FSA Handbook, Vol 2 Ch 1 — Institutional Eligibility (academic engagement definition)",
+      "sha256": "6f59b4c7f09d4f49783e710ce67ce7a55b51cc1453df9e37b1ddc0c38aa5e5c5",
+      "char_count": 52136,
+      "fetched_at": "2026-06-26T18:54:32Z",
+      "last_attempt_status": "OK"
+    },
+    "federal-register-2025-01-03-final-rules": {
+      "url": "https://www.federalregister.gov/documents/2025/01/03/2024-31031/program-integrity-and-institutional-quality-distance-education-and-return-of-title-iv-hea-funds",
+      "label": "Federal Register 89 FR 31031 (2025-01-03) — Distance Ed + R2T4 final rules (effective 2026-07-01)",
+      "sha256": "653d3f87abe79d51cabc4cbe0aa4932add867f72415f25b6a3b3a09ad04419e9",
+      "char_count": 258335,
+      "fetched_at": "2026-06-26T18:54:32Z",
+      "last_attempt_status": "OK"
+    }
+  },
+  "last_updated": "2026-06-26T18:54:32Z",
+  "script_version": "0.68.2"
+}

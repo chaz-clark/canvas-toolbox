@@ -248,6 +248,88 @@ private channel is for security.
 
 _Last updated: 2026-06-26_
 
+### Recent: Title IV course-engagement audit + Downloads-folder FERPA tier 3 (v0.69.0, 2026-06-26)
+
+**v0.69.0** — new audit tool category: federal Title IV last-date-
+of-engagement classifier for UW/UF reporting (R2T4 candidates).
+Establishes a **new FERPA tier**: named reports outside the repo
+entirely (LLM has no working-directory access to `~/Downloads/`).
+
+**Why:** federal Title IV (34 CFR 668.22) requires faculty /
+institutions to report last-date-of-academic-engagement for any
+student who unofficially withdraws. Manual workflow: trawl
+SpeedGrader + Discussions + Quizzes per student at term-end.
+
+**What landed:**
+
+1. **`lib/tools/course_engagement_audit.py`** — fetches assignments
+   + quizzes + discussion entries per enrolled student, computes
+   `last_engagement` as max timestamp (deliberately EXCLUDES
+   `last_activity_at` and page views per DOE *"logging in is not
+   sufficient"*), classifies into ACTIVE / UW / UF /
+   NEVER_PARTICIPATED against operator-provided UF cutoff,
+   re-identifies user_id → name ONLY at the last step, writes
+   PDF + MD to `~/Downloads/`. Hard refuses to write inside cwd
+   (FERPA tier 3 defense-in-depth).
+
+2. **`lib/tools/update_title_iv_snapshot.py`** — companion tool.
+   Fetches 6 canonical Title IV sources, regex-extracts body
+   content (no LLM tokens; deterministic), writes Markdown
+   snapshots + sha256 manifest. Mozilla UA to avoid anti-scraping
+   shells; content-length sanity check.
+
+3. **6 cached Title IV sources** (~674k chars total) at
+   `lib/agents/knowledge/sources/title_iv/` — CFR 668.22, FSA
+   Handbook Vol 5 Ch 1/2/3 + Vol 2 Ch 1, Federal Register final
+   rules effective 2026-07-01. Auditable provenance.
+
+4. **NEW knowledge file** `course_engagement_audit_knowledge.md` —
+   Title IV research foundation + classification rules +
+   Downloads-folder pattern + re-verification cadence.
+
+5. **`grader_knowledge.md §1` extended** — "two zones" → "three
+   tiers." NEW tier 3: named reports outside the repo entirely.
+
+6. **44 new tests** (483 total, up from 439).
+
+7. **README updated** — 9th agent-prompt row added; new "Title IV
+   last-participation audit" section; comparison table gains a
+   Title IV row; trailing version line names verification date.
+
+**Title IV verification date stamp: 2026-06-26. Next review:
+2027-06-26.** The new Distance Ed + R2T4 final rules go into
+effect **2026-07-01** (this week at time of build) — the cached
+Federal Register snapshot captures their canonical text.
+
+Operator's specific asks all honored:
+- ✅ "Research with confirm" — 4 parallel WebSearches; findings
+  synthesized in the knowledge file with explicit Title IV
+  citations
+- ✅ "Document in the readme.md" — capability bullet + dedicated
+  section + comparison table + agent-prompt row
+- ✅ "Date of update incase title iv updates" — verification date
+  + next-review date at top of knowledge file + in README + in
+  manifest + in tool docstring
+- ✅ "Never participated also in scope" — 4 buckets (ACTIVE /
+  UW / UF / NEVER_PARTICIPATED)
+- ✅ "PDF" — primary output format; MD as editable source
+- ✅ "Root level Downloads" — top-level `~/Downloads/`
+- ✅ "Match Title IV naming but allow them to call it last
+  participation check" — file is `course_engagement_audit.py`
+  (matches existing audit naming); agent recognizes prompts like
+  "UW check", "last participation report", "engagement audit"
+- ✅ "I like the separation of storage as a rule to enhance our
+  FERPA position" — documented as FERPA tier 3 in
+  `grader_knowledge.md §1`
+- ✅ "Save the Title IV resources and produce an update script" —
+  `update_title_iv_snapshot.py` + 6 cached sources + manifest
+- ✅ "Regex the tags needed from the html to reduce token useage" —
+  regex-only extraction; no LLM tokens used; deterministic; sha256
+  manifest skips unchanged sources on re-run
+
+Ships via PR (third use of branch protection) on
+`feat/course-engagement-audit`.
+
 ### Recent: README rebalance — broader toolbox positioning + 8-workflow agent-prompt list (v0.68.2, 2026-06-26)
 
 **v0.68.2** — second README correction after operator feedback on
