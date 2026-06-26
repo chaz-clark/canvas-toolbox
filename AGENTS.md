@@ -248,6 +248,52 @@ private channel is for security.
 
 _Last updated: 2026-06-26_
 
+### Recent: README rebalance — broader toolbox positioning + 8-workflow agent-prompt list (v0.68.2, 2026-06-26)
+
+**v0.68.2** — second README correction after operator feedback on
+v0.68.1: *"overall the rest is too grader heavy focused - this tool
+does so much more, grader is a key compoennt and probably the
+marketing one but we cant turn the toolbox into a grader only"* +
+*"the 'what it looks like in practice' should be a positive
+experience"* + *"we need the list of how to use it back to prompt
+ideas again of all 8 tools"*
+
+**Six structural changes:**
+
+1. **Intro grammar fixes** — *"you're always in the loop"* (was
+   *"your"*) and *"everything in Canvas"* (was lowercase). Operator-
+   authored intro otherwise preserved.
+2. **"What it looks like in practice" replaced** — was a negative
+   example (regression gate refusing a lower). Now a POSITIVE example
+   showing `_all_comments.md` ready for review + per-student evidence
+   files generated. Ends with *"Nothing pushes to Canvas until you
+   mark reviewed"* — reassurance, not threat.
+3. **NEW section: "What you can ask your AI agent to do"** — 8-row
+   table of prompt-shaped workflows (sync, quick audit, full audit,
+   course map, NQ response data, grading, cross-faculty sharing,
+   semester rollout). The most adopter-friendly part of the legacy
+   README; restored in marketing-shaped form.
+4. **"Why this exists" rebalanced** — opens with *"Your course is a
+   document. The boring parts… should be your call."* The wedge story
+   is still grading (the marketing centerpiece) but the framing now
+   covers ALL workflows.
+5. **"What changes" table restructured** — was AI-grading-as-a-service
+   vs Canvas Toolbox (grader-only). Now Canvas-UI-alone vs Canvas
+   Toolbox across SIX workflows: editing, auditing, grading, sharing,
+   semester rollout, NQ response data.
+6. **"What you can trust" split into two sub-sections** —
+   (a) Architectural commitments that apply everywhere (FERPA two-
+   zone + voice-preservation + brain-agnostic + read-only-audits +
+   local-source-of-truth); (b) Grading safety gates (the 11 — still
+   present but framed as the highest-stakes-workflow specifics).
+
+**Length:** 474 lines (up from v0.68.1's 447). Adds the 8-workflow
+table; the rebalance otherwise didn't add net length.
+
+**No code changes; 439 tests passing; pre-commit green.**
+
+Ships via PR (second use of branch protection's PR flow).
+
 ### Recent: README correction — restored faculty install scaffold + voice rewrite in Chaz's voice (v0.68.1, 2026-06-26)
 
 **v0.68.1** — corrects v0.68.0 after operator feedback: *"the quick

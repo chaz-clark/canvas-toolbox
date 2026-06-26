@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/chaz-clark/canvas-toolbox/actions/workflows/ci.yml/badge.svg)](https://github.com/chaz-clark/canvas-toolbox/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
 
-**FERPA-safe AI-assisted Canvas LMS toolkit. Your voice. Your accountability. Your students' privacy.**
+**FERPA-safe AI-assisted Canvas LMS toolkit. Your voice, your choice, you're always in the loop. Your students' privacy is #1.**
 
-> **This is** how an instructor uses AI to grade *with* them — staying the author of every grade and every word the student reads.
+> **This is** how an instructor uses AI as a *tool* — staying the author of everything in Canvas including grades and every word the student reads.
 >
 > **This is NOT** an AI grader. The AI doesn't sign its name to the comment. You do.
 
@@ -14,45 +14,70 @@ Built at BYU-Idaho. Designed for all instructors. Works with any Canvas institut
 
 ## What it looks like in practice
 
-When a re-grade would silently lower an existing student grade, the tool stops it before it reaches Canvas:
+A consensus grading run finishes. Three things land in your review folder. Nothing pushes to Canvas yet — that's your call:
 
 ```
-$ uv run python lib/tools/grader_push.py --challenge-dir grading/kc1 --push
+$ uv run python lib/tools/grader_consensus.py --challenge-dir grading/kc1
 
-Assignment 16958677: 22 Canvas submissions, 22 review rows.
+Consistency over 22 submissions (3 graders):
+  exact 16/22, within 0.25 20/22, within 0.5 22/22; mean spread 0.07
 
-  pushed KC1-A1B2C3: — → 3.75
-  pushed KC1-D4E5F6: — → 3.5
-  ⛔ [REGRESSION] KC1-G7H8I9: uid=12345: 3.75 → 3.5
-      — refusing to LOWER (pass --allow-lower to permit)
-  pushed KC1-J2K3L4: 3.0 → 3.5
+NEEDS-REVIEW queue (spread ≥ 0.5): 2 submissions
+  KC1-G7H8I9: graders [3.0, 3.5, 4.0] → consensus 3.5 (spread 1.0)
+  KC1-M2N3O4: graders [2.5, 3.0, 3.5] → consensus 3.0 (spread 1.0)
 
-Pushed 21/22; 1 regression row skipped (--allow-lower forces it through;
-manual review recommended).
+  → feedback/_all_comments.md  (22 comments compiled for your review)
+  → feedback/_consensus.csv    (per-grader scores + spread + flags)
+  → feedback/<KEY>.md          (22 per-student evidence files — one per submission)
+
+Open _all_comments.md to read + edit comments in your voice.
+Nothing pushes to Canvas until you mark reviewed.
 ```
 
-Eleven safety gates between AI-assisted grading and the student's gradebook. Each one came from a real incident. Each one shipped within hours of being filed.
+That's the grading workflow. The toolbox does more — audits, sync, sharing, semester rollout. Each one ends with **your review surface ready** and **you in control of what reaches Canvas**.
+
+---
+
+## What you can ask your AI agent to do
+
+Eight workflows. Each one is a prompt your agent can act on.
+
+| You want to… | Ask your agent | What happens |
+|---|---|---|
+| **Pull your Canvas course to your computer** | *"Pull my Canvas course into a local folder so I can start working with it"* | Mirrors all modules, pages, assignments, quizzes, discussions, syllabus into a `course/` folder. Edit any file locally; push back when ready. |
+| **Get a quick health check** | *"Run a course health audit"* | 4-audit summary in ~30 seconds (rubrics, syllabus, outcomes, outcome quality) → verdict + top things to fix. |
+| **Run the full pre-publish sweep** | *"Run the full course health sweep and share the results"* | 11 read-only audits composed into one report — alignment chain, learning model, accessibility, workload, grading load, formative variety. PDF + MD per finding. |
+| **Build a Course Map + Schedule** | *"Build a Course Map and 14-week schedule from this course"* | Architects-of-Learning–style map: CLOs, per-module outcomes, 14-week pacing analysis. |
+| **Pull New Quiz response data** | *"Pull the per-student responses from quiz <id>"* | The New Quizzes API doesn't expose responses directly; the toolkit reads them via the student-analysis report. FERPA-safe by default (uid-keyed; names opt-in). |
+| **Grade an assignment end-to-end** | *"Grade the KC1 assignment"* | Fetch → de-identify → 3-pass consensus → review surface (`_all_comments.md`) → push gated behind `--mark-reviewed`. You approve every grade. |
+| **Share your grader with another faculty teaching the same course** | *"Bundle this course's rubrics and configs to share with another faculty"* | Exports a ZIP with rubrics, task specs, configs, course-level pitfalls. Your personal voice file is REFUSED by the export — by design. They build their own voice. |
+| **Roll out a new semester** | *"Sync my master course to the spring section"* | Master → Blueprint; Canvas handles section distribution. Safety gates keep section edits from leaking back to master. |
+
+Each workflow has a deeper section below. Most non-technical faculty drive the toolkit entirely by asking their agent — no terminal required after setup.
 
 ---
 
 ## Why this exists
 
-Two faculty teaching the same Canvas course shouldn't have to choose between:
+Your course is a document. The boring parts — sync, audit, grade, share, roll out a new semester — shouldn't be manual click-through work. They should be **your call, with the boring work automated, and you in the loop on every meaningful decision.**
+
+The wedge moment is grading. Two faculty teaching the same Canvas course shouldn't have to choose between:
 
 1. **AI does the grading and signs the AI's name to it.** Students see "AI Grader" as the comment author.
 2. **The instructor does every comment by hand.** Doesn't scale past 30 students.
 
-Canvas Toolbox is the third option: **AI-assisted grading where the instructor stays the author.** The AI helps produce comments in the instructor's voice. The instructor reviews and approves every grade. The student sees their professor — not "AI Grader" — as the author.
+Canvas Toolbox is the third option: **AI-assisted everything where the instructor stays the author.** The agent does the legwork. The instructor reviews and approves. The student sees their professor — not "AI Grader" — as the author of the grade and the words.
 
 ### What changes
 
-| | AI-grading-as-a-service | Canvas Toolbox |
+| | Canvas UI alone | Canvas Toolbox |
 |---|---|---|
-| **Comment authorship** | "AI Grader" — students know it's AI | The instructor — their voice, their accountability |
-| **FERPA boundary** | Trust the vendor's tenant | Two zones — cloud sees keys only, never names |
-| **LLM provider** | Locked to one vendor | Brain-agnostic — Claude / GPT / Gemini / local Ollama |
-| **Canvas auth** | One institutional key | Per-faculty Canvas token (your own login) |
-| **Adoption gate** | Institution must procure / contract | Pull and run — no procurement |
+| **Editing course content** | Click through Canvas one item at a time | Pull to your computer; edit in any text editor; push back |
+| **Auditing your course** | Hope nothing's broken | 11 read-only audits compose one health report (PDF + MD) |
+| **Grading at scale** | Manual click-through SpeedGrader | FERPA-safe AI-assisted; you stay the author of every word |
+| **Sharing with another faculty teaching the same course** | Email files; lose track of versions | Bundle + import with voice-preservation built in |
+| **Rolling out a new semester** | Manually copy modules + fix broken IDs | Sync master to Blueprint; Canvas handles section distribution |
+| **Pulling New Quiz response data** | Not directly possible via the API | Via the student-analysis report; uid-keyed by default |
 
 **Voice-preservation is in the code, not just in the docs.** When you export a grader to share with another faculty teaching the same course, your personal voice file is REFUSED by the export — by design. The receiving faculty builds their own voice. Both faculty's students hear their own professor.
 
@@ -60,15 +85,17 @@ Canvas Toolbox is the third option: **AI-assisted grading where the instructor s
 
 ## What you can trust
 
-Eleven safety gates, each driven by a documented incident, each landed within hours of being filed. Every gate refuses by default; every gate has an explicit opt-out flag for the rare intentional case.
-
-### The architecture
+### Architectural commitments (apply everywhere)
 
 - **FERPA two-zone** — the cloud sees opaque keys (`KC1-A1B2C3`). Only the local zone has names. The AI never reads a student name. Files on disk are keyed by `user_id`, never by name.
 - **Voice-preservation** — per-instructor voice files are NEVER copied, exported, or shared between faculty. Your voice is yours alone.
 - **Brain-agnostic LLM** — Claude, GPT, Gemini, or local Ollama. You're not locked into a vendor.
+- **Read-only by default for audits** — every audit reports findings; none of them change anything in your Canvas course.
+- **Local files are source of truth** — Canvas is the sync target, not the source. Nothing pushes without your explicit approval.
 
-### The gates
+### Grading safety gates (the highest-stakes workflow)
+
+Eleven gates between AI-assisted grading and the student's gradebook. Each one driven by a documented incident. Each one shipped within hours of being filed. Every gate refuses by default; every gate has an explicit opt-out flag for the rare intentional case.
 
 | # | The gate | What it prevents |
 |---|---|---|
@@ -84,7 +111,7 @@ Eleven safety gates, each driven by a documented incident, each landed within ho
 | 10 | Group-assignment first-class workflow (#100) | Re-grading 21 identical group-submission rows with inconsistent comments |
 | 11 | Cross-faculty sharing with voice-preservation (v0.67.0) | Exporting a grader and accidentally locking the receiver into your voice |
 
-Audit which gates fired in a push from the per-row console output + `.push_log.md`. **Total tests covering these:** 439.
+Audit which gates fired in a push from the per-row console output + `.push_log.md`. **Total tests covering these + the rest of the toolkit:** 439.
 
 ---
 
