@@ -40,7 +40,7 @@ That's the grading workflow. The toolbox does more — audits, sync, sharing, se
 
 ## What you can ask your AI agent to do
 
-Twelve workflows. Each one is a prompt your agent can act on.
+Thirteen workflows. Each one is a prompt your agent can act on.
 
 | You want to… | Ask your agent | What happens |
 |---|---|---|
@@ -52,7 +52,8 @@ Twelve workflows. Each one is a prompt your agent can act on.
 | **Pull New Quiz response data** | *"Pull the per-student responses from quiz <id>"* | The New Quizzes API doesn't expose responses directly; the toolkit reads them via the student-analysis report. FERPA-safe by default (uid-keyed; names opt-in). |
 | **Grade an assignment end-to-end** | *"Grade the KC1 assignment"* | Fetch → de-identify → 3-pass consensus → review surface (`_all_comments.md`) → push gated behind `--mark-reviewed`. You approve every grade. |
 | **Run a UW / UF check (Title IV)** | *"Run a UW check with UF date 2026-04-15"* or *"Last participation report"* | Classifies each enrolled student as ACTIVE / UW / UF / NEVER_PARTICIPATED by their last academically related activity vs your UF cutoff. PDF + MD report drops in **~/Downloads/** (outside the repo — FERPA tier 3). Compliant with 34 CFR 668.22 + the 2025-2026 FSA Handbook (verified 2026-06-26). |
-| **Give one student late-work accommodation** | *"Give student S-95DBB6 late-work grace for the rest of the semester"* / *"…starting from the last 2 weeks"* / *"…on assignment 1234 only"* | Writes per-student assignment overrides that keep the original open + due dates but **drop the close date** — so the student can submit after the deadline (marked late, still accepted) without affecting the class. **4 scoping modes**: one assignment, whole semester, from a date forward, or rolling window. **Also**: `--shift-by-days N` mode for *test_reschedule* accommodations (moves unlock/due/lock forward by N days). Resolves the target student PII-free via the [de-id master](#the-de-id-master--the-primitive-under-everything). |
+| **Give one student late-work accommodation** | *"Give student S-95DBB6 late-work grace for the rest of the semester"* / *"…starting from the last 2 weeks"* / *"…on assignment 1234 only"* | Writes per-student assignment overrides. Two flavors (drop close date OR shift dates forward) × four scoping modes (one assignment / whole semester / from a date / rolling window). PII-free via the [de-id master](#the-de-id-master--the-primitive-under-everything). See [Per-student late-work accommodation](#per-student-late-work-accommodation) below. |
+| **Give one student extra time on timed quizzes** | *"Give student S-95DBB6 1.5x time on all timed quizzes"* / *"…2x time on quiz 1234"* | Writes per-student quiz extensions on classic Canvas quizzes — `--multiplier 1.5` adds 50% extra; `--multiplier 2.0` adds double time. `--all-timed` covers every timed quiz in the course; `--quiz-id` scopes to one. Untimed quizzes auto-skip. |
 | **Apply a BYUI Accessibility Services letter** | *"Apply the SAS accommodations for this student"* / *"Run my .sas_accommodations.yml"* | Reads `grading/.sas_accommodations.yml` (produced by life-pm from your BYUI Outlook inbox), dispatches per accommodation key. **Canvas-tier** (quiz time extension 1.5x/2.0x, occasional extensions, test reschedule) auto-runs; **proctoring-tier** (Proctorio breaks, private testing room) + **policy-tier** (spelling/grammar, attendance, recording, etc.) surface as an instructor checklist. Audit log at `grading/.sas_accommodations_applied.log`. |
 | **Share your grader with another faculty teaching the same course** | *"Bundle this course's rubrics and configs to share with another faculty"* | Exports a ZIP with rubrics, task specs, configs, course-level pitfalls. Your personal voice file is REFUSED by the export — by design. They build their own voice. |
 | **Roll out a new semester** | *"Sync my master course to the spring section"* | Master → Blueprint; Canvas handles section distribution. Safety gates keep section edits from leaking back to master. |
@@ -343,7 +344,7 @@ Full audit documentation: [`course_engagement_audit_knowledge.md`](lib/agents/kn
 
 # Per-student late-work accommodation
 
-When ONE student needs permission to submit late — for any reason, on some or all assignments — the toolkit writes Canvas **assignment overrides** that keep the original open and due dates but **drop the close date**. The student still sees the original due date (no artificial deadline extension shown), but submitting after it stays accepted, marked "late." The class is unaffected.
+When ONE student needs deadline flexibility — for any reason, on some or all assignments — the toolkit writes Canvas **assignment overrides** in one of two flavors: either **drop the close date** (student still sees the original due date but can submit after it, marked "late") OR **shift the dates forward by N days** (the entire availability window moves; the student gets a real new hard close). The class is unaffected either way.
 
 ## Two flavors of accommodation + four scoping modes
 
@@ -400,6 +401,30 @@ One row per enrolled student, four columns: `deid_code, user_id, sortable_name, 
 **You** look up "Sydney" in the local CSV → see `S-95DBB6` → hand the agent only that code. The tool reads only the `user_id` column. Names never cross the LLM boundary.
 
 Full knowledge file: [`deid_master_knowledge.md`](lib/agents/knowledge/deid_master_knowledge.md).
+
+---
+
+# Per-student extra time on timed quizzes
+
+For accommodations that say *"give Sydney 1.5x time on quizzes"* — whether they came through a formal SAS letter or an informal arrangement — the toolkit writes Canvas quiz extensions on classic quizzes. The tool computes the right number of extra minutes from each quiz's `time_limit` so a 60-minute quiz becomes 90 (1.5x) or 120 (2.0x) for that student only.
+
+```bash
+# Preview: 1.5x on every timed quiz in the course
+uv run python lib/tools/student_quiz_time_extension.py \
+  --deid-code S-95DBB6 --multiplier 1.5 --all-timed
+
+# Apply 2.0x (double time) across all timed quizzes
+uv run python lib/tools/student_quiz_time_extension.py \
+  --deid-code S-95DBB6 --multiplier 2.0 --all-timed --apply
+
+# Apply to ONE specific quiz
+uv run python lib/tools/student_quiz_time_extension.py \
+  --deid-code S-95DBB6 --multiplier 1.5 --quiz-id 12345 --apply
+```
+
+Partial minutes always round UP — the student never gets less time than the multiplier promises. Untimed quizzes are skipped automatically (no extension is needed). PII-free via the same de-id master.
+
+> **Note on New Quizzes (LTI):** this tool covers classic Canvas quizzes only. New Quizzes use a different API path; per-student time multipliers there are currently set via the New Quizzes Moderation UI. New Quizzes API support is a follow-up.
 
 ---
 
@@ -477,6 +502,6 @@ The architecture (FERPA two-zone, voice-preservation contract, consensus-based g
 
 ---
 
-**Current version:** v0.72.0 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 605 unit tests · 20+ pedagogical knowledge files for AI-architected course design · BYUI SAS accommodation dispatcher (quiz time extension + late-work + test reschedule) · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
+**Current version:** v0.72.1 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 605 unit tests · 20+ pedagogical knowledge files for AI-architected course design · BYUI SAS accommodation dispatcher (quiz time extension + late-work + test reschedule) · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
 
 For help, see the doc tree above or file a `cb-report-bug` (~1 second roundtrip; no GitHub account needed).
