@@ -19,10 +19,12 @@ if str(_TOOLS_DIR) not in sys.path:
 
 from student_late_accommodation import (  # noqa: E402
     build_override_payload,
+    build_shift_payload,
     cutoff_from_days_ago,
     filter_assignments_by_due_from,
     filter_my_overrides,
     resolve_user_id_from_master,
+    shift_iso_timestamp,
 )
 
 
@@ -293,3 +295,96 @@ def test_filter_mixed_pre_and_post_cutoff():
     ]
     out = filter_assignments_by_due_from(assignments, "2026-04-15")
     assert [a["id"] for a in out] == [3, 4]
+
+
+# ---------------------------------------------------------------------------
+# shift_iso_timestamp — date-shift helper for test_reschedule
+# ---------------------------------------------------------------------------
+
+def test_shift_basic_forward():
+    """Shift 2026-04-15T23:59:00Z forward 7 days → 2026-04-22T23:59:00Z.
+    Time-of-day and Z suffix preserved."""
+    assert shift_iso_timestamp("2026-04-15T23:59:00Z", 7) == "2026-04-22T23:59:00Z"
+
+
+def test_shift_crosses_month_boundary():
+    """Shift Apr 28 forward 7 → May 5."""
+    assert shift_iso_timestamp("2026-04-28T12:00:00Z", 7) == "2026-05-05T12:00:00Z"
+
+
+def test_shift_crosses_year_boundary():
+    """Shift Dec 30 forward 5 → Jan 4 (next year)."""
+    assert shift_iso_timestamp("2026-12-30T09:00:00Z", 5) == "2027-01-04T09:00:00Z"
+
+
+def test_shift_preserves_timezone_suffix():
+    """Shift must preserve whatever timezone Canvas sent (e.g. -06:00)."""
+    out = shift_iso_timestamp("2026-04-15T23:59:00-06:00", 3)
+    assert out == "2026-04-18T23:59:00-06:00"
+
+
+def test_shift_none_returns_none():
+    """Null timestamps pass through unchanged so callers can chain."""
+    assert shift_iso_timestamp(None, 7) is None
+    assert shift_iso_timestamp("", 7) is None
+
+
+def test_shift_zero_days_returns_same():
+    """Zero days = no shift."""
+    assert shift_iso_timestamp("2026-04-15T23:59:00Z", 0) == "2026-04-15T23:59:00Z"
+
+
+def test_shift_negative_days_goes_backward():
+    """Negative days = move backward. Defensive: not the primary use
+    case but the helper shouldn't crash."""
+    assert shift_iso_timestamp("2026-04-15T23:59:00Z", -2) == "2026-04-13T23:59:00Z"
+
+
+# ---------------------------------------------------------------------------
+# build_shift_payload — POST body for date-shifted overrides
+# ---------------------------------------------------------------------------
+
+def test_shift_payload_includes_lock_at_unlike_default():
+    """KEY DIFFERENCE from build_override_payload: this payload INCLUDES
+    lock_at (shifted). The default override drops lock_at entirely."""
+    assignment = {
+        "unlock_at": "2026-04-01T00:00:00Z",
+        "due_at": "2026-04-15T23:59:00Z",
+        "lock_at": "2026-04-22T23:59:00Z",
+    }
+    payload = build_shift_payload(assignment, user_id=1, days=7)
+    assert "assignment_override[lock_at]" in payload
+    assert payload["assignment_override[lock_at]"] == "2026-04-29T23:59:00Z"
+
+
+def test_shift_payload_shifts_all_three_dates():
+    assignment = {
+        "unlock_at": "2026-04-01T00:00:00Z",
+        "due_at": "2026-04-15T23:59:00Z",
+        "lock_at": "2026-04-22T23:59:00Z",
+    }
+    payload = build_shift_payload(assignment, user_id=1, days=7)
+    assert payload["assignment_override[unlock_at]"] == "2026-04-08T00:00:00Z"
+    assert payload["assignment_override[due_at]"] == "2026-04-22T23:59:00Z"
+    assert payload["assignment_override[lock_at]"] == "2026-04-29T23:59:00Z"
+
+
+def test_shift_payload_includes_student_id_and_title():
+    payload = build_shift_payload({}, user_id=173819, days=7)
+    assert payload["assignment_override[student_ids][]"] == 173819
+    assert "reschedule" in payload["assignment_override[title]"].lower()
+
+
+def test_shift_payload_omits_missing_dates():
+    """If due_at is null, the payload just omits it — doesn't crash."""
+    assignment = {"due_at": None, "unlock_at": None, "lock_at": None}
+    payload = build_shift_payload(assignment, user_id=1, days=7)
+    assert "assignment_override[due_at]" not in payload
+    assert "assignment_override[unlock_at]" not in payload
+    assert "assignment_override[lock_at]" not in payload
+
+
+def test_shift_payload_custom_title():
+    payload = build_shift_payload({}, user_id=1, days=7,
+                                  title="Bereavement reschedule")
+    assert payload["assignment_override[title]"] == "Bereavement reschedule"

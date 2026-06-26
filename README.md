@@ -40,7 +40,7 @@ That's the grading workflow. The toolbox does more — audits, sync, sharing, se
 
 ## What you can ask your AI agent to do
 
-Eleven workflows. Each one is a prompt your agent can act on.
+Twelve workflows. Each one is a prompt your agent can act on.
 
 | You want to… | Ask your agent | What happens |
 |---|---|---|
@@ -52,7 +52,8 @@ Eleven workflows. Each one is a prompt your agent can act on.
 | **Pull New Quiz response data** | *"Pull the per-student responses from quiz <id>"* | The New Quizzes API doesn't expose responses directly; the toolkit reads them via the student-analysis report. FERPA-safe by default (uid-keyed; names opt-in). |
 | **Grade an assignment end-to-end** | *"Grade the KC1 assignment"* | Fetch → de-identify → 3-pass consensus → review surface (`_all_comments.md`) → push gated behind `--mark-reviewed`. You approve every grade. |
 | **Run a UW / UF check (Title IV)** | *"Run a UW check with UF date 2026-04-15"* or *"Last participation report"* | Classifies each enrolled student as ACTIVE / UW / UF / NEVER_PARTICIPATED by their last academically related activity vs your UF cutoff. PDF + MD report drops in **~/Downloads/** (outside the repo — FERPA tier 3). Compliant with 34 CFR 668.22 + the 2025-2026 FSA Handbook (verified 2026-06-26). |
-| **Give one student late-work accommodation** | *"Give student S-95DBB6 late-work grace for the rest of the semester"* / *"…starting from the last 2 weeks"* / *"…on assignment 1234 only"* | Writes per-student assignment overrides that keep the original open + due dates but **drop the close date** — so the student can submit after the deadline (marked late, still accepted) without affecting the class. **4 scoping modes**: one assignment, whole semester, from a date forward, or rolling window (e.g. last 14 days through end of term). Resolves the target student PII-free via the [de-id master](#the-de-id-master--the-primitive-under-everything). |
+| **Give one student late-work accommodation** | *"Give student S-95DBB6 late-work grace for the rest of the semester"* / *"…starting from the last 2 weeks"* / *"…on assignment 1234 only"* | Writes per-student assignment overrides that keep the original open + due dates but **drop the close date** — so the student can submit after the deadline (marked late, still accepted) without affecting the class. **4 scoping modes**: one assignment, whole semester, from a date forward, or rolling window. **Also**: `--shift-by-days N` mode for *test_reschedule* accommodations (moves unlock/due/lock forward by N days). Resolves the target student PII-free via the [de-id master](#the-de-id-master--the-primitive-under-everything). |
+| **Apply a BYUI Accessibility Services letter** | *"Apply the SAS accommodations for this student"* / *"Run my .sas_accommodations.yml"* | Reads `grading/.sas_accommodations.yml` (produced by life-pm from your BYUI Outlook inbox), dispatches per accommodation key. **Canvas-tier** (quiz time extension 1.5x/2.0x, occasional extensions, test reschedule) auto-runs; **proctoring-tier** (Proctorio breaks, private testing room) + **policy-tier** (spelling/grammar, attendance, recording, etc.) surface as an instructor checklist. Audit log at `grading/.sas_accommodations_applied.log`. |
 | **Share your grader with another faculty teaching the same course** | *"Bundle this course's rubrics and configs to share with another faculty"* | Exports a ZIP with rubrics, task specs, configs, course-level pitfalls. Your personal voice file is REFUSED by the export — by design. They build their own voice. |
 | **Roll out a new semester** | *"Sync my master course to the spring section"* | Master → Blueprint; Canvas handles section distribution. Safety gates keep section edits from leaking back to master. |
 
@@ -344,9 +345,16 @@ Full audit documentation: [`course_engagement_audit_knowledge.md`](lib/agents/kn
 
 When ONE student needs permission to submit late — for any reason, on some or all assignments — the toolkit writes Canvas **assignment overrides** that keep the original open and due dates but **drop the close date**. The student still sees the original due date (no artificial deadline extension shown), but submitting after it stays accepted, marked "late." The class is unaffected.
 
-## Four scoping modes
+## Two flavors of accommodation + four scoping modes
 
-Pick the one that matches the accommodation you're granting:
+**Flavors** (which Canvas dates to change):
+
+| Flavor | What happens | When you'd use it | SAS catalog key |
+|---|---|---|---|
+| Default (drop `lock_at`) | Keep original open/due; remove the close date | *"Allow late submission without penalty"* — student still sees the original deadline, can submit after | `occasional_extensions` |
+| `--shift-by-days N` | Shift open + due + close forward by N days | *"Reschedule the exam for this student"* — student gets a moved window with a real hard close | `test_reschedule` |
+
+**Scopes** (which assignments to apply to):
 
 | Scope flag | What it covers | When you'd use it |
 |---|---|---|
@@ -392,6 +400,30 @@ One row per enrolled student, four columns: `deid_code, user_id, sortable_name, 
 **You** look up "Sydney" in the local CSV → see `S-95DBB6` → hand the agent only that code. The tool reads only the `user_id` column. Names never cross the LLM boundary.
 
 Full knowledge file: [`deid_master_knowledge.md`](lib/agents/knowledge/deid_master_knowledge.md).
+
+---
+
+# BYUI Accessibility Services accommodations (SAS dispatcher)
+
+If you're at BYU-Idaho and you get accommodation letters from `byui.as@accessiblelearning.com`, the `apply_sas_accommodations.py` dispatcher closes the loop. Your **life-pm** repo reads your Outlook for the letters, extracts the catalog keys (PII-free), and drops a structured YAML at `grading/.sas_accommodations.yml`. Canvas-toolbox reads the YAML and dispatches each accommodation to the right tool.
+
+```bash
+# Dry-run — see what the dispatcher plans to do
+uv run python lib/tools/apply_sas_accommodations.py
+
+# Apply
+uv run python lib/tools/apply_sas_accommodations.py --apply
+```
+
+Three tiers:
+
+| Tier | Count | Behavior |
+|---|---|---|
+| **Canvas** | 4 keys (`extra_time_1.5x`, `extra_time_2.0x`, `occasional_extensions`, `test_reschedule`) | Dispatcher invokes the matching tool (quiz time extension or late-work override) |
+| **Proctoring** | 2 keys (`proctorio_breaks`, `private_room_exams`) | Surface as a checklist line for the operator — out of Canvas API scope |
+| **Policy** | 11 keys (`spelling_grammar`, `attendance_notification`, `recording_device`, etc.) | Surface as instructor-practice checklist — no LMS change |
+
+Every action lands in an audit log at `grading/.sas_accommodations_applied.log` (FERPA tier 2, gitignored). Full catalog + handoff schema: [`sas_accommodations_knowledge.md`](lib/agents/knowledge/sas_accommodations_knowledge.md).
 
 ---
 
@@ -445,6 +477,6 @@ The architecture (FERPA two-zone, voice-preservation contract, consensus-based g
 
 ---
 
-**Current version:** v0.71.0 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 550 unit tests · 20+ pedagogical knowledge files for AI-architected course design · course-wide de-id master is now authoritative for the scrub-pass roster · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
+**Current version:** v0.72.0 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 605 unit tests · 20+ pedagogical knowledge files for AI-architected course design · BYUI SAS accommodation dispatcher (quiz time extension + late-work + test reschedule) · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
 
 For help, see the doc tree above or file a `cb-report-bug` (~1 second roundtrip; no GitHub account needed).

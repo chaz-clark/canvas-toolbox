@@ -248,7 +248,78 @@ private channel is for security.
 
 _Last updated: 2026-06-26_
 
-### Recent: Path A migration — `.known_names.txt` auto-derived from the de-id master (v0.71.0, 2026-06-26)
+### Recent: BYUI SAS accommodation sprint — quiz time extension + test_reschedule + apply dispatcher (v0.72.0, 2026-06-26)
+
+**v0.72.0** — three-item sprint closing out the BYUI Accessibility
+Services catalog dispatch chain. Triggered by the life-pm handoff at
+`handoffs/2026-06-26-accessibility-accommodations-catalog.md`.
+
+**S1 — `lib/tools/student_quiz_time_extension.py`** (~265 lines).
+Per-student quiz time multiplier (1.5x, 2.0x, or any > 1.0). Targets
+CLASSIC Canvas quizzes only (New Quizzes documented as a follow-up).
+Pulls quiz `time_limit` from API; computes `extra_time` minutes via
+`ceil(time_limit * (multiplier - 1))`; POSTs to `/quizzes/<id>/extensions`
+with `quiz_extensions[][user_id]` + `quiz_extensions[][extra_time]`.
+Scopes: `--quiz-id` (one) or `--all-timed` (every timed quiz in
+course). PII-free via `--user-id` or `--deid-code` lookup. Auto-skips
+untimed quizzes. Pure-helper `compute_extra_minutes` uses `math.ceil`
+so partial minutes always round UP — the student never gets less time
+than the multiplier promises.
+
+**S2 — `--shift-by-days N` mode on `student_late_accommodation.py`**.
+For SAS `test_reschedule` (distinct from `occasional_extensions`):
+shift unlock/due/lock forward by N days instead of dropping lock_at.
+New pure helper `shift_iso_timestamp(ts, days)` advances the date
+prefix of an ISO 8601 string while preserving the time-of-day and
+timezone suffix (no full tz parser needed — string-prefix arithmetic
+is sufficient for accommodation-grade precision). New
+`build_shift_payload(assignment, user_id, days)` is the
+analog of `build_override_payload` but emits all three dates shifted.
+
+**S3 — `lib/tools/apply_sas_accommodations.py`** (~280 lines). YAML
+dispatcher. Reads `grading/.sas_accommodations.yml`, walks each
+student × accommodation, classifies each `key` into one of 4 tiers
+(`canvas` / `proctoring` / `policy` / `unknown`). Canvas-tier
+accommodations are invoked as subprocess calls to the matching tool
+(so each tool stays standalone, no cross-tool imports). Proctoring +
+policy tiers surface as a one-line operator checklist. Audit trail
+written to `grading/.sas_accommodations_applied.log` (FERPA tier 2,
+gitignored). Catalog hard-coded in three frozen sets at the top of
+the module — single source of truth, easy to extend when life-pm
+surfaces new accommodation types.
+
+**Knowledge file — `lib/agents/knowledge/sas_accommodations_knowledge.md`**
+vendors the life-pm catalog into the canvas-toolbox knowledge surface
+so future agents can reason about SAS dispatch without re-reading the
+handoff each time. Maps every catalog key → tier → tool invocation;
+documents the YAML handoff schema; explains the
+"how to add a new key" extension process.
+
+**README — 12th workflow row + dedicated SAS section** between
+the de-id master section and "Sharing your grader." Late-work
+accommodation section now distinguishes the two flavors (drop lock_at
+for `occasional_extensions` vs `--shift-by-days N` for
+`test_reschedule`) in addition to the four scoping modes.
+
+**55 new tests passing** (605 passing total, up from 550):
+- 21 tests for quiz time extension (compute_extra_minutes ceil
+  behavior, filter_timed_quizzes, payload shape, master lookup edge
+  cases)
+- 12 new tests for shift-by-days mode (shift_iso_timestamp edge
+  cases: month/year boundaries, timezone preservation, null
+  passthrough, negative-days defensive; build_shift_payload all-three-
+  dates invariant)
+- 22 tests for SAS dispatcher (classify_key for all catalog members,
+  plan_one_accommodation for each canvas-tier key with default + YAML
+  overrides, plan_entries flatten/skip/order behavior, audit-line
+  format invariants)
+
+**What's NOT yet done (deferred):**
+- New Quizzes (LTI) support — they use a different endpoint
+- `apply_sas_accommodations.py` is invoked manually; future work
+  could wire it into a daily/weekly cron or post-fetch hook
+
+### Earlier: Path A migration — `.known_names.txt` auto-derived from the de-id master (v0.71.0, 2026-06-26)
 
 **v0.71.0** — Path A of the de-id master consolidation. Mid-build
 operator question after v0.70.0 shipped: *"Do all de-id scripts run
