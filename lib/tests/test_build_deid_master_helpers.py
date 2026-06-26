@@ -22,6 +22,7 @@ from build_deid_master import (  # noqa: E402
     detect_collisions,
     is_withdrawn,
     render_csv_rows,
+    render_known_names_lines,
     student_to_row,
 )
 
@@ -244,3 +245,85 @@ def test_render_csv_rows_deterministic():
         StudentRow("S-BBB", 2, "B", 1),
     ]
     assert render_csv_rows(rows) == render_csv_rows(rows)
+
+
+# ---------------------------------------------------------------------------
+# render_known_names_lines — Path A: auto-derive .known_names.txt
+# ---------------------------------------------------------------------------
+
+def test_known_names_emits_both_forms():
+    """Each student contributes BOTH sortable AND display forms — the
+    scrub matches whichever shape appears in document text."""
+    rows = [StudentRow("S-AAA", 1, "Ahlstrom, Sydney", 0)]
+    lines = render_known_names_lines(rows)
+    assert "Ahlstrom, Sydney" in lines
+    assert "Sydney Ahlstrom" in lines
+
+
+def test_known_names_includes_header_comments():
+    """File leads with explanatory comments so a future reader knows
+    not to hand-edit + that it's auto-derived."""
+    rows = [StudentRow("S-AAA", 1, "Ahlstrom, Sydney", 0)]
+    lines = render_known_names_lines(rows)
+    assert lines[0].startswith("#")
+    assert any("Auto-derived" in ln for ln in lines[:3])
+    assert any("Do NOT hand-edit" in ln for ln in lines[:3])
+
+
+def test_known_names_dedups_case_insensitively():
+    """If two students have the same name, emit it once. Matches the
+    case-insensitive dedup in grader_fetch's update_known_names."""
+    rows = [
+        StudentRow("S-AAA", 1, "Smith, John", 0),
+        StudentRow("S-BBB", 2, "smith, john", 0),  # same name, different case
+    ]
+    lines = render_known_names_lines(rows)
+    body = [ln for ln in lines if not ln.startswith("#")]
+    # 2 forms × 1 unique name = 2 entries, not 4
+    assert len(body) == 2
+
+
+def test_known_names_skips_empty_sortable_name():
+    """A student without a sortable_name (e.g. service account) is
+    silently skipped, not crashed on."""
+    rows = [
+        StudentRow("S-AAA", 1, "", 0),
+        StudentRow("S-BBB", 2, "Real, Student", 0),
+    ]
+    lines = render_known_names_lines(rows)
+    body = [ln for ln in lines if not ln.startswith("#")]
+    assert "Real, Student" in body
+    assert "Student Real" in body
+    assert "" not in body
+
+
+def test_known_names_handles_single_word_name():
+    """A name without a comma (e.g. 'Cher', 'Madonna', or single-word
+    service-account name) emits as-is, no display-form duplicate."""
+    rows = [StudentRow("S-AAA", 1, "Madonna", 0)]
+    lines = render_known_names_lines(rows)
+    body = [ln for ln in lines if not ln.startswith("#")]
+    assert body == ["Madonna"]
+
+
+def test_known_names_deterministic():
+    """Same input → identical output (sha256-stable when scrub-validates)."""
+    rows = [
+        StudentRow("S-AAA", 1, "Ahlstrom, Sydney", 0),
+        StudentRow("S-BBB", 2, "Smith, John", 0),
+    ]
+    assert render_known_names_lines(rows) == render_known_names_lines(rows)
+
+
+def test_known_names_sorted_by_sortable_name():
+    """Output sorted by sortable_name (case-insensitive) for stable diffs."""
+    rows = [
+        StudentRow("S-CCC", 3, "Zeta, Z", 0),
+        StudentRow("S-AAA", 1, "Alpha, A", 0),
+        StudentRow("S-BBB", 2, "beta, B", 0),
+    ]
+    lines = render_known_names_lines(rows)
+    body = [ln for ln in lines if not ln.startswith("#")]
+    # First non-comment line should be Alpha (sortable, since
+    # sorted by sortable_name → 'alpha, a' < 'beta, b' < 'zeta, z')
+    assert body[0] == "Alpha, A"

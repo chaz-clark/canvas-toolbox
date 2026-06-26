@@ -145,6 +145,25 @@ but `--dry-run` previews changes).
 
 ---
 
+## Path A — `.known_names.txt` is now derived from the master (v0.71.0)
+
+As of v0.71.0, every `build_deid_master.py` run **also writes
+`grading/.known_names.txt`** (the scrub-pass roster used by every
+`grader_deidentify_*` tool). Each enrolled student contributes BOTH
+forms of their name (sortable "Lastname, Firstname" + display
+"Firstname Lastname") so the scrub matches whichever shape appears
+in a submission's raw text.
+
+This makes the master the single source of truth for the scrub
+roster — one rebuild keeps both files in sync. `grader_fetch.py`
+continues to APPEND submitters not yet in the roster (it preserves
+its `update_known_names()` append-dedup), so a workflow that runs
+grader_fetch first still works without a master rebuild.
+
+**Path B** (full migration where the master replaces per-assignment
+keymaps for the grader pipeline) is approved in principle and
+deferred to a future session.
+
 ## Related knowledge
 
 - `grader_knowledge.md §1` — the three FERPA tiers + zone discipline

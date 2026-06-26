@@ -164,6 +164,44 @@ def render_csv_rows(rows: list[StudentRow]) -> list[list[str]]:
     ]
 
 
+def render_known_names_lines(rows: list[StudentRow]) -> list[str]:
+    """Render the auto-derived `.known_names.txt` content from the master.
+
+    Path A (v0.71.0) — making the de-id master the source of truth for
+    the scrub-pass name roster. Previously, grader_fetch.py populated
+    .known_names.txt with display names per submitter; now the file is
+    derived from the course-wide master so a single rebuild keeps the
+    scrub roster in sync with the People view.
+
+    Emits BOTH sortable ('Lastname, Firstname') and display ('Firstname
+    Lastname') forms per student — submission text might say either,
+    and the scrub matches whichever appears literally.
+
+    Sorted + deduped (case-insensitive) for deterministic output.
+    """
+    out = [
+        "# Auto-derived by build_deid_master.py from .deid_master.csv.",
+        "# Do NOT hand-edit — changes will be overwritten on next build.",
+        "# Peer-mention scrub roster. Gitignored. Never read by the AI.",
+    ]
+    seen: set[str] = set()
+    for row in sorted(rows, key=lambda r: r.sortable_name.lower()):
+        sortable = row.sortable_name.strip()
+        if not sortable:
+            continue
+        if "," in sortable:
+            last, first = (s.strip() for s in sortable.split(",", 1))
+            display = f"{first} {last}".strip()
+        else:
+            display = sortable
+        for form in (sortable, display):
+            key = form.lower()
+            if form and key not in seen:
+                seen.add(key)
+                out.append(form)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Canvas API
 # ---------------------------------------------------------------------------
@@ -286,8 +324,19 @@ def main() -> int:
     with args.out.open("w", encoding="utf-8", newline="") as fh:
         writer = csv.writer(fh)
         writer.writerows(csv_rows)
+
+    # Path A (v0.71.0): auto-derive .known_names.txt from the master so
+    # the scrub-pass roster (used by every grader_deidentify_* tool)
+    # stays in sync without a separate refresh step.
+    names_path = args.out.parent / ".known_names.txt"
+    names_path.write_text(
+        "\n".join(render_known_names_lines(rows)) + "\n",
+        encoding="utf-8",
+    )
+
     print(f"\nWrote {len(rows)} rows to {args.out}")
-    print("FERPA tier 2: this file is gitignored. Never commit it.")
+    print(f"Auto-derived {names_path} for the peer-mention scrub")
+    print("FERPA tier 2: both files are gitignored. Never commit them.")
     return 0
 
 

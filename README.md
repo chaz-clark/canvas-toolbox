@@ -445,6 +445,6 @@ The architecture (FERPA two-zone, voice-preservation contract, consensus-based g
 
 ---
 
-**Current version:** v0.70.0 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 543 unit tests · 20+ pedagogical knowledge files for AI-architected course design · course-wide de-id master + per-student accommodation primitives · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
+**Current version:** v0.71.0 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 550 unit tests · 20+ pedagogical knowledge files for AI-architected course design · course-wide de-id master is now authoritative for the scrub-pass roster · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
 
 For help, see the doc tree above or file a `cb-report-bug` (~1 second roundtrip; no GitHub account needed).
