@@ -40,11 +40,12 @@ That's the grading workflow. The toolbox does more — audits, sync, sharing, se
 
 ## What you can ask your AI agent to do
 
-Nine workflows. Each one is a prompt your agent can act on.
+Ten workflows. Each one is a prompt your agent can act on.
 
 | You want to… | Ask your agent | What happens |
 |---|---|---|
 | **Pull your Canvas course to your computer** | *"Pull my Canvas course into a local folder so I can start working with it"* | Mirrors all modules, pages, assignments, quizzes, discussions, syllabus into a `course/` folder. Edit any file locally; push back when ready. |
+| **Design or improve a course (AI architect)** | *"Help me design a new course on [topic]"* / *"Architect a new course"* / *"Improve the design of this course"* | Agent walks you through CLOs → assessments backward from outcomes → module sequence (Hattie / Merrill / Kolb) → rubrics → workload calibration. Uses 18+ pedagogical knowledge files. See [Architecting a course](#architecting-a-course-with-ai-assistance) below. |
 | **Get a quick health check** | *"Run a course health audit"* | 4-audit summary in ~30 seconds (rubrics, syllabus, outcomes, outcome quality) → verdict + top things to fix. |
 | **Run the full pre-publish sweep** | *"Run the full course health sweep and share the results"* | 11 read-only audits composed into one report — alignment chain, learning model, accessibility, workload, grading load, formative variety. PDF + MD per finding. |
 | **Build a Course Map + Schedule** | *"Build a Course Map and 14-week schedule from this course"* | Architects-of-Learning–style map: CLOs, per-module outcomes, 14-week pacing analysis. |
@@ -165,139 +166,23 @@ Use the subscription you **already have** so you don't pay twice. In your IDE, o
 
 ## Step 3 — Get the toolkit running
 
-Three paths. **Most non-technical faculty use Option A.** Technical users with a terminal habit start with the TL;DR.
-
-### TL;DR — one-line install (macOS / Linux)
-
-If you already have `git` and a terminal habit:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/chaz-clark/canvas-toolbox/main/scripts/install.sh | bash
-```
-
-The script installs `uv` if missing, clones `canvas-toolbox/` into your current directory, and runs `cb-init`. It halts after writing a `.env` stub — fill in your `CANVAS_API_TOKEN` + `CANVAS_BASE_URL`, then:
-
-```bash
-cd canvas-toolbox && uv run python lib/tools/cb_init.py
-```
-
-Total time on a fresh machine: ~3 minutes.
-
-**Windows users**, or anyone who'd rather have their AI assistant walk them through it: skip the one-liner and use **Option A** below.
-
----
-
-### Option A — Start here: your agent sets it up
-
-Create a new empty folder on your computer, open it in the IDE you set up in Steps 1 and 2, then give your AI assistant this prompt:
+**Create an empty folder on your computer, open it in the IDE you set up in Steps 1 and 2, and paste this prompt to your AI assistant:**
 
 > *"Help me set up Canvas Toolbox for my Canvas course. The toolkit is at https://github.com/chaz-clark/canvas-toolbox — please clone it, install dependencies, and walk me through connecting it to my course."*
 
-The agent checks what's installed, handles anything missing, and guides you through the rest. You just answer its questions.
-
-**Agent setup checklist** *(the agent follows these steps; you respond when asked)*
-
-1. **Check git** — `git --version`. If missing:
-   - Mac: `xcode-select --install`
-   - Windows: `winget install --id Git.Git -e --source winget` (or download from [git-scm.com/download/win](https://git-scm.com/download/win))
-
-2. **Clone the toolkit**
-   ```bash
-   git clone https://github.com/chaz-clark/canvas-toolbox.git canvas_toolbox
-   ```
-
-3. **Check uv** — `uv --version`. If missing:
-   - Mac/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-   - Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
-
-4. **Install dependencies** (one-time)
-   ```bash
-   cd canvas_toolbox && uv sync && cd ..
-   ```
-
-5. **Create config files**
-   ```bash
-   cp canvas_toolbox/scaffold/.env.example .env
-   cp canvas_toolbox/scaffold/gitignore .gitignore
-   ```
-
-6. **Collect Canvas credentials** — you'll need:
-   - **Course ID** — the number after `/courses/` in your Canvas course URL
-   - **API token** — Canvas → Account → Settings → Approved Integrations → New Access Token (requires instructor or admin role)
-   - **Institution URL** — your Canvas login address (e.g., `https://byui.instructure.com`)
-
-7. **Fill in `.env`** with your credentials:
-   ```
-   CANVAS_API_TOKEN=your_token
-   CANVAS_BASE_URL=https://your-institution.instructure.com
-   CANVAS_COURSE_ID=123456
-   ```
-
-8. **Pull the course**
-   ```bash
-   uv run python canvas_toolbox/lib/tools/canvas_sync.py --init
-   ```
-   This mirrors the entire course — modules, pages, assignments, quizzes, discussions, syllabus — into a `course/` folder. Takes about a minute.
-
----
-
-### Option B — Manual setup
-
-Use this if you prefer to run each step yourself, or if your AI tool doesn't run terminal commands.
-
-**Open a terminal:**
-- **Mac:** Cmd + Space → type "Terminal" → Enter
-- **Windows:** Windows key → type "PowerShell" → Enter
-
-#### Fast path — `cb-init` (3 lines, fully interactive, any OS)
-
-```bash
-git clone https://github.com/chaz-clark/canvas-toolbox.git canvas-toolbox
-cd canvas-toolbox
-uv run python lib/tools/cb_init.py
-```
-
-`cb-init` is **idempotent** — re-running is safe and fast. It installs `uv` if missing, installs Python 3.14, writes a `.env` stub (then stops so you can fill in your Canvas credentials), installs all dev tools, smoke-tests your Canvas API token, and surfaces `AGENTS.md`.
-
-Useful flags:
-
-| Flag | Use |
-|---|---|
-| `--check` | Dry-run: shows what each step would do, writes nothing |
-| `--yes` | Skip all y/n prompts (for CI / Codespaces) |
-| `--skip-playwright` | Skip the 92 MB Chromium download |
-
-If `cb-init` runs cleanly, skip the rest of Option B and go straight to **"Pull your course"**.
-
-#### Manual long path
-
-```bash
-git clone https://github.com/chaz-clark/canvas-toolbox.git canvas_toolbox
-cd canvas_toolbox && uv sync && cd ..
-cp canvas_toolbox/scaffold/.env.example .env
-cp canvas_toolbox/scaffold/gitignore .gitignore
-```
-
-Then fill in `.env` with your Canvas credentials (see the agent checklist above, step 6 + 7).
-
-> **Can't see the `.env` file?** Its name starts with a dot, which hides it by default. **Mac:** Cmd + Shift + . in Finder. **Windows:** File Explorer → View → check "Hidden items".
-
-**Pull your course:**
-```bash
-uv run python canvas_toolbox/lib/tools/canvas_sync.py --init
-```
-
----
-
-### Option C — A colleague is setting it up for you
-
-Gather three pieces of information and hand them over:
+That's it. The agent handles git, `uv`, Python, dependencies, and the `.env` file. You'll just need to provide three pieces of information when it asks:
 
 - **Course ID** — the number after `/courses/` in your Canvas course URL
 - **API token** — Canvas → Account → Settings → Approved Integrations → New Access Token (requires instructor or admin role)
 - **Institution URL** — your Canvas login address (e.g., `https://byui.instructure.com`)
 
-Share them in this format:
+Total time on a fresh machine: ~5 minutes (most of it is the agent installing dependencies in the background).
+
+---
+
+### If a colleague is setting it up for you
+
+Just hand them those three pieces of information in this format:
 
 ```
 CANVAS_API_TOKEN=your_token_here
@@ -309,15 +194,53 @@ They'll handle the rest.
 
 ---
 
-### Already have an older canvas-toolbox setup? Migrate it.
+> **Already have an older canvas-toolbox setup?** Ask your agent to run `python3 canvas-toolbox/scaffold/migrate_to_clone_layout.py` — it dry-runs by default, reports what it would change, and only writes when you re-run with `--apply`.
 
-If you have a Canvas course repo with an *older* canvas-toolbox layout — vendored as a git subtree, or in a folder your parent repo still tracks — there's a one-command migration:
+---
 
-```bash
-python3 canvas-toolbox/scaffold/migrate_to_clone_layout.py
-```
+# Architecting a course with AI assistance
 
-**Dry-run by default** — inspects your repo, reports its state, prints the exact plan it would run. Re-run with `--apply` to execute. Backs up existing canvas-toolbox content to `/tmp/` before changing anything. Safe to run on a setup that's already correct (reports *"Already on the new layout. Nothing to do."*).
+**Canvas Toolbox isn't only for existing courses — the agent can help you build one.**
+
+The toolkit ships with **20+ pedagogical knowledge files** the agent reads when you're designing or redesigning a course. You stay the architect; the AI is the assistant — it asks questions, surfaces tradeoffs, and writes drafts you approve.
+
+**What the agent has on hand:**
+
+| Topic | Knowledge surface |
+|---|---|
+| **Backwards design** | Wiggins & McTighe Understanding by Design — outcomes → evidence → activities |
+| **Designer thinking** | BYUI's 5-stage course-design process |
+| **Learning models** | Hattie 3-phase (Surface → Deep → Transfer), Merrill's First Principles, Kolb experiential cycle, inverted Bloom's |
+| **CLO quality** | BYUI Assurance of Learning 6-criteria rubric, Bloom's revised taxonomy, three domains (cognitive / affective / psychomotor) |
+| **Assessment design** | Formative vs summative, evidence-centered design, AI-era productive friction |
+| **Rubric design** | AAC&U VALUE rubrics + 4-criterion backbone; analytic / holistic / single-point / developmental |
+| **Workload calibration** | Carnegie credit-hour budget + Wake Forest workload estimator |
+| **Cognitive load** | Sweller's CLT — intrinsic / extraneous / germane load management |
+| **Course design standards** | BYUI Campus Online + NWCCU cross-walk |
+| **Content representation** | Multiple representations, accessibility (WCAG 2.1 AA), universal design |
+| **Critical thinking** | Paul-Elder framework; embedding intellectual standards into tasks |
+| **Course design language** | Shared vocabulary so the agent and faculty mean the same thing |
+
+**Ask your agent:**
+
+> *"Help me design a new course on [topic]. It's [X credits] / [length weeks]. The outcomes I have in mind are [...]."*
+>
+> Or, for an existing course you want to improve:
+>
+> *"Architect a redesign of this course — start with the CLOs and work outward."*
+
+**The agent walks you through:**
+
+1. **CLOs (Course Learning Outcomes)** — drafted and refined against the BYUI AoL 6-criteria rubric; measurable, aligned, appropriately scoped
+2. **Assessment plan (backward design)** — what evidence demonstrates each CLO; pick formative vs summative; design for AI-resistant evidence where it matters
+3. **Module sequence** — Hattie 3-phase, Merrill's First Principles, Kolb cycle, or experience-first — pick the framework that fits your discipline
+4. **Rubric drafts** — analytic / holistic / single-point / developmental — agent recommends based on the assessment type, then drafts the rubric
+5. **Workload calibration** — Carnegie credit-hour budget; distribution across the term; flag overloaded weeks before you publish
+6. **Accessibility + AI-era design** — WCAG 2.1 AA defaults; productive friction patterns for AI-resistant evidence
+
+**You can write the artifacts straight into your Canvas course (via the sync tools), into a `course/` folder for review first, or into a fresh repo if you haven't pulled anything yet.**
+
+For an existing course you want to *improve* (not redesign), start with the [full health check](#auditing-your-course) — the audit reports surface what to redesign first.
 
 ---
 
@@ -502,6 +425,6 @@ The architecture (FERPA two-zone, voice-preservation contract, consensus-based g
 
 ---
 
-**Current version:** v0.69.x · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 483 unit tests · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
+**Current version:** v0.69.1 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 483 unit tests · 20+ pedagogical knowledge files for AI-architected course design · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
 
 For help, see the doc tree above or file a `cb-report-bug` (~1 second roundtrip; no GitHub account needed).

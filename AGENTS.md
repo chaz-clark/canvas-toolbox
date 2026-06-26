@@ -248,7 +248,46 @@ private channel is for security.
 
 _Last updated: 2026-06-26_
 
-### Recent: Title IV course-engagement audit + Downloads-folder FERPA tier 3 (v0.69.0, 2026-06-26)
+### Recent: README streamline — cut technical setup options + surface AI architect capability (v0.69.1, 2026-06-26)
+
+**v0.69.1** — docs-only patch. Two operator-flagged issues:
+
+1. **Setup steps had too many forks** — the non-technical
+   agent-driven prompt was buried under TL;DR one-liner + Option B
+   (manual fast-path cb-init + manual long path) + Option C. Cut
+   Option B entirely. Cut TL;DR one-liner. Promoted Option A as
+   THE path; faculty pastes one prompt to their agent and the
+   agent handles git/uv/Python/deps. Option C (colleague-handover)
+   retained as a small sub-section. Migration paragraph kept as
+   one-line footer for existing users.
+
+   **Rationale:** technical users will figure it out without
+   instructions; the README's job is to lower the bar for
+   non-technical faculty. Forks confuse the audience that needs
+   the most hand-holding.
+
+2. **AI architect capability not surfaced** — the toolkit ships
+   with 20+ pedagogical knowledge files (backwards design / Hattie
+   3-phase / Merrill / Kolb / Cognitive Load Theory / AAC&U
+   rubrics / Carnegie workload / etc.) that the agent uses when
+   designing a NEW course or redesigning an existing one. README
+   only documented audit / sync / grade flows — never said the
+   toolkit can help you BUILD a course. Added:
+
+   - **10th agent-prompt row**: *"Design or improve a course (AI
+     architect)"* — links to dedicated section
+   - **NEW dedicated section** *"Architecting a course with AI
+     assistance"* between Step 3 and Auditing — names the 22
+     design-relevant knowledge files in a table, names the
+     prompt, names the 6 things the agent walks the faculty
+     through (CLOs → assessments → module sequence → rubrics →
+     workload → accessibility), keeps the *"you stay the
+     architect; AI is the assistant"* framing
+
+**No code changes.** No new tests required. Version triple-sync
+0.69.0 → 0.69.1 (patch — docs only). 483 tests unchanged.
+
+### Earlier: Title IV course-engagement audit + Downloads-folder FERPA tier 3 (v0.69.0, 2026-06-26)
 
 **v0.69.0** — new audit tool category: federal Title IV last-date-
 of-engagement classifier for UW/UF reporting (R2T4 candidates).
