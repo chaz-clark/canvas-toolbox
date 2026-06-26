@@ -248,6 +248,21 @@ private channel is for security.
 
 _Last updated: 2026-06-26_
 
+### Recent: README mentions cross-faculty sharing — Phase 1 of marketing pass (v0.67.1, 2026-06-26)
+
+**v0.67.1** — small docs-only patch. The v0.67.0 cross-faculty
+sharing feature (grader_export.py + grader_import.py) wasn't
+mentioned in the README; this patch adds a bullet to the "What you
+can do with it" list naming the feature + the voice-preservation
+guarantee + the FERPA exclusions + the version-compatibility refuse.
+
+**Phase 1 of the larger marketing-perspective README pass** (operator
+ask 2026-06-26). Phase 2 is the full marketing-shaped README rewrite
+with research-grounded structure pulled from top-starred GH repos —
+deferred to a separate work block per the established
+research-synthesis-first pattern (same shape as the v0.65.0 voice
+coaching deliverable).
+
 ### Recent: cross-faculty sharing — grader_export.py + grader_import.py (v0.67.0, 2026-06-26)
 
 **v0.67.0** — ships parking-lot **Idea B (cross-section sharing)** as
