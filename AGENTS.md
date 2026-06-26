@@ -248,6 +248,103 @@ private channel is for security.
 
 _Last updated: 2026-06-26_
 
+### Recent: Marketing-perspective README pass — Phase 2 (v0.68.0, 2026-06-26)
+
+**v0.68.0** — replaces the 862-line developer-doc README with a
+206-line marketing-pass README. Research-grounded redesign per the
+operator's 2026-06-26 ask. Same Option C delivery shape as v0.65.0
+voice coaching: research synthesis + draft + ship.
+
+**The wedge story made operational:**
+
+The new README leads with the **shadcn/ui-style category reframe**:
+
+> "This is not an AI grader. It is how an instructor uses AI to
+> grade *with* them — staying the author of every grade and every
+> word the student reads."
+
+That's the parking-lot positioning work (instructor-author vs
+AI-author wedge from 2026-06-24 meeting) made into the README's
+opening promise. Everything else flows from there: the FERPA
+two-zone architecture, the voice-preservation contract, the 11
+safety gates, the cross-faculty sharing pattern.
+
+**Six top-starred GH repos researched** (anthropics/claude-code,
+shadcn-ui/ui, withastro/astro, tailwindlabs/tailwindcss,
+ollama/ollama, continuedev/continue) for structural + marketing
+patterns. Headline finding: every one of them is dramatically shorter
+than canvas-toolbox's prior 862 lines (mean 108). The new draft at
+206 lines is a 76% reduction while keeping more "why" framing than
+typical (canvas-toolbox's category isn't established yet — needs
+the positioning section).
+
+**Seven cross-cutting patterns applied:**
+
+1. **One-line value hook** — `"FERPA-safe AI-assisted Canvas LMS
+   toolkit. Your voice. Your accountability. Your students' privacy."`
+2. **Category reframe** — shadcn/ui pattern; the "not X, is how
+   you Y" inversion
+3. **Visual above-the-fold** — synthetic terminal-output example
+   showing the regression gate firing (Claude Code demo-GIF analog)
+4. **Install front-loaded** — single-line install at line ~85 with
+   link to dedicated `INSTALL.md` (TODO follow-up doc)
+5. **Adoption signals as scannable table** — 11 safety gates with
+   a 1-line description of what each one prevents (Ollama
+   ecosystem-flex analog, but with safety gates as the breadth)
+6. **Detail moved out** — `OPERATIONS.md` + `INSTALL.md` referenced
+   as follow-up docs (TODOs); the 862-line legacy README is preserved
+   at `lib/marketing/README-LEGACY-2026-06-26.md` as source material
+   for those follow-ups
+7. **Tone: middle** — academic credibility + value-forward hook;
+   no marketing fluff (no "revolutionary," "next-generation,"
+   "AI-powered" — every faculty BS-detector would catch those)
+
+**What stayed from the old README** (rewritten, not removed):
+title + badges, capability framing, FERPA story, license. The voice
+is recognizably canvas-toolbox.
+
+**What's new**: the wedge positioning, the safety-gate trust table,
+the cross-faculty sharing prominent section, the comparison table
+vs AI-grading-as-a-service, the synthetic terminal-output demo.
+
+**Two reference artifacts created:**
+
+1. **[lib/marketing/README-LEGACY-2026-06-26.md](lib/marketing/README-LEGACY-2026-06-26.md)** —
+   the 862-line predecessor, preserved as source material for the
+   `OPERATIONS.md` / `INSTALL.md` extractions when those land
+2. **[handoffs/2026-06-26_readme-marketing-research.md](handoffs/2026-06-26_readme-marketing-research.md)** —
+   gitignored audit-trail synthesis: the 6 repo analyses,
+   7 cross-cutting patterns, recommended structure, the wedge story
+   made concrete
+
+**Follow-up work parked** (not blocking v0.68.0 ship):
+
+- `OPERATIONS.md` — extract the audit-tool catalog detail from the
+  legacy README
+- `INSTALL.md` — extract the Step 1/2/3 IDE+AI-assistant detail
+- Operator review pass on the rendered GH README (the operator
+  said: "I will review it in GH rendered and come back with any
+  tweaks")
+
+**Cross-walk with parking-lot positioning work:**
+
+The instructor-author vs AI-author wedge from the 2026-06-24
+meeting (captured in `handoffs/parkinglot.md`) is now the README's
+opening promise. The wedge moved from "captured for future
+positioning work" to "live on the README." LinkedIn-marketing copy
+(parking-lot idea C) can now draw verbatim from the README hook +
+comparison table + safety-gate stack.
+
+The cumulative session-arc since 2026-06-24 (~3 days):
+
+| Day | Versions | Theme |
+|---|---|---|
+| 06-24 | v0.59.0 → v0.62.1 | Push-side safety gates (#95-#98) |
+| 06-25 | v0.63.0 → v0.66.0 | Silent-success gates + group workflow + research-grounded knowledge files (#99/#101/#102/#100/#103) |
+| 06-26 | v0.67.0 → v0.68.0 | Cross-faculty sharing + voice coaching ships + marketing pass |
+
+**11 versions, 11 closed issues, 2 parking-lot ideas shipped, +178 tests in 3 days.** All lived-experience-driven or operator-research-grounded. Zero speculative.
+
 ### Recent: README mentions cross-faculty sharing — Phase 1 of marketing pass (v0.67.1, 2026-06-26)
 
 **v0.67.1** — small docs-only patch. The v0.67.0 cross-faculty
