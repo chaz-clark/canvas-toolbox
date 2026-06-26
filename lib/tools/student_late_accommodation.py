@@ -67,6 +67,11 @@ USAGE — dry-run by default (use --apply to actually write)
   uv run python lib/tools/student_late_accommodation.py \\
     --deid-code S-95DBB6 --from-days-ago 14 --apply
 
+  # SAS test_reschedule: shift dates forward 7 days (vs the default
+  # "drop lock_at" mode used for occasional_extensions)
+  uv run python lib/tools/student_late_accommodation.py \\
+    --deid-code S-95DBB6 --assignment-id 123 --shift-by-days 7 --apply
+
   # Remove the accommodation (cleanly undo) — scope flags work for
   # remove too, so you can undo across the same window you applied
   uv run python lib/tools/student_late_accommodation.py \\
@@ -163,6 +168,53 @@ def cutoff_from_days_ago(days: int, today: date | None = None) -> str:
     if today is None:
         today = date.today()
     return (today - timedelta(days=int(days))).isoformat()
+
+
+def shift_iso_timestamp(ts: str | None, days: int) -> str | None:
+    """Shift an ISO 8601 timestamp forward by N days, preserving the
+    time-of-day and timezone suffix. Returns None if `ts` is None (so
+    callers can pass through null dates).
+
+    Canvas's due_at / unlock_at / lock_at are ISO strings like
+    '2026-04-15T23:59:00Z'. We split at 'T', advance the date part by N
+    days using date.fromisoformat + timedelta, and re-join. This avoids
+    pulling in a full timezone-aware parser for what's a simple offset.
+    """
+    if not ts:
+        return None
+    date_part = ts[:10]   # YYYY-MM-DD
+    rest = ts[10:]        # T..HH:MM:SSZ (or whatever suffix Canvas sent)
+    shifted = (date.fromisoformat(date_part) + timedelta(days=int(days))).isoformat()
+    return shifted + rest
+
+
+def build_shift_payload(assignment: dict, user_id: int, days: int,
+                        title: str = "Test reschedule (date-shifted)") -> dict:
+    """Build the POST body for a date-shift override (test_reschedule).
+
+    Different from build_override_payload: instead of dropping lock_at,
+    this SHIFTS all three dates (unlock_at, due_at, lock_at) forward by
+    N days. The student gets a moved availability window — they still
+    have a hard close, just N days later.
+
+    Used for SAS `test_reschedule` (catalog key). Different intent from
+    `occasional_extensions` (which uses build_override_payload to drop
+    lock_at). Faculty picks per accommodation letter.
+    """
+    data: dict[str, str | int] = {
+        "assignment_override[student_ids][]": user_id,
+        "assignment_override[title]": title,
+    }
+    unlock = shift_iso_timestamp(assignment.get("unlock_at"), days)
+    due = shift_iso_timestamp(assignment.get("due_at"), days)
+    lock = shift_iso_timestamp(assignment.get("lock_at"), days)
+    if unlock:
+        data["assignment_override[unlock_at]"] = unlock
+    if due:
+        data["assignment_override[due_at]"] = due
+    if lock:
+        data["assignment_override[lock_at]"] = lock
+    return data
 
 
 def filter_assignments_by_due_from(assignments: list[dict],
@@ -289,6 +341,12 @@ def main() -> int:
                             "the last two weeks through end of term)")
     ap.add_argument("--master", type=Path, default=_DEFAULT_MASTER,
                     help=f"deid master path (default {str(_DEFAULT_MASTER)!r})")
+    ap.add_argument("--shift-by-days", type=int, metavar="N",
+                    help="(SAS test_reschedule) shift unlock_at + due_at + "
+                         "lock_at forward by N days for this student, "
+                         "instead of dropping lock_at (the default behavior). "
+                         "Use for accommodations that say 'reschedule the "
+                         "exam' rather than 'allow late submission'.")
     ap.add_argument("--remove", action="store_true",
                     help="undo: delete this student's accommodation overrides")
     ap.add_argument("--apply", action="store_true",
@@ -363,7 +421,10 @@ def main() -> int:
                       "remove close (lock=null)")
                 continue
             assignment = fetch_assignment(base_url, course_id, aid, token)
-            payload = build_override_payload(assignment, uid)
+            if args.shift_by_days:
+                payload = build_shift_payload(assignment, uid, args.shift_by_days)
+            else:
+                payload = build_override_payload(assignment, uid)
             code, body = post_override(base_url, course_id, aid, payload, token)
             ok = "OK " if code in (200, 201) else "FAIL"
             if code not in (200, 201):
