@@ -248,7 +248,31 @@ private channel is for security.
 
 _Last updated: 2026-06-26_
 
-### Recent: BYUI SAS accommodation sprint — quiz time extension + test_reschedule + apply dispatcher (v0.72.0, 2026-06-26)
+### Recent: README polish — surface quiz time extension + fix late-work intro (v0.72.1, 2026-06-26)
+
+**v0.72.1** — docs-only patch addressing three gaps Chaz flagged
+after a post-v0.72.0 README review:
+
+1. `student_quiz_time_extension.py` had no standalone surface — only
+   appeared as a dispatcher target. A faculty member with an informal
+   "give Sydney 1.5x time" couldn't find it. Added a **13th workflow
+   row** + a dedicated README section between the late-work and SAS
+   dispatcher sections.
+
+2. Late-work intro paragraph still said overrides "drop the close
+   date" as if that were the only behavior — but v0.72.0 added the
+   `--shift-by-days` flavor. Rewrote the intro to mention both
+   flavors so the "Two flavors" table that follows doesn't feel
+   contradictory.
+
+3. Workflow row for "Give one student late-work accommodation" was
+   ~3x wider than its neighbors because of inline `--shift-by-days`
+   detail. Tightened by moving specifics to the dedicated section
+   and linking out.
+
+Test count unchanged (605). No code change.
+
+### Earlier: BYUI SAS accommodation sprint — quiz time extension + test_reschedule + apply dispatcher (v0.72.0, 2026-06-26)
 
 **v0.72.0** — three-item sprint closing out the BYUI Accessibility
 Services catalog dispatch chain. Triggered by the life-pm handoff at
