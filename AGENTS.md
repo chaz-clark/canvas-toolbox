@@ -248,6 +248,73 @@ private channel is for security.
 
 _Last updated: 2026-06-26_
 
+### Recent: README correction — restored faculty install scaffold + voice rewrite in Chaz's voice (v0.68.1, 2026-06-26)
+
+**v0.68.1** — corrects v0.68.0 after operator feedback: *"the quick
+start is too small compared to the old readme.md remember our
+audiance is mostly non-technical faculty you lost our audiance with
+your research of GH"* and *"your voicing is too AI for the readme.md
+you should scal all my *-master courses for their voicing."*
+
+**Two things were wrong with v0.68.0:**
+
+1. **Audience mismatch.** v0.68.0 was researched against top-starred
+   GH READMEs (Astro, Tailwind, shadcn/ui, etc.) — all aimed at
+   developer-fluent audiences. canvas-toolbox's audience is
+   non-technical faculty. The legacy 862-line README's verbose
+   Step 1/2/3 install scaffold wasn't bloat — it was THE entry
+   point. v0.68.0 compressed install to ~5 lines + TODO links.
+   That's wrong for the audience.
+
+2. **Voice mismatch.** The v0.68.0 prose read as marketing-formal
+   ("The architectural commitment isn't rhetoric. It's enforced in
+   code") — not Chaz's voice. Six parallel Explore agents scanned
+   `*-master` repos (itm327, ds250-onln, ds250-onml, ds460, m119,
+   cse450) to extract Chaz's actual writing voice from his
+   README.md / AGENTS.md / handoffs/. Consistent signature
+   surfaced: short + punchy alternated with structured detail;
+   imperative + consequence ("Edit X first. Never push Y."); "This
+   is / This is NOT" scope framing; "My lean:" for opinions;
+   "Source of truth:" framing; "Note:" / "Never..." / "Always..."
+   markers; explicit trade-offs with named costs; no marketing
+   speak ("leveraging", "seamlessly", "powerful"); no hedging
+   ("might", "perhaps", "may want to").
+
+**The fix:**
+
+1. **Restored** the full Step 1 → Step 2 → Step 3 install scaffold
+   from the legacy README. Step 1 (pick an IDE) + Step 2 (pick an
+   AI assistant) + Step 3 (TL;DR / Option A agent-driven / Option B
+   manual / Option C colleague-handover / migration). Plus the
+   audit-tool catalog + grading pipeline detail (condensed but
+   present, not TODO-linked).
+2. **Rewrote** the prose throughout in Chaz's voice. Marketing
+   wedge + safety-gate table kept (those landed well in v0.68.0);
+   the connective tissue is now matter-of-fact + imperative + no
+   filler. Example: v0.68.0 said *"Eleven coded safety gates like
+   this one stand between AI-assisted grading and the student's
+   gradebook — accumulated from real lived failures, not
+   speculative design."* v0.68.1 says: *"Eleven safety gates
+   between AI-assisted grading and the student's gradebook. Each
+   one came from a real incident. Each one shipped within hours of
+   being filed."*
+3. **Length** — 447 lines (up from v0.68.0's 206, down from
+   legacy's 862). The audit-tool catalog stays inline; grading
+   pipeline links to `grading_readme.md`; no TODO links to
+   nonexistent `INSTALL.md` / `OPERATIONS.md` (those references
+   were premature in v0.68.0 — the legacy is still in
+   `lib/marketing/README-LEGACY-2026-06-26.md` as source material
+   if those docs are extracted later).
+4. **Voice research** captured to
+   `handoffs/2026-06-26_chaz-voice-extraction.md` (gitignored;
+   six per-repo agent reports synthesized).
+
+**Branch protection — first PR-flow test.** v0.68.1 ships via PR
+on `feat/readme-restore-faculty-scaffold` branch (not direct push)
+since branch protection went live earlier this session. CI
+required + linear history + force-push-blocked. Auto-merge on CI
+green.
+
 ### Recent: Marketing-perspective README pass — Phase 2 (v0.68.0, 2026-06-26)
 
 **v0.68.0** — replaces the 862-line developer-doc README with a
