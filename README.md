@@ -40,7 +40,7 @@ That's the grading workflow. The toolbox does more — audits, sync, sharing, se
 
 ## What you can ask your AI agent to do
 
-Ten workflows. Each one is a prompt your agent can act on.
+Eleven workflows. Each one is a prompt your agent can act on.
 
 | You want to… | Ask your agent | What happens |
 |---|---|---|
@@ -52,6 +52,7 @@ Ten workflows. Each one is a prompt your agent can act on.
 | **Pull New Quiz response data** | *"Pull the per-student responses from quiz <id>"* | The New Quizzes API doesn't expose responses directly; the toolkit reads them via the student-analysis report. FERPA-safe by default (uid-keyed; names opt-in). |
 | **Grade an assignment end-to-end** | *"Grade the KC1 assignment"* | Fetch → de-identify → 3-pass consensus → review surface (`_all_comments.md`) → push gated behind `--mark-reviewed`. You approve every grade. |
 | **Run a UW / UF check (Title IV)** | *"Run a UW check with UF date 2026-04-15"* or *"Last participation report"* | Classifies each enrolled student as ACTIVE / UW / UF / NEVER_PARTICIPATED by their last academically related activity vs your UF cutoff. PDF + MD report drops in **~/Downloads/** (outside the repo — FERPA tier 3). Compliant with 34 CFR 668.22 + the 2025-2026 FSA Handbook (verified 2026-06-26). |
+| **Give one student late-work accommodation** | *"Give student S-95DBB6 late-work grace for the rest of the semester"* / *"…starting from the last 2 weeks"* / *"…on assignment 1234 only"* | Writes per-student assignment overrides that keep the original open + due dates but **drop the close date** — so the student can submit after the deadline (marked late, still accepted) without affecting the class. **4 scoping modes**: one assignment, whole semester, from a date forward, or rolling window (e.g. last 14 days through end of term). Resolves the target student PII-free via the [de-id master](#the-de-id-master--the-primitive-under-everything). |
 | **Share your grader with another faculty teaching the same course** | *"Bundle this course's rubrics and configs to share with another faculty"* | Exports a ZIP with rubrics, task specs, configs, course-level pitfalls. Your personal voice file is REFUSED by the export — by design. They build their own voice. |
 | **Roll out a new semester** | *"Sync my master course to the spring section"* | Master → Blueprint; Canvas handles section distribution. Safety gates keep section edits from leaking back to master. |
 
@@ -168,13 +169,13 @@ Use the subscription you **already have** so you don't pay twice. In your IDE, o
 
 **Create an empty folder on your computer, open it in the IDE you set up in Steps 1 and 2, and paste this prompt to your AI assistant:**
 
-> *"Help me set up Canvas Toolbox for my Canvas course. The toolkit is at https://github.com/chaz-clark/canvas-toolbox — please clone it, install dependencies, and walk me through connecting it to my course."*
+> *"Help me set up Canvas Toolbox for my Canvas course. Please clone https://github.com/chaz-clark/canvas-toolbox into this folder, run `cb-init` to bootstrap everything, and walk me through filling in my Canvas credentials when it pauses."*
 
-That's it. The agent handles git, `uv`, Python, dependencies, and the `.env` file. You'll just need to provide three pieces of information when it asks:
+That's it. `cb-init` is our one-command bootstrap — it installs `uv` and Python, writes a `.env` stub, syncs dependencies, smoke-tests your Canvas API token, and is **idempotent** (safe to re-run). You'll just need to provide three pieces of information when it asks:
 
 - **Course ID** — the number after `/courses/` in your Canvas course URL
 - **API token** — Canvas → Account → Settings → Approved Integrations → New Access Token (requires instructor or admin role)
-- **Institution URL** — your Canvas login address (e.g., `https://byui.instructure.com`)
+- **Institution URL** — your Canvas login address (e.g., `https://your-institution.instructure.com`)
 
 Total time on a fresh machine: ~5 minutes (most of it is the agent installing dependencies in the background).
 
@@ -186,7 +187,7 @@ Just hand them those three pieces of information in this format:
 
 ```
 CANVAS_API_TOKEN=your_token_here
-CANVAS_BASE_URL=https://byui.instructure.com
+CANVAS_BASE_URL=https://your-institution.instructure.com
 CANVAS_COURSE_ID=123456
 ```
 
@@ -339,6 +340,61 @@ Full audit documentation: [`course_engagement_audit_knowledge.md`](lib/agents/kn
 
 ---
 
+# Per-student late-work accommodation
+
+When ONE student needs permission to submit late — for any reason, on some or all assignments — the toolkit writes Canvas **assignment overrides** that keep the original open and due dates but **drop the close date**. The student still sees the original due date (no artificial deadline extension shown), but submitting after it stays accepted, marked "late." The class is unaffected.
+
+## Four scoping modes
+
+Pick the one that matches the accommodation you're granting:
+
+| Scope flag | What it covers | When you'd use it |
+|---|---|---|
+| `--assignment-id <id>` | ONE specific assignment | Single missed item with a known reason |
+| `--all` | EVERY published assignment | Whole-semester grace (backdates retroactively too) |
+| `--from YYYY-MM-DD` | Assignments due on/after the date | "From spring break onward" / specific start date |
+| `--from-days-ago N` | Assignments due in the last N days through end of term | **Recommended default** — *"They hit the wall 1-2 weeks ago; grace from there forward."* Try `--from-days-ago 14`. |
+
+```bash
+# Preview (dry-run by default — use --apply to actually write)
+uv run python lib/tools/student_late_accommodation.py \
+  --deid-code S-95DBB6 --from-days-ago 14
+
+# Apply for one specific assignment
+uv run python lib/tools/student_late_accommodation.py \
+  --deid-code S-95DBB6 --assignment-id 123 --apply
+
+# Apply from a specific date forward (rest of semester)
+uv run python lib/tools/student_late_accommodation.py \
+  --deid-code S-95DBB6 --from 2026-04-01 --apply
+
+# Apply across whole semester with backdating
+uv run python lib/tools/student_late_accommodation.py \
+  --deid-code S-95DBB6 --all --apply
+
+# Undo cleanly — same scope flags work for --remove
+uv run python lib/tools/student_late_accommodation.py \
+  --deid-code S-95DBB6 --from-days-ago 14 --remove --apply
+```
+
+## The de-id master — the primitive under everything
+
+`--deid-code S-95DBB6` resolves to a Canvas user_id **without anyone ever speaking the student's name to the agent**. That works because of a new primitive in v0.70.0: a **course-wide de-identification master** at `grading/.deid_master.csv` (gitignored, FERPA tier 2).
+
+Build it once, refresh when your roster changes:
+
+```bash
+uv run python lib/tools/build_deid_master.py
+```
+
+One row per enrolled student, four columns: `deid_code, user_id, sortable_name, withdrawn`. The `withdrawn` flag catches students who dropped mid-semester — the default Canvas People view silently hides them, and that's how 7 dropped students went missing from one pilot's final-grade analysis until this primitive existed.
+
+**You** look up "Sydney" in the local CSV → see `S-95DBB6` → hand the agent only that code. The tool reads only the `user_id` column. Names never cross the LLM boundary.
+
+Full knowledge file: [`deid_master_knowledge.md`](lib/agents/knowledge/deid_master_knowledge.md).
+
+---
+
 # Sharing your grader with another faculty
 
 When two faculty teach the same Canvas course, the second one shouldn't start from scratch.
@@ -365,53 +421,17 @@ Full sharing pattern: [`grader_knowledge.md §17`](lib/agents/knowledge/grader_k
 
 ---
 
-# Who uses it
-
-- **BYU-Idaho** (institutional pilot) — multiple faculty across DS 250, DS 460, and CE 162 (Land Surveying)
-- **DS 250 Online** — ~448 student-cohort observations across 27 sections (the deepest production validation; the 11 safety gates were driven by lived failures in DS 250 grading)
-- **CE 162 Land Surveying** — first non-DS adoption; filed the group-assignment workflow enhancement that became v0.64.0 with a fully-worked local prototype
-
-If you're piloting at another institution, file an issue (see below). Adoption stories shape the next safety gate.
-
----
-
 # Sharing back with the project
 
-Three lightweight paths, all under one tool:
+Three things you can ask your agent to do:
 
-```bash
-./bin/cb-report-bug    # report a bug (auto-prefix: bug:)
-./bin/cb-report-bug    # request a feature (auto-prefix: enhancement:)
-./bin/cb-share         # share something you built locally (auto-prefix: share:)
-```
-
-These open your editor for a description, scrub PII locally (names, emails, `/Users` paths), bundle your toolkit version + last 150 log lines + sanitized cwd, and post to a Cloudflare-fronted intake worker that files the GitHub issue using the maintainer's PAT. **No GitHub account required.** Roundtrip: ~1 second.
-
-| You want to… | Use | What happens |
+| You want to… | Ask your agent | What happens |
 |---|---|---|
-| **Report a bug** (toolkit deviated from documented behavior) | `cb-report-bug` with title `bug: <short description>` | Files an issue tagged `agent-submitted`. ~1 second. |
-| **Request a feature** | `cb-report-bug` with title `enhancement: <short description>` | Same path; title prefix triages it. |
-| **Share something you built** (a tool, config, workflow extension) | `cb-share` with title `share: <short description>` + a body that links or pastes the code | Same path; `share:` prefix tells the maintainer this is contribution-shaped. |
-| **Push code via a PR** | Standard GitHub PR workflow | See [`CONTRIBUTING.md`](CONTRIBUTING.md). |
+| **Report a bug** | *"Report a bug: [what went wrong]"* | Agent runs `cb-report-bug`. Opens your editor for the description, scrubs PII locally (names, emails, `/Users` paths), bundles your toolkit version + last 150 log lines, files the GitHub issue. ~1 second. No GitHub account needed. |
+| **Ask for a feature** | *"Ask for this feature: [what you want]"* | Same path as bug reporting; the title prefix triages it. |
+| **Share something you built** | *"Share this with the project: [link / paste]"* | Agent runs `cb-share`. Same intake path; `share:` prefix tells the maintainer this is contribution-shaped. |
 
-**Want shorter commands?** Put `bin/` on your PATH:
-
-```bash
-echo 'export PATH="'"$(pwd)"'/bin:$PATH"' >> ~/.zshrc   # or ~/.bashrc
-source ~/.zshrc
-# now: cb-init, cb-report-bug, cb-share work from anywhere
-```
-
-**Fallbacks** (work if `bin/` isn't on PATH):
-
-```bash
-uv run python lib/tools/cb_report_bug.py    # long-form, equivalent
-gh issue create -R chaz-clark/canvas-toolbox  # if you have gh + a GitHub account
-```
-
-Or go directly: <https://github.com/chaz-clark/canvas-toolbox/issues/new>.
-
-The bug-intake loop is the heartbeat of this project. Eleven issues filed via the worker have closed in the last three days — every one drove a coded safety gate. If you find a hole, fill it via the worker. The loop closes within hours.
+The intake loop is fast — issues filed via the worker have been driving new safety gates within hours.
 
 ---
 
@@ -425,6 +445,6 @@ The architecture (FERPA two-zone, voice-preservation contract, consensus-based g
 
 ---
 
-**Current version:** v0.69.1 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 483 unit tests · 20+ pedagogical knowledge files for AI-architected course design · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
+**Current version:** v0.70.0 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 543 unit tests · 20+ pedagogical knowledge files for AI-architected course design · course-wide de-id master + per-student accommodation primitives · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
 
 For help, see the doc tree above or file a `cb-report-bug` (~1 second roundtrip; no GitHub account needed).
