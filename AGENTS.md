@@ -248,7 +248,41 @@ private channel is for security.
 
 _Last updated: 2026-06-26_
 
-### Recent: Course-wide de-id master + per-student late-work accommodation primitives (v0.70.0, 2026-06-26)
+### Recent: Path A migration — `.known_names.txt` auto-derived from the de-id master (v0.71.0, 2026-06-26)
+
+**v0.71.0** — Path A of the de-id master consolidation. Mid-build
+operator question after v0.70.0 shipped: *"Do all de-id scripts run
+off the new master? Anything re-id'ed goes to Downloads?"* — surfaced
+that the master was purely additive (only 2 tools used it); the
+scrub-pass roster `.known_names.txt` was still populated separately
+by `grader_fetch.py`.
+
+**What landed:**
+
+1. **`build_deid_master.py` now auto-derives `.known_names.txt`** —
+   single new helper `render_known_names_lines()` emits BOTH sortable
+   ("Lastname, Firstname") and display ("Firstname Lastname") forms
+   per student so the scrub matches whichever literal appears in
+   submission text. Case-insensitive dedup; sorted; header comments
+   so a future reader doesn't hand-edit it.
+
+2. **7 new tests** (550 passing total, up from 543). Covers both-forms
+   emission, header comments, dedup, empty-name skip, single-word
+   names (no comma → no display-form duplicate), determinism, sort
+   order.
+
+**Unchanged (deliberate):**
+- `grader_fetch.py`'s `update_known_names()` still works as before
+  (append-mode dedup; appends submitters who weren't in the People
+  view yet). Path A is additive, not replacement.
+- Per-assignment keymaps untouched. Grader pipeline hot path unchanged.
+
+**Path B deferred** — full migration where the master replaces
+per-assignment keymaps for the grader pipeline — approved in principle
+but deferred to a future session per operator direction. Path B becomes
+harder over time; the deferral is intentional and credit-aware.
+
+### Earlier: Course-wide de-id master + per-student late-work accommodation primitives (v0.70.0, 2026-06-26)
 
 **v0.70.0** — closes issue #109 (agent-submitted ~10 min after v0.69.1
 shipped, from the DS 460 pilot). Two related primitives + four-mode
