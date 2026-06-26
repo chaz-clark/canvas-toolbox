@@ -184,6 +184,32 @@ These are AI-tells that nearly every instructor edits out. They go in `grader_vo
 | Internal-only "Notes for instructor" sections that the student doesn't see | The comment IS the coaching. Don't keep a hidden version. |
 | Per-criterion point arithmetic in the comment ("3/4 for clarity, 2/4 for evidence") | Holistic scoring (`grader_knowledge.md` §2). Comment names the band, not the math. |
 
+### Three layers of banned-pattern knowledge (issue: cross-faculty sharing, v0.67.0+)
+
+The patterns above are the **universal** layer — they ship with canvas-toolbox and apply across all instructors. Two additional layers exist, with different ownership + sharing rules:
+
+| Layer | File | Owned by | Exported when sharing? |
+|---|---|---|---|
+| **Universal AI-tells + banned patterns** (the tables above) | `grader_voice_knowledge.md §5` (this file) | canvas-toolbox | Implicit — receiver has it via canvas-toolbox |
+| **Course-level / domain-level patterns** (e.g., "in this Polars course, students often misuse `.iloc[]`; feedback should always redirect to the canonical idiom") | `grading/<challenge>/voice_pitfalls.md` (optional; new convention) | The course (not the instructor) | ✅ YES — included in `grader_export.py` ZIPs so a new faculty teaching the same course inherits the course-domain knowledge |
+| **Per-instructor banned terms + characteristic phrasings** | `student_feedback_voice_<instructor>.md` (per §9 contract) | The instructor | ❌ NO — never exported (voice-preservation contract from `voice_coaching_knowledge.md §1`) |
+
+**The `voice_pitfalls.md` file (optional, per-challenge):**
+
+When a course iterates a challenge and the instructor notices patterns that recur across cohorts — patterns that ANY instructor teaching this material would benefit from knowing — those go in `grading/<challenge>/voice_pitfalls.md`. The patterns are about the COURSE CONTENT, not the instructor's voice.
+
+Good fits for `voice_pitfalls.md`:
+- "Students consistently miss the difference between X and Y — feedback should name the difference explicitly, not just mark the answer wrong."
+- "When grading Q4, watch for solutions that LOOK correct but use the wrong tool for the wrong reason — coach the reasoning, not the syntax."
+- "This challenge has a known boundary case where students who do A get penalized despite being correct — surface it in the comment so they understand what went 'wrong.'"
+
+NOT fits for `voice_pitfalls.md` (these belong in the per-instructor voice file instead):
+- "I prefer 'clean' over 'idiomatic'" — instructor voice preference
+- "I always sign comments with 'Cheers, Chaz'" — instructor voice preference
+- "My warmth dial is high" — voice dimension positioning
+
+The file is OPTIONAL. A course doesn't need one. When present, it's a few sentences to a few paragraphs per pattern. Read by the agent at grading time (same load path as the rubric + assignment_spec); inherited by any faculty teaching the same course via `grader_import.py`.
+
 ---
 
 ## 6 — Template openers are intentional (NOT an AI tell)

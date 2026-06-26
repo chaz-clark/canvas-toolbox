@@ -246,7 +246,110 @@ private channel is for security.
 
 ## Active Context
 
-_Last updated: 2026-06-25_
+_Last updated: 2026-06-26_
+
+### Recent: cross-faculty sharing — grader_export.py + grader_import.py (v0.67.0, 2026-06-26)
+
+**v0.67.0** — ships parking-lot **Idea B (cross-section sharing)** as
+formalized adoption-multiplier infrastructure. Faculty A teaching
+Course X can now bundle their rubrics + task specs + configs into a
+share.zip; Faculty B teaching the same course imports it as their
+starting substrate. Per the voice-preservation contract from
+v0.65.0: **the sending faculty's per-instructor voice file is NEVER
+in the export.** The receiver builds their own voice.
+
+**Operator decisions baked in** (locked during the 2026-06-26 scoping
+pass):
+
+| # | Decision | Resolution |
+|---|---|---|
+| 1 | Tool shape | Pair of scripts (`grader_export.py` + `grader_import.py`) — matches the established naming convention |
+| 2 | Export granularity | Operator passes `--challenges` list; default = all subdirectories of `grading/`. Supports both per-challenge and whole-course sharing scenarios |
+| 3 | Voice handling | Per-instructor voice file NEVER exported. NEW course-level `voice_pitfalls.md` convention introduced (per-challenge optional file capturing course-content common mistakes, NOT voice). Universal pitfalls stay in `grader_voice_knowledge.md §5` (ships natively with canvas-toolbox; no need to bundle) |
+| 4 | Version compatibility | Hard refuse if local canvas-toolbox is OLDER than the export's. Error message names the exact upgrade commands. Same-or-newer is fine |
+
+**What landed:**
+
+1. **[lib/tools/grader_export.py](lib/tools/grader_export.py)** —
+   bundles a course's shareable artifacts into a ZIP. Whitelist:
+   `RUBRIC.md`, `assignment_spec.md`, `voice_pitfalls.md`,
+   `config.json`/`config.yml`/`config.yaml`, `README.md` per challenge.
+   Defense-in-depth FERPA blacklist enforced (refuses to write any
+   path matching `submissions_*`, `feedback/`, `.keymap.json`,
+   `.fetch_log.json`, `.review.csv*`, `.push_log.md`,
+   `_existing_grades.csv`, `_consensus.csv`, `_summary.csv`,
+   `_all_comments.md`, `_gradebook_actuals.csv`,
+   `UNIQUE_GROUP_MEMOS.md`, `student_feedback_voice_*`, `_corpus`).
+   Writes `share-manifest.yml` + `READ_ME_BEFORE_IMPORT.md` at the
+   ZIP root.
+2. **[lib/tools/grader_import.py](lib/tools/grader_import.py)** —
+   reads + validates the manifest, runs the version compatibility
+   check (HARD REFUSE if local < export), shows the receiver exactly
+   what's about to land + what's intentionally excluded, prompts
+   `Type 'import' to confirm`, then extracts. Defense-in-depth
+   blacklist enforced again on the receiving side.
+3. **NEW `voice_pitfalls.md` convention** documented in
+   [`grader_voice_knowledge.md §5`](lib/agents/knowledge/grader_voice_knowledge.md) —
+   optional per-challenge file capturing course-level common mistakes
+   (e.g., "in this Polars course, students confuse `top_k` and
+   `head`; always redirect to `top_k`"). EXPORTED with the share
+   bundle; distinct from the per-instructor voice file which is
+   NEVER exported.
+4. **[`grader_knowledge.md §17`](lib/agents/knowledge/grader_knowledge.md)** —
+   new section "Cross-faculty sharing: export/import the course
+   substrate, never the voice." Documents the two tools, the
+   inclusion/exclusion lists, version compatibility, and the
+   receiver's next-steps. The receiver README echo: *"Your voice is
+   the asset. The imported substrate is a starting point."*
+5. **38 new tests** in `test_grader_share_helpers.py` covering:
+   - Defense-in-depth blacklist (submissions, feedback, identity
+     bridges, reviewer/push artifacts, per-cohort grading data,
+     per-instructor voice files, TA corpora, group memos, case
+     insensitivity, false-positive guard on whitelisted files)
+   - File-whitelist behavior (rubric/spec/config/voice_pitfalls
+     inclusion; subdirectory recursion EXCLUDED to keep FERPA-
+     protected per-student dirs invisible; deterministic sort;
+     empty/nonexistent dirs safe)
+   - Manifest building (required fields, voice-preservation named
+     explicitly in exclusion list, challenge sorting determinism)
+   - Receiver README rendering (course label named, voice
+     preservation emphasized, numbered next-steps)
+   - Semver parsing (basic, build metadata stripped, prerelease
+     stripped, unparseable → None)
+   - Version compatibility (same OK, newer OK, older REFUSED with
+     versions named, unparseable proceeds with warning)
+   - Manifest validation (minimal-ok, missing required fields,
+     wrong types, defensive against garbage YAML)
+
+**Total tests now 439 (up from 401).** All pre-commit hooks pass.
+
+**Cross-issue + parking-lot composition.** This v0.67.0 release is
+the cross-faculty adoption multiplier the parking-lot positioning
+work has been pointing at:
+
+- Idea **A** (voicing coach, v0.65.0) — receiver runs the articulation
+  interview to build their own voice
+- Idea **B** (cross-section sharing, v0.67.0 — THIS RELEASE) — sharing
+  tool that preserves voice while transferring everything else
+- Idea **C** (LinkedIn / adoption) — now provable: "AI-assisted
+  grading where the instructor stays the author" has receiving-end
+  enforcement, not just sending-end policy
+- Idea **D** (robust nemawashi) — `voice_pitfalls.md` is one of the
+  share-back mechanisms; cross-faculty sharing is the other
+
+**The voice-preservation contract is now provable, not just
+documented.** Two faculty teaching the same course can share rubrics
+and task specs and course-content pitfalls — and the receiving
+faculty's grading sounds like THEM, not like the sending faculty.
+That's the architectural commitment from v0.65.0 made operational
+in v0.67.0.
+
+**Cross-repo:** DS 250 + DS 460 + CE 162 inherit the tools on next
+pull. The first real-world use case is likely a future
+multi-instructor BYUI offering (DS 250 next semester with a
+different instructor; CE 162 picking up an additional section, etc.).
+The pattern is also the most credible LinkedIn-ready feature for
+the broader adoption story.
 
 ### Recent: grader_fetch pulls latest attempt by default — issue #103 (v0.66.0, 2026-06-25)
 

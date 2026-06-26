@@ -768,6 +768,69 @@ The principle stands on its own for CURRENT grader work — don't wait for v1.2 
 
 ---
 
+## 17 — Cross-faculty sharing: export/import the course substrate, never the voice (v0.67.0+)
+
+Faculty A teaches Course X. They invest hours building rubrics, task specs, per-challenge configs, and (optionally) course-level voice pitfalls. Faculty B will teach Course X next semester. Before v0.67.0, B started from scratch. The cross-faculty sharing pattern lets A export the COURSE-LEVEL substrate so B starts where A finished — while preserving the voice-preservation contract: B builds their OWN voice file.
+
+### The two tools
+
+- **`grader_export.py`** — bundles a course's shareable artifacts into a single `share.zip` with a YAML manifest + a receiver-facing README. The operator names the course label and (optionally) which challenges to include.
+- **`grader_import.py`** — reads a share.zip, validates the manifest, hard-refuses if the local canvas-toolbox is older than the export's version (prompts the receiver to upgrade first), extracts into `<target>/grading/<challenge>/`, and prints the receiver's next-steps.
+
+### What's IN the export (per challenge)
+
+Each `grading/<challenge>/` directory contributes its top-level whitelisted files:
+
+| File | Why shareable |
+|---|---|
+| `RUBRIC.md` | The grading criteria — universal across instructors teaching the same course |
+| `assignment_spec.md` (#102) | The student-facing task definition — public-by-design content |
+| `config.json` / `config.yml` | The per-assignment grader config from the 6-step setup interview |
+| `voice_pitfalls.md` *(NEW v0.67.0)* | Course-level common mistakes — NOT instructor voice (see §5 in [`grader_voice_knowledge.md`](grader_voice_knowledge.md)) |
+| `README.md` | Per-challenge README if present |
+
+Plus at the ZIP root: `share-manifest.yml` (canvas-toolbox version, course label, full inclusion + exclusion list) and `READ_ME_BEFORE_IMPORT.md` (plain-English receiver instructions).
+
+### What's OUT (FERPA + voice-preservation)
+
+Defense-in-depth: blacklist enforced on BOTH the export side (refuse to write) AND the import side (refuse to extract):
+
+- `submissions_raw/` + `submissions_deid/` (student work — FERPA)
+- `feedback/` (per-student feedback — FERPA)
+- `.keymap.json` + `.fetch_log.json` (identity bridges — FERPA)
+- `.review.csv*` + `.push_log.md` (reviewer + push audit — FERPA)
+- `_existing_grades.csv` + `_consensus.csv` + `_summary.csv` + `_all_comments.md` (per-cohort grading data — FERPA)
+- `UNIQUE_GROUP_MEMOS.md` (per-cohort group rosters — FERPA-adjacent)
+- `student_feedback_voice_<instructor>.md` (per-instructor voice — voice-preservation contract from [`voice_coaching_knowledge.md §1`](voice_coaching_knowledge.md))
+- `_corpus/` (TA-comment archives — FERPA + voice-bias)
+
+### Version compatibility — hard refuse on local-older-than-export
+
+The manifest records the canvas-toolbox version at export time. On import, if the receiver's local version is OLDER, the import refuses with a clear message + the exact upgrade commands. This prevents the receiver from importing rubrics that reference features (like #102's `assignment_spec.md`, or #100's group-assignment workflow, or #103's pull-latest fetch behavior) that their toolbox doesn't yet support.
+
+Same-or-newer is fine. The receiver can pull a newer canvas-toolbox before importing.
+
+### The receiver's next steps (codified in the receiver README)
+
+1. Verify the import landed where expected (`grading/<challenge>/` populated)
+2. Upgrade canvas-toolbox if `grader_import.py` refused on version mismatch
+3. Review imported rubrics + task specs — edit to match own pedagogy
+4. **Build YOUR voice file** — run the articulation interview from [`voice_coaching_knowledge.md §5`](voice_coaching_knowledge.md) (~30 min)
+5. Read `voice_pitfalls.md` per challenge (if present) — course-content insights
+6. Run a calibration cohort (5-10 students) per the standard roundtrip in [`grader_voice_knowledge.md §4`](grader_voice_knowledge.md)
+
+The receiver README is explicit: **"Your voice is the asset. The imported substrate is a starting point."** That's the voice-preservation contract reasserted at the moment a receiving faculty might be tempted to copy the sending faculty's voice file even if they had it.
+
+### Where this fits the bigger picture
+
+Cross-faculty sharing makes the toolkit **adoption-multiplier infrastructure** rather than a single-instructor tool. The pattern composes with:
+
+- **`voice_coaching_knowledge.md`** (v0.65.0) — the receiver runs the articulation interview from §5 to build their own voice after import
+- **`assignment_spec.md`** (#102, v0.63.0) — the task definition that anchors the rubric is itself shareable; the sending faculty's spec is the receiving faculty's starting spec
+- **The parking-lot positioning work** — "AI-assisted grading where the instructor stays the author" is now provable, not aspirational: the sharing tool's design explicitly preserves voice while transferring everything else
+
+---
+
 ## Cross-walk: where each lesson is enforced
 
 | Lesson | Enforced in | How |
