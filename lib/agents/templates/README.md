@@ -8,7 +8,7 @@ Templates are the **implementation layer**: actual HTML, JSON, or text files an 
 
 The [`agents/knowledge/README.md`](../knowledge/README.md) explicitly defines knowledge files as conceptual references — theory and audit signals, not implementation. Stuffing HTML or JSON templates into a knowledge file dilutes that conceptual layer. Templates live here instead, referenced from knowledge files where appropriate.
 
-This also positions cleanly for the future deployable-skill direction: when a knowledge area becomes a `.agents/skills/<skill-name>/` package per the [Agent Skills standard](https://agentskills.io/specification), templates here map cleanly to that skill's `assets/` directory. See [`AGENTS.md`](../../AGENTS.md#roadmap) Roadmap items 1–3.
+This also positions cleanly for the future deployable-skill direction: when a knowledge area becomes a `.agents/skills/<skill-name>/` package per the [Agent Skills standard](https://agentskills.io/specification), templates here map cleanly to that skill's `assets/` directory. See [`AGENTS.md`](../../../AGENTS.md#roadmap) Roadmap items 1–3.
 
 ## Layout convention
 

@@ -227,7 +227,7 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 **When to use:** When grading any criterion that names critical thinking, when authoring/auditing a rubric criterion meant to capture it, or when auditing whether an assignment's design *prompts* the skill (vs. recall).
 **Audit tag:** none yet (reference-shape, dual-consumer; consumed via fact lookup by grader + audit).
 **Status:** ⚠️ **v0.1** — dual-consumer file built ahead of a real critical-thinking criterion landing in a graded cohort; calibration pending.
-**Consumed by:** [`canvas_grader.md`](canvas_grader.md) (when a rubric criterion targets critical thinking), `canvas_course_expert.md`. **Pairs with:** [`rubrics_knowledge.md`](rubrics_knowledge.md), [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md), [`grader_knowledge.md`](grader_knowledge.md), [`assessments_knowledge.md`](assessments_knowledge.md).
+**Consumed by:** [`canvas_grader.md`](../canvas_grader.md) (when a rubric criterion targets critical thinking), `canvas_course_expert.md`. **Pairs with:** [`rubrics_knowledge.md`](rubrics_knowledge.md), [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md), [`grader_knowledge.md`](grader_knowledge.md), [`assessments_knowledge.md`](assessments_knowledge.md).
 
 ---
 
@@ -271,7 +271,7 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 **When to use:** Anywhere a faculty member is being coached on grading-comment voice — first-time setup (before the edit roundtrip can refine), conflicts between voice habits and research-grounded effectiveness, or when articulating the WHAT/HOW boundary for an adopter who's confused about what the AI does and doesn't change.
 **Audit tag:** none (coaching reference; consumed via fact lookup).
 **Status:** ✅ **v1.0** — research-grounded across 8 pedagogical frameworks; validated against DS 250 + DS 460 voice artifacts. The voice-preservation contract honors the operator-set constraint that the AI must add value in PHRASING without losing the faculty's voice.
-**Consumed by:** [`canvas_grader.md`](canvas_grader.md), the agent grading any LLM-comment cohort. **Pairs with:** [`grader_voice_knowledge.md`](grader_voice_knowledge.md) (structure + per-instructor file contract + edit roundtrip — the downstream operational layer), [`grader_setup_knowledge.md`](grader_setup_knowledge.md) (per-assignment config interview), [`grader_knowledge.md`](grader_knowledge.md) (push pipeline + safety gates the voice rides on top of).
+**Consumed by:** [`canvas_grader.md`](../canvas_grader.md), the agent grading any LLM-comment cohort. **Pairs with:** [`grader_voice_knowledge.md`](grader_voice_knowledge.md) (structure + per-instructor file contract + edit roundtrip — the downstream operational layer), [`grader_setup_knowledge.md`](grader_setup_knowledge.md) (per-assignment config interview), [`grader_knowledge.md`](grader_knowledge.md) (push pipeline + safety gates the voice rides on top of).
 
 ---
 
@@ -282,7 +282,7 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 **When to use:** Term-end (or any time the institution needs an R2T4 candidate list). Faculty provides a UF cutoff date; the audit produces a Markdown + PDF report in the user's Downloads folder with each student classified + the documented last-engagement timestamp.
 **Audit tag:** `engagement_classification` ∈ {`active`, `uw`, `uf`, `never_participated`}.
 **Status:** ✅ **v1.0** — Title IV definitions verified 2026-06-26 against the 6 cached canonical sources. **Next review:** 2027-06-26 (or sooner if DOE issues new R2T4 / distance-ed guidance). The Distance Ed + R2T4 final rules effective 2026-07-01 are the latest material rule change.
-**Consumed by:** [`canvas_grader.md`](canvas_grader.md), `canvas_course_expert.md`. **Pairs with:** [`grader_knowledge.md`](grader_knowledge.md) §1 (FERPA tier 3 — Downloads-folder named report), the cached Title IV sources in [`sources/title_iv/`](sources/title_iv/).
+**Consumed by:** [`canvas_grader.md`](../canvas_grader.md), `canvas_course_expert.md`. **Pairs with:** [`grader_knowledge.md`](grader_knowledge.md) §1 (FERPA tier 3 — Downloads-folder named report), the cached Title IV sources in [`sources/title_iv/`](sources/title_iv/).
 
 ---
 

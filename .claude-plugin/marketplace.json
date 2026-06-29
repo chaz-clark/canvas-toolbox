@@ -9,7 +9,7 @@
     {
       "name": "canvas-toolbox",
       "description": "FERPA-safe AI-assisted Canvas LMS toolkit. Includes agent specs (8) and pedagogical knowledge files (20+) covering course design audits, FERPA-safe LLM grading, Canvas sync, and the BYU-I Learning Model.",
-      "version": "0.72.2",
+      "version": "0.72.3",
       "source": "./",
       "author": {
         "name": "Chaz Clark",

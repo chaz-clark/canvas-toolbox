@@ -248,7 +248,17 @@ private channel is for security.
 
 _Last updated: 2026-06-29_
 
-### Recent: README marketing restructure + repo-root declutter (v0.72.2, 2026-06-29)
+### Recent: AGENTS.md trimmed to rotating latest-5 + CI guard (v0.72.3, 2026-06-29)
+
+**v0.72.3** — Active Context had become an append-only release log (182 KB /
+~32k tokens, past host-tool read limits). Trimmed to the 5 most-recent entries
+(~570 lines / ~10k tokens); full history relocated to `CHANGELOG.md`, filling
+the prior 0.51–0.71 gap. New CI guard `lib/tests/test_agents_active_context.py`
+enforces ≤5 entries (local impl of Make-AI-Agents#17) — on each release, add the
+new entry on top and rotate the oldest into CHANGELOG. Also repaired 17 doc-move
+links (v0.72.2) + 8 pre-existing `lib/agents/` links. No production code change.
+
+### Earlier: README marketing restructure + repo-root declutter (v0.72.2, 2026-06-29)
 
 **v0.72.2** — docs/structure patch to make the landing experience
 marketing-ready. No code or test changes (605 tests unchanged).
@@ -408,74 +418,7 @@ per-assignment keymaps for the grader pipeline — approved in principle
 but deferred to a future session per operator direction. Path B becomes
 harder over time; the deferral is intentional and credit-aware.
 
-### Earlier: Course-wide de-id master + per-student late-work accommodation primitives (v0.70.0, 2026-06-26)
-
-**v0.70.0** — closes issue #109 (agent-submitted ~10 min after v0.69.1
-shipped, from the DS 460 pilot). Two related primitives + four-mode
-scoping + the README cleanups Chaz flagged mid-build.
-
-**The missing primitive** — until v0.70.0, the toolkit could de-identify
-within a single grading workflow (per-assignment keymaps) and could
-scrub names (.known_names.txt) but had NO course-wide stable
-`code ↔ user_id ↔ name` surface. That's the primitive every keyed /
-FERPA workflow actually wants — and it's what enables the accommodation
-tool to take `--deid-code S-95DBB6` instead of `--user-id 173819`
-(so the operator never speaks the student's name to the agent).
-
-**What landed:**
-
-1. **`lib/tools/build_deid_master.py`** — fetches Canvas People with
-   ALL enrollment states (active + invited + inactive + completed),
-   hashes user_id → `S-XXXXXX` (6 hex from sha256, configurable
-   prefix + hash-bits), writes `grading/.deid_master.csv` (FERPA
-   tier 2). Auto-writes `grading/.gitignore` to make tier 2 bulletproof.
-   Detects collisions at write-time with clear recovery message
-   (`--hash-bits 8`). Default prefix `S-`; opt out via `--prefix`.
-
-2. **`lib/tools/student_late_accommodation.py`** — lifted from DS 460
-   pilot + generalized. Writes per-student assignment overrides that
-   keep `unlock_at` + `due_at` but omit `lock_at` (no close date).
-   **Four scoping modes** (the v0.70.0 mid-build operator ask):
-   - `--assignment-id` — ONE assignment
-   - `--all` — every published, backdated
-   - `--from YYYY-MM-DD` — due on/after a specific date
-   - `--from-days-ago N` — rolling window (recommended default; e.g.
-     `--from-days-ago 14` = last 2 weeks through end of term)
-   Resolves student via `--user-id` OR `--deid-code` (PII-free).
-   `--remove` flag works with any scope.
-
-3. **`lib/agents/knowledge/deid_master_knowledge.md`** — the
-   4-column contract, collision math, FERPA tier 2 explanation,
-   how downstream tools should consume the master (never read
-   `sortable_name` unless explicit).
-
-4. **54 new tests passing** (543 passing total, up from 489;
-   Title IV pure-helper pattern continued — function in/out, no
-   Canvas API mocking).
-
-5. **README mid-build tweaks** (Chaz-flagged):
-   - Step 3 prompt now explicitly invokes `cb-init` (so the agent
-     uses our purpose-built idempotent bootstrap, not its own ad-hoc
-     sequence)
-   - `byui.instructure.com` → `your-institution.instructure.com`
-     (generic across institutions)
-   - "Who uses it" section DROPPED (was leading with BYUI specifics)
-   - "Sharing back with the project" SIMPLIFIED from a technical
-     PATH/fallback wall to a 3-row agent-prompt table
-   - 11th workflow row added: "Give one student late-work accommodation"
-   - NEW dedicated section "Per-student late-work accommodation"
-     with the 4-mode scope table
-   - Trailing version line names the new primitives
-
-**Field validation** (from issue #109 author):
-- DS 460 pilot: 1 real student, 36 assignments, `--all` applied
-  cleanly — every override kept original open/due with lock=null
-- 30 active → 37 total → 7 withdrawn surfaced (the `withdrawn` flag's
-  value, hidden by the active-only People view)
-- Canvas GET overrides slow-path caveat baked into the tool: APPLY
-  POSTs directly without listing existing overrides; only REMOVE reads
-
-_Earlier releases (v0.69.1 and back) live in the [CHANGELOG](CHANGELOG.md) — Active Context keeps only the latest 5 (enforced in CI)._
+_Earlier releases (v0.70.0 and back) live in the [CHANGELOG](CHANGELOG.md) — Active Context keeps only the latest 5 (enforced in CI)._
 
 ## Domain Terms
 

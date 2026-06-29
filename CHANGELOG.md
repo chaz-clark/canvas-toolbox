@@ -11,6 +11,12 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+(Nothing yet.)
+
+---
+
+## [0.72.3] — 2026-06-29
+
 ### Changed
 - **AGENTS.md trimmed to the rotating latest-5 rule.** Active Context had grown
   into an append-only release log (182 KB / ~32k tokens — past host-tool read
@@ -27,6 +33,7 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 - 17 outbound links in `docs/grading_readme.md`, `docs/UPGRADING.md`, and
   `.github/CONTRIBUTING.md` that broke in v0.72.2 when those files moved out of
   the repo root (their root-relative links were not re-pathed at the time).
+- 8 pre-existing broken relative links in `lib/agents/` (wrong relative depth / missing `knowledge/` prefix; two `forthcoming` references de-linked).
 
 ---
 
@@ -50,6 +57,214 @@ changes (605 tests unchanged).
   `docs/`. All internal links repointed; 0 broken links repo-wide.
 
 ---
+
+## [0.72.1] — 2026-06-26
+
+**README polish — surface quiz time extension + fix late-work intro**
+
+
+**v0.72.1** — docs-only patch addressing three gaps Chaz flagged
+after a post-v0.72.0 README review:
+
+1. `student_quiz_time_extension.py` had no standalone surface — only
+   appeared as a dispatcher target. A faculty member with an informal
+   "give Sydney 1.5x time" couldn't find it. Added a **13th workflow
+   row** + a dedicated README section between the late-work and SAS
+   dispatcher sections.
+
+2. Late-work intro paragraph still said overrides "drop the close
+   date" as if that were the only behavior — but v0.72.0 added the
+   `--shift-by-days` flavor. Rewrote the intro to mention both
+   flavors so the "Two flavors" table that follows doesn't feel
+   contradictory.
+
+3. Workflow row for "Give one student late-work accommodation" was
+   ~3x wider than its neighbors because of inline `--shift-by-days`
+   detail. Tightened by moving specifics to the dedicated section
+   and linking out.
+
+Test count unchanged (605). No code change.
+
+## [0.72.0] — 2026-06-26
+
+**BYUI SAS accommodation sprint — quiz time extension + test_reschedule + apply dispatcher**
+
+
+**v0.72.0** — three-item sprint closing out the BYUI Accessibility
+Services catalog dispatch chain. Triggered by the life-pm handoff at
+`handoffs/2026-06-26-accessibility-accommodations-catalog.md`.
+
+**S1 — `lib/tools/student_quiz_time_extension.py`** (~265 lines).
+Per-student quiz time multiplier (1.5x, 2.0x, or any > 1.0). Targets
+CLASSIC Canvas quizzes only (New Quizzes documented as a follow-up).
+Pulls quiz `time_limit` from API; computes `extra_time` minutes via
+`ceil(time_limit * (multiplier - 1))`; POSTs to `/quizzes/<id>/extensions`
+with `quiz_extensions[][user_id]` + `quiz_extensions[][extra_time]`.
+Scopes: `--quiz-id` (one) or `--all-timed` (every timed quiz in
+course). PII-free via `--user-id` or `--deid-code` lookup. Auto-skips
+untimed quizzes. Pure-helper `compute_extra_minutes` uses `math.ceil`
+so partial minutes always round UP — the student never gets less time
+than the multiplier promises.
+
+**S2 — `--shift-by-days N` mode on `student_late_accommodation.py`**.
+For SAS `test_reschedule` (distinct from `occasional_extensions`):
+shift unlock/due/lock forward by N days instead of dropping lock_at.
+New pure helper `shift_iso_timestamp(ts, days)` advances the date
+prefix of an ISO 8601 string while preserving the time-of-day and
+timezone suffix (no full tz parser needed — string-prefix arithmetic
+is sufficient for accommodation-grade precision). New
+`build_shift_payload(assignment, user_id, days)` is the
+analog of `build_override_payload` but emits all three dates shifted.
+
+**S3 — `lib/tools/apply_sas_accommodations.py`** (~280 lines). YAML
+dispatcher. Reads `grading/.sas_accommodations.yml`, walks each
+student × accommodation, classifies each `key` into one of 4 tiers
+(`canvas` / `proctoring` / `policy` / `unknown`). Canvas-tier
+accommodations are invoked as subprocess calls to the matching tool
+(so each tool stays standalone, no cross-tool imports). Proctoring +
+policy tiers surface as a one-line operator checklist. Audit trail
+written to `grading/.sas_accommodations_applied.log` (FERPA tier 2,
+gitignored). Catalog hard-coded in three frozen sets at the top of
+the module — single source of truth, easy to extend when life-pm
+surfaces new accommodation types.
+
+**Knowledge file — `lib/agents/knowledge/sas_accommodations_knowledge.md`**
+vendors the life-pm catalog into the canvas-toolbox knowledge surface
+so future agents can reason about SAS dispatch without re-reading the
+handoff each time. Maps every catalog key → tier → tool invocation;
+documents the YAML handoff schema; explains the
+"how to add a new key" extension process.
+
+**README — 12th workflow row + dedicated SAS section** between
+the de-id master section and "Sharing your grader." Late-work
+accommodation section now distinguishes the two flavors (drop lock_at
+for `occasional_extensions` vs `--shift-by-days N` for
+`test_reschedule`) in addition to the four scoping modes.
+
+**55 new tests passing** (605 passing total, up from 550):
+- 21 tests for quiz time extension (compute_extra_minutes ceil
+  behavior, filter_timed_quizzes, payload shape, master lookup edge
+  cases)
+- 12 new tests for shift-by-days mode (shift_iso_timestamp edge
+  cases: month/year boundaries, timezone preservation, null
+  passthrough, negative-days defensive; build_shift_payload all-three-
+  dates invariant)
+- 22 tests for SAS dispatcher (classify_key for all catalog members,
+  plan_one_accommodation for each canvas-tier key with default + YAML
+  overrides, plan_entries flatten/skip/order behavior, audit-line
+  format invariants)
+
+**What's NOT yet done (deferred):**
+- New Quizzes (LTI) support — they use a different endpoint
+- `apply_sas_accommodations.py` is invoked manually; future work
+  could wire it into a daily/weekly cron or post-fetch hook
+
+## [0.71.0] — 2026-06-26
+
+**Path A migration — `.known_names.txt` auto-derived from the de-id master**
+
+
+**v0.71.0** — Path A of the de-id master consolidation. Mid-build
+operator question after v0.70.0 shipped: *"Do all de-id scripts run
+off the new master? Anything re-id'ed goes to Downloads?"* — surfaced
+that the master was purely additive (only 2 tools used it); the
+scrub-pass roster `.known_names.txt` was still populated separately
+by `grader_fetch.py`.
+
+**What landed:**
+
+1. **`build_deid_master.py` now auto-derives `.known_names.txt`** —
+   single new helper `render_known_names_lines()` emits BOTH sortable
+   ("Lastname, Firstname") and display ("Firstname Lastname") forms
+   per student so the scrub matches whichever literal appears in
+   submission text. Case-insensitive dedup; sorted; header comments
+   so a future reader doesn't hand-edit it.
+
+2. **7 new tests** (550 passing total, up from 543). Covers both-forms
+   emission, header comments, dedup, empty-name skip, single-word
+   names (no comma → no display-form duplicate), determinism, sort
+   order.
+
+**Unchanged (deliberate):**
+- `grader_fetch.py`'s `update_known_names()` still works as before
+  (append-mode dedup; appends submitters who weren't in the People
+  view yet). Path A is additive, not replacement.
+- Per-assignment keymaps untouched. Grader pipeline hot path unchanged.
+
+**Path B deferred** — full migration where the master replaces
+per-assignment keymaps for the grader pipeline — approved in principle
+but deferred to a future session per operator direction. Path B becomes
+harder over time; the deferral is intentional and credit-aware.
+
+## [0.70.0] — 2026-06-26
+
+**Course-wide de-id master + per-student late-work accommodation primitives**
+
+
+**v0.70.0** — closes issue #109 (agent-submitted ~10 min after v0.69.1
+shipped, from the DS 460 pilot). Two related primitives + four-mode
+scoping + the README cleanups Chaz flagged mid-build.
+
+**The missing primitive** — until v0.70.0, the toolkit could de-identify
+within a single grading workflow (per-assignment keymaps) and could
+scrub names (.known_names.txt) but had NO course-wide stable
+`code ↔ user_id ↔ name` surface. That's the primitive every keyed /
+FERPA workflow actually wants — and it's what enables the accommodation
+tool to take `--deid-code S-95DBB6` instead of `--user-id 173819`
+(so the operator never speaks the student's name to the agent).
+
+**What landed:**
+
+1. **`lib/tools/build_deid_master.py`** — fetches Canvas People with
+   ALL enrollment states (active + invited + inactive + completed),
+   hashes user_id → `S-XXXXXX` (6 hex from sha256, configurable
+   prefix + hash-bits), writes `grading/.deid_master.csv` (FERPA
+   tier 2). Auto-writes `grading/.gitignore` to make tier 2 bulletproof.
+   Detects collisions at write-time with clear recovery message
+   (`--hash-bits 8`). Default prefix `S-`; opt out via `--prefix`.
+
+2. **`lib/tools/student_late_accommodation.py`** — lifted from DS 460
+   pilot + generalized. Writes per-student assignment overrides that
+   keep `unlock_at` + `due_at` but omit `lock_at` (no close date).
+   **Four scoping modes** (the v0.70.0 mid-build operator ask):
+   - `--assignment-id` — ONE assignment
+   - `--all` — every published, backdated
+   - `--from YYYY-MM-DD` — due on/after a specific date
+   - `--from-days-ago N` — rolling window (recommended default; e.g.
+     `--from-days-ago 14` = last 2 weeks through end of term)
+   Resolves student via `--user-id` OR `--deid-code` (PII-free).
+   `--remove` flag works with any scope.
+
+3. **`lib/agents/knowledge/deid_master_knowledge.md`** — the
+   4-column contract, collision math, FERPA tier 2 explanation,
+   how downstream tools should consume the master (never read
+   `sortable_name` unless explicit).
+
+4. **54 new tests passing** (543 passing total, up from 489;
+   Title IV pure-helper pattern continued — function in/out, no
+   Canvas API mocking).
+
+5. **README mid-build tweaks** (Chaz-flagged):
+   - Step 3 prompt now explicitly invokes `cb-init` (so the agent
+     uses our purpose-built idempotent bootstrap, not its own ad-hoc
+     sequence)
+   - `byui.instructure.com` → `your-institution.instructure.com`
+     (generic across institutions)
+   - "Who uses it" section DROPPED (was leading with BYUI specifics)
+   - "Sharing back with the project" SIMPLIFIED from a technical
+     PATH/fallback wall to a 3-row agent-prompt table
+   - 11th workflow row added: "Give one student late-work accommodation"
+   - NEW dedicated section "Per-student late-work accommodation"
+     with the 4-mode scope table
+   - Trailing version line names the new primitives
+
+**Field validation** (from issue #109 author):
+- DS 460 pilot: 1 real student, 36 assignments, `--all` applied
+  cleanly — every override kept original open/due with lock=null
+- 30 active → 37 total → 7 withdrawn surfaced (the `withdrawn` flag's
+  value, hidden by the active-only People view)
+- Canvas GET overrides slow-path caveat baked into the tool: APPLY
+  POSTs directly without listing existing overrides; only REMOVE reads
 
 ## [0.69.1] — 2026-06-26
 

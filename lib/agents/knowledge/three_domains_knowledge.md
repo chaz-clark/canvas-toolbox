@@ -8,7 +8,7 @@ Companions:
 - [`taxonomy_explorer_knowledge.md`](taxonomy_explorer_knowledge.md) — BYUI's institutional tool view of the same three domains. **Faculty preferring the BYUI Taxonomy Explorer → that file. Faculty preferring the academic-research framing → this file.** Main divergence: BYUI uses Simpson's 7-level psychomotor; this file uses Harrow's 6-level.
 - [`hattie_3phase_knowledge.md`](hattie_3phase_knowledge.md) — sequencing within any domain (Surface → Deep → Transfer)
 - [`cognitive_load_theory_knowledge.md`](cognitive_load_theory_knowledge.md) — working-memory mechanics; affective load and embodied learning connect here
-- [`blooms_taxonomy_knowledge.md`](blooms_taxonomy_knowledge.md) — deeper cognitive-domain reference (forthcoming; until it exists, Bloom verb lists live in [`taxonomy_explorer_knowledge.md`](taxonomy_explorer_knowledge.md) + [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md))
+- `blooms_taxonomy_knowledge.md` — deeper cognitive-domain reference (forthcoming; until it exists, Bloom verb lists live in [`taxonomy_explorer_knowledge.md`](taxonomy_explorer_knowledge.md) + [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md))
 
 ---
 
@@ -49,7 +49,7 @@ The 2001 revision changed two things: **noun → verb** and **swapped the top tw
 
 The newer version is preferred for new instructional planning.
 
-> Full taxonomy with verb lists: see [`taxonomy_explorer_knowledge.md`](taxonomy_explorer_knowledge.md) + [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md) now; a dedicated [`blooms_taxonomy_knowledge.md`](blooms_taxonomy_knowledge.md) is forthcoming (to be built from the Taxonomy Explorer source).
+> Full taxonomy with verb lists: see [`taxonomy_explorer_knowledge.md`](taxonomy_explorer_knowledge.md) + [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md) now; a dedicated `blooms_taxonomy_knowledge.md` is forthcoming (to be built from the Taxonomy Explorer source).
 
 ---
 
