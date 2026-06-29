@@ -210,7 +210,7 @@ The Inverted Bloom's tag: `ai_agency` ∈ `{ai_dependent, scaffolded, student_ow
 
 ## Toyota Gap Analysis
 
-> Full reference: [`toyota_gap_analysis_knowledge.md`](toyota_gap_analysis_knowledge.md)
+> Full reference: [`toyota_gap_analysis_knowledge.md`](knowledge/toyota_gap_analysis_knowledge.md)
 
 Every finding in the change plan is framed as a Toyota A3 gap: **Current State → Target State → Gap → Root Cause → Countermeasure → Verification**. This replaces flat recommendation lists with root-cause thinking.
 

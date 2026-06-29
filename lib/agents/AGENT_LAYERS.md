@@ -172,7 +172,7 @@ When you (in Claude Code) run the Canvas course audit in this repo right now, al
 | **Specification** | `lib/agents/canvas_course_expert.md` + `.json` — load these and Claude becomes the audit agent |
 | **Tool / function** | `parse_course_export()`, `analyze_cognitive_load()`, `canvas_api()` etc. — invoked from the runtime |
 
-The Roadmap in [`AGENTS.md`](../AGENTS.md#roadmap) describes the migration: extract the audit capability from the Python CLI tools layer up into a deployable Skill (Layer 2), so any runtime — not just Claude Code — can invoke it.
+The Roadmap in [`AGENTS.md`](../../AGENTS.md#roadmap) describes the migration: extract the audit capability from the Python CLI tools layer up into a deployable Skill (Layer 2), so any runtime — not just Claude Code — can invoke it.
 
 ---
 
