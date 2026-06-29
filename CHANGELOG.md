@@ -11,7 +11,14 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
-(Nothing yet.)
+### Changed
+- **Active Context condensed to brief highlights** (~44 lines, was 176). Each
+  of the latest-5 entries is now a short summary; full per-release detail lives
+  here in CHANGELOG. Removes the verbatim AGENTS.md↔CHANGELOG duplication.
+- **CI guard aligned to the canonical `make_AGENTS` checks** (shipped upstream
+  as [AGENTS-QC-010 + AGENTS-QC-011](https://github.com/chaz-clark/Make-AI-Agents/issues/17), now closed):
+  `test_agents_active_context.py` enforces ≤5 Active Context entries **and**
+  ≤150 lines **and** a ≤25k-token total-file hard cap.
 
 ---
 
