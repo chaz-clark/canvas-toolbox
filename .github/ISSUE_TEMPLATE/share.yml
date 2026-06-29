@@ -6,9 +6,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Easier path:** `./bin/cb-share` (same channel, but it scrubs PII locally + bundles your toolkit version). See [CONTRIBUTING.md](https://github.com/chaz-clark/canvas-toolbox/blob/main/CONTRIBUTING.md#2-share-something-you-built).
+        **Easier path:** `./bin/cb-share` (same channel, but it scrubs PII locally + bundles your toolkit version). See [CONTRIBUTING.md](https://github.com/chaz-clark/canvas-toolbox/blob/main/.github/CONTRIBUTING.md#2-share-something-you-built).
 
-        **Big change?** If your contribution is substantial (>200 lines, touches multiple tools, introduces a new module), the maintainer will likely ask you to convert it into a pull request. Use [the PR path](https://github.com/chaz-clark/canvas-toolbox/blob/main/CONTRIBUTING.md#3-push-code-via-a-pull-request) directly if you'd rather skip the intermediate triage.
+        **Big change?** If your contribution is substantial (>200 lines, touches multiple tools, introduces a new module), the maintainer will likely ask you to convert it into a pull request. Use [the PR path](https://github.com/chaz-clark/canvas-toolbox/blob/main/.github/CONTRIBUTING.md#3-push-code-via-a-pull-request) directly if you'd rather skip the intermediate triage.
 
   - type: textarea
     id: what

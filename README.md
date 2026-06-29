@@ -12,6 +12,97 @@ Built at BYU-Idaho. Designed for all instructors. Works with any Canvas institut
 
 ---
 
+# Getting started
+
+Three small choices before the toolkit is yours:
+
+1. **Pick an IDE** — the app where you'll open files and talk to your AI assistant.
+2. **Pick an AI assistant** — use whichever AI subscription you already have, so you don't pay twice. (If you don't have one, there's a generous free path.)
+3. **Get the toolkit running** — your AI agent walks you through it (recommended), or do the steps yourself.
+
+---
+
+## Step 1 — Pick your IDE
+
+An **IDE** ("integrated development environment") is the app you'll work in. Pick one, download it, and install it like any other application.
+
+| If you… | Use | Free? | Download |
+|---|---|---|---|
+| **have no strong preference** *(the safe default)* | **Visual Studio Code** — the standard, with the largest selection of AI assistant extensions | yes | [code.visualstudio.com](https://code.visualstudio.com/) |
+| **want the AI to drive** *(and want a generous free option built in)* | **Antigravity IDE** — Google's agent-first IDE; Gemini AI is built in, no separate extension needed | yes (public preview, full Gemini 3 Pro, no usage limits announced) | [antigravityide.org](https://antigravityide.org/) |
+| **teach data science** *(R, Python, Quarto)* | **Positron** — Posit's data-science IDE, with a built-in AI assistant called *Positron Assistant* | yes | [positron.posit.co/download](https://positron.posit.co/download.html) |
+
+> ⚠️ **About Antigravity IDE:** it has Gemini built in and is **locked to Gemini** — you can't plug a ChatGPT, Claude, or Copilot subscription into it. Pick Antigravity if you're happy using Gemini (free now, paid tiers available). If you have a ChatGPT, Claude, or Copilot subscription you want to use, pick **Visual Studio Code** here and the matching extension in Step 2.
+
+> 🐳 **Advanced — running the toolkit across several courses at once:** If you teach multiple courses and want to work them in parallel, **[Orca](https://github.com/stablyai/orca)** ([onorca.dev](https://onorca.dev)) is an alternative to a single IDE. It's an agent-orchestration workspace — desktop app plus a mobile companion, on macOS / Windows / Linux — that runs several AI coding agents at the same time, each in its own isolated git worktree. You can drive one course's grading run while another course's health audit runs beside it, then review and merge each independently. It's agent-agnostic (not locked to any one AI vendor) and integrates with GitHub directly. This is power-user territory — most faculty should start with **Visual Studio Code** above and reach for Orca only once juggling several course repos becomes the bottleneck.
+
+---
+
+## Step 2 — Pick your AI assistant
+
+Use the subscription you **already have** so you don't pay twice. In your IDE, open the **Extensions panel** (the icon that looks like four squares on the side bar), search by the name below, click **Install**, then **sign in** when it prompts you.
+
+| You already have… | Install this | Sign in with | Link |
+|---|---|---|---|
+| **ChatGPT** *(Plus / Pro / Business / Edu / Enterprise)* | **Codex — OpenAI's coding agent** | your ChatGPT account | [Marketplace](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt) |
+| **Claude** *(Pro / Team / Max)* | **Claude Code** *(official Anthropic extension)* | your Claude account | [Marketplace](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code) |
+| **GitHub Copilot** | **GitHub Copilot** + **GitHub Copilot Chat** | your GitHub account | [Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) · [Copilot Chat](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) |
+| **Local models (Ollama)** *(no subscription, no cloud, data stays on your machine)* | **Continue.dev** (preferred) — or **Cline** as an alternative — both open-source agentic extensions; configure with your local Ollama models | no account — set the Ollama backend in the extension's settings | [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.continue) · [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev) · [Ollama](https://ollama.com) |
+| **None of those** | Use **Antigravity IDE** instead of VS Code (from Step 1) — it's free, no extension to install, Gemini is built in | a Google account | [antigravityide.org](https://antigravityide.org/) |
+
+> 💡 **A common mix-up:** GitHub Copilot is a *separate* Microsoft/GitHub subscription — it does **not** connect to a ChatGPT account, even though they're both AI tools. If you have ChatGPT Plus, install **Codex** (first row). If you have Copilot, install **Copilot** (third row). Each is tied to its own account.
+
+> 🦙 **About Ollama + Continue.dev / Cline:** Both are open-source and fully agentic — they read files, run terminal commands, edit code, the same workflow as the cloud extensions above. **Continue.dev** is the safer first pick (Apache 2.0, broader adoption, more stable backend abstraction). **Cline** is a strong alternative — newer but capable for the same workflow. Both are local-first; nothing leaves your machine. Good fit for FERPA-strict institutions or cost-conscious workflows. The honest trade: today's local code models (e.g. `qwen2.5-coder`, `deepseek-coder-v2`, `codestral`) handle deterministic + structural work well, but need extra calibration for nuanced prose grading compared to Claude / GPT-4. Start with a recent code-focused model; tune from there.
+
+> 📓 **Positron users:** Positron has a built-in **Positron Assistant** — you don't need to install an extension for AI help. Skip Step 2 and go to Step 3.
+
+---
+
+## Step 3 — Get the toolkit running
+
+**Create an empty folder on your computer, open it in the IDE you set up in Steps 1 and 2, and paste this prompt to your AI assistant:**
+
+> *"Help me set up Canvas Toolbox for my Canvas course. Please clone https://github.com/chaz-clark/canvas-toolbox into this folder, run `cb-init` to bootstrap everything, and walk me through filling in my Canvas credentials when it pauses."*
+
+That's it. `cb-init` is our one-command bootstrap — it installs `uv` and Python, writes a `.env` stub, syncs dependencies, smoke-tests your Canvas API token, and is **idempotent** (safe to re-run). You'll just need to provide three pieces of information when it asks:
+
+- **Course ID** — the number after `/courses/` in your Canvas course URL
+- **API token** — Canvas → Account → Settings → Approved Integrations → New Access Token (requires instructor or admin role)
+- **Institution URL** — your Canvas login address (e.g., `https://your-institution.instructure.com`)
+
+Total time on a fresh machine: ~5 minutes (most of it is the agent installing dependencies in the background).
+
+---
+
+### If a colleague is setting it up for you
+
+Just hand them those three pieces of information in this format:
+
+```
+CANVAS_API_TOKEN=your_token_here
+CANVAS_BASE_URL=https://your-institution.instructure.com
+CANVAS_COURSE_ID=123456
+```
+
+They'll handle the rest.
+
+---
+
+> **Already have an older canvas-toolbox setup?** Ask your agent to run `python3 canvas-toolbox/scaffold/migrate_to_clone_layout.py` — it dry-runs by default, reports what it would change, and only writes when you re-run with `--apply`.
+
+---
+
+## What you'll do most
+
+Three core jobs — jump straight in, or skim the full workflow list further down.
+
+| 🏗️ **Build & revise** | 🔍 **Audit & improve** | ✅ **Grade** |
+|:-:|:-:|:-:|
+| Add or revise modules, assessments, and rubrics in a course you already teach — or design a new one from scratch. Built backward from outcomes, guided by 20+ pedagogical knowledge files. | Run read-only health audits — alignment, accessibility, workload, Title IV UW/UF — and get a prioritized fix list. Nothing changes without your say-so. | Fetch → de-identify → 3-pass consensus → edit in your voice → push, gated end-to-end. The AI never signs its name; you do. |
+| [Build or improve a course →](#architecting-a-course-with-ai-assistance) | [Audit your course →](#auditing-your-course) | [Grade an assignment →](#grading-an-assignment) |
+
+---
+
 ## What it looks like in practice
 
 A consensus grading run finishes. Three things land in your review folder. Nothing pushes to Canvas yet — that's your call:
@@ -121,86 +212,6 @@ Audit which gates fired in a push from the per-row console output + `.push_log.m
 
 ---
 
-# Getting started
-
-Three small choices before the toolkit is yours:
-
-1. **Pick an IDE** — the app where you'll open files and talk to your AI assistant.
-2. **Pick an AI assistant** — use whichever AI subscription you already have, so you don't pay twice. (If you don't have one, there's a generous free path.)
-3. **Get the toolkit running** — your AI agent walks you through it (recommended), or do the steps yourself.
-
-You don't have to be a developer. The agent handles the technical bits; you answer its questions.
-
----
-
-## Step 1 — Pick your IDE
-
-An **IDE** ("integrated development environment") is the app you'll work in. Pick one, download it, and install it like any other application.
-
-| If you… | Use | Free? | Download |
-|---|---|---|---|
-| **have no strong preference** *(the safe default)* | **Visual Studio Code** — the standard, with the largest selection of AI assistant extensions | yes | [code.visualstudio.com](https://code.visualstudio.com/) |
-| **want the AI to drive** *(and want a generous free option built in)* | **Antigravity IDE** — Google's agent-first IDE; Gemini AI is built in, no separate extension needed | yes (public preview, full Gemini 3 Pro, no usage limits announced) | [antigravityide.org](https://antigravityide.org/) |
-| **teach data science** *(R, Python, Quarto)* | **Positron** — Posit's data-science IDE, with a built-in AI assistant called *Positron Assistant* | yes | [positron.posit.co/download](https://positron.posit.co/download.html) |
-
-> ⚠️ **About Antigravity IDE:** it has Gemini built in and is **locked to Gemini** — you can't plug a ChatGPT, Claude, or Copilot subscription into it. Pick Antigravity if you're happy using Gemini (free now, paid tiers available). If you have a ChatGPT, Claude, or Copilot subscription you want to use, pick **Visual Studio Code** here and the matching extension in Step 2.
-
----
-
-## Step 2 — Pick your AI assistant
-
-Use the subscription you **already have** so you don't pay twice. In your IDE, open the **Extensions panel** (the icon that looks like four squares on the side bar), search by the name below, click **Install**, then **sign in** when it prompts you.
-
-| You already have… | Install this | Sign in with | Link |
-|---|---|---|---|
-| **ChatGPT** *(Plus / Pro / Business / Edu / Enterprise)* | **Codex — OpenAI's coding agent** | your ChatGPT account | [Marketplace](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt) |
-| **Claude** *(Pro / Team / Max)* | **Claude Code** *(official Anthropic extension)* | your Claude account | [Marketplace](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code) |
-| **GitHub Copilot** | **GitHub Copilot** + **GitHub Copilot Chat** | your GitHub account | [Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) · [Copilot Chat](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) |
-| **Local models (Ollama)** *(no subscription, no cloud, data stays on your machine)* | **Continue.dev** (preferred) — or **Cline** as an alternative — both open-source agentic extensions; configure with your local Ollama models | no account — set the Ollama backend in the extension's settings | [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.continue) · [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev) · [Ollama](https://ollama.com) |
-| **None of those** | Use **Antigravity IDE** instead of VS Code (from Step 1) — it's free, no extension to install, Gemini is built in | a Google account | [antigravityide.org](https://antigravityide.org/) |
-
-> 💡 **A common mix-up:** GitHub Copilot is a *separate* Microsoft/GitHub subscription — it does **not** connect to a ChatGPT account, even though they're both AI tools. If you have ChatGPT Plus, install **Codex** (first row). If you have Copilot, install **Copilot** (third row). Each is tied to its own account.
-
-> 🦙 **About Ollama + Continue.dev / Cline:** Both are open-source and fully agentic — they read files, run terminal commands, edit code, the same workflow as the cloud extensions above. **Continue.dev** is the safer first pick (Apache 2.0, broader adoption, more stable backend abstraction). **Cline** is a strong alternative — newer but capable for the same workflow. Both are local-first; nothing leaves your machine. Good fit for FERPA-strict institutions or cost-conscious workflows. The honest trade: today's local code models (e.g. `qwen2.5-coder`, `deepseek-coder-v2`, `codestral`) handle deterministic + structural work well, but need extra calibration for nuanced prose grading compared to Claude / GPT-4. Start with a recent code-focused model; tune from there.
-
-> 📓 **Positron users:** Positron has a built-in **Positron Assistant** — you don't need to install an extension for AI help. Skip Step 2 and go to Step 3.
-
----
-
-## Step 3 — Get the toolkit running
-
-**Create an empty folder on your computer, open it in the IDE you set up in Steps 1 and 2, and paste this prompt to your AI assistant:**
-
-> *"Help me set up Canvas Toolbox for my Canvas course. Please clone https://github.com/chaz-clark/canvas-toolbox into this folder, run `cb-init` to bootstrap everything, and walk me through filling in my Canvas credentials when it pauses."*
-
-That's it. `cb-init` is our one-command bootstrap — it installs `uv` and Python, writes a `.env` stub, syncs dependencies, smoke-tests your Canvas API token, and is **idempotent** (safe to re-run). You'll just need to provide three pieces of information when it asks:
-
-- **Course ID** — the number after `/courses/` in your Canvas course URL
-- **API token** — Canvas → Account → Settings → Approved Integrations → New Access Token (requires instructor or admin role)
-- **Institution URL** — your Canvas login address (e.g., `https://your-institution.instructure.com`)
-
-Total time on a fresh machine: ~5 minutes (most of it is the agent installing dependencies in the background).
-
----
-
-### If a colleague is setting it up for you
-
-Just hand them those three pieces of information in this format:
-
-```
-CANVAS_API_TOKEN=your_token_here
-CANVAS_BASE_URL=https://your-institution.instructure.com
-CANVAS_COURSE_ID=123456
-```
-
-They'll handle the rest.
-
----
-
-> **Already have an older canvas-toolbox setup?** Ask your agent to run `python3 canvas-toolbox/scaffold/migrate_to_clone_layout.py` — it dry-runs by default, reports what it would change, and only writes when you re-run with `--apply`.
-
----
-
 # Architecting a course with AI assistance
 
 **Canvas Toolbox isn't only for existing courses — the agent can help you build one.**
@@ -307,7 +318,7 @@ Fetch → de-identify → grade → review → push. The AI never sees a student
 
 The push surface refuses by default in the dangerous direction. Every refusal has a documented opt-out flag.
 
-**Full grading pipeline:** [`grading_readme.md`](grading_readme.md) — canonical folder layout + 8-step pipeline + dual-push pattern + setup interview.
+**Full grading pipeline:** [`grading_readme.md`](docs/grading_readme.md) — canonical folder layout + 8-step pipeline + dual-push pattern + setup interview.
 
 ---
 
@@ -502,6 +513,6 @@ The architecture (FERPA two-zone, voice-preservation contract, consensus-based g
 
 ---
 
-**Current version:** v0.72.1 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 605 unit tests · 20+ pedagogical knowledge files for AI-architected course design · BYUI SAS accommodation dispatcher (quiz time extension + late-work + test reschedule) · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
+**Current version:** v0.72.2 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 605 unit tests · 20+ pedagogical knowledge files for AI-architected course design · BYUI SAS accommodation dispatcher (quiz time extension + late-work + test reschedule) · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
 
 For help, see the doc tree above or file a `cb-report-bug` (~1 second roundtrip; no GitHub account needed).

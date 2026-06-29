@@ -5,13 +5,34 @@ Changelog](https://keepachangelog.com/). Versioning follows [SemVer](https://sem
 on the `v0.x` line (canonical — see [AGENTS.md → Active Context](AGENTS.md#active-context)
 for the versioning rationale).
 
-For migration help between versions, see [UPGRADING.md](UPGRADING.md).
+For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
 ## [Unreleased]
 
 (Nothing yet.)
+
+---
+
+## [0.72.2] — 2026-06-29
+
+Docs/structure patch — marketing-ready landing experience. No code or test
+changes (605 tests unchanged).
+
+### Changed
+- **Setup moved to the top of the README** — `Getting started` (Steps 1–3)
+  now follows the tagline immediately, ahead of the pitch sections.
+- **Added a three-box launchpad** ("What you'll do most": Build & revise ·
+  Audit & improve · Grade), each linking to its deep section.
+- **Added an advanced multi-course option** (Orca) to Step 1, for running the
+  toolkit across several course repos in parallel — alternative to a single IDE.
+
+### Moved
+- Decluttered the repo root listing (18 → 12 tracked files): community-health
+  files (`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`) → `.github/`
+  (still GitHub-detected); long docs (`UPGRADING.md`, `grading_readme.md`) →
+  `docs/`. All internal links repointed; 0 broken links repo-wide.
 
 ---
 

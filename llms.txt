@@ -8,7 +8,7 @@ This file follows the `llms.txt` convention ([llmstxt.org](https://llmstxt.org))
 
 - [README.md](README.md): What canvas-toolbox does + install + three share-back paths + tiered "Getting started" (one-liner / 3-line / agent-driven / manual).
 - [AGENTS.md](AGENTS.md): Active Context (what's where, current state, recent versions). Read this BEFORE acting on anything project-related.
-- [CONTRIBUTING.md](CONTRIBUTING.md): Three contribution shapes (bug report / share-back / PR) with pre-commit + tests requirements.
+- [CONTRIBUTING.md](.github/CONTRIBUTING.md): Three contribution shapes (bug report / share-back / PR) with pre-commit + tests requirements.
 - [CHANGELOG.md](CHANGELOG.md): Version history (hand-curated, sectioned).
 - [scripts/install.sh](scripts/install.sh): One-line curl-pipe install for macOS/Linux.
 - [scripts/install.ps1](scripts/install.ps1): One-line `irm | iex` install for Windows.
@@ -91,4 +91,4 @@ Zero GitHub account required for the first three.
 
 ## Security disclosures
 
-DO NOT file FERPA-class issues or credential exposures as public issues. Use GitHub's Private Vulnerability Reporting: <https://github.com/chaz-clark/canvas-toolbox/security/advisories/new>. See [SECURITY.md](SECURITY.md).
+DO NOT file FERPA-class issues or credential exposures as public issues. Use GitHub's Private Vulnerability Reporting: <https://github.com/chaz-clark/canvas-toolbox/security/advisories/new>. See [SECURITY.md](.github/SECURITY.md).

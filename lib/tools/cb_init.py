@@ -480,13 +480,13 @@ def step_8_surface_docs(*, mode: str) -> bool:
     print("Next:")
     print("  • Read " + str(REPO_ROOT) + "/AGENTS.md — Active Context tells you what's where")
     print("  • Tools under lib/tools/ — try `uv run python lib/tools/course_audit.py --help`")
-    print("  • For grading workflows, see grading_readme.md + lib/agents/canvas_grader.md")
+    print("  • For grading workflows, see docs/grading_readme.md + lib/agents/canvas_grader.md")
     if mode == "adopter":
         print("  • Share back — three zero-friction paths (no GitHub account needed):")
         print("      ./bin/cb-report-bug    bug: <description>          # toolkit broke")
         print("      ./bin/cb-report-bug    enhancement: <description>  # want a feature")
         print("      ./bin/cb-share         share: <description>        # built something to contribute")
-        print("    See README → 'How can you share back?' or CONTRIBUTING.md for the full shape.")
+        print("    See README → 'How can you share back?' or .github/CONTRIBUTING.md for the full shape.")
     else:
         print("  • [maintainer mode] share-back hints suppressed; you ARE the maintainer.")
     print()

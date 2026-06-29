@@ -22,13 +22,13 @@ Built at BYU-Idaho, designed for all instructors. Works with any Canvas institut
 - **Build a Course Map & Schedule** — generate an Architects-of-Learning–style course map (CLOs, per-module outcomes, 14-week schedule, pacing analysis) from your Canvas course
 - **Score your syllabus against the BYU-I Completeness Rubric** — 25 specific items with link-presence detection for required policy links (Grievance / FERPA / Honor Code / Policy Library)
 - **Pull New Quiz response data** — the New Quizzes API doesn't expose per-student responses directly, but `grader_fetch_nq_responses` reads them via the student-analysis report. Returns per-student file-upload filenames + per-question answers + scores. Useful for stand-up / weekly-check-in quizzes where filename-pattern checking (`--extract-filename-dates`) replaces manual SpeedGrader passes. FERPA-safe by default (uid-keyed; names opt-in via `--include-names`).
-- **Grade an assignment end-to-end, FERPA-safe** — fetch submissions (keyed by `user_id`, no name in any filename), de-identify, run N independent grader passes, consensus + spread auto-flag for borderlines, specs-grading reconciliation with `@100%`-credit counts, edit comments in one compiled doc, push gated behind `--mark-reviewed`. The AI never sees a student name. See **[`grading_readme.md`](grading_readme.md)** for the canonical folder layout + 8-step pipeline + dual-push pattern + setup interview.
-- **Share your grader with another faculty teaching the same course** — `grader_export.py` bundles your rubrics, task specs, per-challenge configs, and course-level voice pitfalls into a single ZIP; `grader_import.py` extracts it into the receiving faculty's repo. **Your per-instructor voice file is NEVER in the export** (voice-preservation contract from [`voice_coaching_knowledge.md §1`](lib/agents/knowledge/voice_coaching_knowledge.md)). The receiving faculty builds their own voice via the articulation interview. FERPA-protected data (student work, feedback, grading artifacts) is also never in the export. Hard-refuses to import into an older toolkit version. See **[`grader_knowledge.md §17`](lib/agents/knowledge/grader_knowledge.md)**.
+- **Grade an assignment end-to-end, FERPA-safe** — fetch submissions (keyed by `user_id`, no name in any filename), de-identify, run N independent grader passes, consensus + spread auto-flag for borderlines, specs-grading reconciliation with `@100%`-credit counts, edit comments in one compiled doc, push gated behind `--mark-reviewed`. The AI never sees a student name. See **[`grading_readme.md`](../../docs/grading_readme.md)** for the canonical folder layout + 8-step pipeline + dual-push pattern + setup interview.
+- **Share your grader with another faculty teaching the same course** — `grader_export.py` bundles your rubrics, task specs, per-challenge configs, and course-level voice pitfalls into a single ZIP; `grader_import.py` extracts it into the receiving faculty's repo. **Your per-instructor voice file is NEVER in the export** (voice-preservation contract from [`voice_coaching_knowledge.md §1`](../../lib/agents/knowledge/voice_coaching_knowledge.md)). The receiving faculty builds their own voice via the articulation interview. FERPA-protected data (student work, feedback, grading artifacts) is also never in the export. Hard-refuses to import into an older toolkit version. See **[`grader_knowledge.md §17`](../../lib/agents/knowledge/grader_knowledge.md)**.
 - **Roll out a new semester** — sync your master course to a Blueprint and let Canvas handle section distribution
 
 **About the reports:** every audit/analysis tool below produces a **paired `.md` + `.pdf`** when you use `--report <name>.md`. The PDF is the faculty-friendly default (Chrome headless render); the MD is the editable source. If Chrome isn't installed the audit still runs and writes the `.md`; the agent can also explain any report aloud if you'd rather skip the file.
 
-Full knowledge base and agent framework references: [`lib/agents/knowledge/README.md`](lib/agents/knowledge/README.md)
+Full knowledge base and agent framework references: [`lib/agents/knowledge/README.md`](../../lib/agents/knowledge/README.md)
 
 ---
 
@@ -41,7 +41,7 @@ Three paths — pick the one that fits what you're sharing:
 | **Report a bug** (toolkit deviated from documented behavior, surprising exit code, wrong output) | `cb-report-bug` with title `bug: <short description>` | Files an issue on `chaz-clark/canvas-toolbox` tagged `agent-submitted`. No GitHub account / `gh` CLI / browser auth required. ~1 second roundtrip. |
 | **Request a feature** (something the toolkit should do but doesn't) | `cb-report-bug` with title `enhancement: <short description>` | Same path; the title prefix tells the maintainer how to triage. |
 | **Share something you built** (a new tool, a config pattern, a workflow extension) | `cb-share` with title `share: <short description>` + a body that links to a gist/branch OR pastes the code/config | Same path; the `share:` prefix tells the maintainer this is contribution-shaped (already built locally) — distinct from `enhancement:` (asked for, not yet built). |
-| **Push code via a PR** (you already have a branch you want merged) | Standard GitHub PR workflow | See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the fork → branch → PR shape. The `cb-share` path is the lighter-weight alternative when a PR feels heavy. |
+| **Push code via a PR** (you already have a branch you want merged) | Standard GitHub PR workflow | See [`CONTRIBUTING.md`](../../.github/CONTRIBUTING.md) for the fork → branch → PR shape. The `cb-share` path is the lighter-weight alternative when a PR feels heavy. |
 
 ## The zero-friction commands
 
@@ -72,7 +72,7 @@ gh issue create -R chaz-clark/canvas-toolbox      # if you have gh + a GitHub ac
 
 Or go directly: <https://github.com/chaz-clark/canvas-toolbox/issues/new>.
 
-The maintainer triages from the `agent-submitted` label. Worker design + maintainer ops: [`infra/bug-intake-worker/README.md`](infra/bug-intake-worker/README.md).
+The maintainer triages from the `agent-submitted` label. Worker design + maintainer ops: [`infra/bug-intake-worker/README.md`](../../infra/bug-intake-worker/README.md).
 
 ---
 
@@ -469,7 +469,7 @@ uv run python canvas_toolbox/lib/tools/syllabus_audit.py --rubric
 
 Scores your syllabus against **25 specific items** across 11 categories (the BYU-I Syllabus Completeness Rubric: 0 = missing / 1 = thin / 2 = complete). Includes link-presence detection for required policy links (Student Grievance, CES Honor Code, Academic Honesty, FERPA, Policy Library — a keyword mention without an `<a href=>` scores lower than one with the link). Outputs a per-item table, category groupings, and a total signal score. Use `--rubric --detailed` to also print the 9-section umbrella audit.
 
-The rubric template + canonical BYU-I syllabus template are at [`lib/agents/templates/syllabus_completeness_rubric.md`](lib/agents/templates/syllabus_completeness_rubric.md) and [`lib/agents/templates/byui_syllabus_template.md`](lib/agents/templates/byui_syllabus_template.md).
+The rubric template + canonical BYU-I syllabus template are at [`lib/agents/templates/syllabus_completeness_rubric.md`](../../lib/agents/templates/syllabus_completeness_rubric.md) and [`lib/agents/templates/byui_syllabus_template.md`](../../lib/agents/templates/byui_syllabus_template.md).
 
 ## "Is my syllabus complete?"
 
@@ -622,7 +622,7 @@ Common variants:
 - `--course 415320 --output-md /tmp/my_map.md` — pull a specific course instead of `MASTER_COURSE_ID`
 - `--class-days "Mon,Wed"` — override auto-detected meeting days (or set `CLASS_DAYS` env var)
 
-The committed template lives at [`lib/agents/templates/course_map_blank.md`](lib/agents/templates/course_map_blank.md). Pass 1 patterns + 19 lessons captured at [`lib/agents/knowledge/learned/2026-06-05_course-map-from-canvas-pass-1-lessons.md`](lib/agents/knowledge/learned/2026-06-05_course-map-from-canvas-pass-1-lessons.md).
+The committed template lives at [`lib/agents/templates/course_map_blank.md`](../../lib/agents/templates/course_map_blank.md). Pass 1 patterns + 19 lessons captured at [`lib/agents/knowledge/learned/2026-06-05_course-map-from-canvas-pass-1-lessons.md`](../../lib/agents/knowledge/learned/2026-06-05_course-map-from-canvas-pass-1-lessons.md).
 
 ---
 

@@ -8,7 +8,7 @@ body:
       value: |
         **Easier path:** if you have the toolkit installed, run `./bin/cb-report-bug` instead — same channel, scrubs PII, auto-bundles your toolkit version. See [the README](https://github.com/chaz-clark/canvas-toolbox/blob/main/README.md#how-can-you-share-back).
 
-        **Already built it?** Use the `share:` prefix instead (or run `./bin/cb-share`) — the maintainer triages "I built this" differently from "I want this." See [CONTRIBUTING.md](https://github.com/chaz-clark/canvas-toolbox/blob/main/CONTRIBUTING.md).
+        **Already built it?** Use the `share:` prefix instead (or run `./bin/cb-share`) — the maintainer triages "I built this" differently from "I want this." See [CONTRIBUTING.md](https://github.com/chaz-clark/canvas-toolbox/blob/main/.github/CONTRIBUTING.md).
 
   - type: textarea
     id: use-case

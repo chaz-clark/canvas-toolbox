@@ -220,7 +220,7 @@ Propose a specific title — that's the maintainer's primary triage signal. "tes
 When you're working in a CONSUMER repo (m119-master, ds460-master,
 ds250-onln-master, itm327-master, aol-student, etc.) and you notice
 `canvas-toolbox/` is at an older version than the latest, surface
-[`UPGRADING.md`](UPGRADING.md) at the canvas-toolbox repo root. It carries
+[`UPGRADING.md`](docs/UPGRADING.md) in the canvas-toolbox repo. It carries
 the scenario-driven migration guide (vs. [`CHANGELOG.md`](CHANGELOG.md)
 which is the per-version mechanical record). One-line check:
 
@@ -240,15 +240,46 @@ design (operator control). But agents can and should notice the gap.
 If you find (or the operator surfaces) a path that LEAKS student PII,
 exposes the bug-intake worker's PAT, or otherwise bypasses a FERPA
 gate — **don't file via `cb_report_bug.py`** (it files publicly).
-Follow [`SECURITY.md`](SECURITY.md) instead: email the maintainer
+Follow [`SECURITY.md`](.github/SECURITY.md) instead: email the maintainer
 directly. The public intake channel is for bugs + enhancements; the
 private channel is for security.
 
 ## Active Context
 
-_Last updated: 2026-06-26_
+_Last updated: 2026-06-29_
 
-### Recent: README polish — surface quiz time extension + fix late-work intro (v0.72.1, 2026-06-26)
+### Recent: README marketing restructure + repo-root declutter (v0.72.2, 2026-06-29)
+
+**v0.72.2** — docs/structure patch to make the landing experience
+marketing-ready. No code or test changes (605 tests unchanged).
+
+1. **Setup moved to the top.** `# Getting started` (Steps 1–3) now
+   follows the tagline immediately, ahead of the pitch sections — so a
+   visitor lands on "how to get it" first.
+
+2. **Three-box launchpad** ("What you'll do most") added right after
+   setup: **Build & revise · Audit & improve · Grade**, each a
+   clickable jump to its deep section. Build box is worded for the
+   common case (add to / revise an existing course) with from-scratch
+   as the secondary path.
+
+3. **Advanced multi-course option.** Step 1 gains an Orca
+   (stablyai/orca) callout — agent-orchestration workspace for running
+   the toolkit across several course repos in parallel worktrees, as an
+   alternative to a single IDE. Flagged as power-user territory; VS Code
+   stays the default.
+
+4. **Repo-root declutter (18 → 12 tracked files).** Community-health
+   files (`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`) moved
+   to `.github/` (GitHub still auto-detects them); long docs
+   (`UPGRADING.md`, `grading_readme.md`) moved to `docs/`. All internal
+   links across README, AGENTS.md, CHANGELOG, llms.txt, issue templates,
+   a learned-knowledge file, and `cb_init.py` prints were repointed —
+   0 broken links repo-wide. Also re-rooted all 10 relative links in
+   `lib/marketing/README-LEGACY-2026-06-26.md` (8 had been broken since
+   that file moved to `lib/marketing/`).
+
+### Earlier: README polish — surface quiz time extension + fix late-work intro (v0.72.1, 2026-06-26)
 
 **v0.72.1** — docs-only patch addressing three gaps Chaz flagged
 after a post-v0.72.0 README review:
