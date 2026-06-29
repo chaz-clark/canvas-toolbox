@@ -29,8 +29,8 @@ No GitHub account, no `gh` CLI, no browser auth required. The CLI scrubs PII
 locally (names, emails, `/Users/` paths) before posting through a
 Cloudflare-fronted intake worker that files the GitHub issue.
 
-Full docstring + flags: [`lib/tools/cb_report_bug.py`](lib/tools/cb_report_bug.py).
-Worker architecture: [`infra/bug-intake-worker/README.md`](infra/bug-intake-worker/README.md).
+Full docstring + flags: [`lib/tools/cb_report_bug.py`](../lib/tools/cb_report_bug.py).
+Worker architecture: [`infra/bug-intake-worker/README.md`](../infra/bug-intake-worker/README.md).
 
 ---
 
@@ -115,11 +115,11 @@ environment and must pass.
 
 If your change adds a new tool with pure-logic helpers, **please add a
 matching test file** under `lib/tests/test_<your_tool>.py` following the
-existing patterns (e.g. [`test_grader_filename_parsing.py`](lib/tests/test_grader_filename_parsing.py)).
+existing patterns (e.g. [`test_grader_filename_parsing.py`](../lib/tests/test_grader_filename_parsing.py)).
 
 ### What the maintainer reviews
 
-- Does it match the project rules in [`AGENTS.md`](AGENTS.md) → Working Style?
+- Does it match the project rules in [`AGENTS.md`](../AGENTS.md) → Working Style?
   Especially: local-files-are-source-of-truth, match by title not ID, confirm
   scope before any write, run `course_quality_check.py` after Canvas pushes.
 - FERPA discipline (no names in console output, two-zone architecture
@@ -167,6 +167,6 @@ maintainer ~2 minutes to read + reply — much cheaper than reviewing a
 ## License
 
 By contributing, you agree your contribution is licensed under the MIT
-License (see [`LICENSE`](LICENSE)). canvas-toolbox is brain-agnostic by
+License (see [`LICENSE`](../LICENSE)). canvas-toolbox is brain-agnostic by
 design — contributions should keep that property (don't lock the toolkit
 to a specific LLM provider in tools that work without one).
