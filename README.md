@@ -513,6 +513,6 @@ The architecture (FERPA two-zone, voice-preservation contract, consensus-based g
 
 ---
 
-**Current version:** v0.72.2 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 605 unit tests · 20+ pedagogical knowledge files for AI-architected course design · BYUI SAS accommodation dispatcher (quiz time extension + late-work + test reschedule) · ~70 versioned releases since v0.1. Running release log + per-feature rationale in [`AGENTS.md`](AGENTS.md) Active Context.
+**Current version:** v0.72.2 · 11 grading safety gates · Title IV definitions verified 2026-06-26 (next review 2027-06-26) · 605 unit tests · 20+ pedagogical knowledge files for AI-architected course design · BYUI SAS accommodation dispatcher (quiz time extension + late-work + test reschedule) · ~70 versioned releases since v0.1. Full release history in [`CHANGELOG.md`](CHANGELOG.md); recent highlights + rationale in [`AGENTS.md`](AGENTS.md) Active Context.
 
 For help, see the doc tree above or file a `cb-report-bug` (~1 second roundtrip; no GitHub account needed).

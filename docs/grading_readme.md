@@ -7,7 +7,7 @@ This document is the **faculty-facing entry point** — the canonical folder
 layout, the 8-step pipeline, the operational rules, and the link to the deep
 knowledge files for anyone who wants the reasoning. If you're an agent
 reading the repo to drive the pipeline, your spec is
-[`lib/agents/canvas_grader.md`](lib/agents/canvas_grader.md).
+[`lib/agents/canvas_grader.md`](../lib/agents/canvas_grader.md).
 
 ---
 
@@ -66,7 +66,7 @@ working as designed. Only file when the tool deviated from documented
 behavior, or when an enhancement would close a real workflow gap.
 
 Worker design + maintainer ops:
-[`infra/bug-intake-worker/README.md`](infra/bug-intake-worker/README.md).
+[`infra/bug-intake-worker/README.md`](../infra/bug-intake-worker/README.md).
 
 ---
 
@@ -461,7 +461,7 @@ feedback/
 The grader config `outputs[]` array drives this — one entry per layer,
 each with its own `grader_count`, `assignment_id`, `scale`, and optional
 `band_to_score` mapping. See
-[`lib/agents/knowledge/grader_setup_knowledge.md`](lib/agents/knowledge/grader_setup_knowledge.md) §4–§5
+[`lib/agents/knowledge/grader_setup_knowledge.md`](../lib/agents/knowledge/grader_setup_knowledge.md) §4–§5
 for the full config schema.
 
 ---
@@ -573,7 +573,7 @@ The voice file is **learned**, not authored: the first cohort produces a
 calibration set, the instructor edits the phrasing in `_all_comments.md`
 (the compiled review doc), the edits are baked back into the voice file,
 and subsequent cohorts inherit the voice. See
-[`lib/agents/knowledge/grader_voice_knowledge.md`](lib/agents/knowledge/grader_voice_knowledge.md)
+[`lib/agents/knowledge/grader_voice_knowledge.md`](../lib/agents/knowledge/grader_voice_knowledge.md)
 for the structure + the edit-roundtrip protocol.
 
 **One hard rule across all instructors:** never feed back data values to a
@@ -601,7 +601,7 @@ The answer key is a **reference, not a gate**. Many real-world tasks have
 valid alternate approaches; the key informs feedback, it doesn't force one
 right answer into the score.
 
-See [`scaffold/grading/answer_keys/README.md`](scaffold/grading/answer_keys/README.md)
+See [`scaffold/grading/answer_keys/README.md`](../scaffold/grading/answer_keys/README.md)
 for the full convention.
 
 ---
@@ -872,14 +872,14 @@ build when a triggering signal appears:
 
 ### Knowledge files (read these for the reasoning behind the rules)
 
-- [`lib/agents/knowledge/grader_knowledge.md`](lib/agents/knowledge/grader_knowledge.md) — FERPA architecture, holistic scoring, consensus design, prompt-injection guard (sentinel-delimited), wellbeing flags, push gate
-- [`lib/agents/knowledge/grader_voice_knowledge.md`](lib/agents/knowledge/grader_voice_knowledge.md) — per-instructor comment voice, banned terms, edit-roundtrip protocol
-- [`lib/agents/knowledge/grader_setup_knowledge.md`](lib/agents/knowledge/grader_setup_knowledge.md) — the 6-step interview, the three rubric paths, the Classic-quiz mirror pattern
+- [`lib/agents/knowledge/grader_knowledge.md`](../lib/agents/knowledge/grader_knowledge.md) — FERPA architecture, holistic scoring, consensus design, prompt-injection guard (sentinel-delimited), wellbeing flags, push gate
+- [`lib/agents/knowledge/grader_voice_knowledge.md`](../lib/agents/knowledge/grader_voice_knowledge.md) — per-instructor comment voice, banned terms, edit-roundtrip protocol
+- [`lib/agents/knowledge/grader_setup_knowledge.md`](../lib/agents/knowledge/grader_setup_knowledge.md) — the 6-step interview, the three rubric paths, the Classic-quiz mirror pattern
 
 ### Agent specs (read these if you're an agent driving the pipeline)
 
-- [`lib/agents/canvas_grader.md`](lib/agents/canvas_grader.md) — the operator-facing pipeline spec; the agent reads this end-to-end before running any cohort
-- [`lib/agents/canvas_grader.json`](lib/agents/canvas_grader.json) — agent system prompt + tool roster
+- [`lib/agents/canvas_grader.md`](../lib/agents/canvas_grader.md) — the operator-facing pipeline spec; the agent reads this end-to-end before running any cohort
+- [`lib/agents/canvas_grader.json`](../lib/agents/canvas_grader.json) — agent system prompt + tool roster
 
 ### Tools
 

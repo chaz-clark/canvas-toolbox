@@ -2,7 +2,7 @@
 
 For early adopters running an older version (v0.35.x and earlier). This
 is the migration guide; for the mechanical per-version diff, see
-[`CHANGELOG.md`](CHANGELOG.md).
+[`CHANGELOG.md`](../CHANGELOG.md).
 
 Usage is still small enough (a handful of consumer repos as of
 2026-06-15) that we can be specific about what changed and how to
@@ -143,7 +143,7 @@ uv run python canvas-toolbox/lib/tools/cb_report_bug.py
 
 No GitHub account needed. Title prefix `bug:` or `enhancement:`. The CLI
 scrubs PII locally before posting. See
-[`AGENTS.md → Continuous improvement`](AGENTS.md#continuous-improvement--bugs--enhancements)
+[`AGENTS.md → Continuous improvement`](../AGENTS.md#continuous-improvement--bugs--enhancements)
 for the full DO / DO-NOT calibration if you're an agent operating in
 this repo.
 
