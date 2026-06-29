@@ -2,7 +2,7 @@
 
 `canvas-toolbox` touches student data through Canvas. The whole architecture
 is built on FERPA discipline (see the two-zone boundary in
-[`grading_readme.md`](grading_readme.md)). A security flaw — particularly
+[`grading_readme.md`](../docs/grading_readme.md)). A security flaw — particularly
 one that could leak student PII past the deid layer or expose the bug-intake
 worker's PAT — has higher stakes than a normal bug.
 

@@ -110,7 +110,7 @@ rm /tmp/pat.txt
 - [`infra/bug-intake-worker/MAINTENANCE.local.md`](../../../../infra/bug-intake-worker/MAINTENANCE.local.md)
   — operator runbook with the terminal-only flow as canonical;
   `.env.local` path documented as fallback only.
-- [`SECURITY.md`](../../../../SECURITY.md) — vulnerability reporting
+- [`SECURITY.md`](../../../../.github/SECURITY.md) — vulnerability reporting
   policy. A leaked PAT *is* a security issue (even when narrowly
   scoped); follow that policy if the exposure was on a public
   surface, not just same-session context.
