@@ -15,6 +15,12 @@ Usage:
     --list   Show current questions in Canvas for this quiz (no changes)
     --clear  Delete all existing questions (no create)
 
+    # NGAI Integration: Student-view fetch (no answers)
+    uv run python tools/canvas_quiz_questions.py --list <file.json> --mode student_view --json
+
+    # NGAI Integration: Instructor-view fetch (with answers)
+    uv run python tools/canvas_quiz_questions.py --list <file.json> --mode instructor_view --json
+
 Question file format (.questions.json):
     {
       "canvas_quiz_id": 5911959,
@@ -43,10 +49,15 @@ Supported question_type values:
     multiple_answers_question  — "select all that apply", multiple answers with weight 100
     essay_question             — open response, no answers needed
 
+Access modes (--mode):
+    instructor_view  (default) — includes answer weights (correct answer indicators)
+    student_view               — strips answer weights and correct answer indicators
+
 Notes:
     - --push always clears existing questions first (fully idempotent)
     - Classic quizzes only. NewQuiz (external_tool) questions cannot be managed via REST API.
     - After pushing questions, Canvas recalculates points_possible on the quiz automatically.
+    - student_view mode is designed for NGAI peer/QC agent workflows (Feature 2)
 """
 
 import argparse
@@ -111,6 +122,36 @@ def _delete_question(course_id: str, quiz_id: int, question_id: int) -> bool:
     return r.status_code in (200, 204)
 
 
+def _filter_student_view(questions: list) -> list:
+    """
+    Strip answer weights and correct answer indicators for student_view mode.
+    Returns a copy of questions with answer weights set to None.
+    """
+    filtered = []
+    for q in questions:
+        q_copy = q.copy()
+        if "answers" in q_copy and q_copy["answers"]:
+            # Strip weight from each answer (keep answer_text but remove correctness indicator)
+            q_copy["answers"] = [
+                {
+                    "id": a.get("id"),
+                    "text": a.get("text") or a.get("answer_text", ""),
+                    "html": a.get("html", ""),
+                    # weight and correct answer comments are omitted in student_view
+                }
+                for a in q_copy["answers"]
+            ]
+        # Also strip correct/incorrect/neutral comments
+        q_copy.pop("correct_comments", None)
+        q_copy.pop("correct_comments_html", None)
+        q_copy.pop("incorrect_comments", None)
+        q_copy.pop("incorrect_comments_html", None)
+        q_copy.pop("neutral_comments", None)
+        q_copy.pop("neutral_comments_html", None)
+        filtered.append(q_copy)
+    return filtered
+
+
 def _create_question(course_id: str, quiz_id: int, q: dict) -> dict:
     payload = {
         "question": {
@@ -146,23 +187,62 @@ def _create_question(course_id: str, quiz_id: int, q: dict) -> dict:
     return r.json()
 
 
-def cmd_list(file_path: str):
+def cmd_list(file_path: str, mode: str = "instructor_view", emit_json: bool = False):
     _check_env()
     data = _load_file(file_path)
     quiz_id = data.get("canvas_quiz_id")
     course_id = str(data.get("course_id") or DEFAULT_COURSE_ID)
     if not quiz_id or not course_id:
-        print("ERROR: canvas_quiz_id and course_id required in question file.")
-        sys.exit(1)
+        print("ERROR: canvas_quiz_id and course_id required in question file.", file=sys.stderr)
+        sys.exit(2)
 
     questions = _get_questions(course_id, quiz_id)
-    print(f"Quiz {quiz_id} in course {course_id}: {len(questions)} question(s)\n")
+
+    if not questions:
+        if emit_json:
+            print(json.dumps({
+                "tool": "canvas_quiz_questions",
+                "quiz_id": quiz_id,
+                "course_id": course_id,
+                "mode": mode,
+                "question_count": 0,
+                "questions": []
+            }, indent=2))
+        else:
+            print(f"Quiz {quiz_id} in course {course_id}: 0 questions")
+        sys.exit(1)
+
+    # Apply student_view filter if requested
+    if mode == "student_view":
+        questions = _filter_student_view(questions)
+
+    # JSON output for n8n integration
+    if emit_json:
+        output = {
+            "tool": "canvas_quiz_questions",
+            "quiz_id": quiz_id,
+            "course_id": course_id,
+            "mode": mode,
+            "question_count": len(questions),
+            "questions": questions
+        }
+        print(json.dumps(output, indent=2))
+        return
+
+    # Human-readable output (existing behavior)
+    print(f"Quiz {quiz_id} in course {course_id}: {len(questions)} question(s) [mode: {mode}]\n")
     for i, q in enumerate(questions, 1):
         print(f"  {i}. [{q['id']}] {q.get('question_name')} ({q.get('question_type')}, {q.get('points_possible')}pt)")
         print(f"     {q.get('question_text', '')[:100]}")
         for a in q.get("answers", []):
-            correct = "✓" if a.get("weight", 0) == 100 else " "
-            print(f"     {correct} {a.get('text', a.get('answer_text', ''))}")
+            # In instructor_view, show correct answer indicator; in student_view, weight is already stripped
+            if mode == "instructor_view":
+                correct = "✓" if a.get("weight", 0) == 100 else " "
+                answer_text = a.get('text', a.get('answer_text', ''))
+            else:
+                correct = " "
+                answer_text = a.get('text', '')
+            print(f"     {correct} {answer_text}")
         print()
 
 
@@ -228,17 +308,39 @@ def cmd_push(file_path: str):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Manage classic Canvas quiz questions from a local JSON file"
+        description="Manage classic Canvas quiz questions from a local JSON file",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # List quiz questions (instructor view, human-readable)
+  uv run python lib/tools/canvas_quiz_questions.py --list quiz.questions.json
+
+  # List quiz questions for NGAI student-view peer agent (no answers, JSON)
+  uv run python lib/tools/canvas_quiz_questions.py --list quiz.questions.json --mode student_view --json
+
+  # List quiz questions for NGAI QC agent (with answers, JSON)
+  uv run python lib/tools/canvas_quiz_questions.py --list quiz.questions.json --mode instructor_view --json
+
+Exit codes:
+  0 = success
+  1 = quiz not found or no questions
+  2 = configuration error
+"""
     )
     parser.add_argument("--push",  metavar="FILE", help="Clear existing + create from file (idempotent)")
     parser.add_argument("--list",  metavar="FILE", help="List current questions in Canvas")
     parser.add_argument("--clear", metavar="FILE", help="Delete all existing questions")
+    parser.add_argument("--mode", choices=["student_view", "instructor_view"],
+                       default="instructor_view",
+                       help="Access mode: student_view (no answers) or instructor_view (with answers). Default: instructor_view")
+    parser.add_argument("--json", action="store_true", dest="emit_json",
+                       help="Output structured JSON (for n8n integration)")
     args = parser.parse_args()
 
     if args.push:
         cmd_push(args.push)
     elif args.list:
-        cmd_list(args.list)
+        cmd_list(args.list, mode=args.mode, emit_json=args.emit_json)
     elif args.clear:
         cmd_clear(args.clear)
     else:

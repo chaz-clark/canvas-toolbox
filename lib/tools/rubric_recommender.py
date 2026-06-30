@@ -43,6 +43,7 @@ Usage:
   uv run python canvas_toolbox/lib/tools/rubric_recommender.py --course-id 145706
   uv run python canvas_toolbox/lib/tools/rubric_recommender.py --assignment-id 123
   uv run python canvas_toolbox/lib/tools/rubric_recommender.py --json
+  uv run python canvas_toolbox/lib/tools/rubric_recommender.py --output yaml  # NGAI teaching sheet
   uv run python canvas_toolbox/lib/tools/rubric_recommender.py --apply      # writes
 
 Requires in .env: CANVAS_API_TOKEN, CANVAS_BASE_URL, and the --target env var
@@ -58,6 +59,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import yaml
 import re
 import sys
 from datetime import datetime, timezone
@@ -375,6 +377,64 @@ def _write_report(path: Path, body: str) -> None:
     print(f"\nReport written to {path}", file=sys.stderr)
 
 
+def _to_yaml_teaching_sheet(course_id: str, course_name: str, recs: list[dict],
+                             outcomes_count: int, ts: str) -> str:
+    """
+    Convert rubric recommendations to YAML teaching sheet format.
+
+    NGAI Feature 3: Teaching sheet format for QC/orchestrator agents.
+    Maps rubric scaffold → teaching evaluation criteria.
+    """
+    teaching_sheets = []
+
+    for r in recs:
+        sheet = {
+            "assignment_id": r["assignment_id"],
+            "assignment_name": r["assignment_name"],
+            "bloom_level": r["assignment_bloom"],
+            "points_possible": r["points_possible"],
+            "matched_clo_count": r["matched_clo_count"],
+            "source": r["source"],
+            "evaluation_criteria": []
+        }
+
+        for c in r["rubric"]["criteria"]:
+            criterion = {
+                "criterion": c["description"],
+                "description": c["long_description"],
+                "points": c["points"],
+                "clo_bloom": c.get("clo_bloom"),
+                "levels": [
+                    {
+                        "rating": rt["description"],
+                        "points": rt["points"],
+                        "description": rt["long_description"]
+                    }
+                    for rt in c["ratings"]
+                ]
+            }
+            sheet["evaluation_criteria"].append(criterion)
+
+        if r.get("notes"):
+            sheet["notes"] = r["notes"]
+
+        teaching_sheets.append(sheet)
+
+    output = {
+        "tool": "rubric_recommender",
+        "format": "teaching_sheet",
+        "run_at": ts,
+        "course": {
+            "id": course_id,
+            "name": course_name
+        },
+        "outcomes_available": outcomes_count,
+        "teaching_sheets": teaching_sheets
+    }
+
+    return yaml.dump(output, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -390,7 +450,11 @@ def main() -> None:
     ap.add_argument("--assignment-id", default=None,
                     help="Recommend for just this assignment (must be missing a rubric)")
     ap.add_argument("--detailed", action="store_true", help="Show full level descriptors")
-    ap.add_argument("--json", action="store_true", dest="emit_json", help="Machine-readable JSON")
+    ap.add_argument("--json", action="store_true", dest="emit_json",
+                   help="Machine-readable JSON (default for backward compatibility)")
+    ap.add_argument("--output", choices=["json", "yaml"], default=None,
+                   help="Output format: json (Canvas rubric structure) or yaml (teaching sheet format for NGAI). "
+                        "If not specified, defaults to human-readable text (or JSON if --json flag is set)")
     ap.add_argument("--report", default=None, metavar="PATH", help="Write output to PATH")
     ap.add_argument("--apply", action="store_true",
                     help="WRITE the recommended rubrics to Canvas (guard-checked). "
@@ -455,7 +519,17 @@ def main() -> None:
 
     recs = [recommend_for_assignment(a, outcomes) for a in targets]
 
-    if args.emit_json:
+    # Determine output format: prioritize --output, then --json flag, then default human-readable
+    output_format = args.output
+    if not output_format:
+        output_format = "json" if args.emit_json else "text"
+
+    if output_format == "yaml":
+        body = _to_yaml_teaching_sheet(course_id, course_name, recs, len(outcomes), ts)
+        print(body)
+        if args.report:
+            _write_report(Path(args.report), body)
+    elif output_format == "json":
         payload = {
             "tool": "rubric_recommender", "tool_version": __version__, "run_at": ts,
             "course": {"id": course_id, "name": course_name},
@@ -466,7 +540,7 @@ def main() -> None:
         print(body)
         if args.report:
             _write_report(Path(args.report), body)
-    else:
+    else:  # text
         lines = _render(course_id, course_name, recs, len(outcomes), ts, args.detailed)
         print("\n".join(lines))
         if args.report:
