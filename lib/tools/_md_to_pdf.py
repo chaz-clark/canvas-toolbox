@@ -21,6 +21,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -140,19 +141,32 @@ def render_pair(md_path: Path, title: str | None = None,
               f"Brave / Edge, or render the .md manually)", file=sys.stderr)
         return None
 
-    pdf_path = md_path.with_suffix(".pdf")
-    html_path = md_path.with_suffix(".html")
+    # Resolve to ABSOLUTE: new-headless Chrome resolves a relative
+    # --print-to-pdf target against its OWN cwd (the Chrome install dir under
+    # Program Files on Windows — not writable), reporting the failure as
+    # "Access is denied". An absolute path writes exactly where intended.
+    pdf_path = md_path.resolve().with_suffix(".pdf")
+    html_path = md_path.resolve().with_suffix(".html")
 
     md_text = md_path.read_text(encoding="utf-8")
     html_doc = md_to_html(md_text, title=title or md_path.stem,
                            css=css or _DEFAULT_CSS)
     html_path.write_text(html_doc, encoding="utf-8")
 
+    # Isolated profile dir: without --user-data-dir, headless Chrome shares the
+    # operator's default profile. If a normal Chrome window is already open, the
+    # profile is locked and the new headless mode reports the collision as
+    # "Failed to write file <pdf>: Access is denied" (Windows). A throwaway
+    # profile sidesteps the lock entirely and is cleaned up after.
+    user_data_dir = tempfile.mkdtemp(prefix="cb-chrome-")
     try:
         # Run Chrome headless. Filter known-noisy stderr lines.
+        # Path.as_uri() yields a correct file:///C:/... URI on Windows (the bare
+        # f"file://{path}" form leaves backslashes and only two slashes).
         result = subprocess.run(
-            [chrome, "--headless", "--disable-gpu", "--no-pdf-header-footer",
-             f"--print-to-pdf={pdf_path}", f"file://{html_path.resolve()}"],
+            [chrome, "--headless=new", "--disable-gpu",
+             f"--user-data-dir={user_data_dir}", "--no-pdf-header-footer",
+             f"--print-to-pdf={pdf_path}", html_path.resolve().as_uri()],
             capture_output=True, text=True, timeout=60,
         )
         if not pdf_path.is_file():
@@ -169,9 +183,10 @@ def render_pair(md_path: Path, title: str | None = None,
         print(f"  (PDF render failed: {e})", file=sys.stderr)
         return None
     finally:
-        # Clean up the intermediate HTML
+        # Clean up the intermediate HTML + throwaway Chrome profile
         try:
             if html_path.is_file():
                 html_path.unlink()
         except Exception:
             pass
+        shutil.rmtree(user_data_dir, ignore_errors=True)
