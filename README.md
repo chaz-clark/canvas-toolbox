@@ -216,6 +216,8 @@ Audit which gates fired in a push from the per-row console output + `.push_log.m
 
 **Canvas Toolbox isn't only for existing courses — the agent can help you build one.**
 
+> 📋 **Step-by-step process:** [`docs/course_design_workflow.md`](docs/course_design_workflow.md) walks an agent (or you) through both flows end-to-end — **redesigning** an existing course and **architecting** a new one from scratch — naming which knowledge file and which tool to use at each step (CLOs → assessments → modules → rubrics → workload).
+
 The toolkit ships with **20+ pedagogical knowledge files** the agent reads when you're designing or redesigning a course. You stay the architect; the AI is the assistant — it asks questions, surfaces tradeoffs, and writes drafts you approve.
 
 **What the agent has on hand:**
