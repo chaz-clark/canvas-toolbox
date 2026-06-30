@@ -498,6 +498,16 @@ def step_8_surface_docs(*, mode: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    # Windows consoles default to the cp1252 code page, which can't encode the
+    # ✓ / — / ⏭ glyphs this bootstrap prints — raising UnicodeEncodeError
+    # mid-run on a fresh Windows machine (exactly where cb-init runs first).
+    # Force UTF-8 on stdout/stderr so the output renders instead of crashing.
+    if sys.platform == "win32":
+        for _stream in (sys.stdout, sys.stderr):
+            try:
+                _stream.reconfigure(encoding="utf-8")
+            except (AttributeError, OSError):
+                pass
     parser = argparse.ArgumentParser(
         description=(
             "One-command bootstrap for canvas-toolbox. Detects state, "
