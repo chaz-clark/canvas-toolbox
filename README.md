@@ -273,7 +273,7 @@ Two tiers — pick by where you are in the course lifecycle.
 **Ask your agent:** *"Run a course health audit"*
 
 ```bash
-uv run python canvas_toolbox/lib/tools/course_audit.py
+uv run python lib/tools/course_audit.py
 ```
 
 Runs the four core read-only audits — rubric coverage, rubric quality, syllabus completeness, outcome quality — and composes one report: overall verdict (**HEALTHY / REVIEW / NEEDS ATTENTION**) plus a "top things to fix" list.
@@ -283,7 +283,7 @@ Runs the four core read-only audits — rubric coverage, rubric quality, syllabu
 **Ask your agent:** *"Run the full course health sweep and share the results"*
 
 ```bash
-uv run python canvas_toolbox/lib/tools/course_audit.py --full
+uv run python lib/tools/course_audit.py --full
 ```
 
 Composes 11 read-only audits into one report — rubrics · syllabus · outcomes · alignment chain · learning model · formative variety · grading structure · grading load · accessibility · workload. Each finding gets a single page with what was checked, what was found, and what to do.
