@@ -103,6 +103,12 @@ REQUIRES in .env: CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import csv
 import json
 import os
@@ -1177,6 +1183,8 @@ def update_known_names(path: Path, new_names: list[str]) -> int:
 
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Fetch Canvas submissions for an assignment, keyed by user_id "
                     "(no name in any filename, console line, or AI surface). "

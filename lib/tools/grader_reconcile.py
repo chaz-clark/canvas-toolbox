@@ -86,6 +86,12 @@ its own gradebook layout without code changes.
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import csv
 import json
 import os
@@ -430,6 +436,8 @@ def reconcile_dimension_classic_quiz(
 
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Anonymously reconcile review claims vs Canvas gradebook (FERPA-safe, local).")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")

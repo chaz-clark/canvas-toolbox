@@ -50,6 +50,12 @@ documented the UTF-8 → CP1252 → Latin-1 encoding fallback pattern.
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import re
 import sys
@@ -153,6 +159,8 @@ def scrub(text: str, terms: list[str]) -> tuple[str, int]:
 
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="FERPA de-identify plain-text / Markdown / online_text_entry "
                     "(HTML-wrapped) submissions. Decodes with UTF-8 → CP1252 → "

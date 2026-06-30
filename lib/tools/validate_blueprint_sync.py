@@ -25,6 +25,12 @@ Requires in .env:
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import os
 import sys
 from collections import defaultdict
@@ -260,6 +266,8 @@ def _write_report(path: Path, lines: list[str]) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     parser = argparse.ArgumentParser(description="Validate post-Blueprint-sync state across sections")
     parser.add_argument("--report", action="store_true", help="Write findings to blueprint_sync_validation.md")
     args = parser.parse_args()

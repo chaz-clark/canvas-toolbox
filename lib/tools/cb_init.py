@@ -78,6 +78,23 @@ import sys
 from pathlib import Path
 
 try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    # Fallback for pre-sync environments (cb-init runs before uv sync)
+    def force_utf8_console() -> None:
+        if sys.platform != "win32":
+            return
+        import io
+        if sys.stdout is not None:
+            sys.stdout = io.TextIOWrapper(
+                sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+            )
+        if sys.stderr is not None:
+            sys.stderr = io.TextIOWrapper(
+                sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+            )
+
+try:
     from __toolbox_version__ import __version__
 except ImportError:
     __version__ = "0.0.0+unknown"
@@ -498,6 +515,8 @@ def step_8_surface_docs(*, mode: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash on glyph output
+
     parser = argparse.ArgumentParser(
         description=(
             "One-command bootstrap for canvas-toolbox. Detects state, "

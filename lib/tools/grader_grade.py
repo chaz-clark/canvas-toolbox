@@ -110,6 +110,12 @@ un-tooled step in the pipeline).
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import csv
 import json
 import os
@@ -444,6 +450,8 @@ def _write_grader_csv(csv_path: Path, rows: list[dict]) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="N-pass LLM grading orchestrator (closes the agent-in-the-loop gap).")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")

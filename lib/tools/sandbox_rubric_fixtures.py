@@ -50,6 +50,12 @@ identifiable and teardown only ever deletes fixtures it owns.
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import os
 import sys
 
@@ -426,6 +432,8 @@ def do_teardown(course_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Seed known rubric fixtures into a sandbox course for "
                     "ground-truth validation of the rubric audit tools."

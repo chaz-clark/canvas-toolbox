@@ -45,10 +45,11 @@ from typing import Optional
 import requests
 
 try:
-    from _env_loader import load_env
+    from _env_loader import load_env, force_utf8_console
     load_env()
 except ImportError:
-    pass
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 
 from __toolbox_version__ import __version__
 
@@ -169,6 +170,8 @@ def build_submission_record(sub: dict, test_student_only: bool = False) -> Optio
 
 
 def main():
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Fetch submission history for Canvas assignments (NGAI Feature 4: Multi-Submission Tracker)",
         formatter_class=argparse.RawDescriptionHelpFormatter,

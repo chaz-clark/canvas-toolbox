@@ -23,7 +23,7 @@ invoked from. Resolution order (first match wins):
      repo tree). Walks up from this file's location until `.env` is
      found or filesystem root.
 
-USAGE
+USAGE - load_env()
   Tools should call this once near the top of their module:
 
       try:
@@ -36,6 +36,18 @@ USAGE
   load_env() returns the Path it loaded from (for logging if needed) or
   None if no .env was found anywhere.
 
+USAGE - force_utf8_console()
+  Tools that print Unicode glyphs (✓, —, ⏭, emoji) should call this at the
+  top of main() to prevent UnicodeEncodeError on Windows cp1252 consoles:
+
+      from _env_loader import force_utf8_console
+
+      def main():
+          force_utf8_console()
+          # ... rest of main
+
+  Closes issue #123 — Windows console crashes on glyph output.
+
 WHY A HELPER VS. INLINING
   Twelve tools had three different inline patterns (two of them buggy).
   A single helper means a future improvement (e.g. multi-file precedence,
@@ -45,6 +57,7 @@ WHY A HELPER VS. INLINING
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 
@@ -74,3 +87,35 @@ def load_env() -> Path | None:
             return candidate
 
     return None
+
+
+def force_utf8_console() -> None:
+    """
+    Force UTF-8 encoding on stdout/stderr for Windows cp1252 consoles.
+
+    On Windows, CPython encodes stdout using the locale code page (cp1252 by
+    default) unless UTF-8 mode is enabled. Unicode glyphs (✓, —, ⏭, emoji)
+    aren't representable in cp1252, causing UnicodeEncodeError crashes.
+
+    This function reconfigures sys.stdout and sys.stderr to UTF-8 on Windows
+    (no-op on other platforms) to prevent these crashes.
+
+    Call this at the top of main() in any tool that prints Unicode glyphs.
+
+    Fixes issue #123 — Windows console crashes with UnicodeEncodeError.
+    """
+    if sys.platform != "win32":
+        return  # No-op on non-Windows platforms
+
+    # Reconfigure stdout and stderr to UTF-8 encoding
+    # This mirrors the behavior of PYTHONUTF8=1 environment variable
+    import io
+
+    if sys.stdout is not None:
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+        )
+    if sys.stderr is not None:
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+        )

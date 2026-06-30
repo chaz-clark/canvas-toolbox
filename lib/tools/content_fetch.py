@@ -53,10 +53,11 @@ import requests
 from bs4 import BeautifulSoup
 
 try:
-    from _env_loader import load_env
+    from _env_loader import load_env, force_utf8_console
     load_env()
 except ImportError:
-    pass
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 
 from __toolbox_version__ import __version__
 
@@ -203,6 +204,8 @@ def filter_solution_markers(html: str) -> tuple[str, list[str]]:
 
 
 def main():
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Fetch Canvas course content with optional solution filtering (NGAI Feature 1)",
         formatter_class=argparse.RawDescriptionHelpFormatter,

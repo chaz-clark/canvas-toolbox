@@ -57,6 +57,12 @@ outcomes_quality_knowledge.md / taxonomy_explorer_knowledge.md (Bloom verb lists
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import os
 import yaml
@@ -440,6 +446,8 @@ def _to_yaml_teaching_sheet(course_id: str, course_name: str, recs: list[dict],
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Recommend CLO-aligned, Bloom-targeted rubric scaffolds for "
                     "assignments that lack a rubric (Stage 7, hybrid scaffold).")

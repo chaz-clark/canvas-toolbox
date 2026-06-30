@@ -75,6 +75,12 @@ KNOWN SCOPE LIMITATION
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import os
 import re
@@ -253,6 +259,8 @@ def render_json(records: list[dict], assignment_id: int, total_subs: int) -> str
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Read-only submission-health check. Flag submissions that look broken "
                     "rather than absent, so a technical failure isn't graded as missing work "

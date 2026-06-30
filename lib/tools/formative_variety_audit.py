@@ -74,6 +74,12 @@ PAIRS WITH
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import os
 import re
@@ -506,6 +512,8 @@ def _write_report(path: Path, body: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Audit formative-vs-summative assignment distribution (BYUI Standard 3.3).")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")

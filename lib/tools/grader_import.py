@@ -42,6 +42,12 @@ DESIGNED BY
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import sys
 import zipfile
 from pathlib import Path
@@ -174,6 +180,8 @@ def is_blacklisted(rel_path: str) -> bool:
 
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Import a grader_export.py share ZIP into the current "
                     "canvas-toolbox repo (v0.67.0+). Hard-refuses if local "

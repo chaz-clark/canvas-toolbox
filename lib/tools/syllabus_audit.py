@@ -82,6 +82,12 @@ work, disability/accessibility, university policies, AI policy) are broadly gene
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import html
 import json
 import os
@@ -684,6 +690,8 @@ def _resolve_course_id(target_env: str, literal: str | None) -> tuple[str, str]:
 
 
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Read-only Canvas syllabus completeness audit (BYU-Idaho "
                     "template + required AI policy)."

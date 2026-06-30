@@ -53,10 +53,11 @@ import requests
 from __toolbox_version__ import __version__
 
 try:
-    from _env_loader import load_env
+    from _env_loader import load_env, force_utf8_console
     load_env()
 except ImportError:
-    pass
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 
 CANVAS_API_TOKEN = os.environ.get("CANVAS_API_TOKEN", "")
 _raw_url = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
@@ -428,6 +429,8 @@ def apply_plan(result):
 
 
 def main():
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", action="version",
                     version=f"canvas-toolbox {__version__}")

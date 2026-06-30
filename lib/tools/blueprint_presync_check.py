@@ -46,6 +46,12 @@ Reuses: blueprint_orphan_pages (revision-provenance, #32) + blueprint_exception_
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import os
 import sys
@@ -297,6 +303,8 @@ def _write_report(path: Path, body: str) -> None:
 
 
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Pre-sync Blueprint lock-readiness preflight (read-only): predicts "
                     "which pending changes will be silently skipped + suggests locks.")

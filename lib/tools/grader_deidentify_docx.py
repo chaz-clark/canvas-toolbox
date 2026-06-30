@@ -44,6 +44,12 @@ GENERALIZED FROM: ds460-master/grading/deidentify_docx.py
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import re
 import sys
@@ -218,6 +224,8 @@ def scrub(text: str, structural_names: list[str], extra_names: list[str]) -> tup
 
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(description="FERPA de-identify .docx self-reviews.")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     ap.add_argument("--challenge-dir", dest="challenge_dir", default=None,

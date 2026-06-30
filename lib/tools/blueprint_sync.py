@@ -58,10 +58,11 @@ from canvas_course_guard import enforce as _course_guard
 
 # Load .env via the shared helper (issue #43)
 try:
-    from _env_loader import load_env
+    from _env_loader import load_env, force_utf8_console
     load_env()
 except ImportError:
-    pass
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -937,6 +938,8 @@ def cmd_status():
 # ---------------------------------------------------------------------------
 
 def main():
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     parser = argparse.ArgumentParser(
         description="Sync master Canvas course → Blueprint course (one-way overwrite)"
     )

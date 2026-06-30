@@ -69,10 +69,11 @@ from pathlib import Path
 import requests
 
 try:
-    from _env_loader import load_env
+    from _env_loader import load_env, force_utf8_console
     load_env()
 except ImportError:
-    pass
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 
 CANVAS_API_TOKEN = os.environ.get("CANVAS_API_TOKEN", "")
 _raw = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
@@ -307,6 +308,8 @@ def cmd_push(file_path: str):
 
 
 def main():
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     parser = argparse.ArgumentParser(
         description="Manage classic Canvas quiz questions from a local JSON file",
         formatter_class=argparse.RawDescriptionHelpFormatter,

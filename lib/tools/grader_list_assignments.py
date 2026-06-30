@@ -46,6 +46,12 @@ EXIT CODES
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import os
 import re
@@ -176,6 +182,8 @@ def render_json(rows: list[dict], include_counts: bool) -> str:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="List Canvas assignments for a course (read-only; discovery input to "
                     "grader_fetch.py). Returns assignment names + IDs only — FERPA-safe.")

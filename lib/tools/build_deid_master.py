@@ -70,6 +70,12 @@ accommodation primitives (the accommodation tool consumes this CSV).
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import csv
 import hashlib
 import os
@@ -262,6 +268,8 @@ def ensure_grading_gitignore(grading_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("--prefix", default=_DEFAULT_PREFIX,
                     help=f"deid_code prefix (default {_DEFAULT_PREFIX!r})")

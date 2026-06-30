@@ -87,6 +87,12 @@ accommodation primitives. Lifted from the DS 460 pilot and generalized.
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import csv
 import os
 import sys
@@ -323,6 +329,8 @@ def delete_override(base_url: str, course_id: str, assignment_id: int,
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     who = ap.add_mutually_exclusive_group(required=True)
     who.add_argument("--user-id", help="bare Canvas user_id (no PII surface)")
