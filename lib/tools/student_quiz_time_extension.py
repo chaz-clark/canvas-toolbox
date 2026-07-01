@@ -304,6 +304,14 @@ def main() -> int:
     if fails:
         print(f"\n{fails} operation(s) failed. Re-run to retry.", file=sys.stderr)
         return 1
+
+    if args.apply and len(quizzes) > 0:
+        print("\n⚠️  Canvas caching note: Extension is applied, but student may not see")
+        print("   it immediately. Workaround if student still sees 'locked':")
+        print("   1. Student logs out and back in (refreshes session cache), OR")
+        print("   2. In Canvas: Moderate Quiz → find student → delete extension → re-add")
+        print("   This is a known Canvas platform quirk (#parkinglot). Investigating fix.")
+
     return 0
 
 
