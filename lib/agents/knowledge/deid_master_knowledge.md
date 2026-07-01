@@ -9,6 +9,14 @@ keyed-grading + PR-check tools.
 
 ---
 
+## For AI Agents
+
+**DO NOT READ** `grading/.deid_master.csv`. It contains student names (FERPA Zone 2).
+
+When the instructor provides `--user-id 280379` or `--deid-code DS-B9CA2B`, use it directly with accommodation tools. You never need the mapping file.
+
+---
+
 ## Why this exists
 
 Before v0.70.0, the canvas-toolbox had two ways to identify a student

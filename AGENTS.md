@@ -30,6 +30,37 @@ A Canvas LMS course management toolkit — mirrors live Canvas courses to local 
 
 **Audience**: Instructors and instructional designers who edit Canvas courses, want auditable structure, and use LLM coding tools for course design work.
 
+---
+
+## ⚠️ AI Agent FERPA Discipline
+
+**If you are an AI agent working in this repo or a course repo using this toolkit**, the following files are **FERPA Zone 2** and you **MUST NEVER READ THEM**:
+
+- `grading/*/.keymap.json` — de-id key to filename+user_id map
+- `grading/.deid_master.csv` — **user_id to name map** (most common violation)
+- `grading/*/.review.csv` — re-identified grading results
+- `grading/.known_names.txt` — full course roster (names)
+- `grading/*/feedback/_grader*.csv` — grading sheets with names
+
+**Why you don't need Zone 2 files:**
+
+Accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extension.py`, `apply_sas_accommodations.py`) accept `--user-id` and `--deid-code` directly. The **human instructor** looks up the identifier locally in `.deid_master.csv` and hands you ONLY the opaque code or numeric user_id. You use it as-is; **no re-identification needed**.
+
+**Output discipline:**
+
+- ✅ CORRECT: "Reopened for user_id 280379"
+- ✅ CORRECT: "Applied 1.5x time extension for deid_code S-95DBB6"
+- ❌ VIOLATION: "Reopened for Sam Bradshaw (280379)"
+- ❌ VIOLATION: Reading `.deid_master.csv` to "look up" the user
+
+**If the instructor asks "who is user_id 280379?"** — respond: "I don't have access to the name mapping file (FERPA Zone 2). Please check `grading/.deid_master.csv` locally."
+
+**Incident history:**
+
+- 2026-07-01: AI agent read `.deid_master.csv` during accommodation workflow, surfaced student name in response. This section added to prevent recurrence.
+
+---
+
 ## Structure
 
 ```
