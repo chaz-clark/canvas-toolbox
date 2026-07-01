@@ -98,6 +98,22 @@ _VAGUE_TERMS = [
     "good ", "well ", "as needed",
 ]
 
+# Process vs. Outcome anti-pattern (outcomes_quality_knowledge.md). Patterns that
+# describe scoring instruments, instructor activities, or process instead of
+# student achievement. Conservative list — hard flag only on clear violations.
+_PROCESS_PATTERNS = [
+    # Rubric criterion / scoring instrument language
+    r"\bthis\s+criterion\s+uses?\b",
+    r"\bassignment\s+total\s+score\b",
+    r"\bto\s+assess\s+mastery\b",
+    r"\bevaluated\s+by\b",
+    r"\bmeasured\s+using\b",
+    r"\bscoring\s+(?:method|rubric|instrument)\b",
+    # Instructor-focused (not student-focused)
+    r"\b(?:instructor|teacher)\s+will\b",
+    r"\b(?:instructor|teacher)\s+(?:describes?|explains?|presents?|shows?)\b",
+]
+
 # Scope thresholds (AoL): 3-6 ideal, 3-8 acceptable.
 _SCOPE_IDEAL = range(3, 7)
 _SCOPE_OK = range(3, 9)
@@ -170,6 +186,7 @@ def score_clo(clo: str) -> dict:
     aren't penalized). Double-barrel uses the conservative leading-clause rule;
     vague language is advisory."""
     text = _plain(clo)
+    low = text.lower()
     hard_flags: list[str] = []
     advisory: list[str] = []
 
@@ -179,12 +196,18 @@ def score_clo(clo: str) -> dict:
     if leading_nonobservable(text) is not None:
         hard_flags.append("not_measurable")
 
+    # process_not_outcome — flag scoring instruments / instructor activities (#122).
+    # Conservative: only fire when text clearly describes HOW something is scored or
+    # WHAT the instructor does, instead of what the student achieves. Prevents false
+    # positive where rubric criterion text ("this criterion uses...") gets counted as CLO.
+    if any(re.search(p, low) for p in _PROCESS_PATTERNS):
+        hard_flags.append("process_not_outcome")
+
     # single_barreled — conservative leading-clause conjunction of two goals.
     if _is_double_barreled(text):
         hard_flags.append("double_barreled")
 
     # vague_language — advisory only (AoL clarity; kept soft to avoid over-fire).
-    low = text.lower()
     if any(t in low for t in _VAGUE_TERMS):
         advisory.append("vague_language")
     # no recognized observable verb (and not explicitly non-observable) → advisory
