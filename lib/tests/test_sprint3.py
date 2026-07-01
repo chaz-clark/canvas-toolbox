@@ -83,7 +83,7 @@ def test_build_produces_html(sandbox_pull, sandbox_env):
     try:
         md_path.write_text(original_md + f"\n\n{sentinel}\n", encoding="utf-8")
         result = subprocess.run(
-            [sys.executable, "tools/canvas_sync.py", "--build"],
+            [sys.executable, "lib/tools/canvas_sync.py", "--build"],
             env=sandbox_env,
             capture_output=True,
             text=True,
@@ -115,7 +115,7 @@ def test_upload_stores_metadata_in_index(sandbox_env):
 
     try:
         result = subprocess.run(
-            [sys.executable, "tools/canvas_sync.py", "--upload", str(tmp), "--folder", "course_assets_test"],
+            [sys.executable, "lib/tools/canvas_sync.py", "--upload", str(tmp), "--folder", "course_assets_test"],
             env=sandbox_env,
             capture_output=True,
             text=True,
