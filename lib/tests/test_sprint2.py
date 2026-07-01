@@ -21,7 +21,7 @@ def test_course_ref_survives_pull(sandbox_env):
 
     try:
         result = subprocess.run(
-            [sys.executable, "tools/canvas_sync.py", "--pull", "--quiet"],
+            [sys.executable, "lib/tools/canvas_sync.py", "--pull", "--quiet"],
             env=sandbox_env,
             capture_output=True,
             text=True,
@@ -42,7 +42,7 @@ def test_questions_json_survives_pull(sandbox_env):
 
     try:
         result = subprocess.run(
-            [sys.executable, "tools/canvas_sync.py", "--pull", "--quiet"],
+            [sys.executable, "lib/tools/canvas_sync.py", "--pull", "--quiet"],
             env=sandbox_env,
             capture_output=True,
             text=True,
@@ -99,7 +99,7 @@ def test_new_quiz_sidecar_survives_pull(sandbox_env):
 
     try:
         result = subprocess.run(
-            [sys.executable, "tools/canvas_sync.py", "--pull", "--quiet"],
+            [sys.executable, "lib/tools/canvas_sync.py", "--pull", "--quiet"],
             env=sandbox_env,
             capture_output=True,
             text=True,

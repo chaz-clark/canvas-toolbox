@@ -60,7 +60,7 @@ def test_quiz_title_and_points_push(sandbox_env):
         Path(filepath).write_text(json.dumps(patched, indent=2))
 
         result = subprocess.run(
-            [sys.executable, "tools/canvas_sync.py", "--push"],
+            [sys.executable, "lib/tools/canvas_sync.py", "--push"],
             env={**sandbox_env, "CANVAS_SYNC_NO_PROMPT": "regression test"},
             capture_output=True,
             text=True,
@@ -80,7 +80,7 @@ def test_quiz_title_and_points_push(sandbox_env):
         # Always restore original values
         Path(filepath).write_text(json.dumps(original, indent=2))
         subprocess.run(
-            [sys.executable, "tools/canvas_sync.py", "--push"],
+            [sys.executable, "lib/tools/canvas_sync.py", "--push"],
             env={**sandbox_env, "CANVAS_SYNC_NO_PROMPT": "regression test"},
             capture_output=True,
             text=True,
@@ -119,7 +119,7 @@ def test_assignment_grading_type_and_submission_types_push(sandbox_env):
         Path(filepath).write_text(json.dumps(patched, indent=2))
 
         result = subprocess.run(
-            [sys.executable, "tools/canvas_sync.py", "--push"],
+            [sys.executable, "lib/tools/canvas_sync.py", "--push"],
             env={**sandbox_env, "CANVAS_SYNC_NO_PROMPT": "regression test"},
             capture_output=True,
             text=True,
@@ -139,7 +139,7 @@ def test_assignment_grading_type_and_submission_types_push(sandbox_env):
     finally:
         Path(filepath).write_text(json.dumps(original, indent=2))
         subprocess.run(
-            [sys.executable, "tools/canvas_sync.py", "--push"],
+            [sys.executable, "lib/tools/canvas_sync.py", "--push"],
             env={**sandbox_env, "CANVAS_SYNC_NO_PROMPT": "regression test"},
             capture_output=True,
             text=True,
