@@ -371,6 +371,83 @@ def _write_report(path: Path, body: str) -> None:
             pass
 
 
+def _write_artifact(course_id: str, course_name: str, tier: str, ts: str,
+                    combined: int, rows: list[dict], raw: dict[str, dict | None]) -> None:
+    """Write structured audit findings to .canvas/audit/<course_id>.json for iterative
+    improvement tracking across semesters (enables comparing findings: missing: 32 → 22)."""
+    # .canvas/ is already gitignored runtime dir; artifact is machine-readable only
+    artifact_dir = Path.cwd() / ".canvas" / "audit"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    # Build structured findings from specialist outputs
+    areas = {}
+    for r in rows:
+        key = r["key"]
+        specialist_data = raw.get(key)
+        if not specialist_data:
+            continue
+
+        # Extract key metrics from each specialist's JSON output
+        if key == "rubric_coverage":
+            areas[key] = {
+                "verdict": r["headline"].lower().replace(" ", "_"),
+                "missing": specialist_data.get("missing_rubrics", 0),
+                "decorative": specialist_data.get("decorative_rubrics", 0),
+                "ok": specialist_data.get("coverage_ok", 0),
+                "total_assignments": specialist_data.get("total_assignments", 0),
+            }
+        elif key == "rubric_quality":
+            areas[key] = {
+                "verdict": r["headline"].lower().replace(" ", "_"),
+                "meets_criteria": specialist_data.get("meets", 0),
+                "partial": specialist_data.get("partial", 0),
+                "needs_revision": specialist_data.get("needs_revision", 0),
+            }
+        elif key == "syllabus":
+            areas[key] = {
+                "verdict": r["headline"].lower().replace(" ", "_"),
+                "sections_present": f"{specialist_data.get('present', 0)}/{specialist_data.get('total', 9)}",
+                "missing": specialist_data.get("missing", []),
+            }
+        elif key == "clo_quality":
+            areas[key] = {
+                "verdict": r["headline"].lower().replace(" ", "_"),
+                "clos": specialist_data.get("clo_count", 0),
+                "scope": specialist_data.get("scope_note", "unknown"),
+            }
+        elif key == "workload":
+            areas[key] = {
+                "verdict": r["headline"].lower().replace(" ", "_"),
+                "peak_week": specialist_data.get("peak_week", 0),
+                "peak_hours": specialist_data.get("peak_hours", 0.0),
+            }
+        else:
+            # For other specialists, store verdict only
+            areas[key] = {"verdict": r["headline"].lower().replace(" ", "_")}
+
+    # Collect top fixes across all specialists
+    top_fixes = []
+    for r in rows:
+        if r["fixes"]:
+            top_fixes.extend(r["fixes"][:2])  # Top 2 from each specialist
+    top_fixes = top_fixes[:5]  # Limit to top 5 overall
+
+    artifact = {
+        "schema_version": 1,
+        "course_id": course_id,
+        "course_name": course_name,
+        "run_at": ts,
+        "tier": tier,
+        "verdict": _COMBINED[combined],
+        "areas": areas,
+        "top_fixes": top_fixes,
+    }
+
+    artifact_path = artifact_dir / f"{course_id}.json"
+    artifact_path.write_text(json.dumps(artifact, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"Audit artifact: {artifact_path}", file=sys.stderr)
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -460,6 +537,11 @@ def main() -> None:
         print("\n".join(lines))
         if args.report:
             _write_report(Path(args.report), "\n".join(lines))
+
+    # Write structured audit artifact for iterative improvement tracking (enables
+    # progress comparison across semesters: missing rubrics 32 → 22 → 12).
+    # Based on research from @matjmiles (PR #125) — semester-scale iteration pattern.
+    _write_artifact(course_id, course_name, tier, ts, combined, rows, raw)
 
     sys.exit(0 if combined == 0 else 1)
 

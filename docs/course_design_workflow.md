@@ -38,11 +38,26 @@ first, and each later step aligns backward to them (Wiggins/McTighe Understandin
 ## Flow A — Redesign an existing course
 
 ### A0. Baseline audit (start here)
-Run the read-only health check to see what you're fixing before changing anything:
+
+**First, validate the audit baseline** (prevents stale/wrong-course errors):
+
+Check for `.canvas/audit/<course_id>.json`:
+- **If absent** → run the audit (step below)
+- **If course_id mismatch** → **ERROR** (never redesign course X using course Y's audit)
+- **If run_at > 30 days** → **WARN** "audit is stale, consider re-running"
+- **If valid** → use structured findings to inform decisions
+
+This artifact enables **progress tracking across iterations**: compare `missing_rubrics: 32 → 22 → 12`
+as you improve the course over 1-3 semesters. See [`docs/proposals/audit-artifact-progress-tracking.md`](../docs/proposals/audit-artifact-progress-tracking.md).
+
+**Run the read-only health check** to see what you're fixing before changing anything:
 
 ```bash
 uv run python lib/tools/course_audit.py --course-id <id> --full --report audit.md
 ```
+
+This writes both `audit.md` (human-readable) and `.canvas/audit/<course_id>.json` (machine-readable
+artifact for progress tracking).
 
 Read the verdict (`HEALTHY` / `REVIEW` / `NEEDS_ATTENTION`) and the per-area findings (rubric
 coverage, rubric quality, syllabus, CLO quality, workload). This is your evidence base.
