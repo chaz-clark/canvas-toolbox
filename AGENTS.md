@@ -61,6 +61,23 @@ Accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extensi
 
 ---
 
+## Common Tasks Quick Reference
+
+**When the instructor asks you to:**
+
+| Request | Command |
+|---------|---------|
+| "Sync students" / "Pull student list" / "Update enrollment" | `uv run python lib/tools/build_deid_master.py --force` |
+| "Pull the course from Canvas" / "Sync course content" | `uv run python lib/tools/canvas_sync.py --pull` |
+| "Audit the course" / "Check course quality" | `uv run python lib/tools/course_audit.py --course-id <id>` |
+| "Apply 1.5x time on all quizzes for student X" | `uv run python lib/tools/student_quiz_time_extension.py --deid-code <code> --multiplier 1.5 --all-timed --apply` |
+| "Reopen all late assignments for student X" | `uv run python lib/tools/student_late_accommodation.py --deid-code <code> --reopen-all --apply` |
+| "Push changes to Canvas" | `uv run python lib/tools/canvas_sync.py --push` |
+
+**Note:** `build_deid_master.py` creates `grading/.deid_master.csv` from current Canvas enrollment. It's the source of truth for student de-identification codes used by accommodation tools.
+
+---
+
 ## Structure
 
 ```
