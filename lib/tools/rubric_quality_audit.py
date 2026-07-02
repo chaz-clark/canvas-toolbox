@@ -644,40 +644,63 @@ def score_rubric(
 # course_quality_check.py --alignment but lighter)
 # ---------------------------------------------------------------------------
 
-def fetch_course_outcomes(course_id: str) -> list[str]:
-    """Best-effort: try the Outcomes endpoint first; fall back to extracting
-    bullet-list lines from the syllabus body. Empty list if neither yields
-    anything (Criterion 1 then runs as 'unverified' rather than false-flagging).
+def fetch_course_outcomes_structured(course_id: str) -> list[dict]:
+    """Fetch course outcomes as structured dicts with id, title, description.
+
+    Returns list of {id: int, title: str, description: str, display_name: str}
+    from the Outcomes API. Falls back to syllabus extraction (yields dicts
+    with only 'description' field, no id).
+
+    Used by course_alignment_audit which needs outcome ids for linking.
     """
-    out: list[str] = []
+    out: list[dict] = []
 
     # Real Outcomes API: outcome_group_links with full style returns every
     # linked outcome's title + description across the course's outcome groups.
-    # (The earlier /courses/:id/outcomes path is NOT a valid endpoint — it
-    # errored and silently fell through to syllabus boilerplate. Sandbox
-    # finding 2026-05-22.)
     links = _get(f"/courses/{course_id}/outcome_group_links",
                  {"outcome_style": "full"})
     if isinstance(links, list):
         for ln in links:
             o = ln.get("outcome") or {}
-            txt = ((o.get("title") or "") + "  " + (o.get("description") or "")).strip()
-            txt = re.sub(r"<[^>]+>", " ", txt).strip()
-            if len(txt) >= 12:
-                out.append(txt)
+            if o.get("id"):
+                out.append({
+                    "id": o.get("id"),
+                    "title": o.get("title") or "",
+                    "description": o.get("description") or "",
+                    "display_name": o.get("display_name") or o.get("title") or "",
+                })
 
     if out:
         return out
 
-    # Structural syllabus fallback: the shared DOM-aware parser locates the
-    # Learning Outcomes section and returns its list ITEMS (issue #30/#31).
-    # The previous per-line marker regex captured the section stem + unrelated
-    # deadline lines and missed every real verb-first CLO; extract_outcomes
-    # treats the stem/heading as a delimiter, never as an outcome.
+    # Structural syllabus fallback: extract text-only outcomes (no id available)
     course = _get(f"/courses/{course_id}", {"include[]": "syllabus_body"})
     if isinstance(course, dict):
-        out.extend(extract_outcomes(course.get("syllabus_body") or ""))
+        for txt in extract_outcomes(course.get("syllabus_body") or ""):
+            out.append({
+                "description": txt,
+                "title": "",
+                "display_name": txt,
+            })
 
+    return out
+
+
+def fetch_course_outcomes(course_id: str) -> list[str]:
+    """Best-effort: try the Outcomes endpoint first; fall back to extracting
+    bullet-list lines from the syllabus body. Empty list if neither yields
+    anything (Criterion 1 then runs as 'unverified' rather than false-flagging).
+
+    Returns text strings (title + description concatenated) for backward
+    compatibility with clo_quality_audit and rubric_recommender.
+    """
+    structured = fetch_course_outcomes_structured(course_id)
+    out: list[str] = []
+    for o in structured:
+        txt = ((o.get("title") or "") + "  " + (o.get("description") or "")).strip()
+        txt = re.sub(r"<[^>]+>", " ", txt).strip()
+        if len(txt) >= 12:
+            out.append(txt)
     return out
 
 

@@ -90,7 +90,7 @@ from dotenv import load_dotenv
 
 import canvas_course_guard as guard
 from __toolbox_version__ import __version__
-from rubric_quality_audit import fetch_course_outcomes
+from rubric_quality_audit import fetch_course_outcomes_structured
 
 load_dotenv()
 
@@ -546,7 +546,7 @@ def main() -> int:
     course_name = (course.get("name") if isinstance(course, dict) else None) or "<unknown course>"
 
     print(f"[1/3] Fetching course outcomes for {course_id}...", file=sys.stderr)
-    clos = fetch_course_outcomes(course_id)
+    clos = fetch_course_outcomes_structured(course_id)
     print(f"[2/3] Fetching assignments + rubrics...", file=sys.stderr)
     assignments = pull_assignments_with_rubrics(course_id)
     print(f"[3/3] Fetching module overviews (soft-match)...", file=sys.stderr)

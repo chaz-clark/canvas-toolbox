@@ -220,15 +220,16 @@ def _headline(key: str, d: dict | None) -> tuple[int, str, list[str]]:
 
     if key == "formative_variety":
         v = d.get("formative_variety") or d.get("verdict", "?")
-        s = d.get("summary", {})
-        flagged = s.get("flag_count", 0)
+        flagged = d.get("flags_count", 0)  # top-level field, not in summary
         sev = 2 if v == "flags_present" else 0
         fixes = []
+        flags_obj = d.get("flags") or {}
         for flag_key, label in (("no_formative_items", "no formative items in the whole course"),
                                 ("summative_only_categories", "categories with only summative items"),
-                                ("precedence_failures", "summative items lack preceding formative practice"),
-                                ("distribution_skew", "formative items skewed across the term")):
-            if (d.get("flags") or {}).get(flag_key):
+                                ("presence_flag", "no formative items in the whole course"),
+                                ("no_precedence", "summative items lack preceding formative practice"),
+                                ("distribution", "formative items skewed across the term")):
+            if flags_obj.get(flag_key):
                 fixes.append(f"formative variety: {label}")
         return sev, f"{v} ({flagged} flag(s))", fixes
 
@@ -239,7 +240,8 @@ def _headline(key: str, d: dict | None) -> tuple[int, str, list[str]]:
         sev = 2 if v == "flags_present" else 0
         fixes = []
         f = d.get("flags") or {}
-        if f.get("sum_not_100"):
+        # sum_not_100 is a dict with "flag" subkey, not a boolean
+        if (f.get("sum_not_100") or {}).get("flag"):
             fixes.append("grading weights don't sum to 100%")
         if f.get("weight_mismatches"):
             fixes.append(f"{len(f['weight_mismatches'])} category weight/point mismatch(es)")
@@ -269,9 +271,10 @@ def _headline(key: str, d: dict | None) -> tuple[int, str, list[str]]:
     if key == "accessibility":
         v = d.get("accessibility") or d.get("verdict", "?")
         s = d.get("summary", {})
-        crit = s.get("critical_count", 0)
-        high = s.get("high_count", 0)
-        review = s.get("review_count", 0)
+        by_sev = s.get("by_severity", {})
+        crit = by_sev.get("CRITICAL", 0)
+        high = by_sev.get("HIGH", 0)
+        review = by_sev.get("REVIEW", 0)
         sev_map = {"compliant": 0, "compliant_with_review": 1,
                    "partial_compliant": 2, "non_compliant": 2}
         sev = sev_map.get(v, 1)
