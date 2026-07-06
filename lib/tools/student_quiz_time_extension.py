@@ -62,6 +62,14 @@ try:
 except ImportError:
     def force_utf8_console() -> None:
         pass  # No-op if _env_loader not available
+
+try:
+    from _override_recalc_helper import force_recalc_for_student
+except ImportError:
+    # If helper not available, define a no-op
+    def force_recalc_for_student(*args, **kwargs) -> int:
+        return 0
+
 import csv
 import math
 import os
@@ -240,6 +248,11 @@ def main() -> int:
                     help=f"deid master path (default {str(_DEFAULT_MASTER)!r})")
     ap.add_argument("--apply", action="store_true",
                     help="actually write the change (without this, dry-run)")
+    ap.add_argument("--force-recalc", dest="force_recalc", action="store_true",
+                    default=True,
+                    help="force Canvas to recalculate overrides after applying (default: True)")
+    ap.add_argument("--no-force-recalc", dest="force_recalc", action="store_false",
+                    help="skip forcing recalculation (faster, but extensions may not take effect)")
     args = ap.parse_args()
 
     if args.multiplier <= 1.0:
@@ -301,16 +314,29 @@ def main() -> int:
             fails += 1
         print(f"  [{ok}] quiz {qid} ({title}): +{extra} min (HTTP {code})")
 
+    # Force recalculation if we applied extensions
+    if args.apply and args.force_recalc and quizzes:
+        print(f"\nForcing Canvas override recalculation...")
+        try:
+            headers = {"Authorization": f"Bearer {token}"}
+            force_recalc_for_student(
+                base=base_url,
+                headers=headers,
+                course_id=int(course_id),
+                student_id=uid,
+                quiet=False
+            )
+            print(f"  [recalc] ✓ This should resolve the Canvas caching issue!")
+        except Exception as e:
+            print(f"  [recalc] Warning: recalculation failed: {e}", file=sys.stderr)
+            print(f"  [recalc] Extensions were created, but may not take effect immediately.",
+                  file=sys.stderr)
+            print(f"  [recalc] Fallback: Run fix_group_override_recalc.py --course-id {course_id} "
+                  f"--student-id {uid}", file=sys.stderr)
+
     if fails:
         print(f"\n{fails} operation(s) failed. Re-run to retry.", file=sys.stderr)
         return 1
-
-    if args.apply and len(quizzes) > 0:
-        print("\n⚠️  Canvas caching note: Extension is applied, but student may not see")
-        print("   it immediately. Workaround if student still sees 'locked':")
-        print("   1. Student logs out and back in (refreshes session cache), OR")
-        print("   2. In Canvas: Moderate Quiz → find student → delete extension → re-add")
-        print("   This is a known Canvas platform quirk (#parkinglot). Investigating fix.")
 
     return 0
 
