@@ -399,6 +399,18 @@ uv run python lib/tools/student_late_accommodation.py \
   --deid-code S-95DBB6 --from-days-ago 14 --remove --apply
 ```
 
+## When overrides don't take effect
+
+Sometimes Canvas doesn't immediately apply assignment overrides created via the API. If you've applied an accommodation but the student still can't submit, add the `--force-recalc` flag to force Canvas to recalculate:
+
+```bash
+# Apply accommodation AND force Canvas to recalculate
+uv run python lib/tools/student_late_accommodation.py \
+  --deid-code S-95DBB6 --from-days-ago 14 --apply --force-recalc
+```
+
+This performs a no-op "touch" on each override to trigger Canvas's internal recalculation. Usually not needed, but critical when students report they still can't submit after an accommodation was applied.
+
 ## The de-id master — the primitive under everything
 
 `--deid-code S-95DBB6` resolves to a Canvas user_id **without anyone ever speaking the student's name to the agent**. That works because of a new primitive in v0.70.0: a **course-wide de-identification master** at `grading/.deid_master.csv` (gitignored, FERPA tier 2).
@@ -437,7 +449,45 @@ uv run python lib/tools/student_quiz_time_extension.py \
 
 Partial minutes always round UP — the student never gets less time than the multiplier promises. Untimed quizzes are skipped automatically (no extension is needed). PII-free via the same de-id master.
 
+**If the extension doesn't take effect:** Add `--force-recalc` to force Canvas to recalculate the override:
+
+```bash
+uv run python lib/tools/student_quiz_time_extension.py \
+  --deid-code S-95DBB6 --multiplier 1.5 --all-timed --apply --force-recalc
+```
+
 > **Note on New Quizzes (LTI):** this tool covers classic Canvas quizzes only. New Quizzes use a different API path; per-student time multipliers there are currently set via the New Quizzes Moderation UI. New Quizzes API support is a follow-up.
+
+---
+
+# Troubleshooting: Force override recalculation
+
+When Canvas assignment overrides don't apply correctly (student can't submit despite having a valid override), use this standalone troubleshooting tool to force Canvas to recalculate. Works for both **group overrides** and **individual student overrides**.
+
+**Common scenarios:**
+- Applied a late-work accommodation but student still can't submit
+- Applied quiz time extension but student doesn't see extra time
+- Changed group membership via API and group overrides stopped working
+
+```bash
+# Force recalc for one student's overrides (dry-run)
+uv run python lib/tools/fix_group_override_recalc.py \
+  --course-id 407908 --student-id 280379 --dry-run
+
+# Apply fix for one student
+uv run python lib/tools/fix_group_override_recalc.py \
+  --course-id 407908 --student-id 280379
+
+# Force recalc for group overrides
+uv run python lib/tools/fix_group_override_recalc.py \
+  --course-id 407908 --group-id 1885662
+```
+
+**What it does:** Performs a no-op PUT on each assignment override targeting the student or group. This triggers Canvas's `assignment_override_updated` event and forces recalculation of assignment availability.
+
+**When to use:** After accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extension.py`) have been run but the override isn't taking effect. This is the rescue tool.
+
+**Root cause:** Canvas doesn't always trigger `SubmissionLifecycleManager.recompute_users_for_course` when overrides are created/modified via REST API. The Canvas UI handles this automatically, but direct API calls don't. This tool works around that gap.
 
 ---
 

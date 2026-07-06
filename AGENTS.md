@@ -77,8 +77,9 @@ Accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extensi
 | "Sync students" / "Pull student list" / "Update enrollment" / "Sync all students" / "Update the deid master" / "Rebuild the student list" | `uv run python lib/tools/build_deid_master.py --force` |
 | "Pull the course from Canvas" / "Sync course content" | `uv run python lib/tools/canvas_sync.py --pull` |
 | "Audit the course" / "Check course quality" | `uv run python lib/tools/course_audit.py --course-id <id>` |
-| "Apply 1.5x time on all quizzes for student X" | `uv run python lib/tools/student_quiz_time_extension.py --deid-code <code> --multiplier 1.5 --all-timed --apply` |
-| "Reopen all late assignments for student X" | `uv run python lib/tools/student_late_accommodation.py --deid-code <code> --reopen-all --apply` |
+| "Give student X extra time on quizzes" / "Apply 1.5x time for student X" / "Give double time on all quizzes" / "Apply quiz time extension" | `uv run python lib/tools/student_quiz_time_extension.py --deid-code <code> --multiplier 1.5 --all-timed --apply` |
+| "Let student X submit late" / "Give late-work grace" / "Reopen assignments for student X" / "Drop the deadline for student X" | `uv run python lib/tools/student_late_accommodation.py --deid-code <code> --from-days-ago 14 --apply` |
+| "Student still can't submit" / "Override isn't working" / "Fix assignment access for student X" / "Force Canvas to recalculate" | `uv run python lib/tools/fix_group_override_recalc.py --course-id <id> --student-id <id>` |
 | "Push changes to Canvas" | `uv run python lib/tools/canvas_sync.py --push` |
 
 **Note:** `build_deid_master.py` creates `grading/.deid_master.csv` from current Canvas enrollment. It's the source of truth for student de-identification codes used by accommodation tools.
