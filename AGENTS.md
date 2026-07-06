@@ -74,7 +74,7 @@ Accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extensi
 
 | Request | Command |
 |---------|---------|
-| "Sync students" / "Pull student list" / "Update enrollment" | `uv run python lib/tools/build_deid_master.py --force` |
+| "Sync students" / "Pull student list" / "Update enrollment" / "Sync all students" / "Update the deid master" / "Rebuild the student list" | `uv run python lib/tools/build_deid_master.py --force` |
 | "Pull the course from Canvas" / "Sync course content" | `uv run python lib/tools/canvas_sync.py --pull` |
 | "Audit the course" / "Check course quality" | `uv run python lib/tools/course_audit.py --course-id <id>` |
 | "Apply 1.5x time on all quizzes for student X" | `uv run python lib/tools/student_quiz_time_extension.py --deid-code <code> --multiplier 1.5 --all-timed --apply` |
