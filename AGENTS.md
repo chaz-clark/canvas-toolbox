@@ -36,11 +36,17 @@ A Canvas LMS course management toolkit — mirrors live Canvas courses to local 
 
 **If you are an AI agent working in this repo or a course repo using this toolkit**, the following files are **FERPA Zone 2** and you **MUST NEVER READ THEM**:
 
-- `grading/*/.keymap.json` — de-id key to filename+user_id map
 - `grading/.deid_master.csv` — **user_id to name map** (most common violation)
-- `grading/*/.review.csv` — re-identified grading results
 - `grading/.known_names.txt` — full course roster (names)
+- `grading/*/.keymap.json` — de-id key to filename+user_id map
+- `grading/**/.fetch_log.json` — fetch keymap with names
+- `grading/*/.review.csv` — re-identified grading results
 - `grading/*/feedback/_grader*.csv` — grading sheets with names
+- `grading/**/submissions_raw/**` — raw submissions with potential name leaks
+
+**Tool discipline — never read or display these files:**
+
+Trust the tool's summary output. Never use Read, cat, head, tail, grep, or any other file-reading command on these files. They must NEVER enter LLM context, logs, or any cloud surface. For file verification, use only `wc -l` or `ls -la`.
 
 **Why you don't need Zone 2 files:**
 
@@ -57,7 +63,8 @@ Accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extensi
 
 **Incident history:**
 
-- 2026-07-01: AI agent read `.deid_master.csv` during accommodation workflow, surfaced student name in response. This section added to prevent recurrence.
+- 2026-07-01: AI agent read `.deid_master.csv` during accommodation workflow, surfaced student name in response. Initial FERPA section added.
+- 2026-07-02: AI agent ran `build_deid_master.py` successfully (FERPA-clean output), then displayed `head -5 grading/.deid_master.csv` showing real student names. Enhanced with explicit file patterns and tool discipline (issue #131).
 
 ---
 
