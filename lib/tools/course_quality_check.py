@@ -1664,8 +1664,7 @@ def main():
             from _md_to_pdf import render_pair
             render_pair(md_path, title="Date Validation")
         except ImportError:
-    def force_utf8_console() -> None:
-        pass  # No-op if _env_loader not available
+            pass  # No-op if _md_to_pdf not available
         total = sum(r["summary"]["total"] for r in date_reports)
         print(f"\n  Date validation → {md_path} + .canvas/date_audit_*.json")
         sys.exit(1 if total > 0 else 0)
@@ -1690,8 +1689,7 @@ def main():
             from _md_to_pdf import render_pair
             render_pair(md_path, title="Alignment Audit")
         except ImportError:
-    def force_utf8_console() -> None:
-        pass  # No-op if _env_loader not available
+            pass  # No-op if _md_to_pdf not available
         print(f"\n  Alignment audit → {md_path} + .canvas/alignment_audit_*.json")
         sys.exit(0)
 
@@ -1716,8 +1714,7 @@ def main():
             from _md_to_pdf import render_pair
             render_pair(md_path, title="Link Metadata Audit")
         except ImportError:
-    def force_utf8_console() -> None:
-        pass  # No-op if _env_loader not available
+            pass  # No-op if _md_to_pdf not available
         print(f"\n  Link-metadata audit → {md_path} + .canvas/link_metadata_audit_*.json")
         sys.exit(0)
 
@@ -1741,8 +1738,7 @@ def main():
             from _md_to_pdf import render_pair
             render_pair(md_path, title="Files Audit")
         except ImportError:
-    def force_utf8_console() -> None:
-        pass  # No-op if _env_loader not available
+            pass  # No-op if _md_to_pdf not available
         print(f"\n  Files audit → {md_path} + .canvas/file_audit_*.json")
         sys.exit(0)
 
@@ -1775,8 +1771,7 @@ def main():
         from _md_to_pdf import render_pair
         render_pair(md_path, title="Course Quality Check")
     except ImportError:
-    def force_utf8_console() -> None:
-        pass  # No-op if _env_loader not available
+        pass  # No-op if _md_to_pdf not available
 
     print(f"\n{'='*62}")
     if all_clean:
