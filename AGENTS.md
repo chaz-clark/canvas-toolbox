@@ -76,9 +76,13 @@ Accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extensi
 |---------|---------|
 | "Sync students" / "Pull student list" / "Update enrollment" / "Sync all students" / "Update the deid master" / "Rebuild the student list" | `uv run python lib/tools/build_deid_master.py --force` |
 | "Pull the course from Canvas" / "Sync course content" | `uv run python lib/tools/canvas_sync.py --pull` |
-| "Audit the course" / "Check course quality" | `uv run python lib/tools/course_audit.py --course-id <id>` |
+| "Audit the course" / "Check course quality" / "Run a health check" | `uv run python lib/tools/course_audit.py --course-id <id>` |
+| "Grade this assignment" / "Grade KC1" / "Start grading" / "Fetch submissions for grading" | `uv run python lib/tools/grader_fetch.py --challenge-dir grading/<name>` then 3-pass consensus grading |
+| "Push grades to Canvas" / "Upload grades" / "Post the grades" | `uv run python lib/tools/grader_push.py --challenge-dir grading/<name> --mark-reviewed` |
+| "Run a UW check" / "Last participation report" / "Check who's still active" / "Find students who stopped participating" / "Title IV report" | `uv run python lib/tools/course_engagement_audit.py --uf-date YYYY-MM-DD` |
 | "Give student X extra time on quizzes" / "Apply 1.5x time for student X" / "Give double time on all quizzes" / "Apply quiz time extension" | `uv run python lib/tools/student_quiz_time_extension.py --deid-code <code> --multiplier 1.5 --all-timed --apply` |
 | "Let student X submit late" / "Give late-work grace" / "Reopen assignments for student X" / "Drop the deadline for student X" | `uv run python lib/tools/student_late_accommodation.py --deid-code <code> --from-days-ago 14 --apply` |
+| "Apply SAS accommodations" / "Run the accommodation dispatcher" / "Process accommodation letters" | `uv run python lib/tools/apply_sas_accommodations.py --apply` |
 | "Student still can't submit" / "Override isn't working" / "Fix assignment access for student X" / "Force Canvas to recalculate" | `uv run python lib/tools/fix_group_override_recalc.py --course-id <id> --student-id <id>` |
 | "Push changes to Canvas" | `uv run python lib/tools/canvas_sync.py --push` |
 
