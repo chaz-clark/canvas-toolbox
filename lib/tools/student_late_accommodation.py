@@ -92,7 +92,14 @@ try:
     from _env_loader import force_utf8_console
 except ImportError:
     def force_utf8_console() -> None:
-        pass  # No-op if _env_loader not available
+        pass
+
+try:
+    from _override_recalc_helper import force_recalc_for_student
+except ImportError:
+    # If helper not available, define a no-op
+    def force_recalc_for_student(*args, **kwargs) -> int:
+        return 0  # No-op if _env_loader not available
 import csv
 import os
 import sys
@@ -359,6 +366,11 @@ def main() -> int:
                     help="undo: delete this student's accommodation overrides")
     ap.add_argument("--apply", action="store_true",
                     help="actually write the change (without this, dry-run)")
+    ap.add_argument("--force-recalc", dest="force_recalc", action="store_true",
+                    default=True,
+                    help="force Canvas to recalculate overrides after applying (default: True)")
+    ap.add_argument("--no-force-recalc", dest="force_recalc", action="store_false",
+                    help="skip forcing recalculation (faster, but overrides may not take effect)")
     args = ap.parse_args()
 
     base_url = os.environ.get("CANVAS_BASE_URL", "").rstrip("/")
@@ -440,6 +452,25 @@ def main() -> int:
             print(f"  [{ok}] {aid}: override id={body.get('id')} "
                   f"due={body.get('due_at')} unlock={body.get('unlock_at')} "
                   f"lock={body.get('lock_at')}")
+
+    # Force recalculation if we applied overrides (not if we removed them)
+    if not args.remove and args.apply and args.force_recalc and assignment_ids:
+        print(f"\nForcing Canvas override recalculation...")
+        try:
+            headers = {"Authorization": f"Bearer {token}"}
+            force_recalc_for_student(
+                base=base_url,
+                headers=headers,
+                course_id=int(course_id),
+                student_id=uid,
+                quiet=False
+            )
+        except Exception as e:
+            print(f"  [recalc] Warning: recalculation failed: {e}", file=sys.stderr)
+            print(f"  [recalc] Overrides were created, but may not take effect immediately.",
+                  file=sys.stderr)
+            print(f"  [recalc] Run: fix_group_override_recalc.py --course-id {course_id} "
+                  f"--student-id {uid}", file=sys.stderr)
 
     if fails:
         print(f"\n{fails} operation(s) failed. Re-run to retry.", file=sys.stderr)
