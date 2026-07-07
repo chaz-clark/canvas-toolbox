@@ -177,7 +177,7 @@ def test_parse_canvas_self_handles_non_dict():
 
 def test_check_mode_against_tmp_repo(tmp_path):
     """End-to-end smoke: cb_init.py --check --mode adopter --skip-playwright
-    against a fresh git repo. Asserts ALL 8 step labels print + no .env
+    against a fresh git repo. Asserts ALL 13 step labels print + no .env
     is written. Catches "I forgot to wire step X into the dispatch."
 
     --check mode is designed to continue past failures so the operator
@@ -199,9 +199,9 @@ def test_check_mode_against_tmp_repo(tmp_path):
     )
     out = result.stdout + result.stderr
 
-    # All 9 step labels must appear (catches the dispatch-wiring class of bugs)
-    for i in range(1, 10):
-        assert f"Step {i}/9:" in out, (
+    # All 13 step labels must appear (catches the dispatch-wiring class of bugs)
+    for i in range(1, 14):
+        assert f"Step {i}/13:" in out, (
             f"step {i} missing from --check output. Full output:\n{out}"
         )
 

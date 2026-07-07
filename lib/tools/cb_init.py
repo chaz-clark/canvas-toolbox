@@ -5,23 +5,42 @@ Sprint 2 of the productional-alignment work (inspired by kenn-io/roborev's
 AFTER I clone?" friction every adopter (and every fresh contributor agent)
 currently hits.
 
-WHAT IT DOES — 9 idempotent steps
+v1.6 ARCHITECTURE (course-centric layout)
+  Detects subdirectory context automatically. When run from DS460/canvas-toolbox/,
+  creates course files at DS460/ (course root), not inside canvas-toolbox/.
+
+  Course root layout:
+    DS460/                      # Work from here
+    ├── canvas-toolbox/         # Tools only (gitignored)
+    │   └── AGENTS.md          # Toolkit knowledge
+    ├── .env                   # Course config
+    ├── .gitignore             # Course gitignore
+    ├── AGENTS.md              # Course context (HERMES learning)
+    ├── course/                # Canvas mirror (from canvas-sync)
+    ├── grading/               # Grading workflows
+    └── handoffs/              # Session notes (opt-in via --with-handoffs)
+
+WHAT IT DOES — 13 idempotent steps
 
   1. Install uv (Astral's official installer, curl-pipe) if not on PATH
   2. Install Python 3.14 via uv (uv-managed; never touches system Python)
-  3. Write a .env stub in cwd with the required fields commented; STOP
-     here on first run so the operator can fill in CANVAS_API_TOKEN /
-     CANVAS_BASE_URL / CANVAS_COURSE_ID manually
-  4. `uv sync --group dev` from the canvas-toolbox repo root (pulls all
-     deps + dev group: pytest, ruff, pre-commit)
-  5. Install Rust (optional in v1.5.x; opt-in via --with-rust flag; will
-     become required in v2.x; provides 10-100x speedup for large courses)
+  3. Write a .env stub at course root with required fields; STOP here on
+     first run so operator can fill in CANVAS_API_TOKEN / CANVAS_BASE_URL /
+     CANVAS_COURSE_ID manually
+  4. `uv sync --group dev` from canvas-toolbox repo root (pulls all deps +
+     dev group: pytest, ruff, pre-commit)
+  5. Install Rust (optional in v1.5.x; opt-in via --with-rust; will become
+     required in v2.x; provides 10-100x speedup for large courses)
   6. `uv run playwright install chromium` (~92 MB; used by
      grader_follow_share_url for ChatGPT/Gemini share URLs)
   7. `uv run pre-commit install` (ruff + actionlint on every commit)
-  8. Canvas API smoke test — `GET /api/v1/users/self` (read-only;
-     confirms the token works + reports the authenticated user's name)
-  9. Surface AGENTS.md + the bug-intake one-liner
+  8. Canvas API smoke test — `GET /api/v1/users/self` (read-only; confirms
+     token works + reports authenticated user's name)
+  9. Surface AGENTS.md + bug-intake one-liner
+ 10. Create .gitignore at course root (subdirectory mode only)
+ 11. Run canvas-sync --pull to populate course/ (subdirectory mode only)
+ 12. Generate course-specific AGENTS.md stub (subdirectory mode only)
+ 13. Create handoffs/ directory (opt-in via --with-handoffs; dev feature)
 
 Every step is idempotent: re-running cb-init after the first complete
 pass is a fast no-op that prints "✓ already done — skipping" for each
@@ -38,18 +57,16 @@ MAINTAINER vs ADOPTER (decision A)
   Auto-detection from `git remote get-url origin` surfaces a suggestion
   but doesn't override the default; the flag is the explicit toggle.
 
-WHERE THE .env LANDS
-  cb-init writes the stub to the CURRENT WORKING DIRECTORY. This lets
-  the user control placement by where they invoke from:
-    - Maintainer / adopter-standalone (cd canvas-toolbox && cb-init)
-      → .env at canvas-toolbox/.env
-    - Adopter-vendored (cd consumer-repo && uv run python
-      canvas-toolbox/lib/tools/cb_init.py) → .env at consumer-repo/.env
+WHERE THE .env LANDS (v1.6+)
+  Automatic detection:
+    - Subdirectory mode (DS460/canvas-toolbox/) → .env at DS460/
+    - Standalone mode (canvas-toolbox/) → .env at canvas-toolbox/
   Both are valid; `_env_loader.py` walks up from script location to find
   the nearest .env.
 
 WHAT IT DOES NOT DO
-  - No Canvas WRITES. Step 7 hits `/users/self` (read-only) only.
+  - No Canvas WRITES. Step 8 hits `/users/self` (read-only) only.
+    Step 11 runs canvas-sync --pull (read-only sync from Canvas).
   - No `gh` / GitHub CLI requirements. Bug intake goes through the
     Cloudflare Worker (cb_report_bug.py).
   - No grader config.json scaffold. Use `grader_scaffold.py` (#54-A)
@@ -63,6 +80,7 @@ USAGE
   uv run python lib/tools/cb_init.py --check             # dry-run; no writes
   uv run python lib/tools/cb_init.py --mode maintainer   # explicit mode
   uv run python lib/tools/cb_init.py --skip-playwright   # skip the 92 MB
+  uv run python lib/tools/cb_init.py --with-handoffs     # create handoffs/ (dev)
 
 EXIT CODES
   0  setup complete (every step that needed to run, ran successfully)
@@ -111,13 +129,47 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 TARGET_PYTHON = "3.14"
 UV_INSTALL_URL = "https://astral.sh/uv/install.sh"
 
+
+# ---------------------------------------------------------------------------
+# v1.6 Architecture: Course Root Detection
+# ---------------------------------------------------------------------------
+
+def detect_course_context() -> tuple[Path, bool]:
+    """
+    Detect if running from canvas-toolbox subdirectory (v1.6+ architecture).
+
+    Returns: (course_root, is_subdirectory)
+    - If in canvas-toolbox/ subdirectory: (parent, True)  # DS460/canvas-toolbox/
+    - If standalone: (REPO_ROOT, False)                    # canvas-toolbox/
+
+    v1.6 architecture: all course files (.env, course/, grading/, AGENTS.md,
+    handoffs/) live at course root, not inside canvas-toolbox/.
+    """
+    if REPO_ROOT.name != "canvas-toolbox":
+        # Renamed or non-standard layout
+        return REPO_ROOT, False
+
+    # Common development folder names where standalone canvas-toolbox lives
+    dev_folders = {"GitHub", "github", "repos", "repositories", "projects", "src", "code", "dev", "Documents"}
+
+    parent = REPO_ROOT.parent
+    if parent.name in dev_folders:
+        # Standalone mode: ~/GitHub/canvas-toolbox or ~/Documents/GitHub/canvas-toolbox
+        return REPO_ROOT, False
+
+    # Subdirectory mode: DS460/canvas-toolbox, itm327/canvas-toolbox, etc.
+    return parent, True
+
+COURSE_ROOT, IS_SUBDIRECTORY = detect_course_context()
+
 # The canonical .env stub. Two fields are REQUIRED for any tool to run
 # (TOKEN + BASE_URL); COURSE_ID + SANDBOX_ID are usually passed via CLI
 # flags per-command (e.g. `--course-id 12345`) but adopters who work on
 # one course can drop it in env to save typing.
-ENV_STUB = """# canvas-toolbox configuration
-# Fill in the REQUIRED values below, then re-run cb-init to continue from step 4.
-# See AGENTS.md for the full setup guide.
+ENV_STUB = """# Canvas course configuration
+# This file lives at the course root (not inside canvas-toolbox/).
+# Fill in the REQUIRED values below, then re-run cb-init to continue.
+# See canvas-toolbox/AGENTS.md for the full setup guide.
 
 # REQUIRED — your Canvas personal access token.
 # Canvas → Account → Settings → New Access Token (set a 90-day expiry).
@@ -318,18 +370,18 @@ def run_subprocess(args: list[str], *, cwd: Path | None = None, timeout: int = 1
 
 def step_1_install_uv(*, auto_yes: bool, check_only: bool) -> bool:
     if is_uv_installed():
-        print("Step 1/9: ✓ uv already installed — skipping.")
+        print("Step 1/13: ✓ uv already installed — skipping.")
         return True
     if check_only:
-        print("Step 1/9: would install uv via Astral's official installer.")
+        print("Step 1/13: would install uv via Astral's official installer.")
         return False
     if platform.system() == "Windows":
-        print("Step 1/9: uv not on PATH. On Windows, install manually:")
+        print("Step 1/13: uv not on PATH. On Windows, install manually:")
         print("           irm https://astral.sh/uv/install.ps1 | iex")
         print("         Then re-run cb-init.")
         return False
     if not prompt_y_n(
-        "Step 1/9: uv not on PATH. Install via Astral's official installer (curl-pipe)?",
+        "Step 1/13: uv not on PATH. Install via Astral's official installer (curl-pipe)?",
         auto_yes=auto_yes,
     ):
         print("  ⚠ Skipped. cb-init can't proceed without uv.")
@@ -349,13 +401,13 @@ def step_1_install_uv(*, auto_yes: bool, check_only: bool) -> bool:
 
 def step_2_install_python(*, auto_yes: bool, check_only: bool) -> bool:
     if uv_has_python(TARGET_PYTHON):
-        print(f"Step 2/9: ✓ Python {TARGET_PYTHON} (uv-managed) already installed — skipping.")
+        print(f"Step 2/13: ✓ Python {TARGET_PYTHON} (uv-managed) already installed — skipping.")
         return True
     if check_only:
-        print(f"Step 2/9: would run `uv python install {TARGET_PYTHON}`.")
+        print(f"Step 2/13: would run `uv python install {TARGET_PYTHON}`.")
         return False
     if not prompt_y_n(
-        f"Step 2/9: Python {TARGET_PYTHON} not managed by uv. Install (uv-only; "
+        f"Step 2/13: Python {TARGET_PYTHON} not managed by uv. Install (uv-only; "
         f"won't touch system Python)?",
         auto_yes=auto_yes,
     ):
@@ -368,20 +420,45 @@ def step_2_install_python(*, auto_yes: bool, check_only: bool) -> bool:
     return True
 
 
-def step_3_env_stub(*, cwd: Path, auto_yes: bool, check_only: bool) -> bool:
-    env_path = cwd / ".env"
+def step_3_env_stub(*, course_root: Path, auto_yes: bool, check_only: bool) -> bool:
+    env_path = course_root / ".env"
+    old_env_path = REPO_ROOT / ".env"  # v1.5 location
+
+    # v1.6 migration: check for .env in old location (canvas-toolbox/.env)
+    if IS_SUBDIRECTORY and not env_path.exists() and old_env_path.exists():
+        print(f"Step 3/13: detected .env at old v1.5 location: {old_env_path}")
+        print(f"          v1.6 moves .env to course root: {env_path}")
+        if check_only:
+            print(f"          would offer to migrate .env to {env_path}")
+            return False
+        if prompt_y_n(
+            f"Step 3/13: migrate .env from {old_env_path} to {env_path}?",
+            auto_yes=auto_yes,
+        ):
+            import shutil
+            shutil.move(str(old_env_path), str(env_path))
+            print(f"  ✓ Migrated .env to {env_path}")
+            # Check if migrated .env is filled
+            if stub_is_filled(env_path.read_text(encoding="utf-8")):
+                print("    .env is filled — continuing setup.")
+                return True
+            print("    .env migrated but required fields are blank.")
+            print("    Fill in CANVAS_API_TOKEN + CANVAS_BASE_URL, then re-run cb-init.")
+            return False
+        print("  ⚠ Migration declined — creating new .env stub instead.")
+
     if env_path.exists():
         if stub_is_filled(env_path.read_text(encoding="utf-8")):
-            print("Step 3/9: ✓ .env present + required fields filled — skipping.")
+            print("Step 3/13: ✓ .env present + required fields filled — skipping.")
             return True
-        print(f"Step 3/9: ⚠ .env exists at {env_path} but required fields are blank.")
+        print(f"Step 3/13: ⚠ .env exists at {env_path} but required fields are blank.")
         print("  Fill in CANVAS_API_TOKEN + CANVAS_BASE_URL, then re-run cb-init.")
         return False
     if check_only:
-        print(f"Step 3/9: would write a .env stub to {env_path}.")
+        print(f"Step 3/13: would write a .env stub to {env_path}.")
         return False
     if not prompt_y_n(
-        f"Step 3/9: .env not found. Write a stub at {env_path}?",
+        f"Step 3/13: .env not found. Write a stub at {env_path}?",
         auto_yes=auto_yes,
     ):
         print("  ⚠ Skipped.")
@@ -401,14 +478,14 @@ def step_4_uv_sync(*, auto_yes: bool, check_only: bool) -> bool:
     venv_exists = is_uv_synced()
     if check_only:
         if venv_exists:
-            print("Step 4/9: ✓ .venv exists — would verify with `uv sync --group dev`.")
+            print("Step 4/13: ✓ .venv exists — would verify with `uv sync --group dev`.")
         else:
-            print("Step 4/9: would run `uv sync --group dev` (creates .venv + installs deps).")
+            print("Step 4/13: would run `uv sync --group dev` (creates .venv + installs deps).")
         return True
     if venv_exists:
-        print("Step 4/9: ✓ .venv exists — verifying deps with `uv sync --group dev`...")
+        print("Step 4/13: ✓ .venv exists — verifying deps with `uv sync --group dev`...")
     else:
-        print("Step 4/9: running `uv sync --group dev` (creates .venv + installs deps)...")
+        print("Step 4/13: running `uv sync --group dev` (creates .venv + installs deps)...")
     if not run_subprocess(["uv", "sync", "--group", "dev"], cwd=REPO_ROOT, timeout=180):
         return False
     print("  ✓ Deps synced.")
@@ -418,7 +495,7 @@ def step_4_uv_sync(*, auto_yes: bool, check_only: bool) -> bool:
 def step_5_rust_optional(*, check_only: bool, with_rust: bool) -> bool:
     """Install Rust (OPTIONAL in v1.5.x - opt-in via --with-rust flag)."""
     if not with_rust:
-        print("Step 5/9: ⏭  Rust installation skipped (optional in v1.5.x).")
+        print("Step 5/13: ⏭  Rust installation skipped (optional in v1.5.x).")
         print("          For 10-100x speedup on large courses: cb-init --with-rust")
         print("          Rust will become required in v2.x.")
         return True
@@ -426,11 +503,11 @@ def step_5_rust_optional(*, check_only: bool, with_rust: bool) -> bool:
     # If --with-rust provided, show message that manual install is needed for v1.5.0
     # Auto-install will be added in v1.5.1
     if check_only:
-        print("Step 5/9: Rust installation requested via --with-rust")
+        print("Step 5/13: Rust installation requested via --with-rust")
         print("          (v1.5.0: manual install required; auto-install in v1.5.1)")
         return True
 
-    print("Step 5/9: Rust installation requested via --with-rust")
+    print("Step 5/13: Rust installation requested via --with-rust")
     print()
     print("  v1.5.0 requires manual Rust installation:")
     print("    1. Install Rust via rustup:")
@@ -450,16 +527,16 @@ def step_5_rust_optional(*, check_only: bool, with_rust: bool) -> bool:
 
 def step_6_playwright(*, auto_yes: bool, check_only: bool, skip: bool) -> bool:
     if skip:
-        print("Step 6/9: ⏭ skipped via --skip-playwright.")
+        print("Step 6/13: ⏭ skipped via --skip-playwright.")
         return True
     if is_playwright_chromium_installed():
-        print("Step 6/9: ✓ Playwright Chromium already installed — skipping.")
+        print("Step 6/13: ✓ Playwright Chromium already installed — skipping.")
         return True
     if check_only:
-        print("Step 6/9: would run `uv run playwright install chromium` (~92 MB).")
+        print("Step 6/13: would run `uv run playwright install chromium` (~92 MB).")
         return True
     if not prompt_y_n(
-        "Step 6/9: Playwright Chromium not detected. Install (~92 MB)? Required by "
+        "Step 6/13: Playwright Chromium not detected. Install (~92 MB)? Required by "
         "grader_follow_share_url for ChatGPT/Gemini share URL parsing.",
         auto_yes=auto_yes,
     ):
@@ -475,13 +552,13 @@ def step_6_playwright(*, auto_yes: bool, check_only: bool, skip: bool) -> bool:
 
 def step_7_pre_commit(*, auto_yes: bool, check_only: bool) -> bool:
     if is_pre_commit_installed():
-        print("Step 7/9: ✓ pre-commit hook already installed — skipping.")
+        print("Step 7/13: ✓ pre-commit hook already installed — skipping.")
         return True
     if check_only:
-        print("Step 7/9: would run `uv run pre-commit install` from the repo root.")
+        print("Step 7/13: would run `uv run pre-commit install` from the repo root.")
         return True
     if not prompt_y_n(
-        "Step 7/9: pre-commit hook not installed. Install it (ruff + actionlint "
+        "Step 7/13: pre-commit hook not installed. Install it (ruff + actionlint "
         "run on every commit)?",
         auto_yes=auto_yes,
     ):
@@ -497,7 +574,7 @@ def step_7_pre_commit(*, auto_yes: bool, check_only: bool) -> bool:
 def step_8_canvas_smoke(*, cwd: Path, check_only: bool) -> bool:
     env_path = cwd / ".env"
     if not env_path.exists():
-        print("Step 8/9: ⚠ No .env at " + str(env_path) + " — cannot smoke-test. Skipping.")
+        print("Step 8/13: ⚠ No .env at " + str(env_path) + " — cannot smoke-test. Skipping.")
         return True
     env_vars: dict[str, str] = {}
     for line in env_path.read_text(encoding="utf-8").splitlines():
@@ -509,14 +586,14 @@ def step_8_canvas_smoke(*, cwd: Path, check_only: bool) -> bool:
     token = env_vars.get("CANVAS_API_TOKEN", "")
     base_url = env_vars.get("CANVAS_BASE_URL", "")
     if not token or not base_url:
-        print("Step 8/9: ⚠ CANVAS_API_TOKEN or CANVAS_BASE_URL blank — cannot smoke-test.")
+        print("Step 8/13: ⚠ CANVAS_API_TOKEN or CANVAS_BASE_URL blank — cannot smoke-test.")
         return True
     if not base_url.startswith("http"):
         base_url = "https://" + base_url
     if check_only:
-        print("Step 8/9: would hit GET " + base_url.rstrip('/') + "/api/v1/users/self (read-only).")
+        print("Step 8/13: would hit GET " + base_url.rstrip('/') + "/api/v1/users/self (read-only).")
         return True
-    print("Step 8/9: smoke-testing Canvas API...")
+    print("Step 8/13: smoke-testing Canvas API...")
     ok, msg = smoke_test_canvas(token, base_url)
     if not ok:
         print("  ✗ Smoke test failed: " + msg)
@@ -527,7 +604,7 @@ def step_8_canvas_smoke(*, cwd: Path, check_only: bool) -> bool:
 
 
 def step_9_surface_docs(*, mode: str) -> bool:
-    print("Step 9/9: setup complete.")
+    print("Step 9/13: setup complete.")
     print()
     print("Next:")
     print("  • Read " + str(REPO_ROOT) + "/AGENTS.md — Active Context tells you what's where")
@@ -542,6 +619,159 @@ def step_9_surface_docs(*, mode: str) -> bool:
     else:
         print("  • [maintainer mode] share-back hints suppressed; you ARE the maintainer.")
     print()
+    return True
+
+
+def step_10_gitignore(*, course_root: Path, is_subdir: bool, check_only: bool) -> bool:
+    """Create .gitignore at course root (v1.6+ subdirectory mode only)."""
+    if not is_subdir:
+        print("Step 10/13: ⏭  Standalone mode — .gitignore not needed.")
+        return True
+
+    gitignore_path = course_root / ".gitignore"
+    gitignore_content = """.env
+canvas-toolbox/
+handoffs/
+course/
+course_ref/
+course_src/
+.canvas/
+grading/
+quality_report.md
+"""
+
+    if gitignore_path.exists():
+        print(f"Step 10/13: ✓ .gitignore exists at {gitignore_path} — skipping.")
+        return True
+
+    if check_only:
+        print(f"Step 10/13: would create .gitignore at {gitignore_path}")
+        return True
+
+    gitignore_path.write_text(gitignore_content, encoding="utf-8")
+    print(f"  ✓ Created .gitignore at {gitignore_path}")
+    return True
+
+
+def step_11_canvas_sync(*, course_root: Path, is_subdir: bool, check_only: bool) -> bool:
+    """Run canvas-sync --pull to populate course/ directory (v1.6+ subdirectory mode only)."""
+    if not is_subdir:
+        print("Step 11/13: ⏭  Standalone mode — canvas-sync skipped.")
+        print("          Run manually: uv run python lib/tools/canvas_sync.py --pull")
+        return True
+
+    if check_only:
+        print("Step 11/13: would run canvas-sync --pull from course root")
+        return True
+
+    print("Step 11/13: Running canvas-sync --pull to fetch course data...")
+    sync_tool = REPO_ROOT / "lib" / "tools" / "canvas_sync.py"
+
+    if not run_subprocess(
+        ["uv", "run", "python", str(sync_tool), "--pull"],
+        cwd=course_root,
+        timeout=300
+    ):
+        print("  ⚠ canvas-sync failed (check .env has CANVAS_COURSE_ID)")
+        return False
+
+    print("  ✓ Course data synced to course/")
+    return True
+
+
+def step_12_generate_agents_md(*, course_root: Path, is_subdir: bool, check_only: bool) -> bool:
+    """Generate course-specific AGENTS.md stub (v1.6+ subdirectory mode only)."""
+    if not is_subdir:
+        print("Step 12/13: ⏭  Standalone mode — AGENTS.md generation skipped.")
+        return True
+
+    agents_md_path = course_root / "AGENTS.md"
+
+    if agents_md_path.exists():
+        print(f"Step 12/13: ✓ AGENTS.md exists at {agents_md_path} — skipping.")
+        return True
+
+    if check_only:
+        print("Step 12/13: would generate course-specific AGENTS.md")
+        return True
+
+    # Create stub that references canvas-toolbox/AGENTS.md
+    stub_content = f"""---
+name: {course_root.name}-context
+description: Course-specific context for {course_root.name}
+---
+
+# {course_root.name}
+
+This course uses canvas-toolbox for Canvas course management.
+
+## Toolkit Documentation
+
+See [canvas-toolbox/AGENTS.md](canvas-toolbox/AGENTS.md) for:
+- Available tools and CLI commands
+- Agent knowledge and workflows
+- Canvas API patterns
+
+Run all tools from this directory (course root):
+```bash
+uv run python canvas-toolbox/lib/tools/course_audit.py --help
+```
+
+---
+
+## Course Context
+
+[Add course-specific context here as you work]
+
+**HERMES Learning:** This section grows as you chat with Claude about your course.
+- Teaching approach
+- Grading workflows
+- Course-specific Canvas patterns
+- Student cohort notes
+"""
+
+    agents_md_path.write_text(stub_content, encoding="utf-8")
+    print(f"  ✓ Created AGENTS.md stub at {agents_md_path}")
+    print("    This file will grow with HERMES learning as you work with Claude.")
+    return True
+
+
+def step_13_handoffs(*, course_root: Path, is_subdir: bool, with_handoffs: bool, check_only: bool) -> bool:
+    """Create handoffs/ directory (opt-in via --with-handoffs, dev/power-user feature)."""
+    if not with_handoffs:
+        print("Step 13/13: ⏭  --with-handoffs not provided — skipping handoffs/ creation.")
+        print("          This is a dev/power-user feature for AI session tracking.")
+        return True
+
+    if not is_subdir:
+        print("Step 13/13: ⚠  --with-handoffs requires subdirectory mode (course root context).")
+        return True
+
+    handoffs_dir = course_root / "handoffs"
+
+    if handoffs_dir.exists():
+        print(f"Step 13/13: ✓ handoffs/ exists at {handoffs_dir} — skipping.")
+        return True
+
+    if check_only:
+        print(f"Step 13/13: would create handoffs/ at {handoffs_dir}")
+        return True
+
+    handoffs_dir.mkdir(exist_ok=True)
+    readme = handoffs_dir / "README.md"
+    readme.write_text("""# Handoffs
+
+AI agent session handoff notes (GITIGNORED).
+
+Each session creates a timestamped markdown file documenting:
+- What was accomplished
+- Decisions made
+- Context for next session
+
+These files are for human review and cross-session continuity.
+""", encoding="utf-8")
+
+    print(f"  ✓ Created handoffs/ at {handoffs_dir}")
     return True
 
 
@@ -587,6 +817,11 @@ def main() -> int:
              "Optional in v1.5.x (provides 10-100x speedup for large courses). "
              "Will become required in v2.x.",
     )
+    parser.add_argument(
+        "--with-handoffs", action="store_true",
+        help="Create handoffs/ directory and course-level AGENTS.md for AI session tracking. "
+             "Optional: most users don't need this (dev/power-user feature).",
+    )
     args = parser.parse_args()
 
     cwd = Path.cwd()
@@ -609,15 +844,19 @@ def main() -> int:
     step_funcs = [
         lambda: step_1_install_uv(auto_yes=args.yes, check_only=args.check),
         lambda: step_2_install_python(auto_yes=args.yes, check_only=args.check),
-        lambda: step_3_env_stub(cwd=cwd, auto_yes=args.yes, check_only=args.check),
+        lambda: step_3_env_stub(course_root=COURSE_ROOT, auto_yes=args.yes, check_only=args.check),
         lambda: step_4_uv_sync(auto_yes=args.yes, check_only=args.check),
         lambda: step_5_rust_optional(check_only=args.check, with_rust=args.with_rust),
         lambda: step_6_playwright(
             auto_yes=args.yes, check_only=args.check, skip=args.skip_playwright,
         ),
         lambda: step_7_pre_commit(auto_yes=args.yes, check_only=args.check),
-        lambda: step_8_canvas_smoke(cwd=cwd, check_only=args.check),
+        lambda: step_8_canvas_smoke(cwd=COURSE_ROOT, check_only=args.check),
         lambda: step_9_surface_docs(mode=mode),
+        lambda: step_10_gitignore(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, check_only=args.check),
+        lambda: step_11_canvas_sync(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, check_only=args.check),
+        lambda: step_12_generate_agents_md(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, check_only=args.check),
+        lambda: step_13_handoffs(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, with_handoffs=args.with_handoffs, check_only=args.check),
     ]
 
     for fn in step_funcs:

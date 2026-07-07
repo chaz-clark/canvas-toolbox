@@ -126,7 +126,9 @@ canvas_toolbox/
 └── README.md              ← user-facing documentation and command reference
 ```
 
-**Consumer usage**: clone `canvas_toolbox` as a subdirectory of your course repo (`git clone https://github.com/chaz-clark/canvas_toolbox.git canvas_toolbox`). Copy `scaffold/` starters to your repo root once. Run tools as `uv run python canvas_toolbox/lib/tools/<script>`. Update safely at any time: `cd canvas_toolbox && git pull origin main` — only `lib/`, `scaffold/`, and `examples/` change; your course files are untouched.
+**Consumer usage (v1.6+)**: clone `canvas_toolbox` into your course folder (`git clone https://github.com/chaz-clark/canvas_toolbox.git canvas_toolbox`), then run `uv run python canvas_toolbox/lib/tools/cb_init.py` which auto-creates course files (.env, .gitignore, AGENTS.md) at course root. Tools run from course root: `uv run python canvas_toolbox/lib/tools/<script>`. Update safely: `cd canvas_toolbox && git pull origin main` — only toolkit code updates; your course files are untouched.
+
+v1.6 architecture moves all course files to course root (DS460/), not inside canvas_toolbox/. The toolkit is gitignored; course context lives in course-root AGENTS.md. Migration from v1.5: cb-init detects old .env location and offers to migrate.
 
 For full setup and command reference, see [`README.md`](README.md). For agent-engineering taxonomy (Runtime / Capability / Specification / Tool layers), see [`lib/agents/AGENT_LAYERS.md`](lib/agents/AGENT_LAYERS.md).
 
@@ -308,14 +310,18 @@ private channel is for security.
 
 ## Active Context
 
-_Last updated: 2026-06-29_
+_Last updated: 2026-07-07_
 
 Latest 5 releases only — full detail for every version is in
 [`CHANGELOG.md`](CHANGELOG.md). On each release, add the new entry on top and
 rotate the oldest out. Kept to ≤5 entries / ≤150 lines / ≤25k tokens, enforced
 in CI per make_AGENTS AGENTS-QC-010 + AGENTS-QC-011.
 
-### Recent: AGENTS.md trimmed to rotating latest-5 + CI guard (v0.72.3, 2026-06-29)
+### Recent: v1.6 course-centric architecture (v1.6.0, 2026-07-07)
+
+Major architecture refactor: course files (.env, AGENTS.md, course/, grading/, handoffs/) now live at course root (DS460/), not inside canvas-toolbox/. cb-init auto-detects subdirectory context and creates files in the right location. Includes v1.5 → v1.6 migration detection for .env relocation. 13-step cb-init (was 9): adds .gitignore creation, canvas-sync --pull, course-level AGENTS.md stub generation, and opt-in handoffs/ directory (--with-handoffs flag). Eliminates multi-course "which canvas-toolbox is this?" confusion. Tools continue to run from course root unchanged. Full backward compatibility for standalone mode. See docs/proposals/v1.6-cb-init-refactor-plan.md for implementation details.
+
+### Earlier: AGENTS.md trimmed to rotating latest-5 + CI guard (v0.72.3, 2026-06-29)
 
 Active Context had grown into a 182 KB append-only release log (past host-tool
 read limits). Trimmed to the latest 5 entries; full history moved to CHANGELOG.
@@ -341,13 +347,7 @@ time multiplier), `--shift-by-days` mode on `student_late_accommodation.py`
 (test_reschedule), and `apply_sas_accommodations.py` (YAML dispatcher, 4-tier
 classify, FERPA audit log). +55 tests. New Quizzes (LTI) deferred.
 
-### Earlier: Path A — `.known_names.txt` auto-derived from the de-id master (v0.71.0, 2026-06-26)
-
-`build_deid_master.py` now also emits `.known_names.txt` (sortable + display
-name forms) so the scrub roster derives from the de-id master. Additive — grader
-hot path unchanged. Path B (master replaces per-assignment keymaps) deferred.
-
-_Earlier releases (v0.70.0 and back) live in the [CHANGELOG](CHANGELOG.md)._
+_Earlier releases (v0.71.0 and back) live in the [CHANGELOG](CHANGELOG.md)._
 
 
 ## Domain Terms

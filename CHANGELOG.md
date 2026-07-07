@@ -13,6 +13,54 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.6.0] — 2026-07-07
+
+**Major: v1.6 course-centric architecture refactor**
+
+Breaking change for multi-course instructors: course files (.env, AGENTS.md, course/, grading/, handoffs/) now live at course root (DS460/), not inside canvas-toolbox/. This eliminates "which canvas-toolbox folder is this?" confusion when teaching multiple courses.
+
+### Added
+- **cb-init auto-detects subdirectory context** — when run from DS460/canvas-toolbox/, creates course files at DS460/ automatically (no manual copying)
+- **4 new cb-init steps** (now 13 total):
+  - Step 10: Create .gitignore at course root (subdirectory mode)
+  - Step 11: Run canvas-sync --pull to populate course/ directory
+  - Step 12: Generate course-specific AGENTS.md stub (references toolkit AGENTS.md)
+  - Step 13: Create handoffs/ directory (opt-in via --with-handoffs flag)
+- **--with-handoffs flag** — creates handoffs/ directory for AI session tracking (dev/power-user feature, opt-in)
+- **v1.5 → v1.6 migration detection** — cb-init detects .env at old location (canvas-toolbox/.env) and offers to migrate to course root
+
+### Changed
+- **.env location in subdirectory mode** — DS460/.env instead of DS460/canvas-toolbox/.env
+- **Course-root .gitignore auto-created** — includes .env, canvas-toolbox/, course/, grading/, handoffs/
+- **AGENTS.md structure section updated** — documents v1.6 architecture and course-root working directory
+- **cb-init step count** — 9 steps → 13 steps
+- **Test expectations updated** — test_cb_init.py now expects 13 steps
+
+### Technical
+- Added `detect_course_context()` function to distinguish subdirectory vs standalone mode
+- Course root detection uses parent folder name heuristics (dev folders vs course folders)
+- Migration uses shutil.move for .env relocation
+- Backward compatible: standalone mode (canvas-toolbox/ as repo root) unchanged
+- Implementation plan: docs/proposals/v1.6-cb-init-refactor-plan.md
+
+### Migration Guide
+For existing v1.5 users with course files in canvas-toolbox/:
+
+**Automated migration (recommended)**:
+```bash
+python3 canvas-toolbox/scaffold/migrate_v15_to_v16.py        # dry-run (shows what it would do)
+python3 canvas-toolbox/scaffold/migrate_v15_to_v16.py --apply  # actually move files
+uv run python canvas-toolbox/lib/tools/cb_init.py           # finish setup
+```
+
+This moves .env, course/, grading/, .canvas/ to course root, then cb-init creates .gitignore and AGENTS.md.
+
+**Manual migration**: Re-run cb-init from canvas-toolbox/. It will detect your old .env and offer to migrate it (but you'll need to manually move course/, grading/, .canvas/).
+
+See docs/UPGRADING.md for detailed migration steps.
+
+---
+
 ## [1.5.4] — 2026-07-07
 
 **Bug fixes and dependency updates**
