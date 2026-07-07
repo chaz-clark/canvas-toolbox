@@ -2,18 +2,18 @@
 
 **Approved approach:** Gradual migration from Python-only to Rust-required, with dual implementation in between.
 
-**Version strategy:** v1.x (Python-only) → v2.x (Python + Rust hybrid) → v3.x (Rust-required)
+**Version strategy:** v1.x (Python-only) → v1.5.x (Python + Rust hybrid) → v2.x (Rust-required)
 
 **Date:** 2026-07-06 (for implementation starting 2026-07-07)
 
 ---
 
-## Phase 1: Dual Implementation (v2.0.0 - Now to +3 months)
+## Phase 1: Dual Implementation (v1.5.0 - Now to +3 months)
 
 **Goal:** Introduce Rust as optional, maintain both implementations, gather data.
 
-### Version: v2.0.0
-**Major version bump signals:** Rust support added, but backward compatible (Python fallback exists).
+### Version: v1.5.0
+**Minor version bump signals:** Rust support added, fully backward compatible (Python fallback exists).
 
 ### Implementation Architecture
 
@@ -104,11 +104,11 @@ After 3 months, evaluate:
 
 ---
 
-## Phase 2: Rust as Default (v2.5.0 - Months 3-6)
+## Phase 2: Rust as Default (v1.8.0 - Months 3-6)
 
 **Goal:** Make Rust the default, Python becomes the fallback for edge cases only.
 
-### Version: v2.5.0
+### Version: v1.8.0
 **Minor version bump signals:** Default behavior changes (Rust becomes recommended), but still backward compatible.
 
 ### cb-init Changes
@@ -187,11 +187,11 @@ After 3 more months (6 months total), evaluate:
 
 ---
 
-## Phase 3: Rust Required (v3.0.0 - Months 6-12)
+## Phase 3: Rust Required (v2.0.0 - Months 6-12)
 
 **Goal:** Remove Python fallbacks, Rust becomes required dependency.
 
-### Version: v3.0.0
+### Version: v2.0.0
 **Major version bump signals:** Breaking change (Rust required, Python implementations removed).
 
 ### Architecture Changes
@@ -210,7 +210,7 @@ lib/tools/
 ### Simplified Script
 ```python
 #!/usr/bin/env python3
-"""fix_group_override_recalc.py - Rust wrapper (v3.x)"""
+"""fix_group_override_recalc.py - Rust wrapper (v2.x)"""
 
 import subprocess
 import sys
@@ -223,13 +223,13 @@ def main() -> int:
     if not rust_bin.exists():
         print("ERROR: Rust binary not found.")
         print()
-        print("canvas-toolbox v3.x requires Rust. Install with:")
+        print("canvas-toolbox v2.x requires Rust. Install with:")
         print("  cb-init --with-rust")
         print()
         print("Or upgrade Rust components:")
         print("  cb-upgrade-rust")
         print()
-        print("For Python-only version, downgrade to v2.x:")
+        print("For Python-only version, downgrade to v1.x:")
         print("  See docs/UPGRADING.md for migration guide")
         return 2
 
@@ -244,31 +244,31 @@ if __name__ == "__main__":
 ### cb-init Changes (Rust Required)
 ```python
 def step_5_rust_required(*, auto_yes: bool, check_only: bool) -> bool:
-    """Install Rust (REQUIRED in v3.x)."""
+    """Install Rust (REQUIRED in v2.x)."""
     if is_rust_installed() and are_all_rust_binaries_built():
         print("Step 5/9: ✓ Rust + binaries already installed — skipping.")
         return True
 
     if not is_rust_installed():
-        print("Step 5/9: Rust is REQUIRED for canvas-toolbox v3.x.")
+        print("Step 5/9: Rust is REQUIRED for canvas-toolbox v2.x.")
         print("          ~500MB download, 2-5 min install.")
 
         if not prompt_y_n("Install Rust via rustup?", default_yes=True, auto_yes=auto_yes):
             print("  ✗ Rust installation declined.")
-            print("    canvas-toolbox v3.x cannot proceed without Rust.")
+            print("    canvas-toolbox v2.x cannot proceed without Rust.")
             print()
             print("  Options:")
             print("    1. Install Rust manually: https://rustup.rs/")
-            print("    2. Downgrade to v2.x: pip install 'canvas-toolbox<3.0'")
+            print("    2. Downgrade to v1.x: pip install 'canvas-toolbox<2.0'")
             return False  # FATAL - can't proceed
 
         # Install Rust...
 
     # Build binaries (required)
-    print("  Building Rust binaries (required for v3.x)...")
+    print("  Building Rust binaries (required for v2.x)...")
     if not build_rust_binaries():
         print("  ✗ Rust binary build failed.")
-        print("    canvas-toolbox v3.x requires working Rust binaries.")
+        print("    canvas-toolbox v2.x requires working Rust binaries.")
         return False  # FATAL
 
     print("  ✓ Rust installed + binaries built.")
@@ -277,11 +277,11 @@ def step_5_rust_required(*, auto_yes: bool, check_only: bool) -> bool:
 
 ### Upgrade Script: `cb-upgrade-rust`
 
-**Purpose:** Help v2.x → v3.x migration (Python fallback → Rust required).
+**Purpose:** Help v1.x → v2.x migration (Python fallback → Rust required).
 
 ```python
 #!/usr/bin/env python3
-"""cb-upgrade-rust - Migrate from v2.x (Rust optional) to v3.x (Rust required)"""
+"""cb-upgrade-rust - Migrate from v1.x (Rust optional) to v2.x (Rust required)"""
 
 import subprocess
 import sys
@@ -298,12 +298,12 @@ def check_rust_binaries_built() -> bool:
 
 def main() -> int:
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print("canvas-toolbox v2.x → v3.x upgrade")
+    print("canvas-toolbox v1.x → v2.x upgrade")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print()
     print("What's changing:")
-    print("  • v2.x: Rust optional, Python fallback available")
-    print("  • v3.x: Rust REQUIRED, Python fallback removed")
+    print("  • v1.x: Rust optional, Python fallback available")
+    print("  • v2.x: Rust REQUIRED, Python fallback removed")
     print()
     print("Why the change:")
     print("  • 75%+ of users now use Rust version")
@@ -315,14 +315,14 @@ def main() -> int:
     if check_rust_installed() and check_rust_binaries_built():
         print("✓ You're already running Rust - no action needed!")
         print()
-        print("You can upgrade to v3.x anytime:")
+        print("You can upgrade to v2.x anytime:")
         print("  pip install --upgrade canvas-toolbox")
         return 0
 
     if not check_rust_installed():
         print("⚠️  Rust not installed")
         print()
-        print("To upgrade to v3.x, you must install Rust.")
+        print("To upgrade to v2.x, you must install Rust.")
         print()
         if not prompt_y_n("Install Rust now (~500MB, 2-5 min)?"):
             print()
@@ -352,10 +352,10 @@ def main() -> int:
     print("✓ Upgrade preparation complete!")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print()
-    print("You can now upgrade to v3.x:")
+    print("You can now upgrade to v2.x:")
     print("  pip install --upgrade canvas-toolbox")
     print()
-    print("Or stay on v2.x (Rust will be used automatically)")
+    print("Or stay on v1.x (Rust will be used automatically)")
     return 0
 
 if __name__ == "__main__":
@@ -365,18 +365,18 @@ if __name__ == "__main__":
 ### Migration Guide: `docs/UPGRADING.md`
 
 ```markdown
-# Upgrading to canvas-toolbox v3.0
+# Upgrading to canvas-toolbox v2.0
 
 ## What Changed
 
-**v2.x → v3.x: Rust becomes required**
+**v1.x → v2.x: Rust becomes required**
 
-- **v2.x:** Rust optional, Python fallback available (slower)
-- **v3.x:** Rust required, Python fallback removed
+- **v1.x:** Rust optional, Python fallback available (slower)
+- **v2.x:** Rust required, Python fallback removed
 
 ## Why the Change
 
-After 6 months of v2.x:
+After 6 months of v1.x:
 - 75%+ of users adopted Rust
 - Python fallback was 10-100x slower (5-10 min vs 5-15 sec for large courses)
 - Maintaining both implementations was costly
@@ -386,7 +386,7 @@ After 6 months of v2.x:
 ### Option 1: Automatic (Recommended)
 
 ```bash
-# Check if you're ready for v3.x
+# Check if you're ready for v2.x
 cb-upgrade-rust
 
 # If ready, upgrade
@@ -408,24 +408,24 @@ cargo build --release
 pip install --upgrade canvas-toolbox
 ```
 
-### Option 3: Stay on v2.x
+### Option 3: Stay on v1.x
 
 If you can't install Rust:
 
 ```bash
-# Pin to v2.x (Python fallback still works)
-pip install 'canvas-toolbox>=2.0,<3.0'
+# Pin to v1.x (Python fallback still works)
+pip install 'canvas-toolbox>=1.0,<2.0'
 ```
 
-v2.x will receive security patches but no new features after v3.0 release.
+v1.x will receive security patches but no new features after v2.0 release.
 
 ## Rollback
 
-If v3.x causes issues:
+If v2.x causes issues:
 
 ```bash
-# Downgrade to v2.x
-pip install 'canvas-toolbox==2.5.0'
+# Downgrade to v1.x
+pip install 'canvas-toolbox==1.8.0'
 ```
 
 ## Breaking Changes
@@ -436,7 +436,7 @@ pip install 'canvas-toolbox==2.5.0'
 
 ## Tools Affected
 
-v3.0 ships with Rust implementations for:
+v2.0 ships with Rust implementations for:
 - `fix_group_override_recalc.py` (40-120x faster)
 - [Future tools as they're rewritten]
 
@@ -450,19 +450,19 @@ File issues: https://github.com/chaz-clark/canvas-toolbox/issues
 
 ## Timeline Summary
 
-### Phase 1: v2.0.0 (Month 0-3)
+### Phase 1: v1.5.0 (Month 0-3)
 - **Status:** Rust optional, Python fallback available
 - **cb-init:** `--with-rust` flag (opt-in)
 - **Focus:** Gather adoption data, build more Rust tools
 - **Exit criteria:** >50% Rust adoption, 2+ tools benefit
 
-### Phase 2: v2.5.0 (Month 3-6)
+### Phase 2: v1.8.0 (Month 3-6)
 - **Status:** Rust recommended, Python fallback discouraged
 - **cb-init:** Rust prompts by default (can decline)
 - **Focus:** Strong messaging toward Rust, monitor fallback usage
 - **Exit criteria:** >75% Rust adoption, <10% fallback usage
 
-### Phase 3: v3.0.0 (Month 6-12)
+### Phase 3: v2.0.0 (Month 6-12)
 - **Status:** Rust required, Python fallback removed
 - **cb-init:** Rust installation is mandatory (can't proceed without it)
 - **Focus:** Clean up dual implementations, full Rust stack
@@ -552,9 +552,9 @@ def test_error_when_rust_missing():
 
 ## Rollout Communication
 
-### v2.0.0 Announcement
+### v1.5.0 Announcement
 ```
-🚀 canvas-toolbox v2.0.0 - Rust Support (Optional)
+🚀 canvas-toolbox v1.5.0 - Rust Support (Optional)
 
 NEW: High-performance Rust implementations for API-heavy operations.
 
@@ -566,9 +566,9 @@ Try it: cb-init --with-rust
 Read more: docs/proposals/rust-migration-3-phase-strategy.md
 ```
 
-### v2.5.0 Announcement
+### v1.8.0 Announcement
 ```
-⚡ canvas-toolbox v2.5.0 - Rust Now Recommended
+⚡ canvas-toolbox v1.8.0 - Rust Now Recommended
 
 Rust is now the default for new installations.
 
@@ -577,14 +577,14 @@ Rust is now the default for new installations.
 • Python fallback still available (discouraged)
 
 Upgrade: cb-init --with-rust (if you haven't already)
-Stay on Python: Continue using v2.x (works but slower)
+Stay on Python: Continue using v1.x (works but slower)
 
-Next: v3.0 will require Rust (6 months from now)
+Next: v2.0 will require Rust (6 months from now)
 ```
 
-### v3.0.0 Announcement
+### v2.0.0 Announcement
 ```
-🎯 canvas-toolbox v3.0.0 - Rust Required
+🎯 canvas-toolbox v2.0.0 - Rust Required
 
 BREAKING: Rust is now required (Python fallback removed).
 
@@ -648,7 +648,7 @@ Month 5:  Rust: 75% | Python: 25% | Issues: 0
 Month 6:  Rust: 80% | Python: 20% | Issues: 1 (request for v3.0)
 → PROCEED TO PHASE 3
 
-Month 7:  Rust: 100% | Python: 0% (v3.0 released)
+Month 7:  Rust: 100% | Python: 0% (v2.0 released)
 ```
 
 ---
