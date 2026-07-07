@@ -199,9 +199,9 @@ def test_check_mode_against_tmp_repo(tmp_path):
     )
     out = result.stdout + result.stderr
 
-    # All 8 step labels must appear (catches the dispatch-wiring class of bugs)
-    for i in range(1, 9):
-        assert f"Step {i}/8:" in out, (
+    # All 9 step labels must appear (catches the dispatch-wiring class of bugs)
+    for i in range(1, 10):
+        assert f"Step {i}/9:" in out, (
             f"step {i} missing from --check output. Full output:\n{out}"
         )
 
