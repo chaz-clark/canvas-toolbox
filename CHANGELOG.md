@@ -11,14 +11,31 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+---
+
+## [1.5.0] — 2026-07-07
+
+**Rust opt-in for 10-100x speedup on large courses**
+
+### Added
+- **Rust implementation of `fix_group_override_recalc.py`** — 10-100x speedup
+  (5-10 minutes → 5-15 seconds) for courses with 100+ assignments. Uses
+  concurrent HTTP requests (tokio + reqwest) instead of sequential Python loops.
+- **`cb-init --with-rust` flag** — opt-in Rust installation during bootstrap.
+  Manual install instructions shown in v1.5.0; auto-install deferred to v1.5.1.
+  Rust is optional in v1.5.x, will become required in v2.x.
+
 ### Changed
-- **Active Context condensed to brief highlights** (~44 lines, was 176). Each
-  of the latest-5 entries is now a short summary; full per-release detail lives
-  here in CHANGELOG. Removes the verbatim AGENTS.md↔CHANGELOG duplication.
-- **CI guard aligned to the canonical `make_AGENTS` checks** (shipped upstream
-  as [AGENTS-QC-010 + AGENTS-QC-011](https://github.com/chaz-clark/Make-AI-Agents/issues/17), now closed):
-  `test_agents_active_context.py` enforces ≤5 Active Context entries **and**
-  ≤150 lines **and** a ≤25k-token total-file hard cap.
+- **Version scheme bumped to v1.5.0** — signals the start of the hybrid
+  Python+Rust transition phase. See [Rust migration strategy](docs/proposals/rust-migration-3-phase-strategy.md)
+  for the 3-phase roadmap (v1.x Python-only → v1.5.x hybrid → v2.x Rust-required).
+- **README updated** — documents `cb-init --with-rust` for large-course
+  performance optimization; adds performance note to `fix_group_override_recalc`
+  section.
+
+### Fixed
+- **PR #136** — merged Rust rewrite with improved error messaging when Rust
+  binary not found (directs users to `cb-init --with-rust`).
 
 ---
 

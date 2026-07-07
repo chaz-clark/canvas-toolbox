@@ -72,6 +72,8 @@ That's it. `cb-init` is our one-command bootstrap — it installs `uv` and Pytho
 
 Total time on a fresh machine: ~5 minutes (most of it is the agent installing dependencies in the background).
 
+> 🚀 **Performance for large courses (100+ students or assignments):** Some tools have optional Rust implementations that provide 10-100x speedup. Run `cb-init --with-rust` instead of `cb-init` to enable these optimizations (~500 MB install, 2-5 minutes). Optional in v1.5.x, will become required in v2.x. See [Rust migration strategy](docs/proposals/rust-migration-3-phase-strategy.md) for details.
+
 ---
 
 ### If a colleague is setting it up for you
@@ -484,6 +486,8 @@ uv run python lib/tools/fix_group_override_recalc.py \
 ```
 
 **What it does:** Performs a no-op PUT on each assignment override targeting the student or group. This triggers Canvas's `assignment_override_updated` event and forces recalculation of assignment availability.
+
+**Performance:** This tool uses Rust for 10-100x speedup (5-10 minutes → 5-15 seconds for courses with 100+ assignments). Install Rust with `cb-init --with-rust` or manually build the binary (see tool header for instructions).
 
 **When to use:** After accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extension.py`) have been run but the override isn't taking effect. This is the rescue tool.
 

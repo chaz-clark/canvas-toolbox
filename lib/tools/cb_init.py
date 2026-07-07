@@ -5,7 +5,7 @@ Sprint 2 of the productional-alignment work (inspired by kenn-io/roborev's
 AFTER I clone?" friction every adopter (and every fresh contributor agent)
 currently hits.
 
-WHAT IT DOES — 8 idempotent steps
+WHAT IT DOES — 9 idempotent steps
 
   1. Install uv (Astral's official installer, curl-pipe) if not on PATH
   2. Install Python 3.14 via uv (uv-managed; never touches system Python)
@@ -14,12 +14,14 @@ WHAT IT DOES — 8 idempotent steps
      CANVAS_BASE_URL / CANVAS_COURSE_ID manually
   4. `uv sync --group dev` from the canvas-toolbox repo root (pulls all
      deps + dev group: pytest, ruff, pre-commit)
-  5. `uv run playwright install chromium` (~92 MB; used by
+  5. Install Rust (optional in v1.5.x; opt-in via --with-rust flag; will
+     become required in v2.x; provides 10-100x speedup for large courses)
+  6. `uv run playwright install chromium` (~92 MB; used by
      grader_follow_share_url for ChatGPT/Gemini share URLs)
-  6. `uv run pre-commit install` (ruff + actionlint on every commit)
-  7. Canvas API smoke test — `GET /api/v1/users/self` (read-only;
+  7. `uv run pre-commit install` (ruff + actionlint on every commit)
+  8. Canvas API smoke test — `GET /api/v1/users/self` (read-only;
      confirms the token works + reports the authenticated user's name)
-  8. Surface AGENTS.md + the bug-intake one-liner
+  9. Surface AGENTS.md + the bug-intake one-liner
 
 Every step is idempotent: re-running cb-init after the first complete
 pass is a fast no-op that prints "✓ already done — skipping" for each
@@ -316,18 +318,18 @@ def run_subprocess(args: list[str], *, cwd: Path | None = None, timeout: int = 1
 
 def step_1_install_uv(*, auto_yes: bool, check_only: bool) -> bool:
     if is_uv_installed():
-        print("Step 1/8: ✓ uv already installed — skipping.")
+        print("Step 1/9: ✓ uv already installed — skipping.")
         return True
     if check_only:
-        print("Step 1/8: would install uv via Astral's official installer.")
+        print("Step 1/9: would install uv via Astral's official installer.")
         return False
     if platform.system() == "Windows":
-        print("Step 1/8: uv not on PATH. On Windows, install manually:")
+        print("Step 1/9: uv not on PATH. On Windows, install manually:")
         print("           irm https://astral.sh/uv/install.ps1 | iex")
         print("         Then re-run cb-init.")
         return False
     if not prompt_y_n(
-        "Step 1/8: uv not on PATH. Install via Astral's official installer (curl-pipe)?",
+        "Step 1/9: uv not on PATH. Install via Astral's official installer (curl-pipe)?",
         auto_yes=auto_yes,
     ):
         print("  ⚠ Skipped. cb-init can't proceed without uv.")
@@ -347,13 +349,13 @@ def step_1_install_uv(*, auto_yes: bool, check_only: bool) -> bool:
 
 def step_2_install_python(*, auto_yes: bool, check_only: bool) -> bool:
     if uv_has_python(TARGET_PYTHON):
-        print(f"Step 2/8: ✓ Python {TARGET_PYTHON} (uv-managed) already installed — skipping.")
+        print(f"Step 2/9: ✓ Python {TARGET_PYTHON} (uv-managed) already installed — skipping.")
         return True
     if check_only:
-        print(f"Step 2/8: would run `uv python install {TARGET_PYTHON}`.")
+        print(f"Step 2/9: would run `uv python install {TARGET_PYTHON}`.")
         return False
     if not prompt_y_n(
-        f"Step 2/8: Python {TARGET_PYTHON} not managed by uv. Install (uv-only; "
+        f"Step 2/9: Python {TARGET_PYTHON} not managed by uv. Install (uv-only; "
         f"won't touch system Python)?",
         auto_yes=auto_yes,
     ):
@@ -370,16 +372,16 @@ def step_3_env_stub(*, cwd: Path, auto_yes: bool, check_only: bool) -> bool:
     env_path = cwd / ".env"
     if env_path.exists():
         if stub_is_filled(env_path.read_text(encoding="utf-8")):
-            print("Step 3/8: ✓ .env present + required fields filled — skipping.")
+            print("Step 3/9: ✓ .env present + required fields filled — skipping.")
             return True
-        print(f"Step 3/8: ⚠ .env exists at {env_path} but required fields are blank.")
+        print(f"Step 3/9: ⚠ .env exists at {env_path} but required fields are blank.")
         print("  Fill in CANVAS_API_TOKEN + CANVAS_BASE_URL, then re-run cb-init.")
         return False
     if check_only:
-        print(f"Step 3/8: would write a .env stub to {env_path}.")
+        print(f"Step 3/9: would write a .env stub to {env_path}.")
         return False
     if not prompt_y_n(
-        f"Step 3/8: .env not found. Write a stub at {env_path}?",
+        f"Step 3/9: .env not found. Write a stub at {env_path}?",
         auto_yes=auto_yes,
     ):
         print("  ⚠ Skipped.")
@@ -399,32 +401,65 @@ def step_4_uv_sync(*, auto_yes: bool, check_only: bool) -> bool:
     venv_exists = is_uv_synced()
     if check_only:
         if venv_exists:
-            print("Step 4/8: ✓ .venv exists — would verify with `uv sync --group dev`.")
+            print("Step 4/9: ✓ .venv exists — would verify with `uv sync --group dev`.")
         else:
-            print("Step 4/8: would run `uv sync --group dev` (creates .venv + installs deps).")
+            print("Step 4/9: would run `uv sync --group dev` (creates .venv + installs deps).")
         return True
     if venv_exists:
-        print("Step 4/8: ✓ .venv exists — verifying deps with `uv sync --group dev`...")
+        print("Step 4/9: ✓ .venv exists — verifying deps with `uv sync --group dev`...")
     else:
-        print("Step 4/8: running `uv sync --group dev` (creates .venv + installs deps)...")
+        print("Step 4/9: running `uv sync --group dev` (creates .venv + installs deps)...")
     if not run_subprocess(["uv", "sync", "--group", "dev"], cwd=REPO_ROOT, timeout=180):
         return False
     print("  ✓ Deps synced.")
     return True
 
 
-def step_5_playwright(*, auto_yes: bool, check_only: bool, skip: bool) -> bool:
+def step_5_rust_optional(*, check_only: bool, with_rust: bool) -> bool:
+    """Install Rust (OPTIONAL in v1.5.x - opt-in via --with-rust flag)."""
+    if not with_rust:
+        print("Step 5/9: ⏭  Rust installation skipped (optional in v1.5.x).")
+        print("          For 10-100x speedup on large courses: cb-init --with-rust")
+        print("          Rust will become required in v2.x.")
+        return True
+
+    # If --with-rust provided, show message that manual install is needed for v1.5.0
+    # Auto-install will be added in v1.5.1
+    if check_only:
+        print("Step 5/9: Rust installation requested via --with-rust")
+        print("          (v1.5.0: manual install required; auto-install in v1.5.1)")
+        return True
+
+    print("Step 5/9: Rust installation requested via --with-rust")
+    print()
+    print("  v1.5.0 requires manual Rust installation:")
+    print("    1. Install Rust via rustup:")
+    print("       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh")
+    print()
+    print("    2. Activate Rust in your shell:")
+    print("       source ~/.cargo/env")
+    print()
+    print("    3. Build canvas-toolbox Rust binaries:")
+    print(f"       cd {REPO_ROOT / 'lib' / 'tools' / 'fix_override_recalc_rs'}")
+    print("       cargo build --release")
+    print()
+    print("  Auto-install will be added in v1.5.1")
+    print()
+    return True
+
+
+def step_6_playwright(*, auto_yes: bool, check_only: bool, skip: bool) -> bool:
     if skip:
-        print("Step 5/8: ⏭ skipped via --skip-playwright.")
+        print("Step 6/9: ⏭ skipped via --skip-playwright.")
         return True
     if is_playwright_chromium_installed():
-        print("Step 5/8: ✓ Playwright Chromium already installed — skipping.")
+        print("Step 6/9: ✓ Playwright Chromium already installed — skipping.")
         return True
     if check_only:
-        print("Step 5/8: would run `uv run playwright install chromium` (~92 MB).")
+        print("Step 6/9: would run `uv run playwright install chromium` (~92 MB).")
         return True
     if not prompt_y_n(
-        "Step 5/8: Playwright Chromium not detected. Install (~92 MB)? Required by "
+        "Step 6/9: Playwright Chromium not detected. Install (~92 MB)? Required by "
         "grader_follow_share_url for ChatGPT/Gemini share URL parsing.",
         auto_yes=auto_yes,
     ):
@@ -438,15 +473,15 @@ def step_5_playwright(*, auto_yes: bool, check_only: bool, skip: bool) -> bool:
     return True
 
 
-def step_6_pre_commit(*, auto_yes: bool, check_only: bool) -> bool:
+def step_7_pre_commit(*, auto_yes: bool, check_only: bool) -> bool:
     if is_pre_commit_installed():
-        print("Step 6/8: ✓ pre-commit hook already installed — skipping.")
+        print("Step 7/9: ✓ pre-commit hook already installed — skipping.")
         return True
     if check_only:
-        print("Step 6/8: would run `uv run pre-commit install` from the repo root.")
+        print("Step 7/9: would run `uv run pre-commit install` from the repo root.")
         return True
     if not prompt_y_n(
-        "Step 6/8: pre-commit hook not installed. Install it (ruff + actionlint "
+        "Step 7/9: pre-commit hook not installed. Install it (ruff + actionlint "
         "run on every commit)?",
         auto_yes=auto_yes,
     ):
@@ -459,10 +494,10 @@ def step_6_pre_commit(*, auto_yes: bool, check_only: bool) -> bool:
     return True
 
 
-def step_7_canvas_smoke(*, cwd: Path, check_only: bool) -> bool:
+def step_8_canvas_smoke(*, cwd: Path, check_only: bool) -> bool:
     env_path = cwd / ".env"
     if not env_path.exists():
-        print("Step 7/8: ⚠ No .env at " + str(env_path) + " — cannot smoke-test. Skipping.")
+        print("Step 8/9: ⚠ No .env at " + str(env_path) + " — cannot smoke-test. Skipping.")
         return True
     env_vars: dict[str, str] = {}
     for line in env_path.read_text(encoding="utf-8").splitlines():
@@ -474,14 +509,14 @@ def step_7_canvas_smoke(*, cwd: Path, check_only: bool) -> bool:
     token = env_vars.get("CANVAS_API_TOKEN", "")
     base_url = env_vars.get("CANVAS_BASE_URL", "")
     if not token or not base_url:
-        print("Step 7/8: ⚠ CANVAS_API_TOKEN or CANVAS_BASE_URL blank — cannot smoke-test.")
+        print("Step 8/9: ⚠ CANVAS_API_TOKEN or CANVAS_BASE_URL blank — cannot smoke-test.")
         return True
     if not base_url.startswith("http"):
         base_url = "https://" + base_url
     if check_only:
-        print("Step 7/8: would hit GET " + base_url.rstrip('/') + "/api/v1/users/self (read-only).")
+        print("Step 8/9: would hit GET " + base_url.rstrip('/') + "/api/v1/users/self (read-only).")
         return True
-    print("Step 7/8: smoke-testing Canvas API...")
+    print("Step 8/9: smoke-testing Canvas API...")
     ok, msg = smoke_test_canvas(token, base_url)
     if not ok:
         print("  ✗ Smoke test failed: " + msg)
@@ -491,8 +526,8 @@ def step_7_canvas_smoke(*, cwd: Path, check_only: bool) -> bool:
     return True
 
 
-def step_8_surface_docs(*, mode: str) -> bool:
-    print("Step 8/8: setup complete.")
+def step_9_surface_docs(*, mode: str) -> bool:
+    print("Step 9/9: setup complete.")
     print()
     print("Next:")
     print("  • Read " + str(REPO_ROOT) + "/AGENTS.md — Active Context tells you what's where")
@@ -546,6 +581,12 @@ def main() -> int:
         help="Skip the Playwright Chromium download (~92 MB). Use in CI or "
              "when share-URL parsing isn't needed.",
     )
+    parser.add_argument(
+        "--with-rust", action="store_true",
+        help="Install Rust toolchain and build high-performance binaries. "
+             "Optional in v1.5.x (provides 10-100x speedup for large courses). "
+             "Will become required in v2.x.",
+    )
     args = parser.parse_args()
 
     cwd = Path.cwd()
@@ -570,12 +611,13 @@ def main() -> int:
         lambda: step_2_install_python(auto_yes=args.yes, check_only=args.check),
         lambda: step_3_env_stub(cwd=cwd, auto_yes=args.yes, check_only=args.check),
         lambda: step_4_uv_sync(auto_yes=args.yes, check_only=args.check),
-        lambda: step_5_playwright(
+        lambda: step_5_rust_optional(check_only=args.check, with_rust=args.with_rust),
+        lambda: step_6_playwright(
             auto_yes=args.yes, check_only=args.check, skip=args.skip_playwright,
         ),
-        lambda: step_6_pre_commit(auto_yes=args.yes, check_only=args.check),
-        lambda: step_7_canvas_smoke(cwd=cwd, check_only=args.check),
-        lambda: step_8_surface_docs(mode=mode),
+        lambda: step_7_pre_commit(auto_yes=args.yes, check_only=args.check),
+        lambda: step_8_canvas_smoke(cwd=cwd, check_only=args.check),
+        lambda: step_9_surface_docs(mode=mode),
     ]
 
     for fn in step_funcs:
