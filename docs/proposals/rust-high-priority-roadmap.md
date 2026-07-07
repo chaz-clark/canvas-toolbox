@@ -1,25 +1,45 @@
 # Rust High-Priority Roadmap
 
 **Created:** 2026-07-07
-**Status:** Planning phase
+**Last Updated:** 2026-07-07
+**Status:** Phase 1 complete, remaining phases deferred pending user feedback
 **Context:** Merge of issue #135 candidates + rust-value-proposition-analysis.md recommendations
 
 ---
 
-## Completed (v1.5.0 - v1.5.1)
+## Completed (v1.5.0 - v1.5.2)
 
 ### 1. ✅ Assignment override enumeration (`fix_group_override_recalc.py`)
-**Status:** DONE
+**Status:** DONE (v1.5.0-v1.5.1)
 **Performance gain:** 40-120x (5-10 min → 5-15 sec for 100+ assignments)
 **Use case:** Accommodation workflows, group override fixes
 **Frequency:** Medium (on-demand when overrides don't apply)
-**Implementation:** Rust binary + Python fallback + dispatcher (v1.5.0-v1.5.1)
+**Implementation:** Rust binary + Python fallback + dispatcher
+
+### 2. ✅ Title IV engagement audit (`course_engagement_audit.py`)
+**Status:** DONE (v1.5.2)
+**Performance gain:** 10-20x (5-10 min → 30-60 sec for 100+ students)
+**Use case:** End-of-term Title IV compliance reporting (unofficial withdrawals)
+**Frequency:** Low (1-2 times per semester)
+**Implementation:** Rust binary + Python fallback + dispatcher
+**Technical:** Concurrent per-student HTTP fetches (submissions, discussions, quiz data)
 
 ---
 
-## High-Priority Candidates (Merged List)
+## Deferred Pending User Feedback
 
-### 2. Bulk submission fetching (`grader_fetch.py`)
+**Decision (2026-07-07):** Remaining phases have no reported performance issues or user complaints. All analysis recommendations state "Wait for user complaints." Deferring implementation until real pain points emerge.
+
+**To prioritize:** File a GitHub issue with:
+- Specific tool + use case
+- Actual performance impact (time measurements)
+- Frequency of use
+
+---
+
+## High-Priority Candidates (Analysis Complete, Implementation Deferred)
+
+### 3. Bulk submission fetching (`grader_fetch.py`)
 **Source:** Issue #135 + analysis
 **Current performance:** Unknown (no reported issues)
 **Estimated gain:** 2-3x (not 40x - bottleneck is likely deidentify, not fetch)
