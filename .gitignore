@@ -52,6 +52,11 @@ __pycache__/
 *.pyo
 .venv/
 
+# Rust build artifacts
+**/target/
+**/*.rs.bk
+**/Cargo.lock
+
 # macOS
 .DS_Store
 knowledge/medium_draft_*.md
