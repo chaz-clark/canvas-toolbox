@@ -13,6 +13,37 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.5.2] — 2026-07-07
+
+**Rust engagement audit (10-20x speedup for Title IV compliance)**
+
+### Added
+- **Rust implementation of `course_engagement_audit.py`** — 10-20x speedup
+  (5-10 minutes → 30-60 seconds) for courses with 100+ students. Uses concurrent
+  per-student HTTP requests (tokio + reqwest) instead of sequential Python loops.
+  Bottleneck: 3 API endpoints per student (submissions, discussions, quiz data).
+- **Python fallback implementation** (`_course_engagement_audit_python.py`) —
+  sequential implementation matching original behavior. Slower than Rust but works
+  without Rust installed.
+- **Dispatcher pattern in `course_engagement_audit.py`** — automatically detects
+  Rust binary (`lib/tools/engagement_audit_rs/target/release/engagement-audit`),
+  falls back to Python if not found with performance warning.
+
+### Changed
+- **Engagement audit tool now has Rust acceleration** — Title IV unofficial
+  withdrawal audits for large courses (100+ students) now complete in under a
+  minute instead of 5-10 minutes. Tool still works without Rust (Python fallback).
+
+### Technical
+- Created `lib/tools/engagement_audit_rs/` — Rust crate using tokio for async
+  HTTP, reqwest for Canvas API calls, serde for JSON serialization.
+- Output format matches Python implementation exactly (JSON array of per-student
+  engagement data: submission timestamps, discussion timestamps).
+- FERPA boundary preserved: Rust handles only anonymous user_id + timestamps;
+  Python layer handles name re-identification and classification logic.
+
+---
+
 ## [1.5.1] — 2026-07-07
 
 **Python fallback for override recalculation (no Rust required)**
