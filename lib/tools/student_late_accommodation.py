@@ -367,10 +367,10 @@ def main() -> int:
     ap.add_argument("--apply", action="store_true",
                     help="actually write the change (without this, dry-run)")
     ap.add_argument("--force-recalc", dest="force_recalc", action="store_true",
-                    default=True,
-                    help="force Canvas to recalculate overrides after applying (default: True)")
+                    default=False,
+                    help="force Canvas to recalculate overrides after applying (slow on large courses)")
     ap.add_argument("--no-force-recalc", dest="force_recalc", action="store_false",
-                    help="skip forcing recalculation (faster, but overrides may not take effect)")
+                    help="skip forcing recalculation (default: overrides usually take effect automatically)")
     args = ap.parse_args()
 
     base_url = os.environ.get("CANVAS_BASE_URL", "").rstrip("/")
