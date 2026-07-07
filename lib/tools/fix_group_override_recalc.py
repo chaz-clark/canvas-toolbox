@@ -133,11 +133,21 @@ def main() -> int:
 
     if not rust_bin.exists():
         print(
-            f"ERROR: Rust binary not found at {rust_bin}\n"
-            f"Build it first:\n"
-            f"  cd {script_dir / 'fix_override_recalc_rs'} && cargo build --release",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             file=sys.stderr,
         )
+        print("ERROR: Rust binary not found", file=sys.stderr)
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
+        print(file=sys.stderr)
+        print("This tool uses Rust for 10-100x performance (5-10 min → 5-15 sec).", file=sys.stderr)
+        print(file=sys.stderr)
+        print("Install Rust with:", file=sys.stderr)
+        print("  cb-init --with-rust", file=sys.stderr)
+        print(file=sys.stderr)
+        print("Or manually:", file=sys.stderr)
+        print(f"  cd {script_dir / 'fix_override_recalc_rs'} && cargo build --release", file=sys.stderr)
+        print(file=sys.stderr)
+        print("More info: https://docs.rs/rustup/", file=sys.stderr)
         return 2
 
     # Build command args
