@@ -13,6 +13,28 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.5.4] — 2026-07-07
+
+**Bug fixes and dependency updates**
+
+### Fixed
+- **student_late_accommodation.py default changed to `--no-force-recalc`** — prevents
+  10+ minute hangs on slow Canvas courses. Canvas automatically recognizes overrides
+  within minutes; forced recalculation is now opt-in via `--force-recalc` flag.
+  Fixes #138.
+- **engagement audit HTTPS prepending** — `course_engagement_audit.py` now correctly
+  prepends `https://` to base URL when missing, matching other Canvas API tools.
+  Fixes PR #137.
+- **cb_init test updated for 9 steps** — `test_cb_init.py` was checking for 8 steps
+  but cb_init now has 9 steps (Rust installation added in v1.5.x). Test now correctly
+  expects 9 steps.
+
+### Changed
+- **Dependency updates** — anthropic 0.113.0 → 0.116.0, markdownify 1.2.2 → 1.2.3.
+  PR #133.
+
+---
+
 ## [1.5.3] — 2026-07-07
 
 **YAML frontmatter migration (industry compliance)**
