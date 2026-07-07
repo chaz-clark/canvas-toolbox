@@ -67,12 +67,21 @@ INTEGRATION WITH ACCOMMODATION TOOLS
   If accommodations are applied but still not working, run this tool to
   force Canvas to recalculate.
 
-IMPLEMENTATION NOTE
-  This is a Python wrapper around a Rust binary for 10-100x performance improvement.
-  The Rust binary performs concurrent API requests instead of sequential Python loops.
+IMPLEMENTATION NOTE (v1.5.1+)
+  This tool uses a dispatcher pattern to choose between Rust and Python implementations:
 
-  Build the Rust binary first:
-    cd lib/tools/fix_override_recalc_rs && cargo build --release
+  **Rust (recommended)**: 10-100x faster (5-10 min → 5-15 sec for 100+ assignments)
+    - Uses concurrent HTTP requests (tokio + reqwest)
+    - Install via: cb-init --with-rust
+    - Or manually: cd lib/tools/fix_override_recalc_rs && cargo build --release
+
+  **Python (fallback)**: Automatic fallback when Rust binary not available
+    - Sequential HTTP requests (slower but reliable)
+    - No additional setup required
+    - Same functionality, just takes longer
+
+  The tool automatically detects which implementation is available and uses the
+  fastest one. If Rust binary is missing, it warns you and falls back to Python
 """
 
 import argparse
@@ -132,23 +141,40 @@ def main() -> int:
     rust_bin = script_dir / "fix_override_recalc_rs" / "target" / "release" / "fix-override-recalc"
 
     if not rust_bin.exists():
+        # Rust binary not found - fall back to Python implementation
         print(
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             file=sys.stderr,
         )
-        print("ERROR: Rust binary not found", file=sys.stderr)
+        print("⚠ Rust binary not found — falling back to Python", file=sys.stderr)
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
         print(file=sys.stderr)
-        print("This tool uses Rust for 10-100x performance (5-10 min → 5-15 sec).", file=sys.stderr)
-        print(file=sys.stderr)
-        print("Install Rust with:", file=sys.stderr)
+        print("Python fallback is SLOW for large courses (5-10 min for 100+ assignments).", file=sys.stderr)
+        print("For 10-100x speedup, install Rust:", file=sys.stderr)
         print("  cb-init --with-rust", file=sys.stderr)
         print(file=sys.stderr)
         print("Or manually:", file=sys.stderr)
         print(f"  cd {script_dir / 'fix_override_recalc_rs'} && cargo build --release", file=sys.stderr)
         print(file=sys.stderr)
-        print("More info: https://docs.rs/rustup/", file=sys.stderr)
-        return 2
+        print("Proceeding with Python fallback...", file=sys.stderr)
+        print(file=sys.stderr)
+
+        # Import and run Python fallback
+        try:
+            from _fix_group_override_recalc_python import run_python_fallback
+        except ImportError as e:
+            print(f"ERROR: Failed to import Python fallback: {e}", file=sys.stderr)
+            return 2
+
+        return run_python_fallback(
+            course_id=args.course_id,
+            base_url=base_url,
+            token=token,
+            student_id=args.student_id,
+            group_id=args.group_id,
+            dry_run=args.dry_run,
+            quiet=False,
+        )
 
     # Build command args
     cmd = [

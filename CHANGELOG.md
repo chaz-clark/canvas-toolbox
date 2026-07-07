@@ -13,6 +13,26 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.5.1] — 2026-07-07
+
+**Python fallback for override recalculation (no Rust required)**
+
+### Added
+- **Python fallback implementation** (`_fix_group_override_recalc_python.py`) —
+  sequential implementation of override recalculation logic. Slower than Rust
+  (5-10 minutes vs 5-15 seconds for 100+ assignments) but works without any
+  additional setup.
+- **Dispatcher pattern** in `fix_group_override_recalc.py` — automatically
+  detects Rust binary availability and falls back to Python if not found.
+  Warns users about performance difference and suggests Rust install.
+
+### Changed
+- **Override recalc tool now works without Rust** — graceful degradation when
+  Rust binary not available. Users get clear warning about slower performance
+  and instructions for installing Rust, but tool completes successfully.
+
+---
+
 ## [1.5.0] — 2026-07-07
 
 **Rust opt-in for 10-100x speedup on large courses**
