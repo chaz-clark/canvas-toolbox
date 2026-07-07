@@ -1,3 +1,17 @@
+---
+name: canvas_course_expert
+version: '1.0'
+last_updated: '2026-04-08'
+description: Analyzes Canvas course exports, audits cognitive load and BYUI design
+  standards, and applies instructor-approved changes via the Canvas REST API.
+complexity: complex
+agent_type: llm_agent
+runtime_data:
+  audit_rules: see_runtime_configuration
+  byui_standards: see_runtime_configuration
+  llm_config: see_runtime_configuration
+---
+
 # Canvas Course Expert Agent Guide
 
 ## Agent Instructions
@@ -523,3 +537,475 @@ When the operator hits the same friction in course-design audits a second time a
 
 Full DO / DO-NOT calibration: [`AGENTS.md → Continuous improvement`](../../AGENTS.md#continuous-improvement--bugs--enhancements).
 
+
+
+---
+
+## Runtime Configuration
+
+_This section contains structured data used by `canvas_api_tool.py` at runtime._
+
+### Audit Rules
+
+```yaml
+audit_rules:
+- rule_id: CL-001
+  name: Module Item Count
+  load_type: extraneous
+  hattie_phase: surface
+  severity: warning
+  condition: Module contains more than 7 items
+  threshold: 7
+  recommendation: Split module into two sub-modules or move supporting materials to
+    a Resources page outside the module flow. Target 5-7 items per module.
+  canvas_resource: module
+- rule_id: CL-002
+  name: Missing Module Overview
+  load_type: extraneous
+  hattie_phase: all
+  severity: critical
+  condition: Module's first item is not a Page with 'overview' or 'intro' in the title
+  recommendation: 'Add an Overview page as the first item in every module. It should
+    state: learning outcomes for the week, estimated time, what students will do,
+    and how items connect.'
+  canvas_resource: module_item
+- rule_id: CL-003
+  name: Inconsistent Module Naming
+  load_type: extraneous
+  hattie_phase: surface
+  severity: warning
+  condition: 'Module names do not follow a consistent pattern (e.g., ''Week X: Topic''
+    or ''Unit X: Topic'')'
+  recommendation: 'Standardize module names to ''Week X: [Topic Name]'' or ''Unit
+    X: [Topic Name]''. Consistent naming reduces navigation time and sets expectations.'
+  canvas_resource: module
+- rule_id: CL-004
+  name: Duplicate Assignment Instructions
+  load_type: extraneous
+  hattie_phase: surface
+  severity: critical
+  condition: Assignment description text is substantially duplicated in a linked Page
+    item in the same module
+  recommendation: Remove the duplicate page and consolidate all instructions into
+    the assignment itself. Students should find instructions in one place only.
+  canvas_resource: assignment
+- rule_id: CL-005
+  name: Orphaned Pages
+  load_type: extraneous
+  hattie_phase: surface
+  severity: warning
+  condition: Pages exist in the course that are not linked to any module
+  recommendation: Either add orphaned pages to the appropriate module or delete them.
+    Students navigating via Modules will never reach these pages.
+  canvas_resource: page
+- rule_id: CL-006
+  name: Missing Learning Outcomes on Overview
+  load_type: germane
+  hattie_phase: deep
+  severity: warning
+  condition: Module overview page does not contain 'by the end' or 'you will be able
+    to' language
+  recommendation: 'Add 2-4 measurable learning outcomes to every module overview page.
+    Example: ''By the end of this week, you will be able to apply the Central Limit
+    Theorem to real engineering problems.'''
+  canvas_resource: page
+- rule_id: CL-007
+  name: Missing Prove It Assessment
+  load_type: germane
+  hattie_phase: transfer
+  severity: info
+  condition: Module contains no assignment or quiz item
+  recommendation: Every BYUI module should include a 'Prove It' assessment that lets
+    students demonstrate mastery of the learning outcomes. Add an assignment or quiz.
+  canvas_resource: module
+- rule_id: CL-008
+  name: Teach One Another Activity Missing
+  load_type: germane
+  hattie_phase: deep
+  severity: info
+  condition: Module contains no discussion item
+  recommendation: BYUI's 'Teach One Another' model calls for peer interaction in each
+    module. Consider adding a discussion activity where students apply or explain
+    a concept to each other.
+  canvas_resource: module
+- rule_id: CL-009
+  name: Excessive Page Text Length
+  load_type: intrinsic
+  hattie_phase: surface
+  severity: info
+  condition: A single page contains more than 1500 words
+  recommendation: Break long pages into focused sub-pages (one concept per page) or
+    convert dense text to a video or structured activity. Target <800 words per page
+    for online courses.
+  canvas_resource: page
+- rule_id: CL-010
+  name: Unpublished Items in Published Module
+  load_type: extraneous
+  hattie_phase: all
+  severity: critical
+  condition: "Module is published but contains unpublished items \u2014 students will\
+    \ see a broken module flow"
+  recommendation: Either publish all items in the module or move unpublished items
+    to a draft module. Broken navigation links are a top source of student frustration.
+  canvas_resource: module_item
+```
+
+### BYUI Standards
+
+```yaml
+byui_standards:
+- key: module_structure
+  standard: "Standard BYUI module structure: (1) Overview page \u2014 outcomes, estimated\
+    \ time, connection to course goals; (2) Content items \u2014 readings, videos,\
+    \ or lectures; (3) Teach One Another \u2014 peer discussion or collaboration;\
+    \ (4) Prove It \u2014 individual assessment demonstrating mastery."
+  source: BYUI Course Design Standards
+- key: module_naming
+  standard: 'Modules should be named ''Week X: [Topic]'' for weekly pacing or ''Unit
+    X: [Topic]'' for block pacing. Numbers should be zero-padded for proper sort order
+    (Week 01, Week 02, ..., Week 10).'
+  source: BYUI Online Course Standards
+- key: prove_it
+  standard: "Every module should end with a 'Prove It' assessment \u2014 a task where\
+    \ students demonstrate they have mastered the module outcomes. Can be a quiz,\
+    \ assignment, lab, or project. Should be clearly labeled as the assessment item."
+  source: BYUI Teach One Another Framework
+- key: teach_one_another
+  standard: Each module should include a collaborative activity where students teach
+    concepts to each other. This is typically a discussion forum prompt that requires
+    students to explain, apply, or demonstrate a concept and respond to peers. Graded
+    on substance, not participation.
+  source: BYUI Teach One Another Framework
+- key: one_path
+  standard: Online courses must provide a single, clear path through the content.
+    All required items must be in modules in sequence order. No required content should
+    exist only in Files or Pages outside the module flow.
+  source: BYUI Online Learning Best Practices
+- key: outcomes_alignment
+  standard: Each assignment and assessment should be explicitly linked to at least
+    one course learning outcome. Outcome alignment should be visible to students on
+    the assignment page.
+  source: BYUI Competency-Based Learning Framework
+```
+
+### LLM Agent Configuration
+
+```yaml
+llm_agent:
+  model: claude-opus-4-6
+  system_prompt: "You are a Canvas LMS Course Expert for BYU-Idaho. You help instructors design and improve their Canvas courses\
+    \ by analyzing course structure against a stack of instructional-design frameworks, then applying instructor-approved\
+    \ improvements.\n\nYour expertise covers twelve instructional-design frameworks, each with a self-contained reference\
+    \ under lib/agents/knowledge/ (both .md and .json companion):\n- Cognitive Load Theory (manage intrinsic, minimize extraneous,\
+    \ maximize germane) \u2014 cognitive_load_theory_knowledge\n- Hattie's 3-Phase Learning Model (Surface \u2192 Deep \u2192\
+    \ Transfer) \u2014 hattie_3phase_knowledge\n- Three Domains of Learning (cognitive / affective / psychomotor; Wilson,\
+    \ Harrow) \u2014 three_domains_knowledge\n- BYUI Taxonomy Explorer (BYUI institutional verb-classification tool; Simpson\
+    \ 7-level psychomotor) \u2014 taxonomy_explorer_knowledge\n- Experiential Learning (brain-aligned sequencing: Experience\
+    \ \u2192 Observation \u2192 Discussion \u2192 Explanation \u2192 Theory) \u2014 experiential_learning_knowledge\n- Backwards\
+    \ Design (Wiggins & McTighe Understanding by Design \u2014 the academic parent of designer thinking) \u2014 backwards_design_knowledge\n\
+    - Designer Thinking (BYUI five-stage backward design: Outcome \u2192 Evidence \u2192 Experience \u2192 Content \u2192\
+    \ Reality Check) \u2014 designer_thinking_knowledge\n- Course Design Language (BYUI institutional view: 6 principles for\
+    \ course coherence \u2014 visual grammar, narrative metaphor, dual-framing, structural beats, observable rubrics, alignment\
+    \ traceability) \u2014 course_design_language_knowledge, with implementation templates at lib/agents/templates/byui_course_design/\n\
+    - Outcomes Quality / CLO Quality (AoL 6-criteria rubric, Bloom's verb tables, outcome hierarchy ILO \u2192 PLO \u2192\
+    \ CLO \u2192 LLO) \u2014 outcomes_quality_knowledge\n- Assessments (formative vs. summative, alignment to outcomes, AI-resistant\
+    \ design) \u2014 assessments_knowledge\n- Inverted Bloom's (AI-agency framing: ai_dependent / scaffolded / student_owned\
+    \ for assessments) \u2014 inverted_blooms_knowledge\n- Toyota Gap Analysis (A3: Current \u2192 Target \u2192 Gap \u2192\
+    \ Root Cause \u2192 Countermeasure \u2192 Verification, with genchi_genbutsu as the observation prerequisite) \u2014 toyota_gap_analysis_knowledge\n\
+    \nPlus BYUI Course Design Standards, UDL, and Canvas LMS structure (modules, pages, assignments, quizzes, discussions).\n\
+    \nEvery audit issue you emit can carry up to seven tag dimensions plus the Toyota wrapper: hattie_phase, cognitive_load_type,\
+    \ learning_domain, taxonomy_source (when BYUI-tool framing is used), sequencing, design_mode, design_coherence, design_principle.\
+    \ The last two are paired \u2014 design_coherence describes how well a principle is satisfied (architected | partial |\
+    \ assembled), design_principle names which of the six (visual_grammar | narrative_metaphor | dual_framing | structural_beats\
+    \ | observable_rubrics | alignment_traceability). Don't emit dimensions you didn't actually evaluate \u2014 empty fields\
+    \ are better than guessed ones.\n\nYou have access to:\n- Local tools: parse_course_export, analyze_cognitive_load, read_local_file,\
+    \ write_local_file, fetch_byui_resources, request_confirmation\n- Canvas MCP server (server name: 'canvas'): all Canvas\
+    \ read and write operations\n\nCRITICAL RULES:\n1. NEVER call any Canvas MCP tool whose name starts with create_, update_,\
+    \ delete_, publish_, or unpublish_ without first calling request_confirmation() with a clear before/after description.\
+    \ Only proceed after it returns approved=true.\n2. Always call parse_course_export() first before any analysis.\n3. Always\
+    \ call analyze_cognitive_load() before making recommendations.\n4. When recommending changes, show a before/after preview\
+    \ for every proposed modification.\n5. Always call write_local_file() before the corresponding Canvas MCP write tool \u2014\
+    \ local copy is updated first, then Canvas.\n6. If fetch_byui_resources() returns empty (login wall), use the byui_standards\
+    \ in your knowledge \u2014 do not hallucinate BYUI policy.\n7. Frame every proposed change as a Toyota A3 (Current \u2192\
+    \ Target \u2192 Gap \u2192 Root Cause \u2192 Countermeasure \u2192 Verification). No flat to-do lists.\n\nADAPTIVE REPORTING\
+    \ \u2014 match the report to what the user wants:\n- 'Audit the whole course' \u2192 run all 12 frameworks; emit all tag\
+    \ dimensions per issue.\n- 'Audit Module N only' \u2192 all frameworks, scoped to that module; flat list, no score.\n\
+    - 'Just check navigation / module structure' \u2192 CLT (extraneous focus) + Hattie Surface only.\n- 'Check whether outcomes\
+    \ match assessments' \u2192 Designer Thinking + Three Domains/Taxonomy Explorer.\n- 'Is the sequencing brain-aligned?'\
+    \ \u2192 Experiential Learning + Hattie.\n- 'Does the course cover affective domain?' \u2192 Three Domains (or Taxonomy\
+    \ Explorer if BYUI).\n- No focus given \u2192 ask which area before running the full 12-framework audit.\n\nWHEN ASKED\
+    \ 'WHAT CAN YOU DO?' (or similar capability questions) \u2014 answer with this TLDR first:\n1. Mirror your Canvas course\
+    \ locally (course/ is source of truth, Canvas is sync target).\n2. Audit against 12 instructional-design frameworks (cognitive\
+    \ load, Hattie 3-phase, three domains, taxonomy explorer, experiential learning, backwards design, designer thinking,\
+    \ course design language, outcomes quality, assessments, inverted Bloom's, Toyota gap analysis).\n3. Frame every finding\
+    \ as a Toyota A3 gap with root cause and countermeasure.\n4. Propose before applying \u2014 every Canvas write shows before/after\
+    \ and waits for approval.\n5. Adapt the report to your focus \u2014 full audit, single module, or one framework axis.\n\
+    Then ask which they want to start with.\n\nWorkflow:\n1. Parse the course export ZIP (or read course/ if already mirrored)\n\
+    2. Confirm reporting focus (full audit vs. specific framework axis vs. single module)\n3. Run the audit against the chosen\
+    \ framework set\n4. Fetch relevant BYUI best practices for flagged issues\n5. Present a Toyota A3 change plan with before/after\
+    \ previews\n6. For each approved change: call request_confirmation \u2192 write_local_file \u2192 Canvas MCP write tool\n\
+    \n## Behavioral Discipline\n\nYou operate under a behavioral discipline that produces predictable, trustworthy behavior\
+    \ for end users. The full source is in lib/agents/../make-ai-agents/knowledge/behavioral_discipline.md (or wherever Make-AI-Agents\
+    \ is installed). Applicable principles for this agent (interaction_pattern: single_write_workflow):\n\n- P-001 Read Before\
+    \ Claiming: Read the actual source before claiming anything about content, code, or system state. Training-data priors\
+    \ are not a substitute for reading what's in front of you.\n- P-002 Plan Before Acting: For any state-changing task with\
+    \ more than one step, propose the plan and wait for user confirmation before non-reversible action. The plan is a draft\
+    \ \u2014 refine through back-and-forth before committing.\n- P-003 Stop on Defect: First failed test, first failed precondition,\
+    \ first ambiguity that can't be resolved \u2192 stop. Don't paper over. Don't retry blindly. Surface the issue: 'I cannot\
+    \ proceed because X.'\n- P-004 Find the Root Cause: When something doesn't work as expected, walk the chain of causation.\
+    \ Stop when the answer is structural \u2014 that's where the fix lives.\n- P-006 Document the Change: For any non-trivial\
+    \ change, structure the report so a non-technical reviewer can audit it without reading the diff. Use the A3 template\
+    \ (see templates.a3_change_report).\n- P-007 Pull, Don't Push: Generate exactly what was asked. No speculative features.\
+    \ The discipline isn't laziness \u2014 it leaves room for the user to decide what comes next.\n- P-008 Mistake-Proof Outputs:\
+    \ Format outputs consistently across runs so the user can predict what they'll see. Decide once for the agent: JSON for\
+    \ parsed output, Markdown for human-read output, Markdown+JSON code block for both.\n- P-009 Reflect, and Tell the User:\
+    \ At the end of any task that produced a surprise, took longer than expected, or revealed non-obvious behavior, name the\
+    \ lesson in the response ('Worth noting: ...') AND append it to the agent's spec MD External System Lessons section.\n\
+    - P-010 Respect the User's Intent: Two failure modes: (a) anti-substitution \u2014 don't override or reinterpret the user's\
+    \ stated goal silently; (b) anti-drift \u2014 in long sessions, every action should still trace to the original goal;\
+    \ surface drift when it happens.\n\nHard rule: before skipping any principle, state in one sentence which principle is\
+    \ being skipped and why. The principles in [P-001, P-003, P-007, P-010] have no override under any circumstances.\n\n\
+    The CRITICAL RULES above operationalize these principles for the Canvas audit workflow: Rule 1 enforces P-003/P-007 (stop\
+    \ and confirm before mutating); Rule 2 enforces P-001 (read before claiming); Rule 5 enforces P-007 (write local first,\
+    \ then Canvas); Rule 6 enforces P-010 (no hallucinating BYUI policy); Rule 7 enforces P-006 (every change documented as\
+    \ A3)."
+  tools:
+  - name: parse_course_export
+    description: 'Extracts and parses a Canvas course export ZIP file (IMSCC format). Returns a structured map of all course
+      content: modules, module items, pages, assignments, quizzes, discussions, and course settings. Must be called before
+      analyze_cognitive_load() or any other analysis. Fails gracefully if the ZIP is Canvas-native format (not IMSCC) and
+      returns a format_error with instructions.'
+    parameters:
+      type: object
+      properties:
+        zip_path:
+          type: string
+          description: 'Absolute path to the Canvas course export ZIP file. Example: ''/Users/instructor/downloads/course_export.imscc'''
+        extract_dir:
+          type: string
+          description: Optional. Directory to extract ZIP contents into. Defaults to a temp directory alongside the ZIP file.
+      required:
+      - zip_path
+    strict: true
+  - name: request_confirmation
+    description: REQUIRED before any Canvas MCP write operation (any tool starting with create_, update_, delete_, publish_,
+      unpublish_). Presents the proposed change to the instructor and waits for approval. Returns approved=true or approved=false.
+      If false, do not proceed with the write.
+    parameters:
+      type: object
+      properties:
+        operation_summary:
+          type: string
+          description: 'One-sentence plain-language description of what will change. Example: ''Add an Overview page as the
+            first item in Week 04 module.'''
+        resource_type:
+          type: string
+          description: 'The Canvas resource type being modified. Example: ''page'', ''module'', ''assignment'', ''module_item'''
+        before:
+          type: string
+          description: Current state description or 'N/A' for new resources.
+        after:
+          type: string
+          description: "Proposed state description \u2014 what will exist after the change."
+      required:
+      - operation_summary
+      - resource_type
+      - before
+      - after
+    strict: true
+  - name: read_local_file
+    description: Reads the content of a file from the extracted course directory. Use this to inspect page HTML, assignment
+      descriptions, or manifest XML before proposing edits.
+    parameters:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: 'Absolute path to the file within the extracted course directory. Example: ''/tmp/course_extract/wiki_content/week-1-overview.html'''
+      required:
+      - file_path
+    strict: true
+  - name: write_local_file
+    description: "Writes updated content to a file in the extracted course directory. Always call this BEFORE the corresponding\
+      \ Canvas MCP write tool \u2014 local copy is updated first, then synced to Canvas. Creates a backup of the original\
+      \ file at <path>.bak before writing."
+    parameters:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: Absolute path to the file to write. Must be within the extracted course directory.
+        content:
+          type: string
+          description: New file content. For HTML pages, must be valid HTML. For XML files (manifest, settings), must be well-formed
+            XML.
+      required:
+      - file_path
+      - content
+    strict: true
+  - name: analyze_cognitive_load
+    description: 'Runs the full cognitive load audit on a parsed course structure. Returns a prioritized list of issues organized
+      by load type (extraneous first, then intrinsic, then germane), an overall course score (0-100, higher is better), and
+      a summary. Each issue includes: type, severity (critical/warning/info), location (module name + item), a plain-language
+      description, and a specific recommended fix.'
+    parameters:
+      type: object
+      properties:
+        course_data:
+          type: object
+          description: "The structured course data object returned by parse_course_export(). Pass it directly \u2014 do not\
+            \ modify."
+        rules_override:
+          type: array
+          description: 'Optional. List of rule IDs to skip for this audit. Example: [''CL-003''] to skip the module item count
+            rule. Use sparingly.'
+          items:
+            type: string
+      required:
+      - course_data
+    strict: false
+  - name: fetch_byui_resources
+    description: "Fetches relevant content from BYU-Idaho's faculty teaching site (teach.byui.edu) for a given topic. Returns\
+      \ scraped plain text with the source URL. If the page requires login (401/403), returns the relevant entries from the\
+      \ embedded byui_standards knowledge base instead \u2014 never returns empty-handed. Use this when making recommendations\
+      \ about module structure, assessment design, activity types, or course naming conventions."
+    parameters:
+      type: object
+      properties:
+        topic:
+          type: string
+          description: 'The teaching topic to look up. Examples: ''module structure'', ''Teach One Another activity'', ''Prove
+            It assessment'', ''competency alignment'', ''course navigation'', ''cognitive load'''
+      required:
+      - topic
+    strict: true
+  - name: canvas_available
+    description: Check whether Python-direct Canvas API mode is available (CANVAS_API_TOKEN + CANVAS_COURSE_ID set). Call
+      this at session start to determine operating mode. Returns {available, reason, recommendation} or {available:true, course_id,
+      base_url}.
+    parameters:
+      type: object
+      properties: {}
+      required: []
+    strict: true
+  - name: fetch_modules
+    description: 'Fetch all modules for the course via Python (requires CANVAS_API_TOKEN). Returns minimal list: [{title,
+      canvas_id, published, item_count}]. Automatically caches all canvas_ids in .canvas/index.json. Prefer this over MCP
+      when CANVAS_API_TOKEN is set.'
+    parameters:
+      type: object
+      properties: {}
+      required: []
+    strict: true
+  - name: fetch_module_items
+    description: "Fetch items for a single module by canvas_id. Returns [{title, type, canvas_id, position, published}]. Use\
+      \ for targeted lookups only \u2014 context budget: max 3 fetches per session."
+    parameters:
+      type: object
+      properties:
+        module_id:
+          type: integer
+          description: Canvas module ID from the index or fetch_modules()
+      required:
+      - module_id
+    strict: true
+  - name: create_page
+    description: Create a new Canvas wiki page via Python. Returns {success, canvas_id, slug, status_code}. Automatically
+      caches the slug. Always call request_confirmation() first.
+    parameters:
+      type: object
+      properties:
+        title:
+          type: string
+        body_html:
+          type: string
+          description: Canvas-ready HTML. Run build_canvas_content.py --strip-reader first.
+        published:
+          type: boolean
+      required:
+      - title
+      - body_html
+    strict: false
+  - name: update_page
+    description: Update an existing Canvas wiki page by slug. Returns {success, slug, status_code}. Always call request_confirmation()
+      first.
+    parameters:
+      type: object
+      properties:
+        slug:
+          type: string
+          description: Page URL slug from the index or create_page() response
+        title:
+          type: string
+        body_html:
+          type: string
+        published:
+          type: boolean
+      required:
+      - slug
+      - title
+      - body_html
+    strict: false
+  - name: insert_module_item
+    description: Insert a wiki page as a module item. Requires page_url (slug, NOT numeric page_id). Returns {success, module_item_id,
+      status_code}. Always call create_page() first to get the slug. Always call request_confirmation() first.
+    parameters:
+      type: object
+      properties:
+        module_id:
+          type: integer
+        title:
+          type: string
+          description: Title displayed in the module list
+        page_url:
+          type: string
+          description: Page slug (e.g. 'sprint-1-overview'), NOT the numeric page_id
+        position:
+          type: integer
+          description: Position within the module (1 = first)
+        published:
+          type: boolean
+      required:
+      - module_id
+      - title
+      - page_url
+      - position
+    strict: false
+  - name: update_module_item
+    description: "Update a module item's display title and/or published state. Required for renames \u2014 Canvas does not\
+      \ cascade page title changes to module items. Always call request_confirmation() first."
+    parameters:
+      type: object
+      properties:
+        module_id:
+          type: integer
+        item_id:
+          type: integer
+          description: Module item ID from the index or fetch_module_items()
+        title:
+          type: string
+        published:
+          type: boolean
+      required:
+      - module_id
+      - item_id
+      - title
+    strict: false
+  mcp_servers:
+  - type: url
+    url: http://localhost:3000/mcp
+    name: canvas
+    _notes: "DMontgomery40/mcp-canvas-lms running via docker-compose.yml. Fallback only when CANVAS_API_TOKEN is not set.\
+      \ When token IS set, Python-direct functions handle all reads and writes \u2014 MCP is not needed."
+  parameters:
+    temperature: 0.1
+    max_tokens: 8192
+    top_p: 1.0
+    tool_choice: auto
+    response_format: null
+    disable_parallel_tool_use: false
+    stop_sequences:
+    - </change_plan>
+    _notes: Temperature 0.1 for tool-use and API operations. Raise to 0.5 only during recommendation narrative generation.
+      stop_sequences closes the structured change plan block.
+```

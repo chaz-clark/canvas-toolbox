@@ -13,6 +13,33 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.5.3] — 2026-07-07
+
+**YAML frontmatter migration (industry compliance)**
+
+### Changed
+- **All 7 agents migrated from MD+JSON to MD+YAML frontmatter** — follows
+  industry standard pattern (Anthropic Agent Skills, agentskills.io, Make-AI-Agents).
+  Zero major platforms use separate JSON companion files.
+- **canvas_api_tool.py updated with YAML parser** — new `load_agent_config()`
+  function extracts structured data from YAML frontmatter + embedded YAML code blocks.
+- **Zero functional changes** — all tools work identically, smoke tests pass.
+
+### Removed
+- **All 7 agent JSON files** — canvas_blueprint_sync.json, canvas_content_sync.json,
+  canvas_course_expert.json, canvas_grader.json, canvas_schedule_auditor.json,
+  canvas_semester_setup.json, ira_program_alignment.json. Data now embedded in
+  corresponding .md files.
+
+### Technical
+- Created `lib/tools/_migrate_agent_to_yaml.py` — migration script for MD+JSON → MD+YAML.
+- `load_agent_config()` parser uses `yaml.safe_load()` + regex to extract YAML blocks.
+- Embedded YAML blocks preserve audit_rules, byui_standards, llm_agent config for
+  runtime use by canvas_api_tool.py.
+- YAML frontmatter contains metadata (name, version, description, complexity, agent_type).
+
+---
+
 ## [1.5.2] — 2026-07-07
 
 **Rust engagement audit (10-20x speedup for Title IV compliance)**

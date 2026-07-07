@@ -1,3 +1,16 @@
+---
+name: canvas_blueprint_sync
+version: '1.0'
+last_updated: '2026-05-13'
+description: "One-way sync: master course \u2192 Canvas Blueprint course. Python-driven,\
+  \ no LLM analysis."
+complexity: standard
+agent_type: deterministic_script
+runtime_data:
+  audit_rules: see_runtime_configuration
+  byui_standards: see_runtime_configuration
+---
+
 # Canvas Blueprint Sync Agent Guide
 
 ## Agent Instructions
@@ -285,4 +298,12 @@ When the operator hits the same friction in Blueprint sync a second time across 
 **Don't** surface for documented refusals — `canvas_course_guard` refusing live-course writes, the toolkit's gitignore catching student files, `mtime`-based review-gate invalidation, etc. Those are the system working as designed.
 
 Full DO / DO-NOT calibration: [`AGENTS.md → Continuous improvement`](../../AGENTS.md#continuous-improvement--bugs--enhancements).
+
+
+
+---
+
+## Runtime Configuration
+
+_This section contains structured data used by `canvas_api_tool.py` at runtime._
 
