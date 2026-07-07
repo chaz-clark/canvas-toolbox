@@ -345,6 +345,8 @@ def _env_canvas(course_id_override: str | None = None) -> tuple[str, str, str]:
     """Read CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID from env."""
     tok = os.environ.get("CANVAS_API_TOKEN", "")
     base = (os.environ.get("CANVAS_BASE_URL", "") or "").rstrip("/")
+    if base and not base.startswith(("http://", "https://")):
+        base = f"https://{base}"
     cid = course_id_override or os.environ.get("CANVAS_COURSE_ID", "")
     return tok, base, cid
 
