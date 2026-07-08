@@ -537,12 +537,6 @@ uv run python lib/tools/submit_on_behalf.py \
 
 ---
 
-# Accessibility Services integration (BYUI)
-
-For BYUI faculty: `apply_sas_accommodations.py` reads structured accommodation data and dispatches to the appropriate tools (quiz time extensions, late-work overrides). See [`sas_accommodations_knowledge.md`](lib/agents/knowledge/sas_accommodations_knowledge.md) for the full integration workflow.
-
----
-
 # Sharing your grader with another faculty
 
 When two faculty teach the same Canvas course, the second one shouldn't start from scratch.
