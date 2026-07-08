@@ -537,27 +537,9 @@ uv run python lib/tools/submit_on_behalf.py \
 
 ---
 
-# BYUI Accessibility Services accommodations (SAS dispatcher)
+# Accessibility Services integration (BYUI)
 
-If you're at BYU-Idaho and you get accommodation letters from `byui.as@accessiblelearning.com`, the `apply_sas_accommodations.py` dispatcher closes the loop. Your **life-pm** repo reads your Outlook for the letters, extracts the catalog keys (PII-free), and drops a structured YAML at `grading/.sas_accommodations.yml`. Canvas-toolbox reads the YAML and dispatches each accommodation to the right tool.
-
-```bash
-# Dry-run — see what the dispatcher plans to do
-uv run python lib/tools/apply_sas_accommodations.py
-
-# Apply
-uv run python lib/tools/apply_sas_accommodations.py --apply
-```
-
-Three tiers:
-
-| Tier | Count | Behavior |
-|---|---|---|
-| **Canvas** | 4 keys (`extra_time_1.5x`, `extra_time_2.0x`, `occasional_extensions`, `test_reschedule`) | Dispatcher invokes the matching tool (quiz time extension or late-work override) |
-| **Proctoring** | 2 keys (`proctorio_breaks`, `private_room_exams`) | Surface as a checklist line for the operator — out of Canvas API scope |
-| **Policy** | 11 keys (`spelling_grammar`, `attendance_notification`, `recording_device`, etc.) | Surface as instructor-practice checklist — no LMS change |
-
-Every action lands in an audit log at `grading/.sas_accommodations_applied.log` (FERPA tier 2, gitignored). Full catalog + handoff schema: [`sas_accommodations_knowledge.md`](lib/agents/knowledge/sas_accommodations_knowledge.md).
+For BYUI faculty: `apply_sas_accommodations.py` reads structured accommodation data and dispatches to the appropriate tools (quiz time extensions, late-work overrides). See [`sas_accommodations_knowledge.md`](lib/agents/knowledge/sas_accommodations_knowledge.md) for the full integration workflow.
 
 ---
 
