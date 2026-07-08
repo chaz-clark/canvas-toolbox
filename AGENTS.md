@@ -48,6 +48,32 @@ A Canvas LMS course management toolkit — mirrors live Canvas courses to local 
 
 Trust the tool's summary output. Never use Read, cat, head, tail, grep, or any other file-reading command on these files. They must NEVER enter LLM context, logs, or any cloud surface. For file verification, use only `wc -l` or `ls -la`.
 
+**Bash command discipline for .deid_master.csv:**
+
+```bash
+# ✅ SAFE: Check file exists (no output displayed)
+ls grading/.deid_master.csv >/dev/null 2>&1 && echo "✓ Found"
+
+# ✅ SAFE: Count entries (no PII displayed)
+wc -l grading/.deid_master.csv
+
+# ✅ SAFE: Verify specific deid code exists (only show deid_code + user_id columns)
+grep "DS-95DBB6" grading/.deid_master.csv | cut -d',' -f1,2
+# Output: DS-95DBB6,173819 (no name)
+
+# ❌ VIOLATION: These commands display the sortable_name column (FERPA Zone 2)
+head grading/.deid_master.csv
+cat grading/.deid_master.csv
+tail grading/.deid_master.csv
+grep "pattern" grading/.deid_master.csv  # without cut to filter columns
+```
+
+**The sortable_name column is FERPA Zone 2.** All bash commands on `.deid_master.csv` must either:
+- Redirect output to /dev/null (no display), OR
+- Use `cut -d',' -f1,2` to show ONLY deid_code + user_id columns
+
+When testing or verifying, use `wc -l` or existence checks. Never display file contents.
+
 **Why you don't need Zone 2 files:**
 
 Accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extension.py`, `apply_sas_accommodations.py`) accept `--user-id` and `--deid-code` directly. The **human instructor** looks up the identifier locally in `.deid_master.csv` and hands you ONLY the opaque code or numeric user_id. You use it as-is; **no re-identification needed**.
