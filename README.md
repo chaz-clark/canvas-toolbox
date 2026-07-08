@@ -94,6 +94,82 @@ They'll handle the rest.
 
 ---
 
+### If your institution requires a private copy
+
+GitHub doesn't support private forks of public repos, but you can create a **private duplicate** and track the public repo as an upstream source. This pattern lets you:
+- Keep your course-specific files private (grading/, .env, etc.)
+- Pull updates from the public canvas-toolbox repo
+- Contribute improvements back upstream via PRs from a public fork
+
+**One-time setup:**
+
+```bash
+# 1. Create a bare clone of canvas-toolbox
+git clone --bare https://github.com/chaz-clark/canvas-toolbox.git
+cd canvas-toolbox.git
+
+# 2. Mirror-push to your private repo (create it first on GitHub)
+git push --mirror https://github.com/your-org/canvas-toolbox-private.git
+
+# 3. Remove the bare clone (no longer needed)
+cd ..
+rm -rf canvas-toolbox.git
+
+# 4. Clone your private repo and set up upstream
+git clone https://github.com/your-org/canvas-toolbox-private.git canvas-toolbox
+cd canvas-toolbox
+git remote add upstream https://github.com/chaz-clark/canvas-toolbox.git
+git remote set-url --push upstream DISABLE  # Prevent accidental pushes to public repo
+```
+
+**Pulling upstream updates:**
+
+```bash
+# Restore uv.lock if you've run uv commands locally (see "uv.lock workflow" below)
+git restore uv.lock
+
+# Fetch and merge upstream changes
+git fetch upstream
+git merge upstream/main
+
+# If uv.lock conflicts, prefer upstream version
+git checkout --theirs uv.lock
+uv sync  # Re-sync dependencies
+```
+
+**Contributing back:**
+
+When you build something worth sharing (a new audit, a Canvas API wrapper, a fix), contribute it back via the standard fork→PR workflow:
+
+1. Fork `chaz-clark/canvas-toolbox` on GitHub (public fork for PRs)
+2. Add your fork as a remote: `git remote add my-fork https://github.com/your-username/canvas-toolbox.git`
+3. Cherry-pick your commit to a branch: `git cherry-pick <commit-sha>`
+4. Push to your fork: `git push my-fork your-branch-name`
+5. Open a PR from your fork to `chaz-clark/canvas-toolbox`
+
+See also: [GitHub docs on duplicating a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/duplicating-a-repository)
+
+---
+
+### uv.lock workflow (important for clean upstream merges)
+
+The `uv.lock` file includes a version stamp that changes when you run `uv` commands locally (e.g., `1.5.4` → `1.6.0`). This can block clean fast-forward merges when pulling upstream updates. **Before pulling upstream changes:**
+
+```bash
+# Restore uv.lock to the committed version
+git restore uv.lock
+
+# Then pull/merge upstream
+git fetch upstream && git merge upstream/main
+
+# Re-sync dependencies (regenerates uv.lock with your local uv version)
+uv sync
+```
+
+**Alternative:** If you rarely pull upstream updates and want to avoid this workflow, you can `.gitignore` the version stamp in `uv.lock`. However, this isn't recommended because `uv.lock` is meant to be committed for reproducible builds.
+
+---
+
 ## What you'll do most
 
 Three core jobs — jump straight in, or skim the full workflow list further down.
@@ -565,15 +641,98 @@ Full sharing pattern: [`grader_knowledge.md §17`](lib/agents/knowledge/grader_k
 
 # Sharing back with the project
 
-Three things you can ask your agent to do:
+Four things you can ask your agent to do:
 
 | You want to… | Ask your agent | What happens |
 |---|---|---|
 | **Report a bug** | *"Report a bug: [what went wrong]"* | Agent runs `cb-report-bug`. Opens your editor for the description, scrubs PII locally (names, emails, `/Users` paths), bundles your toolkit version + last 150 log lines, files the GitHub issue. ~1 second. No GitHub account needed. |
 | **Ask for a feature** | *"Ask for this feature: [what you want]"* | Same path as bug reporting; the title prefix triages it. |
+| **Vote for a roadmap feature** | *"I often get asked by students what they need to pass"* | Agent detects roadmap interest (e.g., "Student grade forecast"), offers to vote. Anonymous voting via `vote-feature` tool. Helps prioritize development. See [ROADMAP.md](docs/ROADMAP.md) for full feature list. |
 | **Share something you built** | *"Share this with the project: [link / paste]"* | Agent runs `cb-share`. Same intake path; `share:` prefix tells the maintainer this is contribution-shaped. |
 
 The intake loop is fast — issues filed via the worker have been driving new safety gates within hours.
+
+## Vote directly on roadmap features
+
+```bash
+# See what's planned + current vote counts
+uv run python lib/tools/vote_feature.py --list
+
+# Vote for a specific feature
+uv run python lib/tools/vote_feature.py --feature "student grade forecast"
+```
+
+Voting is anonymous, no GitHub account needed. Votes help prioritize development. Full roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
+
+---
+
+## Managing multiple courses
+
+When running 4+ courses, consistent naming conventions help teams stay organized. Here are recommended patterns:
+
+### Repository/directory naming
+
+**Pattern:** `{prefix}-{course_number}_{term}`
+
+**Examples:**
+```
+PUBH-610_F24/        # Fall 2024
+PUBH-612_S25/        # Spring 2025
+ITM-327_SU25/        # Summer 2025
+DS-250_F24-ONLN/     # Fall 2024, online section
+```
+
+**Why this works:**
+- Sorts chronologically (F24 before S25)
+- Department prefix groups related courses
+- Underscore separates course from term (readable at a glance)
+- Optional suffix for section variants (-ONLN, -002, -CAMPUS)
+
+### Environment variable naming (in `.env`)
+
+When managing multiple `.env` files:
+
+```bash
+# .env.pubh610-f24
+CANVAS_COURSE_ID=427808
+CANVAS_SANDBOX_ID=402262
+
+# .env.pubh612-s25
+CANVAS_COURSE_ID=428101
+CANVAS_SANDBOX_ID=402262  # Same sandbox, different production course
+```
+
+**Workflow:** Symlink the active course's `.env` file:
+```bash
+ln -sf .env.pubh610-f24 .env
+```
+
+### Git branch naming for course-specific work
+
+When working on features for specific courses:
+```
+pubh610/fix-week3-quiz    # Course-specific fix
+pubh612/add-module4       # Course-specific content
+shared/update-syllabus    # Cross-course change
+```
+
+### Multi-course monorepo layout (advanced teams)
+
+For teams managing 10+ courses in one repo:
+```
+courses/
+  pubh610-f24/
+    content/
+    grading/
+  pubh612-s25/
+    content/
+    grading/
+shared/
+  lib/
+  templates/
+```
+
+**Tradeoff:** Monorepo scales better for shared tooling but increases merge complexity. Recommended for teams with dedicated DevOps support.
 
 ---
 

@@ -38,6 +38,10 @@ WHAT IT CHECKS (covers BOTH sensory AND cognitive/learning accessibility)
     1. IMAGES MISSING ALT-TEXT          (WCAG 1.1.1 Non-text Content)
        Every <img> must have a non-empty alt attribute, OR an empty
        alt="" when the image is decorative.
+
+       NOTE: Images from institution-injected scripts (canvas_global_app,
+       mobile.js) are automatically allowlisted since they are Canvas-
+       instance-controlled and operators cannot remove them.
     2. VIDEOS WITHOUT CAPTIONING INDICATOR  (WCAG 1.2.2 Captions)
        <iframe> embeds pointing at YouTube / Vimeo / Kaltura / Canvas
        Studio: flagged for caption verification (can't programmatically
@@ -187,6 +191,15 @@ _VIDEO_EMBED_DOMAINS = {
     "panopto.com",
 }
 
+# Institution-injected script patterns - images from these sources are allowlisted
+# (auto-injected by Canvas instance on every save; operator cannot remove)
+_INSTITUTION_SCRIPT_PATTERNS = {
+    "canvas_global_app",  # BYU-Idaho global app injection
+    "mobile.js",          # BYU-Idaho mobile script injection
+    "/images/canvas_global_app/",
+    "/scripts/mobile.js/",
+}
+
 
 def _headers() -> dict:
     return {"Authorization": f"Bearer {CANVAS_API_TOKEN}"}
@@ -237,6 +250,9 @@ def check_images_alt(soup: BeautifulSoup, surface_label: str) -> list[dict]:
     for img in soup.find_all("img"):
         alt = img.get("alt")
         src = img.get("src", "")
+        # Skip images from institution-injected scripts (unavoidable, operator cannot fix)
+        if any(pattern in src.lower() for pattern in _INSTITUTION_SCRIPT_PATTERNS):
+            continue
         # Snippet for the operator — first 100 chars of the img tag
         snippet = str(img)[:200]
         if alt is None:
