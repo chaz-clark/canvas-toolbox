@@ -246,13 +246,27 @@ Changes to **_override_recalc_helper.py**:
 3. **Updated all API calls** - Now use backoff logic (GET assignments, GET overrides, PUT override)
 4. **Parallel processing** - DEFERRED (not needed with targeted assignment approach)
 
-### 🔄 Phase 3: Architecture Research (NEXT)
-**Status:** IN PROGRESS
+### 🔄 Phase 3: Bulk Update API Research (COMPLETED)
+**Status:** RESEARCH COMPLETE - TESTING DEFERRED
 
-1. **Evaluate bulk_update API** for batch operations
-   - Test if it triggers automatic recalc
-   - Compare reliability vs current approach
-   - Document findings
+**Findings:**
+1. **Endpoint exists:** `PUT /api/v1/courses/:course_id/assignments/bulk_update`
+2. **Capabilities:**
+   - Update due_at, unlock_at, lock_at for multiple assignments in one call
+   - Returns Progress object (runs as background job)
+   - Cannot create or destroy overrides (only update existing)
+   - Atomic validation (all or nothing)
+3. **Limitations for our use case:**
+   - **Cannot create new overrides** - our tools CREATE student-specific overrides, not update existing ones
+   - bulk_update is for updating EXISTING overrides (e.g., shift all dates by 2 days)
+   - No documented evidence it triggers automatic recalculation
+   - Would require refactoring: create overrides first, then bulk_update them
+4. **Conclusion:**
+   - **Not applicable** for student accommodation workflow (we CREATE overrides, not bulk-update)
+   - Our current per-override creation + targeted force-recalc is the correct approach
+   - bulk_update is for mass date adjustments (entire course shifts dates), not per-student accommodations
+
+**Recommendation:** Keep current implementation (v1.6.1). bulk_update solves a different problem.
 
 ---
 
