@@ -458,13 +458,21 @@ def main() -> int:
         print(f"\nForcing Canvas override recalculation...")
         try:
             headers = {"Authorization": f"Bearer {token}"}
-            force_recalc_for_student(
-                base=base_url,
-                headers=headers,
-                course_id=int(course_id),
-                student_id=uid,
-                quiet=False
-            )
+            touched = 0
+            # Only recalc the specific assignments we just modified (not all assignments!)
+            for aid in assignment_ids:
+                touched += force_recalc_for_student(
+                    base=base_url,
+                    headers=headers,
+                    course_id=int(course_id),
+                    student_id=uid,
+                    assignment_id=aid,  # ← Pass the specific assignment
+                    quiet=True
+                )
+            if touched > 0:
+                print(f"  [recalc] ✓ Recalculated {touched} assignment override(s)")
+            else:
+                print(f"  [recalc] No overrides found to recalculate (unexpected)")
         except Exception as e:
             print(f"  [recalc] Warning: recalculation failed: {e}", file=sys.stderr)
             print(f"  [recalc] Overrides were created, but may not take effect immediately.",

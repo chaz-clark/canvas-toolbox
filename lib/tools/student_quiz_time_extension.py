@@ -295,6 +295,7 @@ def main() -> int:
         return 0
 
     fails = 0
+    assignment_ids = []  # Track assignment IDs from graded quizzes
     for q in quizzes:
         qid = q["id"]
         tl = q.get("time_limit")
@@ -314,19 +315,31 @@ def main() -> int:
             fails += 1
         print(f"  [{ok}] quiz {qid} ({title}): +{extra} min (HTTP {code})")
 
-    # Force recalculation if we applied extensions
-    if args.apply and args.force_recalc and quizzes:
-        print(f"\nForcing Canvas override recalculation...")
+        # Track assignment_id for graded quizzes (needed for recalc)
+        if code in (200, 201) and q.get("assignment_id"):
+            assignment_ids.append(q["assignment_id"])
+
+    # Force recalculation if we applied extensions to graded quizzes
+    # (practice quizzes/surveys don't have assignment_ids, so nothing to recalc)
+    if args.apply and args.force_recalc and assignment_ids:
+        print(f"\nForcing Canvas override recalculation for graded quizzes...")
         try:
             headers = {"Authorization": f"Bearer {token}"}
-            force_recalc_for_student(
-                base=base_url,
-                headers=headers,
-                course_id=int(course_id),
-                student_id=uid,
-                quiet=False
-            )
-            print(f"  [recalc] ✓ This should resolve the Canvas caching issue!")
+            touched = 0
+            # Only recalc the specific assignments for the quizzes we just modified
+            for aid in assignment_ids:
+                touched += force_recalc_for_student(
+                    base=base_url,
+                    headers=headers,
+                    course_id=int(course_id),
+                    student_id=uid,
+                    assignment_id=aid,  # ← Pass the specific assignment
+                    quiet=True
+                )
+            if touched > 0:
+                print(f"  [recalc] ✓ Recalculated {touched} assignment(s)")
+            else:
+                print(f"  [recalc] No assignment overrides found (quiz extensions use different mechanism)")
         except Exception as e:
             print(f"  [recalc] Warning: recalculation failed: {e}", file=sys.stderr)
             print(f"  [recalc] Extensions were created, but may not take effect immediately.",

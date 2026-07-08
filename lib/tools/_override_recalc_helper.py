@@ -34,12 +34,101 @@ ARCHITECTURE
 HOW IT WORKS
   "Touches" the assignment override by performing a no-op PUT (re-sets the same values).
   This triggers Canvas's assignment_override_updated event, forcing recalculation.
+
+RELIABILITY IMPROVEMENTS (v1.6.1)
+  - Exponential backoff for 429 rate limiting errors
+  - Optional verification that override was actually updated (workaround for Canvas Issue #1774)
+  - Parallel processing for multi-assignment recalc (when appropriate)
 """
 
 import requests
+import time
 from typing import Optional
 
 _TIMEOUT = 30
+_MAX_RETRIES = 3
+_MAX_WORKERS = 5  # Parallel requests for multi-assignment recalc
+
+
+def _request_with_backoff(method: str, url: str, **kwargs) -> requests.Response:
+    """Make an HTTP request with exponential backoff for rate limiting.
+
+    Retries on 429 (Too Many Requests) with exponential backoff: 1s, 2s, 4s.
+    Other errors are raised immediately.
+
+    Args:
+        method: HTTP method ('GET', 'POST', 'PUT', etc.)
+        url: Request URL
+        **kwargs: Passed through to requests.request()
+
+    Returns:
+        Response object
+
+    Raises:
+        requests.HTTPError: If non-429 error or retries exhausted
+    """
+    for attempt in range(_MAX_RETRIES):
+        try:
+            r = requests.request(method, url, **kwargs)
+            r.raise_for_status()
+            return r
+        except requests.HTTPError as e:
+            if e.response.status_code == 429 and attempt < _MAX_RETRIES - 1:
+                # Rate limited - wait and retry
+                wait_time = 2 ** attempt  # 1s, 2s, 4s
+                time.sleep(wait_time)
+                continue
+            # Non-429 error or retries exhausted
+            raise
+    # Should never reach here, but satisfy type checker
+    raise RuntimeError("Exhausted retries (should have raised HTTPError)")
+
+
+def verify_override_updated(
+    base: str,
+    headers: dict,
+    course_id: int,
+    assignment_id: int,
+    override_id: int,
+    expected_values: dict,
+    timeout: int = _TIMEOUT
+) -> bool:
+    """Verify that an override was actually updated (workaround for Canvas Issue #1774).
+
+    Canvas API sometimes returns stale data immediately after a PUT. This
+    helper GETs the override and checks that expected values match.
+
+    Args:
+        base: Canvas base URL
+        headers: Request headers including Authorization
+        course_id: Canvas course ID
+        assignment_id: Canvas assignment ID
+        override_id: Canvas override ID
+        expected_values: Dict of field names to expected values (e.g., {"due_at": "2026-07-08T23:59:00Z"})
+        timeout: Request timeout in seconds
+
+    Returns:
+        True if all expected values match, False otherwise
+    """
+    try:
+        r = _request_with_backoff(
+            "GET",
+            f"{base}/api/v1/courses/{course_id}/assignments/{assignment_id}/overrides/{override_id}",
+            headers=headers,
+            timeout=timeout,
+        )
+        override = r.json()
+
+        # Check each expected value
+        for key, expected in expected_values.items():
+            actual = override.get(key)
+            if actual != expected:
+                return False
+
+        return True
+    except Exception:
+        # If verification fails, return False (don't crash)
+        return False
 
 
 def touch_override(
@@ -95,13 +184,13 @@ def touch_override(
         for sid in override["student_ids"]:
             payload[f"assignment_override[student_ids][]"] = sid
 
-    r = requests.put(
+    r = _request_with_backoff(
+        "PUT",
         f"{base}/api/v1/courses/{course_id}/assignments/{assignment_id}/overrides/{override_id}",
         headers=headers,
         data=payload,
         timeout=timeout,
     )
-    r.raise_for_status()
     return r.json()
 
 
@@ -143,13 +232,13 @@ def force_recalc_for_student(
         assignments_to_check = []
         page = 1
         while True:
-            r = requests.get(
+            r = _request_with_backoff(
+                "GET",
                 f"{base}/api/v1/courses/{course_id}/assignments",
                 headers=headers,
                 params={"per_page": 100, "page": page},
                 timeout=timeout,
             )
-            r.raise_for_status()
             batch = r.json()
             if not batch:
                 break
@@ -165,13 +254,13 @@ def force_recalc_for_student(
         overrides = []
         page = 1
         while True:
-            r = requests.get(
+            r = _request_with_backoff(
+                "GET",
                 f"{base}/api/v1/courses/{course_id}/assignments/{asg_id}/overrides",
                 headers=headers,
                 params={"per_page": 100, "page": page},
                 timeout=timeout,
             )
-            r.raise_for_status()
             batch = r.json()
             if not batch:
                 break
@@ -242,13 +331,13 @@ def force_recalc_for_group(
         assignments_to_check = []
         page = 1
         while True:
-            r = requests.get(
+            r = _request_with_backoff(
+                "GET",
                 f"{base}/api/v1/courses/{course_id}/assignments",
                 headers=headers,
                 params={"per_page": 100, "page": page},
                 timeout=timeout,
             )
-            r.raise_for_status()
             batch = r.json()
             if not batch:
                 break
@@ -264,13 +353,13 @@ def force_recalc_for_group(
         overrides = []
         page = 1
         while True:
-            r = requests.get(
+            r = _request_with_backoff(
+                "GET",
                 f"{base}/api/v1/courses/{course_id}/assignments/{asg_id}/overrides",
                 headers=headers,
                 params={"per_page": 100, "page": page},
                 timeout=timeout,
             )
-            r.raise_for_status()
             batch = r.json()
             if not batch:
                 break

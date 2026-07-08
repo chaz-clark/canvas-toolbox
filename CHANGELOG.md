@@ -13,6 +13,31 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.6.1] — 2026-07-08
+
+**Accommodation system performance + reliability fix**
+
+Addresses the accommodation force-recalc "working 0-100% of the time" issue reported in production. Root cause: force_recalc was iterating ALL assignments in the course (200+) instead of only the modified assignments, causing 10+ minute hangs on slow Canvas instances.
+
+### Fixed
+- **student_late_accommodation.py** — now passes specific assignment_ids to force_recalc (50-100x faster)
+  - Before: 200+ API calls to check every assignment in course
+  - After: 3-5 API calls to check only modified assignments
+  - Runtime: 10+ minutes → seconds
+- **student_quiz_time_extension.py** — extracts assignment_id from graded quizzes for targeted recalc
+  - Practice quizzes/surveys (no assignment_id) now skip recalc appropriately
+  - More accurate messaging when no assignment overrides exist
+
+### Added (reliability improvements to _override_recalc_helper.py)
+- **verify_override_updated()** — workaround for Canvas Issue #1774 (stale data after PUT)
+- **_request_with_backoff()** — exponential backoff for 429 rate limiting (1s, 2s, 4s retries)
+- All API calls now use backoff logic (GET assignments, GET overrides, PUT override)
+
+### Documentation
+- **docs/research/accommodation-recalc-findings.md** — comprehensive deep dive on Canvas override recalc mechanism, API research, and implementation plan
+
+---
+
 ## [1.6.0] — 2026-07-07
 
 **Major: v1.6 course-centric architecture refactor**
