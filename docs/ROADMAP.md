@@ -246,45 +246,73 @@
 
 ### Phase 1: High-Value, Low-Complexity (Next 3 Months)
 
-1. **Student engagement early warning system** (Analytics API)
+1. **Student grade forecast** (Submissions API + Assignment Groups API) ⭐ HIGH DEMAND
+   - Answers "what do I need to do to pass?" in office hours
+   - Calculates current grade + remaining work scenarios
+   - Shows priority assignments (highest impact on grade)
+   - Copy-paste ready output for Slack/email
+   - FERPA-safe lookup via deid code
+   - Effort: Medium (gradebook calculations, accommodation-aware)
+
+   **Usage:**
+   ```bash
+   # Default: what's needed to reach C- (70%)
+   uv run python lib/tools/student_grade_forecast.py --deid-code S-95DBB6
+
+   # Custom target: "I'm at a C, how do I get a B?"
+   uv run python lib/tools/student_grade_forecast.py --deid-code S-95DBB6 --target-grade B
+
+   # Include closed assignments (if willing to reopen via accommodations)
+   uv run python lib/tools/student_grade_forecast.py --deid-code S-95DBB6 --waive-late
+   ```
+
+   **Features:**
+   - Assignment group breakdown (weighted correctly)
+   - Multiple passing scenarios (Option 1: 75% avg, Option 2: 85% challenges + 70% project)
+   - Priority list (sorted by point value × weight)
+   - Factors in student's existing accommodations (extended deadlines)
+   - Still available vs closed assignments
+   - Plain English output (human-readable, not technical)
+
+2. **Student engagement early warning system** (Analytics API)
    - Complements existing engagement audit
    - Identifies at-risk students before they fail
    - Export: FERPA-safe deid codes
    - Effort: Medium (new API, but straightforward data fetching)
 
-2. **Bulk assignment reminder sender** (Conversations API)
+3. **Bulk assignment reminder sender** (Conversations API)
    - Integrates with existing accommodation tools
    - Reduces manual messaging workload
    - Effort: Medium (new API, FERPA considerations)
 
-3. **Group override manager** (Groups API + Overrides API)
+4. **Group override manager** (Groups API + Overrides API)
    - Better UX than current fix_group_override_recalc.py
    - Frequently requested feature
    - Effort: Low (reuses existing override logic)
 
 ### Phase 2: Medium-Value, Moderate-Complexity (6-12 Months)
 
-4. **Assignment performance analyzer** (Analytics API)
+5. **Assignment performance analyzer** (Analytics API)
    - Helps identify assignments needing revision
    - Data-driven course improvement
    - Effort: Medium (complex analytics, visualization)
 
-5. **Accommodation notification tool** (Conversations API + Overrides API)
+6. **Accommodation notification tool** (Conversations API + Overrides API)
    - Auto-notify students when accommodations applied
    - Reduces confusion about changed deadlines
    - Effort: Medium (integrates multiple tools)
 
-6. **Weekly announcement publisher** (Discussion Topics API)
+7. **Weekly announcement publisher** (Discussion Topics API)
    - Template-based announcement generation
    - Saves time on repetitive weekly posts
    - Effort: Medium (template engine, scheduling)
 
 ### Phase 3: Nice-to-Have (Future)
 
-7. **Module release scheduler** (Modules API)
-8. **Rubric template library** (Rubrics API)
-9. **Grading audit trail exporter** (Grade Change Log API)
-10. **Random group generator** (Groups API)
+8. **Module release scheduler** (Modules API)
+9. **Rubric template library** (Rubrics API)
+10. **Grading audit trail exporter** (Grade Change Log API)
+11. **Random group generator** (Groups API)
 
 ---
 
