@@ -495,6 +495,48 @@ uv run python lib/tools/fix_group_override_recalc.py \
 
 ---
 
+# Submit files on behalf of students (Slack/email submissions)
+
+When students submit assignments via Slack DM or email instead of through Canvas, this tool automates the "submit on behalf of student" workflow.
+
+```bash
+# Preview what would be submitted (dry-run by default)
+uv run python lib/tools/submit_on_behalf.py \
+  --deid-code S-95DBB6 \
+  --assignment-id 12345 \
+  --file ~/Downloads/essay.pdf
+
+# Actually submit
+uv run python lib/tools/submit_on_behalf.py \
+  --deid-code S-95DBB6 \
+  --assignment-id 12345 \
+  --file ~/Downloads/essay.pdf \
+  --comment "Submitted via Slack on student's behalf due to Canvas access issue" \
+  --apply
+```
+
+**Typical scenario:**
+- Student DMs you a file via Slack: *"I couldn't figure out how to submit"*
+- You save the file to Downloads/
+- Run this tool to upload the file to Canvas and create the submission
+
+**⚠️ Institutional permission required:** This tool requires the "Submit on behalf of student" Canvas permission to be enabled at your institution. **BYUI blocks this permission** (tested 2026-07-08), so the tool successfully uploads files to Canvas but cannot complete the submission. Other institutions may allow it.
+
+**What works everywhere:**
+- ✓ File upload to Canvas (3-step Canvas file API)
+- ✓ Deid code resolution (FERPA-safe student lookup)
+- ✓ Assignment validation
+
+**What requires institutional permission:**
+- Attaching files to student submissions via API
+- Triggering Canvas grading workflow
+
+**Workaround at BYUI:** Use the student accommodation tool to give late submission access, then ask the student to resubmit through Canvas. This properly triggers the grading workflow.
+
+**Request permission from Canvas admin:** See `docs/research/submit-on-behalf-findings.md` for a template email to send your Canvas team requesting this permission be enabled.
+
+---
+
 # BYUI Accessibility Services accommodations (SAS dispatcher)
 
 If you're at BYU-Idaho and you get accommodation letters from `byui.as@accessiblelearning.com`, the `apply_sas_accommodations.py` dispatcher closes the loop. Your **life-pm** repo reads your Outlook for the letters, extracts the catalog keys (PII-free), and drops a structured YAML at `grading/.sas_accommodations.yml`. Canvas-toolbox reads the YAML and dispatches each accommodation to the right tool.
