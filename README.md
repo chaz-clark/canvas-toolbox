@@ -218,7 +218,7 @@ Audit which gates fired in a push from the per-row console output + `.push_log.m
 
 **Canvas Toolbox isn't only for existing courses — the agent can help you build one.**
 
-> 📋 **Step-by-step process:** [`docs/course_design_workflow.md`](docs/course_design_workflow.md) walks an agent (or you) through both flows end-to-end — **redesigning** an existing course and **architecting** a new one from scratch — naming which knowledge file and which tool to use at each step (CLOs → assessments → modules → rubrics → workload).
+> 📋 **Step-by-step process:** [`docs/course-design-workflow.md`](docs/course-design-workflow.md) walks an agent (or you) through both flows end-to-end — **redesigning** an existing course and **architecting** a new one from scratch — naming which knowledge file and which tool to use at each step (CLOs → assessments → modules → rubrics → workload).
 
 The toolkit ships with **20+ pedagogical knowledge files** the agent reads when you're designing or redesigning a course. You stay the architect; the AI is the assistant — it asks questions, surfaces tradeoffs, and writes drafts you approve.
 
@@ -322,7 +322,7 @@ Fetch → de-identify → grade → review → push. The AI never sees a student
 
 The push surface refuses by default in the dangerous direction. Every refusal has a documented opt-out flag.
 
-**Full grading pipeline:** [`grading_readme.md`](docs/grading_readme.md) — canonical folder layout + 8-step pipeline + dual-push pattern + setup interview.
+**Full grading pipeline:** [`grading-readme.md`](docs/grading-readme.md) — canonical folder layout + 8-step pipeline + dual-push pattern + setup interview.
 
 ---
 

@@ -227,7 +227,7 @@ See docs/UPGRADING.md for detailed migration steps.
   Context entries (local enforcement of [Make-AI-Agents#17](https://github.com/chaz-clark/Make-AI-Agents/issues/17)).
 
 ### Fixed
-- 17 outbound links in `docs/grading_readme.md`, `docs/UPGRADING.md`, and
+- 17 outbound links in `docs/grading-readme.md`, `docs/UPGRADING.md`, and
   `.github/CONTRIBUTING.md` that broke in v0.72.2 when those files moved out of
   the repo root (their root-relative links were not re-pathed at the time).
 - 8 pre-existing broken relative links in `lib/agents/` (wrong relative depth / missing `knowledge/` prefix; two `forthcoming` references de-linked).
@@ -250,7 +250,7 @@ changes (605 tests unchanged).
 ### Moved
 - Decluttered the repo root listing (18 → 12 tracked files): community-health
   files (`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`) → `.github/`
-  (still GitHub-detected); long docs (`UPGRADING.md`, `grading_readme.md`) →
+  (still GitHub-detected); long docs (`UPGRADING.md`, `grading-readme.md`) →
   `docs/`. All internal links repointed; 0 broken links repo-wide.
 
 ---
@@ -690,7 +690,7 @@ you should scal all my *-master courses for their voicing."*
    being filed."*
 3. **Length** — 447 lines (up from v0.68.0's 206, down from
    legacy's 862). The audit-tool catalog stays inline; grading
-   pipeline links to `grading_readme.md`; no TODO links to
+   pipeline links to `grading-readme.md`; no TODO links to
    nonexistent `INSTALL.md` / `OPERATIONS.md` (those references
    were premature in v0.68.0 — the legacy is still in
    `lib/marketing/README-LEGACY-2026-06-26.md` as source material
@@ -2337,7 +2337,7 @@ Doc sweep: agent-facing surfaces now know about `cb_report_bug.py`.
 - `README.md` adds a "Hit a bug? Hit a wish?" section with title-prefix
   examples (`bug:` / `enhancement:`) + the always-works
   github.com/issues/new fallback.
-- `grading_readme.md` adds a grader-scoped reporter section with the
+- `grading-readme.md` adds a grader-scoped reporter section with the
   "FERPA gate is not a bug" caveat.
 - `lib/agents/canvas_grader.md` gains principle **P-011 Surface the
   bug-report path** + a tooling-table row for `cb_report_bug.py`.
@@ -2427,7 +2427,7 @@ path for faculty without GitHub accounts.
 
 ### Changed
 - **#54-E** Single-surface vs multi-surface convention codified in
-  grading_readme.md.
+  grading-readme.md.
 
 ## [0.47.0] — 2026-06-14
 
