@@ -378,9 +378,15 @@ Follow [`SECURITY.md`](.github/SECURITY.md) instead: email the maintainer
 directly. The public intake channel is for bugs + enhancements; the
 private channel is for security.
 
-### Dev tools — maintainer-only automation
+### Dev tools & docs — maintainer-only
 
-The toolkit includes maintainer-only scripts for managing the toolkit itself (not for operator use). These live in `lib/tools/` alongside user-facing tools but are gitignored.
+The toolkit includes maintainer-only resources that shouldn't be committed to the public repo.
+
+**IMPORTANT:** AGENTS.md is public/committed. Don't put secrets, API tokens, account IDs, or private deployment details here. Use `docs/dev/` instead.
+
+#### Dev tools (lib/tools/, gitignored)
+
+Maintainer-only scripts for managing the toolkit itself.
 
 **Current dev tools:**
 - `add_roadmap_feature.py` — Atomically updates voting system when adding roadmap features (vote_feature.py, update_roadmap_votes.py, worker.ts, AGENTS.md)
@@ -392,13 +398,26 @@ The toolkit includes maintainer-only scripts for managing the toolkit itself (no
 4. Update the list above in AGENTS.md
 5. Include usage docstring in the script
 
-**Why gitignore dev tools?**
-- They're maintainer-specific (update voting worker, manage releases, etc.)
-- Operators don't need them (would clutter `lib/tools/`)
-- They often have hardcoded assumptions (e.g., wrangler config, file paths)
-- Keeps the public repo focused on operator-facing functionality
-
 **Pattern:** When you create a dev tool during this session, immediately add it to `.gitignore` and update the list above. Don't wait until commit time — easy to forget.
+
+#### Dev docs (docs/dev/, gitignored)
+
+Maintainer-only documentation with credentials, deployment details, and private architecture notes.
+
+**What goes in docs/dev/:**
+- Cloudflare worker deployment runbooks (with API tokens, account IDs)
+- API key rotation procedures (real tokens, not placeholders)
+- Private architecture decisions (not ready for public)
+- Deployment checklists (with actual credentials/URLs)
+- Internal debugging guides (with production access details)
+
+**What stays in AGENTS.md (public):**
+- Agent instructions for maintaining the repo (workflow, patterns, conventions)
+- Public toolkit architecture (how tools work together)
+- Development patterns (how to add features, write tools)
+- Continuous improvement process (bug intake, voting system)
+
+**Rule:** If it contains credentials, account IDs, or private implementation details → `docs/dev/`. If it's agent workflow instructions → AGENTS.md.
 
 ## Active Context
 

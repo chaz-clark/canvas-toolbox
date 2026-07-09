@@ -28,6 +28,10 @@ course_src/
 # (e.g. add_roadmap_feature.py for updating voting system)
 lib/tools/add_roadmap_feature.py
 
+# Dev docs — maintainer-only documentation (deployment, architecture, credentials)
+# AGENTS.md is public/committed; docs/dev/ is private/gitignored
+docs/dev/
+
 # GitHub issues workflow — local only
 .github_issues/
 
