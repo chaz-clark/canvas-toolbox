@@ -378,6 +378,28 @@ Follow [`SECURITY.md`](.github/SECURITY.md) instead: email the maintainer
 directly. The public intake channel is for bugs + enhancements; the
 private channel is for security.
 
+### Dev tools — maintainer-only automation
+
+The toolkit includes maintainer-only scripts for managing the toolkit itself (not for operator use). These live in `lib/tools/` alongside user-facing tools but are gitignored.
+
+**Current dev tools:**
+- `add_roadmap_feature.py` — Atomically updates voting system when adding roadmap features (vote_feature.py, update_roadmap_votes.py, worker.ts, AGENTS.md)
+
+**When creating new dev tools:**
+1. Place in `lib/tools/` (keeps all tools in one directory)
+2. Name clearly (prefix with purpose, not `_dev_` or similar)
+3. Add to `.gitignore` under the "Dev tools" section
+4. Update the list above in AGENTS.md
+5. Include usage docstring in the script
+
+**Why gitignore dev tools?**
+- They're maintainer-specific (update voting worker, manage releases, etc.)
+- Operators don't need them (would clutter `lib/tools/`)
+- They often have hardcoded assumptions (e.g., wrangler config, file paths)
+- Keeps the public repo focused on operator-facing functionality
+
+**Pattern:** When you create a dev tool during this session, immediately add it to `.gitignore` and update the list above. Don't wait until commit time — easy to forget.
+
 ## Active Context
 
 _Last updated: 2026-07-07_
