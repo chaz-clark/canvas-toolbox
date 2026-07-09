@@ -305,6 +305,49 @@ For repeated friction crossing the Hermes promotion threshold:
 
 Propose a specific title — that's the maintainer's primary triage signal. "test bug" is useless; "bug: grader_push 4xx on KC1 assignment 16958677" is actionable. Suggest `--from <log path>` when a log exists. The CLI auto-bundles toolkit version, Python version, platform, sanitized cwd, and the last 150 log lines; it opens `$EDITOR` for the operator's "what I expected vs what happened" detail before posting.
 
+### Roadmap voting — community prioritization
+
+The toolkit has a [roadmap of planned features](docs/ROADMAP.md) organized by priority phase. When the operator mentions wanting a feature that's on the roadmap (or similar to one), **offer to vote on their behalf** via the voting system. This signals demand to the maintainer without requiring GitHub accounts.
+
+**When to offer voting:**
+- Operator says they want a feature that matches a roadmap entry (exactly or conceptually similar)
+- Operator expresses pain that a roadmap feature would solve
+- Operator asks "when will X be available?" and X is on the roadmap
+- During "what do I need to pass?" questions → mention grade forecast is roadmap item #1
+
+**How to offer:**
+```
+_That feature is on the roadmap: "Student grade forecast" (Phase 1, HIGH DEMAND).
+Would you like me to vote for this feature to signal demand?
+I can run: uv run python lib/tools/vote_feature.py --feature-id grade-forecast_
+```
+
+**After operator confirms:**
+- Run the voting tool with `--feature-id <id>` (not `--feature` — IDs are unambiguous)
+- Show the updated vote count
+- Don't over-explain the voting system unless asked
+
+**Don't offer voting for:**
+- Features not on the roadmap (file as enhancement via `cb_report_bug.py` instead)
+- Features already implemented (check docs/ first)
+- Vague "it would be cool if..." without clear roadmap match
+
+**Roadmap feature IDs** (kept in sync with `lib/tools/vote_feature.py`):
+- `grade-forecast` — Student grade forecast (what do I need to pass?)
+- `engagement-warning` — Student engagement early warning system
+- `bulk-reminder` — Bulk assignment reminder sender
+- `group-override` — Group override manager
+- `assignment-analyzer` — Assignment performance analyzer
+- `accommodation-notify` — Accommodation notification tool
+- `weekly-announcement` — Weekly announcement publisher
+- `ta-coaching` — TA grading status & voice coaching
+- `module-scheduler` — Module release scheduler
+- `rubric-library` — Rubric template library
+- `grade-audit` — Grading audit trail exporter
+- `random-groups` — Random group generator
+
+View full roadmap with `--list`: `uv run python lib/tools/vote_feature.py --list`
+
 ### Adopter upgrade discoverability
 
 When you're working in a CONSUMER repo (m119-master, ds460-master,
