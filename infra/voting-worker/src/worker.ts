@@ -23,6 +23,7 @@ const VALID_FEATURES = new Set([
   'accommodation-notifier',
   'weekly-announcements',
   'ta-grading-status',
+  'course-restore',
 
   // Phase 3: Nice-to-Have
   'module-scheduler',

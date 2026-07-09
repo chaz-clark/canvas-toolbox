@@ -44,6 +44,7 @@ _FEATURES: Dict[str, str] = {
     "accommodation-notifier": "Accommodation notification tool",
     "weekly-announcements": "Weekly announcement publisher",
     "ta-grading-status": "TA grading status & voice coaching",
+    "course-restore": "Course restoration from local repo",
     # Phase 3: Nice-to-Have
     "module-scheduler": "Module release scheduler",
     "rubric-library": "Rubric template library",

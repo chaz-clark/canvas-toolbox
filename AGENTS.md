@@ -341,6 +341,7 @@ I can run: uv run python lib/tools/vote_feature.py --feature-id grade-forecast_
 - `accommodation-notifier` — Accommodation notification tool
 - `weekly-announcements` — Weekly announcement publisher
 - `ta-grading-status` — TA grading status & voice coaching
+- `course-restore` — Course restoration from local repo
 - `module-scheduler` — Module release scheduler
 - `rubric-library` — Rubric template library
 - `grade-audit-trail` — Grading audit trail exporter

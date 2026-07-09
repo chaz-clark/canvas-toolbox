@@ -357,12 +357,51 @@
    - Inter-rater reliability (multiple TAs on same assignment)
    - TA feedback template library (approved phrases for common issues)
 
+9. **Course restoration from local repo** (Assignments API + Pages API + Modules API + Files API)
+   - Deploy full course content from local repo to new Canvas course
+   - Alternative to Canvas course copy (resilient to course deletion policy)
+   - Solves: "Campus deletes old courses, I can't copy from last semester"
+   - Useful for infrequent courses (taught once/year or less)
+   - Effort: Medium (reuses canvas_sync infrastructure, needs full-course orchestration)
+
+   **Use case:**
+   Instructor maintains course content in local repo (assignments, pages, modules).
+   Next semester: create new Canvas course, update `.env` with new course ID, run restore.
+   All content deploys to new course without needing previous semester's Canvas course.
+
+   **Usage:**
+   ```bash
+   # Deploy entire course from local repo to new Canvas course
+   uv run python lib/tools/course_restore.py --apply
+
+   # Preview what would be created (dry-run)
+   uv run python lib/tools/course_restore.py
+
+   # Deploy specific content types only
+   uv run python lib/tools/course_restore.py --assignments --pages --apply
+   ```
+
+   **Features:**
+   - Deploys assignments, pages, modules, module structure, files
+   - Preserves module prerequisites and completion requirements
+   - FERPA-safe (no student data in repo)
+   - Idempotent (can re-run to update course)
+   - Guards against overwriting live courses (requires confirmation)
+   - Validation: checks for required fields, broken links, missing files
+
+   **Workflow:**
+   1. Maintain course content in `course/` directory (git-tracked)
+   2. Create new Canvas course each semester
+   3. Update `CANVAS_COURSE_ID` in `.env`
+   4. Run `course_restore.py --apply`
+   5. Course populated in ~2-5 minutes (depending on content size)
+
 ### Phase 3: Nice-to-Have (Future)
 
-9. **Module release scheduler** (Modules API)
-10. **Rubric template library** (Rubrics API)
-11. **Grading audit trail exporter** (Grade Change Log API)
-12. **Random group generator** (Groups API)
+10. **Module release scheduler** (Modules API)
+11. **Rubric template library** (Rubrics API)
+12. **Grading audit trail exporter** (Grade Change Log API)
+13. **Random group generator** (Groups API)
 
 ---
 
