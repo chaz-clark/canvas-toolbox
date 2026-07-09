@@ -265,28 +265,13 @@ The maintainer triages bug-vs-enhancement at the issue level. The CLI doesn't ne
 
 The Hermes Learning loop (Sprint B, see above). When the friction is interesting but you're not sure it rises to "file it now" — capture it here as a durable lesson. The promotion rule applies: a learned entry that gets **referenced a second time** is the agent's signal to surface filing as an enhancement via Channel 1.
 
-### Bias: err toward surfacing
+### Surfacing guidelines
 
-A low-quality report costs the maintainer ~10s to close. A real bug or enhancement never filed costs much more (silent toolkit drift, hand-rolled workarounds in consumer repos, lost trust). **When in doubt, surface the option.** The operator decides whether to file.
+**Bias toward surfacing.** A low-quality report costs ~10s to close; a real bug never filed costs much more. When in doubt, offer filing.
 
-### Default — DO surface filing when
+**DO surface when:** Tool exits non-zero (not config error), output "feels off", documented behavior diverges, Canvas API fails unexpectedly, operator wants unimplemented behavior, `learned/` entry referenced twice (Hermes promotion threshold).
 
-- A tool exits non-zero and the message doesn't read like operator config.
-- A tool produces output that "feels off" — wrong band, over-aggressive scrub, an audit that flags everything or nothing, a sync that touches more than expected.
-- Documented behavior diverges from observed behavior.
-- A Canvas API call fails with a status you can't immediately attribute to operator action (a 4xx that isn't auth, a persistent 5xx, persistent timeouts).
-- The operator asked for something the tool doesn't do, or proposed a workflow that would benefit from new behavior.
-- Performance surprised you, or you had to stop and re-read the code to be sure it was doing the right thing.
-- A `learned/` entry is being referenced for the second time — that's the Hermes promotion threshold; surface the file-as-enhancement option.
-
-### Hard rules — do NOT suggest filing when
-
-These are the system working as designed, not bugs:
-
-- **FERPA gate refusing.** `grader_name_leak_check.py` finding a name; deid quarantining a docx into `submissions_deid/_REVIEW/`; `_challenge_dir_guard` refusing the toolkit clone path. The check fired correctly; the operator's roster or challenge dir needs fixing.
-- **Push gate refusing.** Missing `--mark-reviewed`; `canvas_course_guard` refusing live-course writes without `--allow-enrolled`; the collision / lock / hold guards (issues #62 / #63 / #72) blocking a push. Each is a documented guardrail.
-- **Operator config gaps** — missing env var, missing keymap, missing rubric. Tool message already says what to fix.
-- **The agent itself supplied bad inputs.** Wrong assignment id, wrong path, wrong flag. Re-try with the correction first; only suggest filing if the CORRECTED invocation also behaves wrong.
+**DON'T surface when:** FERPA/push gates fire correctly, operator config gaps (missing env var/keymap), agent supplied wrong inputs (retry with correction first).
 
 ### How to surface
 
@@ -307,47 +292,11 @@ Propose a specific title — that's the maintainer's primary triage signal. "tes
 
 ### Roadmap voting — community prioritization
 
-The toolkit has a [roadmap of planned features](docs/ROADMAP.md) organized by priority phase. When the operator mentions wanting a feature that's on the roadmap (or similar to one), **offer to vote on their behalf** via the voting system. This signals demand to the maintainer without requiring GitHub accounts.
+When the operator wants a feature on the [roadmap](docs/ROADMAP.md), offer to vote via `lib/tools/vote_feature.py`. This signals demand without requiring GitHub accounts.
 
-**When to offer voting:**
-- Operator says they want a feature that matches a roadmap entry (exactly or conceptually similar)
-- Operator expresses pain that a roadmap feature would solve
-- Operator asks "when will X be available?" and X is on the roadmap
-- During "what do I need to pass?" questions → mention grade forecast is roadmap item #1
+**Offer when:** Operator wants/needs a roadmap feature (e.g., "what do I need to pass?" → grade-forecast).
 
-**How to offer:**
-```
-_That feature is on the roadmap: "Student grade forecast" (Phase 1, HIGH DEMAND).
-Would you like me to vote for this feature to signal demand?
-I can run: uv run python lib/tools/vote_feature.py --feature-id grade-forecast_
-```
-
-**After operator confirms:**
-- Run the voting tool with `--feature-id <id>` (not `--feature` — IDs are unambiguous)
-- Show the updated vote count
-- Don't over-explain the voting system unless asked
-
-**Don't offer voting for:**
-- Features not on the roadmap (file as enhancement via `cb_report_bug.py` instead)
-- Features already implemented (check docs/ first)
-- Vague "it would be cool if..." without clear roadmap match
-
-**Roadmap feature IDs** (kept in sync with `lib/tools/vote_feature.py`):
-- `grade-forecast` — Student grade forecast (what do I need to pass?)
-- `engagement-early-warning` — Student engagement early warning system
-- `bulk-reminder` — Bulk assignment reminder sender
-- `group-override-manager` — Group override manager
-- `assignment-performance-analyzer` — Assignment performance analyzer
-- `accommodation-notifier` — Accommodation notification tool
-- `weekly-announcements` — Weekly announcement publisher
-- `ta-grading-status` — TA grading status & voice coaching
-- `course-restore` — Course restoration from local repo
-- `module-scheduler` — Module release scheduler
-- `rubric-library` — Rubric template library
-- `grade-audit-trail` — Grading audit trail exporter
-- `random-groups` — Random group generator
-
-View full roadmap with `--list`: `uv run python lib/tools/vote_feature.py --list`
+**How:** `uv run python lib/tools/vote_feature.py --feature-id <id>` after confirmation. Use `--list` to show all features with current vote counts and IDs. Feature IDs are kept in sync with `lib/tools/vote_feature.py` (source of truth).
 
 ### Adopter upgrade discoverability
 
@@ -380,44 +329,11 @@ private channel is for security.
 
 ### Dev tools & docs — maintainer-only
 
-The toolkit includes maintainer-only resources that shouldn't be committed to the public repo.
+**IMPORTANT:** AGENTS.md is public. Secrets/credentials → `docs/dev/` (gitignored). Workflow instructions → AGENTS.md.
 
-**IMPORTANT:** AGENTS.md is public/committed. Don't put secrets, API tokens, account IDs, or private deployment details here. Use `docs/dev/` instead.
+**Dev tools** (lib/tools/, gitignored): `add_roadmap_feature.py` (voting system updater). When creating: add to `.gitignore` immediately, update this list, include docstring.
 
-#### Dev tools (lib/tools/, gitignored)
-
-Maintainer-only scripts for managing the toolkit itself.
-
-**Current dev tools:**
-- `add_roadmap_feature.py` — Atomically updates voting system when adding roadmap features (vote_feature.py, update_roadmap_votes.py, worker.ts, AGENTS.md)
-
-**When creating new dev tools:**
-1. Place in `lib/tools/` (keeps all tools in one directory)
-2. Name clearly (prefix with purpose, not `_dev_` or similar)
-3. Add to `.gitignore` under the "Dev tools" section
-4. Update the list above in AGENTS.md
-5. Include usage docstring in the script
-
-**Pattern:** When you create a dev tool during this session, immediately add it to `.gitignore` and update the list above. Don't wait until commit time — easy to forget.
-
-#### Dev docs (docs/dev/, gitignored)
-
-Maintainer-only documentation with credentials, deployment details, and private architecture notes.
-
-**What goes in docs/dev/:**
-- Cloudflare worker deployment runbooks (with API tokens, account IDs)
-- API key rotation procedures (real tokens, not placeholders)
-- Private architecture decisions (not ready for public)
-- Deployment checklists (with actual credentials/URLs)
-- Internal debugging guides (with production access details)
-
-**What stays in AGENTS.md (public):**
-- Agent instructions for maintaining the repo (workflow, patterns, conventions)
-- Public toolkit architecture (how tools work together)
-- Development patterns (how to add features, write tools)
-- Continuous improvement process (bug intake, voting system)
-
-**Rule:** If it contains credentials, account IDs, or private implementation details → `docs/dev/`. If it's agent workflow instructions → AGENTS.md.
+**Dev docs** (docs/dev/, gitignored): Deployment runbooks with real tokens, API key procedures, private architecture. Public architecture/workflow stays in AGENTS.md.
 
 ## Active Context
 
