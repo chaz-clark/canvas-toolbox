@@ -24,6 +24,10 @@ course_src/
 .cursor/
 .aider*
 
+# Dev tools — maintainer-only scripts for managing the toolkit itself
+# (e.g. add_roadmap_feature.py for updating voting system)
+lib/tools/add_roadmap_feature.py
+
 # GitHub issues workflow — local only
 .github_issues/
 
