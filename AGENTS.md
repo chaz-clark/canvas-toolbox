@@ -334,16 +334,16 @@ I can run: uv run python lib/tools/vote_feature.py --feature-id grade-forecast_
 
 **Roadmap feature IDs** (kept in sync with `lib/tools/vote_feature.py`):
 - `grade-forecast` — Student grade forecast (what do I need to pass?)
-- `engagement-warning` — Student engagement early warning system
+- `engagement-early-warning` — Student engagement early warning system
 - `bulk-reminder` — Bulk assignment reminder sender
-- `group-override` — Group override manager
-- `assignment-analyzer` — Assignment performance analyzer
-- `accommodation-notify` — Accommodation notification tool
-- `weekly-announcement` — Weekly announcement publisher
-- `ta-coaching` — TA grading status & voice coaching
+- `group-override-manager` — Group override manager
+- `assignment-performance-analyzer` — Assignment performance analyzer
+- `accommodation-notifier` — Accommodation notification tool
+- `weekly-announcements` — Weekly announcement publisher
+- `ta-grading-status` — TA grading status & voice coaching
 - `module-scheduler` — Module release scheduler
 - `rubric-library` — Rubric template library
-- `grade-audit` — Grading audit trail exporter
+- `grade-audit-trail` — Grading audit trail exporter
 - `random-groups` — Random group generator
 
 View full roadmap with `--list`: `uv run python lib/tools/vote_feature.py --list`
