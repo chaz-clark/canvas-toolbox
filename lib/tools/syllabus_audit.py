@@ -173,6 +173,15 @@ def fetch_syllabus(course_id: str) -> tuple[str, str | None]:
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
+_IMG_RE = re.compile(r"<img\b", re.IGNORECASE)
+
+
+def count_images(body: str) -> int:
+    """Count <img> tags in the raw (untagged-stripped) syllabus body.
+    Used as an advisory signal: policy content (e.g. a grading-scale
+    graphic) embedded only as an image is invisible to this audit's
+    keyword scan AND to screen readers — same blind spot, two audiences."""
+    return len(_IMG_RE.findall(body)) if body else 0
 
 
 def html_to_text(body: str) -> str:
@@ -221,9 +230,10 @@ REQUIRED_SECTIONS: list[dict] = [
      "patterns": ["feedback", "workload", "time commitment", "hours per week",
                   "expect to spend", "expectations"], "byui": False},
     {"key": "grading", "label": "Grading (Grading Scale / Late Work)",
-     "patterns": ["grading scale", "grade scale", "grading policy",
-                  "grade breakdown", "letter grade", "late work", "late policy",
-                  "points possible"], "byui": False},
+     "patterns": ["grading scale", "grade scale", "grading scheme", "grade scheme",
+                  "grading policy", "grade breakdown", "letter grade",
+                  "late work", "late policy", "late assignment", "late submission",
+                  "assignment is late", "points possible"], "byui": False},
     {"key": "disabilities", "label": "Students with Disabilities",
      "patterns": ["disabilit", "accommodation", "accessibility", "section 504",
                   "ada ", "americans with disabilities"], "byui": False},
@@ -547,6 +557,7 @@ def detect_advisory(text: str, body: str) -> dict:
     return {
         "word_count": wc,
         "bloat": wc > _BLOAT_WORDS,
+        "embedded_images": count_images(body),
         # DOM-aware, shared with rubric_quality_audit / rubric_recommender (#31):
         # detects the outcomes SECTION (heading/stem), not a bare keyword hit.
         "outcomes_present": detect_outcomes_section(body) is not None,
@@ -645,6 +656,11 @@ def _render(course_id: str, course_name: str, verdict: str, missing: list[str],
     lines.append(f"  • BYU-I Learning Model introduced: "
                  f"{'yes' if advisory['learning_model_present'] else 'not detected'}"
                  "  [BYUI]")
+    img_n = advisory["embedded_images"]
+    lines.append(f"  • Images embedded in body: {img_n}"
+                 + (f"  ⚠️ policy content shown only as an image (e.g. a grading-scale "
+                    f"graphic) is invisible to this audit's keyword scan AND to screen "
+                    f"readers — add a plain-text equivalent" if img_n else ""))
     lines.append("")
 
     if missing:

@@ -10,6 +10,18 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+### Fixed
+- **syllabus_audit.py** — grading-section keyword detection missed common real-world
+  phrasing: "Grading Schemes" (vs. "grading scale") and "late assignments" / "an
+  assignment is late" (vs. "late work" / "late policy"). Added those variants to the
+  pattern list. Found auditing a live BYU-I syllabus that had both a grading policy
+  and a late-work policy but was flagged incomplete.
+- **syllabus_audit.py** — added an `embedded_images` advisory signal (does not affect
+  verdict). Some syllabi present their grading scale as an image with no text
+  equivalent (e.g. a "Grading Scheme.png" screenshot) — that content is invisible to
+  this audit's keyword scan *and* to screen readers. The report now surfaces an image
+  count so operators know to check for this pattern manually.
+
 ---
 
 ## [1.7.10] — 2026-07-14
