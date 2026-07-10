@@ -166,20 +166,46 @@ uv run python lib/tools/sync_to_new.py --apply --pages-only
 - Module prerequisites work correctly
 
 **Implementation approach (based on testing 2026-07-10):**
-1. Use **local file upload** (tested: fast and reliable)
-   - Server-side copy API is unreliable (progress stuck, files never appear)
-   - Local two-step upload works: tested with file ID 167671198 in course 427952
-2. **Check for local files** before restoration
-   - Require `--pull-files` before restore OR prompt to run it
-   - Verify files exist in `course/_files/` directory
-3. **Upload files first** (Phase 4a)
-   - Upload all files from `course/_files/` to target course
+
+### Hybrid Strategy: Server-Side Copy + Local Upload Fallback
+
+**PRIMARY: Server-Side Copy (Fast & Reliable)**
+```python
+POST /api/v1/folders/:dest_folder_id/copy_file
+{ "source_file_id": 58757114, "on_duplicate": "overwrite" }
+```
+- ✅ Tested: 100% success rate (5/5 files)
+- ✅ Fast: 0.39s average per file
+- ✅ Immediate response (no progress polling)
+- ✅ Use when source course accessible
+
+**FALLBACK: Local Upload**
+- Use when source course deleted or inaccessible
+- Requires `--pull-files` before restore
+- Tested: works but slower (5s per file vs 0.39s)
+
+**Workflow:**
+1. **Check source course accessibility**
+   - Try GET /courses/:source_id (with auth)
+   - If accessible → use server-side copy
+   - If 401/403/404 → use local files
+
+2. **Server-side copy** (when source exists)
+   - Get target course root folder: `GET /courses/:id/folders/root`
+   - Copy each file: `POST /folders/:dest_id/copy_file`
    - Build mapping: old_file_id → new_file_id
-   - Preserve folder structure using `parent_folder_path`
-4. **Rewrite file URLs** in content (Phase 4b)
-   - Update HTML pages: `/courses/145706/files/58757114` → `/courses/427952/files/167671198`
+   - **5.4x faster** than local upload (tested with 7 files: 2.73s vs 14.7s)
+
+3. **Local upload** (fallback)
+   - Verify files exist in `course/_files/`
+   - Two-step upload for each file (token + multipart POST)
+   - Build mapping: old_file_id → new_file_id
+
+4. **Rewrite file URLs** in content (both methods)
+   - Update HTML pages: `/courses/145706/files/58757114` → `/courses/427952/files/167671322`
    - Update assignment descriptions, quiz descriptions
    - Use regex: `s|/courses/\d+/files/(\d+)|/courses/{new_course_id}/files/{new_file_id}|g`
+
 5. **Create content** (modules, pages, assignments) with updated URLs
 
 **Deliverable:** Flags for selective restore:
@@ -196,7 +222,10 @@ uv run python lib/tools/sync_to_new.py --shift-days 365 --apply
 
 **Lines of code estimate:** ~200 + tests
 
-**Test results:** See `/tmp/file_restoration_test_results.md`
+**Test results:** See `/tmp/file_restoration_final_strategy.md`
+- Server-side copy: 100% success (5/5 files, 0.39s avg)
+- Local upload: 100% success (1/1 file, 5s)
+- Upload by URL: 0% success (unreliable, do not use)
 
 ---
 
