@@ -251,19 +251,61 @@ Features organized by instructor workflow rather than timeline. Build what solve
 - ⭐ High user demand
 - 🔧 Extends existing tool
 
+**T-shirt sizes (implementation effort):**
+- **XS** = 1-2 days (simple API wrapper, existing patterns)
+- **S** = 3-5 days (straightforward feature, minimal new concepts)
+- **M** = 1-2 weeks (moderate complexity, new API integration)
+- **L** = 2-4 weeks (complex logic, multiple APIs, significant integration)
+- **XL** = 1-2 months (very complex, new paradigms, extensive testing)
+
+---
+
+### Planning Summary — Features by Size
+
+**Quick wins (XS — 1-2 days each):**
+- Grading audit trail exporter
+
+**Small features (S — 3-5 days each):**
+- ✅ Global student exemption (completed)
+- Group override manager
+- Module release scheduler
+- Rubric template library
+
+**Medium features (M — 1-2 weeks each):**
+- Student engagement early warning system ⭐
+- Assignment performance analyzer
+- Random group generator
+- Bulk assignment reminder sender
+- Accommodation notification tool
+- Weekly announcement publisher
+
+**Large features (L — 2-4 weeks each):**
+- Student grade forecast ⭐
+- Course restoration from local repo
+
+**Extra large features (XL — 4-6 weeks each):**
+- TA grading status & voice coaching
+
+**Suggested sprint planning:**
+- Sprint 1 (1 week): Grading audit trail exporter (XS) + Group override manager (S)
+- Sprint 2 (1 week): Module release scheduler (S) + Rubric template library (S)
+- Sprint 3 (2 weeks): Student engagement early warning system (M) ⭐
+- Sprint 4 (3 weeks): Student grade forecast (L) ⭐
+- Sprint 5+: Choose based on demand and strategic fit
+
 ---
 
 ### Student Accommodations & Support
 
 Tools that directly support individual students with special circumstances (late enrollment, accommodations, grade forecasting).
 
-1. **Student grade forecast** (Submissions API + Assignment Groups API) ⭐ HIGH DEMAND
+1. **Student grade forecast** — **L** (2-3 weeks) ⭐
    - Answers "what do I need to do to pass?" in office hours
    - Calculates current grade + remaining work scenarios
    - Shows priority assignments (highest impact on grade)
    - Copy-paste ready output for Slack/email
    - FERPA-safe lookup via deid code
-   - Effort: Medium (gradebook calculations, accommodation-aware)
+   - **Complexity:** Gradebook calculation logic, weighted assignment groups, multiple scenario generation, accommodation-aware filtering
 
    **Usage:**
    ```bash
@@ -285,11 +327,11 @@ Tools that directly support individual students with special circumstances (late
    - Still available vs closed assignments
    - Plain English output (human-readable, not technical)
 
-2. ✅ **Global student exemption for late enrollment** (Submissions API) 🔧
+2. ✅ **Global student exemption for late enrollment** — **S** (completed) 🔧
    - Excuse student from all assignments due before enrollment date
    - Solves: "Student joined Week 5, I need to excuse them from Weeks 1-4 work"
    - One-time batch operation for single student
-   - Effort: Low-Medium (uses Submissions API, date filtering)
+   - **Complexity:** Submissions API filtering, date logic, dry-run pattern
 
    **Use case:**
    Student enrolls mid-semester. Instead of manually marking each assignment as "EX" (excused) in the gradebook, run one command to excuse all assignments due before their enrollment date.
@@ -331,11 +373,11 @@ Tools that directly support individual students with special circumstances (late
    4. Grade calculation excludes excused assignments automatically
    5. If needed, use `--undo --apply` to reverse the exemptions
 
-3. **Group override manager** (Groups API + Overrides API) 🔧
+3. **Group override manager** — **S** (3-5 days) 🔧
    - Apply accommodations to entire group (extend due date)
    - Better UX than current fix_group_override_recalc.py
    - Frequently requested feature
-   - Effort: Low (reuses existing override logic)
+   - **Complexity:** Reuses existing override patterns, familiar APIs, straightforward UX improvement
 
 ---
 
@@ -343,7 +385,7 @@ Tools that directly support individual students with special circumstances (late
 
 Tools that streamline grading operations and support teaching assistants.
 
-1. **TA grading status & voice coaching** (Submissions API + AI analysis)
+1. **TA grading status & voice coaching** — **XL** (4-6 weeks)
    - **Timeliness:** Track grading turnaround time — are students waiting too long for feedback?
    - **Quality:** Analyze TA feedback "voice" (tone, specificity, encouragement, actionability)
    - **Consistency:** Compare scoring patterns across students (flag grading drift/outliers)
@@ -351,7 +393,7 @@ Tools that streamline grading operations and support teaching assistants.
    - Generate coaching feedback for instructor to share with TA
    - Compare TA feedback against instructor examples
    - Export: FERPA-safe report (no student names, deid codes only)
-   - Effort: Medium-High (AI analysis, voice coaching patterns, multi-TA comparison)
+   - **Complexity:** AI text analysis, multi-dimensional reporting (timeliness/quality/consistency), statistical analysis, multi-TA comparison logic, coaching feedback generation
 
    **Usage:**
    ```bash
@@ -393,11 +435,11 @@ Tools that streamline grading operations and support teaching assistants.
    - Inter-rater reliability (multiple TAs on same assignment)
    - TA feedback template library (approved phrases for common issues)
 
-2. **Grading audit trail exporter** (Grade Change Log API)
+2. **Grading audit trail exporter** — **XS** (1-2 days)
    - Export all grade changes for a course
    - Filter by assignment, student, or date range
    - Useful for: grade disputes, TA oversight, accreditation
-   - Effort: Low (straightforward API, CSV export)
+   - **Complexity:** Simple API read, CSV export (existing pattern), basic filtering
 
 ---
 
@@ -405,21 +447,21 @@ Tools that streamline grading operations and support teaching assistants.
 
 Tools that identify at-risk students and measure course effectiveness.
 
-1. **Student engagement early warning system** (Analytics API) ⭐
+1. **Student engagement early warning system** — **M** (1-2 weeks) ⭐
    - Flag students with low participation before they fall behind
    - Compare page views vs. assignment submissions
    - Identify students who view content but don't submit
    - Export: FERPA-safe deid codes
    - Complements existing engagement audit
-   - Effort: Medium (new API, but straightforward data fetching)
+   - **Complexity:** New Analytics API, threshold logic, FERPA-safe export, integration with existing engagement audit
 
-2. **Assignment performance analyzer** (Analytics API)
+2. **Assignment performance analyzer** — **M** (1-2 weeks)
    - Show which assignments have lowest completion rates
    - Identify assignments with unusual score distributions
    - Compare assignment difficulty across sections
    - Suggest which assignments need better instructions
    - Data-driven course improvement
-   - Effort: Medium (complex analytics, visualization)
+   - **Complexity:** Analytics API (same as above), statistical analysis, visualization/reporting generation
 
 ---
 
@@ -427,12 +469,12 @@ Tools that identify at-risk students and measure course effectiveness.
 
 Tools for course deployment, module management, and content organization.
 
-1. **Course restoration from local repo** (Assignments API + Pages API + Modules API + Files API)
+1. **Course restoration from local repo** — **L** (3-4 weeks)
    - Deploy full course content from local repo to new Canvas course
    - Alternative to Canvas course copy (resilient to course deletion policy)
    - Solves: "Campus deletes old courses, I can't copy from last semester"
    - Useful for infrequent courses (taught once/year or less)
-   - Effort: Medium (reuses canvas_sync infrastructure, needs full-course orchestration)
+   - **Complexity:** Multiple APIs (Assignments, Pages, Modules, Files), orchestration logic, validation & safety checks, idempotent updates, dependency ordering
 
    **Use case:**
    Instructor maintains course content in local repo (assignments, pages, modules).
@@ -466,24 +508,24 @@ Tools for course deployment, module management, and content organization.
    4. Run `course_restore.py --apply`
    5. Course populated in ~2-5 minutes (depending on content size)
 
-2. **Module release scheduler** (Modules API)
+2. **Module release scheduler** — **S** (3-5 days)
    - Bulk publish modules on specific dates
    - Example: Publish week 2 module every Monday
    - JSON config: `course_schedule.json`
-   - Effort: Low (straightforward API, scheduling logic)
+   - **Complexity:** Simple Modules API, JSON config parsing, date/scheduling logic
 
-3. **Rubric template library** (Rubrics API)
+3. **Rubric template library** — **S** (3-5 days)
    - Store rubric definitions as JSON
    - Apply standard rubrics to new assignments
    - Share rubrics across courses
    - Example: `uv run python lib/tools/apply_rubric.py --assignment-id 12345 --rubric discussion_post`
-   - Effort: Low (rubrics are typically reused, not recreated)
+   - **Complexity:** Rubrics API (straightforward), JSON template storage, association logic
 
-4. **Random group generator** (Groups API)
+4. **Random group generator** — **M** (1 week)
    - Create balanced groups based on criteria
    - Avoid putting certain students together (from config)
    - Example: `uv run python lib/tools/create_groups.py --size 4 --count 10 --avoid-pairs avoid_list.csv`
-   - Effort: Medium (group balancing logic)
+   - **Complexity:** Groups API, balancing algorithms, constraint handling (avoid-pairs logic)
 
 ---
 
@@ -491,26 +533,26 @@ Tools for course deployment, module management, and content organization.
 
 Tools for messaging students and automating repetitive communications.
 
-1. **Bulk assignment reminder sender** (Conversations API)
+1. **Bulk assignment reminder sender** — **M** (1-2 weeks)
    - Message all students missing specific assignment
    - Personalized reminder with assignment details
    - FERPA-safe: uses Canvas messaging (not email)
    - Integrates with existing accommodation tools
-   - Effort: Medium (new API, FERPA considerations)
+   - **Complexity:** New Conversations API, template system, FERPA considerations, filtering logic
 
-2. **Accommodation notification tool** (Conversations API + Overrides API) 🔧
+2. **Accommodation notification tool** — **M** (1-2 weeks) 🔧
    - Auto-message students when accommodations applied
    - Explain what changed (due dates, time limits)
    - Include Canvas links to affected assignments
    - Integrates with student_late_accommodation.py
-   - Effort: Medium (integrates multiple tools)
+   - **Complexity:** Conversations API, integration with existing accommodation tools, message templating
 
-3. **Weekly announcement publisher** (Discussion Topics API)
+3. **Weekly announcement publisher** — **M** (1-2 weeks)
    - Generate weekly course announcements from template
    - Include upcoming assignments, due dates, office hours
    - Auto-post on schedule (via cron)
    - Template-based announcement generation
-   - Effort: Medium (template engine, scheduling)
+   - **Complexity:** Discussion Topics API, template engine, scheduling (cron), dynamic content generation
 
 ---
 
