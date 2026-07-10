@@ -463,6 +463,42 @@ def main() -> int:
 
     print(f"✓ Loaded {module_count} modules, {page_count} pages from course {source_course_id}")
 
+    # Check for file references
+    linked_files = course_content.get("linked_files", {})
+    files_dir = Path("course/_files")
+
+    if linked_files:
+        # Count how many files are actually downloaded
+        downloaded_count = 0
+        if files_dir.exists():
+            for file_id, file_meta in linked_files.items():
+                local_path = file_meta.get("local_path")
+                if local_path and Path(local_path).exists():
+                    downloaded_count += 1
+
+        if downloaded_count == 0 and len(linked_files) > 0:
+            print(f"\n⚠ WARNING: Course references {len(linked_files)} files (images/PDFs), but none are downloaded locally.")
+            print(f"  Embedded images and file links will be BROKEN in the new course.")
+            print(f"\n  To fix this, run from the SOURCE course directory:")
+            print(f"    CANVAS_COURSE_ID={source_course_id} uv run python lib/tools/canvas_sync.py --pull-files")
+            print(f"\n  Then re-run this tool to restore with files.")
+
+            if not args.apply:
+                print(f"\n  (Continuing with preview mode...)")
+            else:
+                confirm = input("\n  Continue restore WITHOUT files? [y/N]: ").strip().lower()
+                if confirm != "y":
+                    print("Aborted. Please download files first.")
+                    return 0
+        elif downloaded_count < len(linked_files):
+            print(f"\n⚠ Note: {downloaded_count}/{len(linked_files)} referenced files downloaded.")
+            print(f"  Some file links may be broken. Run --pull-files to download all.")
+        else:
+            print(f"✓ All {downloaded_count} referenced files downloaded to course/_files/")
+            print(f"  (Phase 3: File upload and link rewriting not yet implemented)")
+    else:
+        print(f"✓ No file references detected (text-only course)")
+
     # Preview mode (dry-run)
     if not args.apply:
         preview_restoration(course_content)

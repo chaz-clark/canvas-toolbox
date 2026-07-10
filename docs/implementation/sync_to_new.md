@@ -96,40 +96,73 @@ uv run python lib/tools/sync_to_new.py --apply --pages-only
 
 ---
 
-### Phase 2: Full Content Types (S-sized, 3-5 days)
-**Goal:** Support all content types
+### Phase 2: Assignments + Assignment Groups (M-sized, 1-2 weeks)
+**Goal:** Support assignment creation with proper grading structure
 
 **Scope:**
-- Classic quizzes (with question banks)
+- Assignment groups (weighted gradebook structure)
+- Regular assignments (descriptions, points, due dates, submission types)
 - Graded and ungraded discussions
 - External URLs and file links
-- Assignment groups and weights
 - Homepage and syllabus
 
 **Success criteria:**
-- Can restore full course (all content types)
-- Assignment groups created correctly
-- Quiz questions import correctly
+- Can restore assignments with correct assignment group weights
+- Gradebook structure matches source course
+- Graded discussions work correctly
 
-**Deliverable:** Remove `--pages-only` flag, support all types by default
+**Deliverable:** Full assignment restore with grading structure
 
-**Lines of code estimate:** ~150 + tests
+**Lines of code estimate:** ~200 + tests
+
+**Note:** Assignment group data is ALREADY in `.canvas/index.json` (canvas_sync.py pulls it). Just needs restore logic.
 
 ---
 
-### Phase 3: Advanced Features (S-sized, 3-5 days)
-**Goal:** Handle complex scenarios
+### Phase 3: Quiz Questions + Question Banks (L-sized, 2-3 weeks)
+**Goal:** Support Classic Quiz restoration with question banks
+
+**Prerequisites:** Enhance canvas_sync.py first:
+1. Pull question banks via `/courses/:id/quiz_question_banks`
+2. Pull classic quiz questions via `/courses/:id/quizzes/:quiz_id/questions`
+3. Store in `.canvas/index.json` and separate JSON files
 
 **Scope:**
-- Rubric attachment (if stored locally)
+- Question bank creation in target course
+- Classic quiz question restoration
+- Quiz question linking to question banks
+- Quiz settings (time limits, allowed attempts, shuffle)
+
+**Success criteria:**
+- Classic quizzes restore with all questions
+- Question banks restore with all questions
+- Quizzes linked to correct question banks
+
+**Deliverable:** Complete classic quiz restoration
+
+**Lines of code estimate:**
+- canvas_sync.py enhancement: ~150 lines
+- sync_to_new.py restore logic: ~200 lines
+- Total: ~350 + tests
+
+**Note:** NewQuizzes cannot be restored (Canvas API limitation — questions not exposed)
+
+---
+
+### Phase 4: Files + Advanced Features (M-sized, 1-2 weeks)
+**Goal:** Handle file uploads and advanced scenarios
+
+**Scope:**
 - File uploads for referenced assets in `course/_files/`
+- File ID rewriting (update HTML/JSON with new file IDs)
+- Rubric attachment (if stored locally)
 - Module prerequisites and completion requirements
 - Selective restoration by module or item type
 - Date shifting (adjust due dates for new semester)
 
 **Success criteria:**
-- Rubrics appear on assignments
-- Images in pages render (files uploaded)
+- Images in pages render correctly (files uploaded + links rewritten)
+- PDFs linked correctly
 - Module prerequisites work correctly
 
 **Deliverable:** Flags for selective restore:
@@ -144,11 +177,11 @@ uv run python lib/tools/sync_to_new.py --types pages,assignments --apply
 uv run python lib/tools/sync_to_new.py --shift-days 365 --apply
 ```
 
-**Lines of code estimate:** ~150 + tests
+**Lines of code estimate:** ~200 + tests
 
 ---
 
-### Phase 4: Field Hardening (S-sized, 3-5 days)
+### Phase 5: Field Hardening (S-sized, 3-5 days)
 **Goal:** Production-ready reliability
 
 **Scope:**
