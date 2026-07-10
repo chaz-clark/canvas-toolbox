@@ -411,19 +411,19 @@
     **Usage:**
     ```bash
     # Excuse student from assignments before date (dry-run preview)
-    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15
+    uv run python lib/tools/exempt_by_date.py --user-id 123456 --before-date 2026-02-15
 
     # Apply: excuse student from assignments before date
-    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15 --apply
+    uv run python lib/tools/exempt_by_date.py --user-id 123456 --before-date 2026-02-15 --apply
 
     # Excuse by week number (before Week 5 = excuse Weeks 1-4)
-    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-week 5 --apply
+    uv run python lib/tools/exempt_by_date.py --user-id 123456 --before-week 5 --apply
 
     # Use deid-code instead of user-id (FERPA-safe)
-    uv run python lib/tools/exempt_late_enrollment.py --deid-code S-95DBB6 --before-week 5 --apply
+    uv run python lib/tools/exempt_by_date.py --deid-code S-95DBB6 --before-week 5 --apply
 
     # Undo: remove excused status from all previously excused assignments
-    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --undo --apply
+    uv run python lib/tools/exempt_by_date.py --user-id 123456 --undo --apply
     ```
 
     **Features:**
@@ -437,7 +437,7 @@
 
     **Workflow:**
     1. Student enrolls late (e.g., Week 5 of semester)
-    2. Instructor runs: `exempt_late_enrollment.py --user-id <id> --before-week 5 --apply`
+    2. Instructor runs: `exempt_by_date.py --user-id <id> --before-week 5 --apply`
     3. All assignments due in Weeks 1-4 marked as "EX" (excused) in gradebook
     4. Grade calculation excludes excused assignments automatically
     5. If needed, use `--undo --apply` to reverse the exemptions
