@@ -396,12 +396,52 @@
    4. Run `course_restore.py --apply`
    5. Course populated in ~2-5 minutes (depending on content size)
 
+10. **Global student exemption for late enrollment** (Assignment Overrides API)
+    - Exempt student from all assignments due before enrollment date
+    - Solves: "Student joined Week 5, I need to excuse them from Weeks 1-4 work"
+    - Batch operation: mark as "excused" so assignments don't count toward grade
+    - Effort: Low-Medium (uses existing overrides infrastructure, date filtering)
+
+    **Use case:**
+    Student enrolls mid-semester. Instead of manually marking each assignment as excused in Canvas gradebook, run one command to exempt all assignments due before their enrollment date.
+
+    **Usage:**
+    ```bash
+    # Exempt student from all assignments before a date
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15 --apply
+
+    # Exempt student from all assignments in specific weeks/modules
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-week 5 --apply
+
+    # Preview what would be excused (dry-run)
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15
+
+    # Undo exemptions (remove overrides)
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --undo
+    ```
+
+    **Features:**
+    - Finds all gradable assignments (assignments, quizzes, discussions)
+    - Filters by due date (before enrollment date or specific week)
+    - Creates assignment overrides with "excused" status
+    - FERPA-safe: uses user_id or deid-code (never displays names)
+    - Dry-run default (requires `--apply` to actually create overrides)
+    - Validation: checks student is enrolled, date is valid, no conflicting overrides
+    - Idempotent: can re-run safely (skips existing exemptions)
+
+    **Workflow:**
+    1. Student enrolls late (e.g., Week 5 of semester)
+    2. Instructor runs: `exempt_late_enrollment.py --user-id <id> --before-week 5 --apply`
+    3. All assignments due in Weeks 1-4 marked as "excused" in gradebook
+    4. Student sees only relevant assignments (Weeks 5+) in their to-do list
+    5. Grade calculation excludes excused assignments automatically
+
 ### Phase 3: Nice-to-Have (Future)
 
-10. **Module release scheduler** (Modules API)
-11. **Rubric template library** (Rubrics API)
-12. **Grading audit trail exporter** (Grade Change Log API)
-13. **Random group generator** (Groups API)
+11. **Module release scheduler** (Modules API)
+12. **Rubric template library** (Rubrics API)
+13. **Grading audit trail exporter** (Grade Change Log API)
+14. **Random group generator** (Groups API)
 
 ---
 
