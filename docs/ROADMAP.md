@@ -396,49 +396,51 @@
    4. Run `course_restore.py --apply`
    5. Course populated in ~2-5 minutes (depending on content size)
 
-10. **Global student exemption for late enrollment** (Assignment Overrides API)
-    - Exempt/excuse student from all assignments due before enrollment date
+10. **Global student exemption for late enrollment** (Submissions API)
+    - Excuse student from all assignments due before enrollment date
     - Solves: "Student joined Week 5, I need to excuse them from Weeks 1-4 work"
     - One-time batch operation for single student
-    - Effort: Low-Medium (uses existing overrides infrastructure, date filtering)
+    - Effort: Low-Medium (uses Submissions API, date filtering)
 
     **Use case:**
-    Student enrolls mid-semester. Instead of manually marking each assignment in Canvas gradebook, run one command to exempt/excuse all assignments due before their enrollment date.
+    Student enrolls mid-semester. Instead of manually marking each assignment as "EX" (excused) in the gradebook, run one command to excuse all assignments due before their enrollment date.
+
+    **Canvas behavior:**
+    "Excused" (shown as "EX" in gradebook) means the assignment doesn't count toward grade calculation, maximum points are reduced, and Canvas treats it like the assignment doesn't exist for that student. Note: "excused" and "exempt" are the same thing in Canvas — just different terminology for the same status.
 
     **Usage:**
     ```bash
-    # Excuse student (assignments don't count toward grade)
-    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15 --type-excused --apply
+    # Excuse student from assignments before date (dry-run preview)
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15
 
-    # Exempt student (alternative status - check Canvas behavior)
-    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15 --type-exempt --apply
+    # Apply: excuse student from assignments before date
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15 --apply
 
-    # Exempt by week number
-    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-week 5 --type-excused --apply
+    # Excuse by week number (before Week 5 = excuse Weeks 1-4)
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-week 5 --apply
 
-    # Preview what would be changed (dry-run)
-    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15 --type-excused
+    # Use deid-code instead of user-id (FERPA-safe)
+    uv run python lib/tools/exempt_late_enrollment.py --deid-code S-95DBB6 --before-week 5 --apply
 
-    # Undo (remove overrides for this student)
-    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --undo
+    # Undo: remove excused status from all previously excused assignments
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --undo --apply
     ```
 
     **Features:**
-    - Finds all gradable assignments (assignments, quizzes, discussions)
-    - Filters by due date (before enrollment date or specific week)
-    - Creates assignment overrides with chosen status (excused or exempt)
+    - Finds all published assignments with due dates (assignments, quizzes, discussions)
+    - Filters by due date (before enrollment date or before specific week)
+    - Marks submissions as excused via Canvas Submissions API
     - **One-time run per student** (not a recurring sync)
     - FERPA-safe: uses user_id or deid-code (never displays names)
-    - Dry-run default (requires `--apply` to actually create overrides)
-    - Validation: checks student is enrolled, date is valid, no conflicting overrides
-    - Idempotent: can re-run safely (skips existing exemptions)
+    - Dry-run default (requires `--apply` to actually write)
+    - Shows what will be excused before applying
 
     **Workflow:**
     1. Student enrolls late (e.g., Week 5 of semester)
-    2. Instructor runs: `exempt_late_enrollment.py --user-id <id> --before-week 5 --type-excused --apply`
-    3. All assignments due in Weeks 1-4 marked with chosen status in gradebook
-    4. Student sees only relevant assignments (Weeks 5+) in their to-do list
-    5. Grade calculation excludes excused assignments automatically (Canvas behavior)
+    2. Instructor runs: `exempt_late_enrollment.py --user-id <id> --before-week 5 --apply`
+    3. All assignments due in Weeks 1-4 marked as "EX" (excused) in gradebook
+    4. Grade calculation excludes excused assignments automatically
+    5. If needed, use `--undo --apply` to reverse the exemptions
 
 ### Phase 3: Nice-to-Have (Future)
 
