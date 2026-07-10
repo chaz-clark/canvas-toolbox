@@ -165,6 +165,23 @@ uv run python lib/tools/sync_to_new.py --apply --pages-only
 - PDFs linked correctly
 - Module prerequisites work correctly
 
+**Implementation approach (based on testing 2026-07-10):**
+1. Use **local file upload** (tested: fast and reliable)
+   - Server-side copy API is unreliable (progress stuck, files never appear)
+   - Local two-step upload works: tested with file ID 167671198 in course 427952
+2. **Check for local files** before restoration
+   - Require `--pull-files` before restore OR prompt to run it
+   - Verify files exist in `course/_files/` directory
+3. **Upload files first** (Phase 4a)
+   - Upload all files from `course/_files/` to target course
+   - Build mapping: old_file_id → new_file_id
+   - Preserve folder structure using `parent_folder_path`
+4. **Rewrite file URLs** in content (Phase 4b)
+   - Update HTML pages: `/courses/145706/files/58757114` → `/courses/427952/files/167671198`
+   - Update assignment descriptions, quiz descriptions
+   - Use regex: `s|/courses/\d+/files/(\d+)|/courses/{new_course_id}/files/{new_file_id}|g`
+5. **Create content** (modules, pages, assignments) with updated URLs
+
 **Deliverable:** Flags for selective restore:
 ```bash
 # Restore specific modules only
@@ -178,6 +195,8 @@ uv run python lib/tools/sync_to_new.py --shift-days 365 --apply
 ```
 
 **Lines of code estimate:** ~200 + tests
+
+**Test results:** See `/tmp/file_restoration_test_results.md`
 
 ---
 
