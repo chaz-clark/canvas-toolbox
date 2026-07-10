@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
-exempt_late_enrollment.py — Bulk excuse assignments for late-enrolling students.
+exempt_by_date.py — Bulk excuse assignments by due date.
 
 PROBLEM
-  Student joins Week 5 of a 14-week course. Faculty needs to excuse them from
-  all assignments due in Weeks 1-4 so those assignments don't count toward
-  their grade. Manually clicking "EX" for 20+ assignments in the gradebook
-  is tedious and error-prone.
+  Need to excuse a student from multiple assignments based on due date. Common
+  scenarios: late enrollment (excuse all work before enrollment date), medical
+  leave (excuse work during absence period), or administrative adjustments.
+  Manually clicking "EX" for 20+ assignments in the gradebook is tedious and
+  error-prone.
 
 SOLUTION
   One command excuses the student from all assignments with due dates before
-  their enrollment date (or before a specific week). Canvas marks each
-  assignment as "EX" (excused) in the gradebook — the assignment doesn't
-  count toward their grade, and the maximum total points adjust accordingly.
+  a cutoff date (or before a specific week). Canvas marks each assignment as
+  "EX" (excused) in the gradebook — the assignment doesn't count toward their
+  grade, and the maximum total points adjust accordingly.
 
 CANVAS BEHAVIOR
   "Excused" (shown as "EX" in gradebook) means:
@@ -47,19 +48,19 @@ SCOPE — pick ONE (mutually exclusive)
 
 USAGE — dry-run by default (use --apply to actually write)
   # Preview what would be excused (dry-run)
-  uv run python lib/tools/exempt_late_enrollment.py \\
+  uv run python lib/tools/exempt_by_date.py \\
     --user-id 123456 --before-date 2026-02-15
 
   # Apply: excuse student from assignments before date
-  uv run python lib/tools/exempt_late_enrollment.py \\
+  uv run python lib/tools/exempt_by_date.py \\
     --user-id 123456 --before-date 2026-02-15 --apply
 
   # Excuse by week number (before Week 5 = Weeks 1-4)
-  uv run python lib/tools/exempt_late_enrollment.py \\
+  uv run python lib/tools/exempt_by_date.py \\
     --deid-code S-95DBB6 --before-week 5 --apply
 
   # Undo: remove excused status (set excused: false)
-  uv run python lib/tools/exempt_late_enrollment.py \\
+  uv run python lib/tools/exempt_by_date.py \\
     --user-id 123456 --undo --apply
 
 REQUIRES in .env:
