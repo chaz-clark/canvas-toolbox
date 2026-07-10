@@ -242,9 +242,20 @@
 
 ---
 
-## Prioritized Roadmap
+## Feature Roadmap by Workflow Area
 
-### Phase 1: High-Value, Low-Complexity (Next 3 Months)
+Features organized by instructor workflow rather than timeline. Build what solves your immediate problems.
+
+**Legend:**
+- ✅ Implemented
+- ⭐ High user demand
+- 🔧 Extends existing tool
+
+---
+
+### Student Accommodations & Support
+
+Tools that directly support individual students with special circumstances (late enrollment, accommodations, grade forecasting).
 
 1. **Student grade forecast** (Submissions API + Assignment Groups API) ⭐ HIGH DEMAND
    - Answers "what do I need to do to pass?" in office hours
@@ -274,40 +285,65 @@
    - Still available vs closed assignments
    - Plain English output (human-readable, not technical)
 
-2. **Student engagement early warning system** (Analytics API)
-   - Complements existing engagement audit
-   - Identifies at-risk students before they fail
-   - Export: FERPA-safe deid codes
-   - Effort: Medium (new API, but straightforward data fetching)
+2. ✅ **Global student exemption for late enrollment** (Submissions API) 🔧
+   - Excuse student from all assignments due before enrollment date
+   - Solves: "Student joined Week 5, I need to excuse them from Weeks 1-4 work"
+   - One-time batch operation for single student
+   - Effort: Low-Medium (uses Submissions API, date filtering)
 
-3. **Bulk assignment reminder sender** (Conversations API)
-   - Integrates with existing accommodation tools
-   - Reduces manual messaging workload
-   - Effort: Medium (new API, FERPA considerations)
+   **Use case:**
+   Student enrolls mid-semester. Instead of manually marking each assignment as "EX" (excused) in the gradebook, run one command to excuse all assignments due before their enrollment date.
 
-4. **Group override manager** (Groups API + Overrides API)
+   **Canvas behavior:**
+   "Excused" (shown as "EX" in gradebook) means the assignment doesn't count toward grade calculation, maximum points are reduced, and Canvas treats it like the assignment doesn't exist for that student. Note: "excused" and "exempt" are the same thing in Canvas — just different terminology for the same status.
+
+   **Usage:**
+   ```bash
+   # Excuse student from assignments before date (dry-run preview)
+   uv run python lib/tools/exempt_by_date.py --user-id 123456 --before-date 2026-02-15
+
+   # Apply: excuse student from assignments before date
+   uv run python lib/tools/exempt_by_date.py --user-id 123456 --before-date 2026-02-15 --apply
+
+   # Excuse by week number (before Week 5 = excuse Weeks 1-4)
+   uv run python lib/tools/exempt_by_date.py --user-id 123456 --before-week 5 --apply
+
+   # Use deid-code instead of user-id (FERPA-safe)
+   uv run python lib/tools/exempt_by_date.py --deid-code S-95DBB6 --before-week 5 --apply
+
+   # Undo: remove excused status from all previously excused assignments
+   uv run python lib/tools/exempt_by_date.py --user-id 123456 --undo --apply
+   ```
+
+   **Features:**
+   - Finds all published assignments with due dates (assignments, quizzes, discussions)
+   - Filters by due date (before enrollment date or before specific week)
+   - Marks submissions as excused via Canvas Submissions API
+   - **One-time run per student** (not a recurring sync)
+   - FERPA-safe: uses user_id or deid-code (never displays names)
+   - Dry-run default (requires `--apply` to actually write)
+   - Shows what will be excused before applying
+
+   **Workflow:**
+   1. Student enrolls late (e.g., Week 5 of semester)
+   2. Instructor runs: `exempt_by_date.py --user-id <id> --before-week 5 --apply`
+   3. All assignments due in Weeks 1-4 marked as "EX" (excused) in gradebook
+   4. Grade calculation excludes excused assignments automatically
+   5. If needed, use `--undo --apply` to reverse the exemptions
+
+3. **Group override manager** (Groups API + Overrides API) 🔧
+   - Apply accommodations to entire group (extend due date)
    - Better UX than current fix_group_override_recalc.py
    - Frequently requested feature
    - Effort: Low (reuses existing override logic)
 
-### Phase 2: Medium-Value, Moderate-Complexity (6-12 Months)
+---
 
-5. **Assignment performance analyzer** (Analytics API)
-   - Helps identify assignments needing revision
-   - Data-driven course improvement
-   - Effort: Medium (complex analytics, visualization)
+### Grading Workflow & TA Management
 
-6. **Accommodation notification tool** (Conversations API + Overrides API)
-   - Auto-notify students when accommodations applied
-   - Reduces confusion about changed deadlines
-   - Effort: Medium (integrates multiple tools)
+Tools that streamline grading operations and support teaching assistants.
 
-7. **Weekly announcement publisher** (Discussion Topics API)
-   - Template-based announcement generation
-   - Saves time on repetitive weekly posts
-   - Effort: Medium (template engine, scheduling)
-
-8. **TA grading status & voice coaching** (Submissions API + AI analysis)
+1. **TA grading status & voice coaching** (Submissions API + AI analysis)
    - **Timeliness:** Track grading turnaround time — are students waiting too long for feedback?
    - **Quality:** Analyze TA feedback "voice" (tone, specificity, encouragement, actionability)
    - **Consistency:** Compare scoring patterns across students (flag grading drift/outliers)
@@ -357,7 +393,41 @@
    - Inter-rater reliability (multiple TAs on same assignment)
    - TA feedback template library (approved phrases for common issues)
 
-9. **Course restoration from local repo** (Assignments API + Pages API + Modules API + Files API)
+2. **Grading audit trail exporter** (Grade Change Log API)
+   - Export all grade changes for a course
+   - Filter by assignment, student, or date range
+   - Useful for: grade disputes, TA oversight, accreditation
+   - Effort: Low (straightforward API, CSV export)
+
+---
+
+### Course Analytics & Early Intervention
+
+Tools that identify at-risk students and measure course effectiveness.
+
+1. **Student engagement early warning system** (Analytics API) ⭐
+   - Flag students with low participation before they fall behind
+   - Compare page views vs. assignment submissions
+   - Identify students who view content but don't submit
+   - Export: FERPA-safe deid codes
+   - Complements existing engagement audit
+   - Effort: Medium (new API, but straightforward data fetching)
+
+2. **Assignment performance analyzer** (Analytics API)
+   - Show which assignments have lowest completion rates
+   - Identify assignments with unusual score distributions
+   - Compare assignment difficulty across sections
+   - Suggest which assignments need better instructions
+   - Data-driven course improvement
+   - Effort: Medium (complex analytics, visualization)
+
+---
+
+### Course Setup & Infrastructure
+
+Tools for course deployment, module management, and content organization.
+
+1. **Course restoration from local repo** (Assignments API + Pages API + Modules API + Files API)
    - Deploy full course content from local repo to new Canvas course
    - Alternative to Canvas course copy (resilient to course deletion policy)
    - Solves: "Campus deletes old courses, I can't copy from last semester"
@@ -396,58 +466,51 @@
    4. Run `course_restore.py --apply`
    5. Course populated in ~2-5 minutes (depending on content size)
 
-10. **Global student exemption for late enrollment** (Submissions API)
-    - Excuse student from all assignments due before enrollment date
-    - Solves: "Student joined Week 5, I need to excuse them from Weeks 1-4 work"
-    - One-time batch operation for single student
-    - Effort: Low-Medium (uses Submissions API, date filtering)
+2. **Module release scheduler** (Modules API)
+   - Bulk publish modules on specific dates
+   - Example: Publish week 2 module every Monday
+   - JSON config: `course_schedule.json`
+   - Effort: Low (straightforward API, scheduling logic)
 
-    **Use case:**
-    Student enrolls mid-semester. Instead of manually marking each assignment as "EX" (excused) in the gradebook, run one command to excuse all assignments due before their enrollment date.
+3. **Rubric template library** (Rubrics API)
+   - Store rubric definitions as JSON
+   - Apply standard rubrics to new assignments
+   - Share rubrics across courses
+   - Example: `uv run python lib/tools/apply_rubric.py --assignment-id 12345 --rubric discussion_post`
+   - Effort: Low (rubrics are typically reused, not recreated)
 
-    **Canvas behavior:**
-    "Excused" (shown as "EX" in gradebook) means the assignment doesn't count toward grade calculation, maximum points are reduced, and Canvas treats it like the assignment doesn't exist for that student. Note: "excused" and "exempt" are the same thing in Canvas — just different terminology for the same status.
+4. **Random group generator** (Groups API)
+   - Create balanced groups based on criteria
+   - Avoid putting certain students together (from config)
+   - Example: `uv run python lib/tools/create_groups.py --size 4 --count 10 --avoid-pairs avoid_list.csv`
+   - Effort: Medium (group balancing logic)
 
-    **Usage:**
-    ```bash
-    # Excuse student from assignments before date (dry-run preview)
-    uv run python lib/tools/exempt_by_date.py --user-id 123456 --before-date 2026-02-15
+---
 
-    # Apply: excuse student from assignments before date
-    uv run python lib/tools/exempt_by_date.py --user-id 123456 --before-date 2026-02-15 --apply
+### Communication & Automation
 
-    # Excuse by week number (before Week 5 = excuse Weeks 1-4)
-    uv run python lib/tools/exempt_by_date.py --user-id 123456 --before-week 5 --apply
+Tools for messaging students and automating repetitive communications.
 
-    # Use deid-code instead of user-id (FERPA-safe)
-    uv run python lib/tools/exempt_by_date.py --deid-code S-95DBB6 --before-week 5 --apply
+1. **Bulk assignment reminder sender** (Conversations API)
+   - Message all students missing specific assignment
+   - Personalized reminder with assignment details
+   - FERPA-safe: uses Canvas messaging (not email)
+   - Integrates with existing accommodation tools
+   - Effort: Medium (new API, FERPA considerations)
 
-    # Undo: remove excused status from all previously excused assignments
-    uv run python lib/tools/exempt_by_date.py --user-id 123456 --undo --apply
-    ```
+2. **Accommodation notification tool** (Conversations API + Overrides API) 🔧
+   - Auto-message students when accommodations applied
+   - Explain what changed (due dates, time limits)
+   - Include Canvas links to affected assignments
+   - Integrates with student_late_accommodation.py
+   - Effort: Medium (integrates multiple tools)
 
-    **Features:**
-    - Finds all published assignments with due dates (assignments, quizzes, discussions)
-    - Filters by due date (before enrollment date or before specific week)
-    - Marks submissions as excused via Canvas Submissions API
-    - **One-time run per student** (not a recurring sync)
-    - FERPA-safe: uses user_id or deid-code (never displays names)
-    - Dry-run default (requires `--apply` to actually write)
-    - Shows what will be excused before applying
-
-    **Workflow:**
-    1. Student enrolls late (e.g., Week 5 of semester)
-    2. Instructor runs: `exempt_by_date.py --user-id <id> --before-week 5 --apply`
-    3. All assignments due in Weeks 1-4 marked as "EX" (excused) in gradebook
-    4. Grade calculation excludes excused assignments automatically
-    5. If needed, use `--undo --apply` to reverse the exemptions
-
-### Phase 3: Nice-to-Have (Future)
-
-11. **Module release scheduler** (Modules API)
-12. **Rubric template library** (Rubrics API)
-13. **Grading audit trail exporter** (Grade Change Log API)
-14. **Random group generator** (Groups API)
+3. **Weekly announcement publisher** (Discussion Topics API)
+   - Generate weekly course announcements from template
+   - Include upcoming assignments, due dates, office hours
+   - Auto-post on schedule (via cron)
+   - Template-based announcement generation
+   - Effort: Medium (template engine, scheduling)
 
 ---
 
