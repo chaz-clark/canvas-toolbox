@@ -20,7 +20,7 @@ v1.6 ARCHITECTURE (course-centric layout)
     ├── grading/               # Grading workflows
     └── handoffs/              # Session notes (opt-in via --with-handoffs)
 
-WHAT IT DOES — 13 idempotent steps
+WHAT IT DOES — 14 idempotent steps
 
   1. Install uv (Astral's official installer, curl-pipe) if not on PATH
   2. Install Python 3.14 via uv (uv-managed; never touches system Python)
@@ -41,6 +41,7 @@ WHAT IT DOES — 13 idempotent steps
  11. Run canvas-sync --pull to populate course/ (subdirectory mode only)
  12. Generate course-specific AGENTS.md stub (subdirectory mode only)
  13. Create handoffs/ directory (opt-in via --with-handoffs; dev feature)
+ 14. Copy slash commands to .claude/commands/ (always; makes tools discoverable)
 
 Every step is idempotent: re-running cb-init after the first complete
 pass is a fast no-op that prints "✓ already done — skipping" for each
@@ -370,18 +371,18 @@ def run_subprocess(args: list[str], *, cwd: Path | None = None, timeout: int = 1
 
 def step_1_install_uv(*, auto_yes: bool, check_only: bool) -> bool:
     if is_uv_installed():
-        print("Step 1/13: ✓ uv already installed — skipping.")
+        print("Step 1/14: ✓ uv already installed — skipping.")
         return True
     if check_only:
-        print("Step 1/13: would install uv via Astral's official installer.")
+        print("Step 1/14: would install uv via Astral's official installer.")
         return False
     if platform.system() == "Windows":
-        print("Step 1/13: uv not on PATH. On Windows, install manually:")
+        print("Step 1/14: uv not on PATH. On Windows, install manually:")
         print("           irm https://astral.sh/uv/install.ps1 | iex")
         print("         Then re-run cb-init.")
         return False
     if not prompt_y_n(
-        "Step 1/13: uv not on PATH. Install via Astral's official installer (curl-pipe)?",
+        "Step 1/14: uv not on PATH. Install via Astral's official installer (curl-pipe)?",
         auto_yes=auto_yes,
     ):
         print("  ⚠ Skipped. cb-init can't proceed without uv.")
@@ -401,13 +402,13 @@ def step_1_install_uv(*, auto_yes: bool, check_only: bool) -> bool:
 
 def step_2_install_python(*, auto_yes: bool, check_only: bool) -> bool:
     if uv_has_python(TARGET_PYTHON):
-        print(f"Step 2/13: ✓ Python {TARGET_PYTHON} (uv-managed) already installed — skipping.")
+        print(f"Step 2/14: ✓ Python {TARGET_PYTHON} (uv-managed) already installed — skipping.")
         return True
     if check_only:
-        print(f"Step 2/13: would run `uv python install {TARGET_PYTHON}`.")
+        print(f"Step 2/14: would run `uv python install {TARGET_PYTHON}`.")
         return False
     if not prompt_y_n(
-        f"Step 2/13: Python {TARGET_PYTHON} not managed by uv. Install (uv-only; "
+        f"Step 2/14: Python {TARGET_PYTHON} not managed by uv. Install (uv-only; "
         f"won't touch system Python)?",
         auto_yes=auto_yes,
     ):
@@ -426,13 +427,13 @@ def step_3_env_stub(*, course_root: Path, auto_yes: bool, check_only: bool) -> b
 
     # v1.6 migration: check for .env in old location (canvas-toolbox/.env)
     if IS_SUBDIRECTORY and not env_path.exists() and old_env_path.exists():
-        print(f"Step 3/13: detected .env at old v1.5 location: {old_env_path}")
+        print(f"Step 3/14: detected .env at old v1.5 location: {old_env_path}")
         print(f"          v1.6 moves .env to course root: {env_path}")
         if check_only:
             print(f"          would offer to migrate .env to {env_path}")
             return False
         if prompt_y_n(
-            f"Step 3/13: migrate .env from {old_env_path} to {env_path}?",
+            f"Step 3/14: migrate .env from {old_env_path} to {env_path}?",
             auto_yes=auto_yes,
         ):
             import shutil
@@ -449,16 +450,16 @@ def step_3_env_stub(*, course_root: Path, auto_yes: bool, check_only: bool) -> b
 
     if env_path.exists():
         if stub_is_filled(env_path.read_text(encoding="utf-8")):
-            print("Step 3/13: ✓ .env present + required fields filled — skipping.")
+            print("Step 3/14: ✓ .env present + required fields filled — skipping.")
             return True
-        print(f"Step 3/13: ⚠ .env exists at {env_path} but required fields are blank.")
+        print(f"Step 3/14: ⚠ .env exists at {env_path} but required fields are blank.")
         print("  Fill in CANVAS_API_TOKEN + CANVAS_BASE_URL, then re-run cb-init.")
         return False
     if check_only:
-        print(f"Step 3/13: would write a .env stub to {env_path}.")
+        print(f"Step 3/14: would write a .env stub to {env_path}.")
         return False
     if not prompt_y_n(
-        f"Step 3/13: .env not found. Write a stub at {env_path}?",
+        f"Step 3/14: .env not found. Write a stub at {env_path}?",
         auto_yes=auto_yes,
     ):
         print("  ⚠ Skipped.")
@@ -478,14 +479,14 @@ def step_4_uv_sync(*, auto_yes: bool, check_only: bool) -> bool:
     venv_exists = is_uv_synced()
     if check_only:
         if venv_exists:
-            print("Step 4/13: ✓ .venv exists — would verify with `uv sync --group dev`.")
+            print("Step 4/14: ✓ .venv exists — would verify with `uv sync --group dev`.")
         else:
-            print("Step 4/13: would run `uv sync --group dev` (creates .venv + installs deps).")
+            print("Step 4/14: would run `uv sync --group dev` (creates .venv + installs deps).")
         return True
     if venv_exists:
-        print("Step 4/13: ✓ .venv exists — verifying deps with `uv sync --group dev`...")
+        print("Step 4/14: ✓ .venv exists — verifying deps with `uv sync --group dev`...")
     else:
-        print("Step 4/13: running `uv sync --group dev` (creates .venv + installs deps)...")
+        print("Step 4/14: running `uv sync --group dev` (creates .venv + installs deps)...")
     if not run_subprocess(["uv", "sync", "--group", "dev"], cwd=REPO_ROOT, timeout=180):
         return False
     print("  ✓ Deps synced.")
@@ -495,7 +496,7 @@ def step_4_uv_sync(*, auto_yes: bool, check_only: bool) -> bool:
 def step_5_rust_optional(*, check_only: bool, with_rust: bool) -> bool:
     """Install Rust (OPTIONAL in v1.5.x - opt-in via --with-rust flag)."""
     if not with_rust:
-        print("Step 5/13: ⏭  Rust installation skipped (optional in v1.5.x).")
+        print("Step 5/14: ⏭  Rust installation skipped (optional in v1.5.x).")
         print("          For 10-100x speedup on large courses: cb-init --with-rust")
         print("          Rust will become required in v2.x.")
         return True
@@ -503,11 +504,11 @@ def step_5_rust_optional(*, check_only: bool, with_rust: bool) -> bool:
     # If --with-rust provided, show message that manual install is needed for v1.5.0
     # Auto-install will be added in v1.5.1
     if check_only:
-        print("Step 5/13: Rust installation requested via --with-rust")
+        print("Step 5/14: Rust installation requested via --with-rust")
         print("          (v1.5.0: manual install required; auto-install in v1.5.1)")
         return True
 
-    print("Step 5/13: Rust installation requested via --with-rust")
+    print("Step 5/14: Rust installation requested via --with-rust")
     print()
     print("  v1.5.0 requires manual Rust installation:")
     print("    1. Install Rust via rustup:")
@@ -527,16 +528,16 @@ def step_5_rust_optional(*, check_only: bool, with_rust: bool) -> bool:
 
 def step_6_playwright(*, auto_yes: bool, check_only: bool, skip: bool) -> bool:
     if skip:
-        print("Step 6/13: ⏭ skipped via --skip-playwright.")
+        print("Step 6/14: ⏭ skipped via --skip-playwright.")
         return True
     if is_playwright_chromium_installed():
-        print("Step 6/13: ✓ Playwright Chromium already installed — skipping.")
+        print("Step 6/14: ✓ Playwright Chromium already installed — skipping.")
         return True
     if check_only:
-        print("Step 6/13: would run `uv run playwright install chromium` (~92 MB).")
+        print("Step 6/14: would run `uv run playwright install chromium` (~92 MB).")
         return True
     if not prompt_y_n(
-        "Step 6/13: Playwright Chromium not detected. Install (~92 MB)? Required by "
+        "Step 6/14: Playwright Chromium not detected. Install (~92 MB)? Required by "
         "grader_follow_share_url for ChatGPT/Gemini share URL parsing.",
         auto_yes=auto_yes,
     ):
@@ -552,13 +553,13 @@ def step_6_playwright(*, auto_yes: bool, check_only: bool, skip: bool) -> bool:
 
 def step_7_pre_commit(*, auto_yes: bool, check_only: bool) -> bool:
     if is_pre_commit_installed():
-        print("Step 7/13: ✓ pre-commit hook already installed — skipping.")
+        print("Step 7/14: ✓ pre-commit hook already installed — skipping.")
         return True
     if check_only:
-        print("Step 7/13: would run `uv run pre-commit install` from the repo root.")
+        print("Step 7/14: would run `uv run pre-commit install` from the repo root.")
         return True
     if not prompt_y_n(
-        "Step 7/13: pre-commit hook not installed. Install it (ruff + actionlint "
+        "Step 7/14: pre-commit hook not installed. Install it (ruff + actionlint "
         "run on every commit)?",
         auto_yes=auto_yes,
     ):
@@ -574,7 +575,7 @@ def step_7_pre_commit(*, auto_yes: bool, check_only: bool) -> bool:
 def step_8_canvas_smoke(*, cwd: Path, check_only: bool) -> bool:
     env_path = cwd / ".env"
     if not env_path.exists():
-        print("Step 8/13: ⚠ No .env at " + str(env_path) + " — cannot smoke-test. Skipping.")
+        print("Step 8/14: ⚠ No .env at " + str(env_path) + " — cannot smoke-test. Skipping.")
         return True
     env_vars: dict[str, str] = {}
     for line in env_path.read_text(encoding="utf-8").splitlines():
@@ -586,14 +587,14 @@ def step_8_canvas_smoke(*, cwd: Path, check_only: bool) -> bool:
     token = env_vars.get("CANVAS_API_TOKEN", "")
     base_url = env_vars.get("CANVAS_BASE_URL", "")
     if not token or not base_url:
-        print("Step 8/13: ⚠ CANVAS_API_TOKEN or CANVAS_BASE_URL blank — cannot smoke-test.")
+        print("Step 8/14: ⚠ CANVAS_API_TOKEN or CANVAS_BASE_URL blank — cannot smoke-test.")
         return True
     if not base_url.startswith("http"):
         base_url = "https://" + base_url
     if check_only:
-        print("Step 8/13: would hit GET " + base_url.rstrip('/') + "/api/v1/users/self (read-only).")
+        print("Step 8/14: would hit GET " + base_url.rstrip('/') + "/api/v1/users/self (read-only).")
         return True
-    print("Step 8/13: smoke-testing Canvas API...")
+    print("Step 8/14: smoke-testing Canvas API...")
     ok, msg = smoke_test_canvas(token, base_url)
     if not ok:
         print("  ✗ Smoke test failed: " + msg)
@@ -604,7 +605,7 @@ def step_8_canvas_smoke(*, cwd: Path, check_only: bool) -> bool:
 
 
 def step_9_surface_docs(*, mode: str) -> bool:
-    print("Step 9/13: setup complete.")
+    print("Step 9/14: setup complete.")
     print()
     print("Next:")
     print("  • Read " + str(REPO_ROOT) + "/AGENTS.md — Active Context tells you what's where")
@@ -625,7 +626,7 @@ def step_9_surface_docs(*, mode: str) -> bool:
 def step_10_gitignore(*, course_root: Path, is_subdir: bool, check_only: bool) -> bool:
     """Create .gitignore at course root (v1.6+ subdirectory mode only)."""
     if not is_subdir:
-        print("Step 10/13: ⏭  Standalone mode — .gitignore not needed.")
+        print("Step 10/14: ⏭  Standalone mode — .gitignore not needed.")
         return True
 
     gitignore_path = course_root / ".gitignore"
@@ -641,11 +642,11 @@ quality_report.md
 """
 
     if gitignore_path.exists():
-        print(f"Step 10/13: ✓ .gitignore exists at {gitignore_path} — skipping.")
+        print(f"Step 10/14: ✓ .gitignore exists at {gitignore_path} — skipping.")
         return True
 
     if check_only:
-        print(f"Step 10/13: would create .gitignore at {gitignore_path}")
+        print(f"Step 10/14: would create .gitignore at {gitignore_path}")
         return True
 
     gitignore_path.write_text(gitignore_content, encoding="utf-8")
@@ -656,15 +657,15 @@ quality_report.md
 def step_11_canvas_sync(*, course_root: Path, is_subdir: bool, check_only: bool) -> bool:
     """Run canvas-sync --pull to populate course/ directory (v1.6+ subdirectory mode only)."""
     if not is_subdir:
-        print("Step 11/13: ⏭  Standalone mode — canvas-sync skipped.")
+        print("Step 11/14: ⏭  Standalone mode — canvas-sync skipped.")
         print("          Run manually: uv run python lib/tools/canvas_sync.py --pull")
         return True
 
     if check_only:
-        print("Step 11/13: would run canvas-sync --pull from course root")
+        print("Step 11/14: would run canvas-sync --pull from course root")
         return True
 
-    print("Step 11/13: Running canvas-sync --pull to fetch course data...")
+    print("Step 11/14: Running canvas-sync --pull to fetch course data...")
     sync_tool = REPO_ROOT / "lib" / "tools" / "canvas_sync.py"
 
     if not run_subprocess(
@@ -682,17 +683,17 @@ def step_11_canvas_sync(*, course_root: Path, is_subdir: bool, check_only: bool)
 def step_12_generate_agents_md(*, course_root: Path, is_subdir: bool, check_only: bool) -> bool:
     """Generate course-specific AGENTS.md stub (v1.6+ subdirectory mode only)."""
     if not is_subdir:
-        print("Step 12/13: ⏭  Standalone mode — AGENTS.md generation skipped.")
+        print("Step 12/14: ⏭  Standalone mode — AGENTS.md generation skipped.")
         return True
 
     agents_md_path = course_root / "AGENTS.md"
 
     if agents_md_path.exists():
-        print(f"Step 12/13: ✓ AGENTS.md exists at {agents_md_path} — skipping.")
+        print(f"Step 12/14: ✓ AGENTS.md exists at {agents_md_path} — skipping.")
         return True
 
     if check_only:
-        print("Step 12/13: would generate course-specific AGENTS.md")
+        print("Step 12/14: would generate course-specific AGENTS.md")
         return True
 
     # Create stub that references canvas-toolbox/AGENTS.md
@@ -739,22 +740,22 @@ uv run python canvas-toolbox/lib/tools/course_audit.py --help
 def step_13_handoffs(*, course_root: Path, is_subdir: bool, with_handoffs: bool, check_only: bool) -> bool:
     """Create handoffs/ directory (opt-in via --with-handoffs, dev/power-user feature)."""
     if not with_handoffs:
-        print("Step 13/13: ⏭  --with-handoffs not provided — skipping handoffs/ creation.")
+        print("Step 13/14: ⏭  --with-handoffs not provided — skipping handoffs/ creation.")
         print("          This is a dev/power-user feature for AI session tracking.")
         return True
 
     if not is_subdir:
-        print("Step 13/13: ⚠  --with-handoffs requires subdirectory mode (course root context).")
+        print("Step 13/14: ⚠  --with-handoffs requires subdirectory mode (course root context).")
         return True
 
     handoffs_dir = course_root / "handoffs"
 
     if handoffs_dir.exists():
-        print(f"Step 13/13: ✓ handoffs/ exists at {handoffs_dir} — skipping.")
+        print(f"Step 13/14: ✓ handoffs/ exists at {handoffs_dir} — skipping.")
         return True
 
     if check_only:
-        print(f"Step 13/13: would create handoffs/ at {handoffs_dir}")
+        print(f"Step 13/14: would create handoffs/ at {handoffs_dir}")
         return True
 
     handoffs_dir.mkdir(exist_ok=True)
@@ -772,6 +773,36 @@ These files are for human review and cross-session continuity.
 """, encoding="utf-8")
 
     print(f"  ✓ Created handoffs/ at {handoffs_dir}")
+    return True
+
+
+def step_14_slash_commands(*, course_root: Path, check_only: bool) -> bool:
+    """Copy slash commands from scaffold/.claude/commands/ to course .claude/commands/."""
+    target_dir = course_root / ".claude" / "commands"
+    scaffold_dir = REPO_ROOT / "scaffold" / ".claude" / "commands"
+
+    # Check if target has expected files (idempotent check)
+    expected_files = ["sync.md", "audit.md", "quality-check.md", "blueprint-sync.md",
+                      "validate-blueprint.md", "module-settings.md", "tools.md"]
+
+    if target_dir.exists() and all((target_dir / f).exists() for f in expected_files):
+        print(f"Step 14/14: ✓ Slash commands exist at {target_dir} — skipping.")
+        return True
+
+    if check_only:
+        print(f"Step 14/14: would copy slash commands from {scaffold_dir} to {target_dir}")
+        return True
+
+    # Create target directory if needed
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy all command files from scaffold
+    copied_count = 0
+    for cmd_file in scaffold_dir.glob("*.md"):
+        shutil.copy2(cmd_file, target_dir / cmd_file.name)
+        copied_count += 1
+
+    print(f"  ✓ Copied {copied_count} slash commands to {target_dir}")
     return True
 
 
@@ -857,6 +888,7 @@ def main() -> int:
         lambda: step_11_canvas_sync(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, check_only=args.check),
         lambda: step_12_generate_agents_md(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, check_only=args.check),
         lambda: step_13_handoffs(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, with_handoffs=args.with_handoffs, check_only=args.check),
+        lambda: step_14_slash_commands(course_root=COURSE_ROOT, check_only=args.check),
     ]
 
     for fn in step_funcs:
