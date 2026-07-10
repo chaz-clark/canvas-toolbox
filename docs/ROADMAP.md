@@ -307,12 +307,145 @@
    - Saves time on repetitive weekly posts
    - Effort: Medium (template engine, scheduling)
 
+8. **TA grading status & voice coaching** (Submissions API + AI analysis)
+   - **Timeliness:** Track grading turnaround time — are students waiting too long for feedback?
+   - **Quality:** Analyze TA feedback "voice" (tone, specificity, encouragement, actionability)
+   - **Consistency:** Compare scoring patterns across students (flag grading drift/outliers)
+   - **Intervention signal:** Alert instructor when TA falls behind and intervention needed
+   - Generate coaching feedback for instructor to share with TA
+   - Compare TA feedback against instructor examples
+   - Export: FERPA-safe report (no student names, deid codes only)
+   - Effort: Medium-High (AI analysis, voice coaching patterns, multi-TA comparison)
+
+   **Usage:**
+   ```bash
+   # Check TA grading status for a specific assignment
+   uv run python lib/tools/ta_status.py --assignment-id 12345 --ta-user-id 98765
+
+   # Analyze TA feedback voice across all assignments
+   uv run python lib/tools/ta_status.py --ta-user-id 98765 --voice-analysis
+
+   # Compare multiple TAs for consistency
+   uv run python lib/tools/ta_status.py --compare-tas --ta-user-ids 98765,98766,98767
+
+   # Check if instructor intervention needed (grading backlog)
+   uv run python lib/tools/ta_status.py --intervention-check
+   ```
+
+   **Features:**
+   - **Timeliness dashboard:**
+     - Average turnaround time (submission → feedback)
+     - Submissions waiting >48 hours (intervention threshold)
+     - Grading velocity trend (improving or declining?)
+     - Projected completion date for current backlog
+     - **Alert:** "⚠ 12 students waiting >5 days — instructor step-in recommended"
+   - **Quality analysis:**
+     - Tone: encouraging/critical, specific/vague, actionable/generic
+     - Length: comment word count distribution
+     - Rubric usage: % of submissions with rubric scores
+     - Coaching: "TA feedback averages 1.2 sentences — encourage specificity"
+   - **Consistency check:**
+     - Score variance across similar submissions (flag outliers)
+     - Compare against instructor's grading on same assignment
+     - Identify grading drift (early submissions vs late submissions)
+   - Uses existing grading infrastructure (grading/, .deid_master.csv)
+   - AI analysis via existing coaching knowledge files
+   - Plain English output: copy-paste ready for TA feedback meeting
+
+   **Future enhancements (v2 or separate tool):**
+   - Cross-assignment consistency (same TA over time)
+   - Inter-rater reliability (multiple TAs on same assignment)
+   - TA feedback template library (approved phrases for common issues)
+
+9. **Course restoration from local repo** (Assignments API + Pages API + Modules API + Files API)
+   - Deploy full course content from local repo to new Canvas course
+   - Alternative to Canvas course copy (resilient to course deletion policy)
+   - Solves: "Campus deletes old courses, I can't copy from last semester"
+   - Useful for infrequent courses (taught once/year or less)
+   - Effort: Medium (reuses canvas_sync infrastructure, needs full-course orchestration)
+
+   **Use case:**
+   Instructor maintains course content in local repo (assignments, pages, modules).
+   Next semester: create new Canvas course, update `.env` with new course ID, run restore.
+   All content deploys to new course without needing previous semester's Canvas course.
+
+   **Usage:**
+   ```bash
+   # Deploy entire course from local repo to new Canvas course
+   uv run python lib/tools/course_restore.py --apply
+
+   # Preview what would be created (dry-run)
+   uv run python lib/tools/course_restore.py
+
+   # Deploy specific content types only
+   uv run python lib/tools/course_restore.py --assignments --pages --apply
+   ```
+
+   **Features:**
+   - Deploys assignments, pages, modules, module structure, files
+   - Preserves module prerequisites and completion requirements
+   - FERPA-safe (no student data in repo)
+   - Idempotent (can re-run to update course)
+   - Guards against overwriting live courses (requires confirmation)
+   - Validation: checks for required fields, broken links, missing files
+
+   **Workflow:**
+   1. Maintain course content in `course/` directory (git-tracked)
+   2. Create new Canvas course each semester
+   3. Update `CANVAS_COURSE_ID` in `.env`
+   4. Run `course_restore.py --apply`
+   5. Course populated in ~2-5 minutes (depending on content size)
+
+10. **Global student exemption for late enrollment** (Assignment Overrides API)
+    - Exempt/excuse student from all assignments due before enrollment date
+    - Solves: "Student joined Week 5, I need to excuse them from Weeks 1-4 work"
+    - One-time batch operation for single student
+    - Effort: Low-Medium (uses existing overrides infrastructure, date filtering)
+
+    **Use case:**
+    Student enrolls mid-semester. Instead of manually marking each assignment in Canvas gradebook, run one command to exempt/excuse all assignments due before their enrollment date.
+
+    **Usage:**
+    ```bash
+    # Excuse student (assignments don't count toward grade)
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15 --type-excused --apply
+
+    # Exempt student (alternative status - check Canvas behavior)
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15 --type-exempt --apply
+
+    # Exempt by week number
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-week 5 --type-excused --apply
+
+    # Preview what would be changed (dry-run)
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --before-date 2026-02-15 --type-excused
+
+    # Undo (remove overrides for this student)
+    uv run python lib/tools/exempt_late_enrollment.py --user-id 123456 --undo
+    ```
+
+    **Features:**
+    - Finds all gradable assignments (assignments, quizzes, discussions)
+    - Filters by due date (before enrollment date or specific week)
+    - Creates assignment overrides with chosen status (excused or exempt)
+    - **One-time run per student** (not a recurring sync)
+    - FERPA-safe: uses user_id or deid-code (never displays names)
+    - Dry-run default (requires `--apply` to actually create overrides)
+    - Validation: checks student is enrolled, date is valid, no conflicting overrides
+    - Idempotent: can re-run safely (skips existing exemptions)
+
+    **Workflow:**
+    1. Student enrolls late (e.g., Week 5 of semester)
+    2. Instructor runs: `exempt_late_enrollment.py --user-id <id> --before-week 5 --type-excused --apply`
+    3. All assignments due in Weeks 1-4 marked with chosen status in gradebook
+    4. Student sees only relevant assignments (Weeks 5+) in their to-do list
+    5. Grade calculation excludes excused assignments automatically (Canvas behavior)
+
 ### Phase 3: Nice-to-Have (Future)
 
-8. **Module release scheduler** (Modules API)
-9. **Rubric template library** (Rubrics API)
-10. **Grading audit trail exporter** (Grade Change Log API)
-11. **Random group generator** (Groups API)
+11. **Module release scheduler** (Modules API)
+12. **Rubric template library** (Rubrics API)
+13. **Grading audit trail exporter** (Grade Change Log API)
+14. **Random group generator** (Groups API)
 
 ---
 
@@ -335,6 +468,52 @@
 
 ---
 
+## Voting & Prioritization
+
+This roadmap is community-driven. **Vote for features** to help prioritize development.
+
+### How to vote
+
+```bash
+# List all roadmap features with current vote counts
+uv run python lib/tools/vote_feature.py --list
+
+# Vote for a feature by name
+uv run python lib/tools/vote_feature.py --feature "student grade forecast"
+
+# Vote using feature ID (recommended — unambiguous)
+uv run python lib/tools/vote_feature.py --feature-id grade-forecast
+```
+
+Votes are:
+- **Anonymous** (uses a hashed machine ID for deduplication)
+- **No GitHub account required**
+- **Idempotent** (voting again for the same feature returns current count)
+- **Rate-limited** (10 votes per IP per hour to prevent spam)
+
+### Voting through AI agents
+
+AI agents working in canvas-toolbox repos detect when you express interest in roadmap features and offer to vote on your behalf. Just mention the feature you want and the agent will ask if you'd like to vote for it.
+
+Example:
+> User: "I often get asked by students what they need to pass the class"
+>
+> Agent: "That's roadmap item #1: 'Student grade forecast' (Phase 1, HIGH DEMAND). Would you like me to vote for this feature to signal demand?"
+
+### How voting affects prioritization
+
+Vote counts appear in this roadmap (updated manually or via GitHub Actions). The maintainer uses votes as one signal (alongside institutional adoption, implementation complexity, and strategic fit) when deciding what to build next. High-vote features may move up in priority or get built sooner.
+
+### Voting infrastructure
+
+- **CLI tool:** `lib/tools/vote_feature.py` — posts votes to Cloudflare Worker
+- **Worker:** `infra/voting-worker/` — stores votes in D1 database, returns counts
+- **Aggregation:** `lib/tools/update_roadmap_votes.py` — updates this file with vote counts
+
+See `infra/voting-worker/README.md` for deployment instructions (maintainer only).
+
+---
+
 ## Contributing
 
 If you build a tool for one of these API categories:
@@ -343,6 +522,77 @@ If you build a tool for one of these API categories:
 3. Add usage examples to README
 4. Document any institutional permission requirements
 5. Add FERPA discipline if handling student data
+
+---
+
+## Design Philosophy Notes — Odysseus Research (2026-07-09)
+
+**Context:** Research from PewDiePie's Odysseus project (self-hosted AI workspace, 78k+ GitHub stars). Lessons for canvas-toolbox packaging and integration strategy.
+
+### Key insights worth considering
+
+**1. Packaging over features**
+- Odysseus bundled existing tools (Ollama, MCP, n8n workflows) into one cohesive product
+- Innovation was **putting components in one box**, not inventing new capabilities
+- One Docker command vs "clone 4 repos and wire them yourself"
+- **For canvas-toolbox:** Voting system, MCP servers, grading pipeline exist separately - consider tighter integration or unified installer?
+
+**2. Hardware-aware defaults ("Cookbook" concept)**
+- 270+ AI models with recommendations based on actual machine specs
+- Prevents "download 70B model, get 4 tokens/sec" trap (capacity ≠ speed)
+- **For canvas-toolbox:** Could detect hardware and warn about Rust compilation requirements? Recommend Python fallback for engagement audit if no Cargo?
+
+**3. Opinionated but flexible**
+- Ships with defaults that work out of box
+- But allows pointing at any endpoint/service
+- **For canvas-toolbox:** Already doing this well (.env + sandbox guards). Keep it.
+
+**4. Product posture, not research artifact**
+- README reads like product landing page
+- Looks like something ordinary users would want to open
+- **For canvas-toolbox:** README already strong. Could onboarding be even smoother? Consider guided setup mode?
+
+**5. Privacy-explicit, local-first**
+- "No telemetry" stated plainly at top of docs
+- **For canvas-toolbox:** Already implements (FERPA zones, no cloud by default). Make this more prominent in marketing?
+
+### The "bandwidth wall" lesson (critical for self-hosted AI)
+
+**The trap Odysseus hit:**
+- Removed setup friction → removed learning period → users hit hardware limits unprepared
+- 78k stars ≠ 78k successful deployments
+- Users download huge models that **load** but run at 4 tok/sec (unusable)
+
+**Parallel for canvas-toolbox:**
+- Grading safety gates = "read the model cookbook before you download"
+- They protect users from themselves (e.g., "push zeros to 400 students")
+- Keep gates visible. Don't abstract them away for convenience.
+
+**Real-world AI setup (from article author):**
+- Qwen 27B (4-bit quant) on 36GB Mac - boring but responsive
+- Still uses paid APIs for hard tasks - cloud spend down 50%, **not zero**
+- This is the honest model: local for bulk, cloud for complexity
+
+### Potential future work (not roadmap items yet — needs design)
+
+- **Unified installer:** One command setup for .env, deps, Canvas connection verification
+  - But don't remove learning - maybe `--guided` mode that explains each step?
+  - See: docs/research/odysseus-2026-07-09.md for full analysis
+
+- **Hardware detection for Rust tools:**
+  - Detect Cargo before recommending engagement_audit_rs
+  - Graceful fallback to Python with speed note
+
+- **"Batteries included" Docker Compose:**
+  - Optional docker-compose.yml that includes voting worker + MCP bridge + grading pipeline
+  - Opt-out not opt-in (Odysseus model)
+
+- **Packaging narrative emphasis:**
+  - Canvas API tools existed forever, AI grading knowledge existed forever
+  - canvas-toolbox innovation is **packaging with safety gates and FERPA boundaries**
+  - Same story as Odysseus - components existed, nobody made them work together for instructors
+
+**Filed:** 2026-07-09. See `docs/research/odysseus-2026-07-09.md` for detailed research notes.
 
 ---
 

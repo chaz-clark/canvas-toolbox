@@ -1260,6 +1260,11 @@ def _push_assignment(filepath: Path, meta: dict) -> bool:
             print(f"    ERROR: unsupported grading_type '{gt}'. Valid values: {sorted(_VALID_GRADING_TYPES)}")
             return False
         payload["grading_type"] = gt
+    # Handle date fields - include in payload even if None to allow clearing stale dates
+    # Setting due_at/lock_at/unlock_at to null in JSON will clear the date in Canvas
+    for date_field in ["due_at", "lock_at", "unlock_at"]:
+        if date_field in data:
+            payload[date_field] = data[date_field]
     result = _put(f"/courses/{CANVAS_COURSE_ID}/assignments/{canvas_id}", {
         "assignment": payload
     })
