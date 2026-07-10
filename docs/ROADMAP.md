@@ -469,12 +469,15 @@ Tools that identify at-risk students and measure course effectiveness.
 
 Tools for course deployment, module management, and content organization.
 
-1. **Course restoration from local repo** — **L** (3-4 weeks)
+1. **Course restoration from local repo** — **L** (3-4 weeks), MVP: **M** (1-2 weeks)
    - Deploy full course content from local repo to new Canvas course
    - Alternative to Canvas course copy (resilient to course deletion policy)
    - Solves: "Campus deletes old courses, I can't copy from last semester"
    - Useful for infrequent courses (taught once/year or less)
+   - **Implementation:** Reverse sync (API-by-API recreation), not IMSCC import
    - **Complexity:** Multiple APIs (Assignments, Pages, Modules, Files), orchestration logic, validation & safety checks, idempotent updates, dependency ordering
+   - **Advantage:** Reuses 80% of existing canvas_sync infrastructure, selective restore capability, transparent errors
+   - **See:** `docs/implementation/sync_to_new.md` for detailed implementation plan
 
    **Use case:**
    Instructor maintains course content in local repo (assignments, pages, modules).
