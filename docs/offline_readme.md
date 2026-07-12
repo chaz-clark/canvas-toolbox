@@ -235,10 +235,12 @@ These tools require API-only data not available via Canvas UI:
 | `blueprint_presync_check.py` | Checks API-only blueprint metadata | Manual verification |
 | `blueprint_exception_report.py` | Blueprint exception tracking | Canvas UI reports |
 | `blueprint_orphan_pages.py` | Cross-course blueprint comparison | Manual comparison |
-| **Bulk Operations** |
+| **Student-Specific Modifications** |
+| `apply_sas_accommodations.py` | Per-student accommodation updates | Canvas SAS integration UI |
+| `student_quiz_time_extension.py` | Per-student quiz time adjustments | Canvas quiz settings UI (individual) |
+| `student_late_accommodation.py` | Per-student late exemptions | Canvas assignment settings UI |
+| `exempt_by_date.py` | Per-student assignment exemptions | Canvas gradebook UI (individual) |
 | `submit_on_behalf.py` | Student submission creation | Manual Canvas UI submission |
-| `apply_sas_accommodations.py` | Bulk accommodation updates | Canvas SAS integration UI |
-| `student_quiz_time_extension.py` | Quiz time adjustments | Canvas quiz settings UI |
 | **Real-Time Operations** |
 | `grader_pull_ta_grades.py` | Pull TA grades from API | Use Canvas Gradebook export |
 | `submission_history_fetch.py` | Submission version history | Download submission comments via UI |
@@ -258,10 +260,12 @@ These tools require API-only data not available via Canvas UI:
 
 | Canvas UI Action | File Format | Tools That Use It |
 |------------------|-------------|-------------------|
-| **Settings → Export Course Content** | `.imscc` (ZIP) | `canvas_sync.py`, all audit tools, `sync_to_new.py` |
+| **Settings → Export Course Content** | `.imscc` (ZIP) | `canvas_sync.py`, all audit tools, `sync_to_new.py`, date adjustment tools |
 | **Grades → Export** | `.csv` | `grader_push.py`, `fix_group_override_recalc.py`, de-ID tools |
 | **Assignment → Download Submissions** | `.zip` | `grader_fetch.py`, all `grader_deidentify_*` tools |
 | **Gradebook → Comments** | Included in CSV | `grader_push.py` (comments column) |
+
+**Important**: `.imscc` files include **course-level dates** (assignment due dates, unlock dates, lock dates, module unlock dates). This means you CAN adjust dates for semester copies offline! However, `.imscc` does NOT include **student-specific** accommodations (SAS extensions, individual quiz time, late exemptions).
 
 ### What's NOT Available via UI
 
