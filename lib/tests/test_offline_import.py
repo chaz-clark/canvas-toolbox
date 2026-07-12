@@ -51,7 +51,17 @@ def _make_imscc(path: Path):
             "<points_possible>100.0</points_possible><due_at>2026-09-05T05:59:00</due_at>"
             "<submission_types>online_upload,online_text_entry</submission_types>"
             "<assignment_group_identifierref>gGRP1</assignment_group_identifierref>"
+            "<rubric_identifierref>gRUB</rubric_identifierref>"
+            "<rubric_use_for_grading>true</rubric_use_for_grading>"
             "<grading_type>points</grading_type></assignment>",
+        "course_settings/rubrics.xml":
+            '<rubrics><rubric identifier="gRUB"><title>HW Rubric</title>'
+            "<points_possible>10.0</points_possible><criteria><criterion>"
+            "<criterion_id>c1</criterion_id><points>10.0</points>"
+            "<description>Correctness &amp; clarity</description><ratings>"
+            "<rating><id>r1</id><description>Good</description><points>10.0</points></rating>"
+            "<rating><id>r2</id><description>Poor</description><points>0.0</points></rating>"
+            "</ratings></criterion></criteria></rubric></rubrics>",
         "gAAA/hw-1.html": "<p>Read chapter 1 and submit.</p>",     # assignment description body
         "course_settings/syllabus.html": "<h1>Syllabus</h1><p>Grading policy...</p>",
         "course_settings/assignment_groups.xml":
@@ -196,6 +206,24 @@ def test_grading_structure_audit_local_runs(tmp_path):
     r = _run_local_audit(tmp_path, "grading_structure_audit.py", "--emit-json")
     assert r.stdout.strip(), r.stderr
     assert isinstance(json.loads(r.stdout), dict)   # groups joined, ran offline
+
+
+def test_import_attaches_rubric_with_entities_decoded(tmp_path):
+    import_imscc(_make_imscc(tmp_path / "c.imscc"), tmp_path / "course")
+    from _course_loader import load_course
+    hw = next(a for a in load_course(tmp_path / "course").assignments if a["name"] == "HW 1")
+    assert hw["use_rubric_for_grading"] is True            # API-shape top-level flag
+    assert len(hw["rubric"]) == 1
+    crit = hw["rubric"][0]
+    assert crit["description"] == "Correctness & clarity"  # &amp; decoded
+    assert crit["points"] == 10.0 and len(crit["ratings"]) == 2
+
+
+def test_rubric_audits_run_local(tmp_path):
+    r1 = _run_local_audit(tmp_path, "rubric_quality_audit.py", "--json")
+    assert r1.stdout.strip() and isinstance(json.loads(r1.stdout), dict), r1.stderr
+    r2 = _run_local_audit(tmp_path, "rubric_coverage_audit.py", "--json")
+    assert r2.stdout.strip() and isinstance(json.loads(r2.stdout), dict), r2.stderr
 
 
 def test_item_linked_in_two_modules_is_captured_once(tmp_path):

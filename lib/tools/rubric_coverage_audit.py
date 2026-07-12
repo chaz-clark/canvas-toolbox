@@ -426,6 +426,13 @@ def _resolve_course_id(target_env: str, literal: str | None) -> tuple[str, str]:
     return val, f"${target_env}"
 
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> None:
     force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
 
@@ -453,46 +460,58 @@ def main() -> None:
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="(Read-only tool; safety guard is advisory only. "
                          "Flag accepted for symmetry with write tools.)")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
-    # env check
-    missing: list[str] = []
-    if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://":
-        missing.append("CANVAS_BASE_URL")
-    if not CANVAS_API_TOKEN:
-        missing.append("CANVAS_API_TOKEN")
-    if missing:
-        print("ERROR: Missing required configuration:")
-        for m in missing:
-            print(f"  {m}")
-        print("\nSet these in your .env file.")
-        sys.exit(2)
-
-    course_id, source = _resolve_course_id(args.target, args.course_id)
-    if not course_id:
-        print(f"ERROR: course ID not found via {source}.")
-        print("       Set the env var, or pass --course-id <id> directly.")
-        sys.exit(2)
-
-    # Advisory safety guard (P-LL4 — read-only mode, never blocks)
-    guard.enforce(
-        base_url=CANVAS_BASE_URL,
-        headers=_headers(),
-        course_id=course_id,
-        mode="read",
-        allow_override=args.allow_enrolled,
-        label="audit target",
-    )
-
+    use_local = args.local or bool(args.course_dir) or _is_offline()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    # Fetch course name for the report header
-    course_obj = _get(f"/courses/{course_id}") or {}
-    course_name = (course_obj.get("name") if isinstance(course_obj, dict)
-                   else None) or "<unknown course>"
+    if use_local:
+        from _course_loader import load_course, CourseNotFound
+        try:
+            c = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(2)
+        course_id = str(c.canvas_id or "local")
+        course_name = c.name
+        assignments = c.assignments
+    else:
+        missing: list[str] = []
+        if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://":
+            missing.append("CANVAS_BASE_URL")
+        if not CANVAS_API_TOKEN:
+            missing.append("CANVAS_API_TOKEN")
+        if missing:
+            print("ERROR: Missing required configuration:")
+            for m in missing:
+                print(f"  {m}")
+            print("\nSet these in your .env file.")
+            sys.exit(2)
 
-    # Fetch assignments (with rubric + rubric_settings includes)
-    assignments = list_assignments_with_settings(course_id)
+        course_id, source = _resolve_course_id(args.target, args.course_id)
+        if not course_id:
+            print(f"ERROR: course ID not found via {source}.")
+            print("       Set the env var, or pass --course-id <id> directly.")
+            sys.exit(2)
+
+        guard.enforce(
+            base_url=CANVAS_BASE_URL,
+            headers=_headers(),
+            course_id=course_id,
+            mode="read",
+            allow_override=args.allow_enrolled,
+            label="audit target",
+        )
+
+        course_obj = _get(f"/courses/{course_id}") or {}
+        course_name = (course_obj.get("name") if isinstance(course_obj, dict)
+                       else None) or "<unknown course>"
+        assignments = list_assignments_with_settings(course_id)
     if not assignments:
         # Always to stderr — stdout reserved for the audit payload (prose or JSON)
         print(f"\nNo assignments returned for course {course_id} "
