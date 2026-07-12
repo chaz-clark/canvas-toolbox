@@ -1,13 +1,32 @@
 # Offline Mode Plan
 **Goal**: Support faculty who cannot use Canvas API tokens (IT policy restriction)
 
-> ⚠️ **This document is partly out of date — see the STATUS & RE-SCOPE header in
-> [offline_mode_sprints.md](./offline_mode_sprints.md) for what actually shipped
-> and the corrected architecture.** Known errors here (full rewrite pending S9):
-> `grade_assignments.py` / `adjust_dates.py` are fictional (real tools:
-> `grader_*`, `imscc_adjust_dates.py`); comments CANNOT ride a gradebook CSV
-> import (Canvas is scores-only); the env var is `CANVAS_API_TOKEN`, not
-> `CANVAS_TOKEN`.
+> ⚠️ **The design notes below this box are the ORIGINAL plan and are partly
+> superseded.** For the user guide see [offline_readme.md](./offline_readme.md);
+> for build status see [offline_mode_sprints.md](./offline_mode_sprints.md).
+>
+> ### What actually shipped (accurate architecture)
+>
+> Tools read a local **`course/`** folder, source-agnostic: `canvas_sync --pull`
+> fills it from the API; **`offline_import`** fills it from a `.imscc`. A tool run
+> with `--local` / `CANVAS_MODE=offline` reads `course/` and makes **zero API
+> calls**. Gradebook workflows use the exported **CSV** (not `course/`).
+>
+> **Tool boundary** (the load-bearing distinction):
+> - **Read/report** (audits, analysis) → run offline against `course/`. ✅
+> - **Content write-back** (`imscc_adjust_dates.py`) → new/empty course only. ⚠️
+> - **Student-specific writes** (SAS accommodations, quiz-time extensions,
+>   late/exempt, submit-on-behalf) → **API-only** — per-student data isn't in a
+>   content export and there's no safe offline write-back. ❌
+> - **Outcomes / analytics** → **API-only** (outcomes are account-level, absent
+>   from exports; page-views/participation are API-only).
+>
+> **Corrections to the notes below:** `grade_assignments.py` / `adjust_dates.py`
+> are **fictional** (real: `grader_*`, `imscc_adjust_dates.py`); comments
+> **cannot** ride a gradebook CSV import (Canvas is scores-only — use
+> `grader_push_comments.py` with a token, else SpeedGrader paste); the env var is
+> **`CANVAS_API_TOKEN`**; helpers live in `lib/tools/`, not `lib/utils/`;
+> the sandbox is `CANVAS_SANDBOX_ID` (427808).
 
 ## Philosophy: Unified Workflow
 
