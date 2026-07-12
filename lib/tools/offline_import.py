@@ -168,7 +168,9 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
             it_title = _field(it, "title") or "item"
             it_pub = _field(it, "workflow_state") == "active"
             item_summaries.append({"title": it_title, "content_type": ct, "identifierref": ref})
-            if not ref:
+            # An item can be linked from several modules — write it ONCE (the
+            # module summaries still reference it), else audits double-count it.
+            if not ref or ref in captured:
                 continue
             if ct == "Assignment" and f"{ref}/assignment_settings.xml" in names:
                 data = assignment_from_xml(read(f"{ref}/assignment_settings.xml"), it_pub)
@@ -187,6 +189,7 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
             elif ct == "WikiPage" and hrefs.get(ref) in names:
                 (mod_dir / f"{slugify(it_title)}.html").write_text(read(hrefs[ref]), encoding="utf-8")
                 counts["pages"] += 1
+                captured.add(ref)
         (mod_dir / "_module.json").write_text(
             json.dumps({"title": title, "published": published, "items": item_summaries}, indent=2),
             encoding="utf-8",

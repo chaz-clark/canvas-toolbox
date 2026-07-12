@@ -198,6 +198,36 @@ def test_grading_structure_audit_local_runs(tmp_path):
     assert isinstance(json.loads(r.stdout), dict)   # groups joined, ran offline
 
 
+def test_item_linked_in_two_modules_is_captured_once(tmp_path):
+    # Canvas allows one assignment in several modules (module items are links).
+    # It must be written ONCE, or audits double-count it.
+    mm = ('<modules>'
+          '<module identifier="m1"><title>Week 1</title><workflow_state>active</workflow_state>'
+          '<items><item identifier="i1"><content_type>Assignment</content_type>'
+          '<title>Shared</title><identifierref>gDUP</identifierref></item></items></module>'
+          '<module identifier="m2"><title>Collector</title><workflow_state>active</workflow_state>'
+          '<items><item identifier="i2"><content_type>Assignment</content_type>'
+          '<title>Shared</title><identifierref>gDUP</identifierref></item></items></module>'
+          '</modules>')
+    files = {
+        "imsmanifest.xml": "<manifest><resources></resources></manifest>",
+        "course_settings/course_settings.xml": "<course><title>C</title></course>",
+        "course_settings/module_meta.xml": mm,
+        "gDUP/assignment_settings.xml":
+            "<assignment><title>Shared</title><workflow_state>published</workflow_state>"
+            "<points_possible>10.0</points_possible><submission_types>online_upload</submission_types>"
+            "</assignment>",
+    }
+    src = tmp_path / "dup.imscc"
+    with zipfile.ZipFile(src, "w") as z:
+        for n, content in files.items():
+            z.writestr(n, content)
+    counts = import_imscc(src, tmp_path / "course")
+    assert counts["assignments"] == 1                       # written once, not twice
+    c = load_course(tmp_path / "course")
+    assert len([a for a in c.assignments if a["name"] == "Shared"]) == 1
+
+
 def test_full_pipeline_cross_validation_if_present(tmp_path):
     """Cross-validate the WHOLE offline path — import .imscc -> load -> audit —
     across every real course, fully offline (bogus token = zero API calls)."""
