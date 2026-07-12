@@ -113,6 +113,18 @@ if _raw_url and not _raw_url.startswith("http"):
     _raw_url = "https://" + _raw_url
 CANVAS_BASE_URL = _raw_url
 
+
+def default_institution() -> str:
+    """Institution profile (keeps the audit college-agnostic). CANVAS_INSTITUTION
+    wins; else infer from the Canvas host (byui.instructure.com -> 'byui'); else
+    'generic'. Only the BYUI profile REQUIRES a generative-AI policy for a
+    'complete' verdict — other institutions treat it as advisory."""
+    inst = os.environ.get("CANVAS_INSTITUTION", "").strip().lower()
+    if inst:
+        return inst
+    return "byui" if "byui" in (CANVAS_BASE_URL or "").lower() else "generic"
+
+
 _TIMEOUT = 30
 # Below this many words of real syllabus text we treat the body as effectively
 # empty — the real syllabus is almost certainly a linked page/file we can't see.
@@ -552,15 +564,19 @@ NO_SYLLABUS = "no_syllabus"
 
 
 def compute_verdict(sections: list[dict], ai_policy: dict,
-                    body_words: int) -> tuple[str, list[str]]:
-    """Verdict + the list of human-readable missing items driving it."""
+                    body_words: int, ai_policy_required: bool = True) -> tuple[str, list[str]]:
+    """Verdict + the list of human-readable missing items driving it.
+
+    ai_policy_required is a per-institution profile knob: the BYUI profile
+    REQUIRES a generative-AI statement (drives the verdict); other institutions
+    treat it as advisory (reported but not verdict-driving)."""
     if body_words < _MIN_BODY_WORDS:
         return NO_SYLLABUS, [
             "Syllabus body is empty or near-empty — the real syllabus is likely "
             "a linked Canvas page or file the syllabus_body field doesn't contain."
         ]
     missing = [s["label"] for s in sections if not s["detected"]]
-    if not ai_policy["present"]:
+    if ai_policy_required and not ai_policy["present"]:
         missing.append("AI Policy (REQUIRED — no generative-AI statement detected)")
     return (COMPLETE if not missing else INCOMPLETE), missing
 
@@ -730,9 +746,14 @@ def main() -> None:
                          "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
     ap.add_argument("--course-dir", default=None,
                     help="Local course/ directory to read (implies --local). Default: course")
+    ap.add_argument("--institution", default=None,
+                    help="Institution profile: 'byui' REQUIRES an AI policy for a complete "
+                         "verdict; anything else treats it as advisory. Default: CANVAS_INSTITUTION "
+                         "env, else inferred from the Canvas host, else 'generic'.")
     args = ap.parse_args()
 
     use_local = args.local or bool(args.course_dir) or _is_offline()
+    institution = (args.institution or default_institution()).strip().lower()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     if use_local:
@@ -780,7 +801,8 @@ def main() -> None:
     sections = detect_sections(text)
     ai_policy = detect_ai_policy(text)
     advisory = detect_advisory(text, body)
-    verdict, missing = compute_verdict(sections, ai_policy, body_words)
+    verdict, missing = compute_verdict(sections, ai_policy, body_words,
+                                       ai_policy_required=(institution == "byui"))
 
     # v0.31 — 25-item rubric (run alongside umbrella audit; surfaced when --rubric set)
     rubric_items = detect_rubric_items(text, body)
