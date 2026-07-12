@@ -252,12 +252,72 @@ import hashlib
 import uuid
 
 def generate_canvas_identifier(content_type: str, title: str) -> str:
-    """Generate Canvas-compatible identifier."""
+    """Generate Canvas-compatible identifier — ONLY for net-new content.
+
+    Roundtrip / date-adjust flows PRESERVE the original identifier read from the
+    source .imscc (see "Re-Import Behavior"). Regenerating an existing item's id
+    makes Canvas duplicate it instead of updating in place.
+    """
     # Use UUID5 (deterministic from namespace + name)
     namespace = uuid.UUID('00000000-0000-0000-0000-000000000000')
     identifier_uuid = uuid.uuid5(namespace, f"{content_type}:{title}")
     return "g" + identifier_uuid.hex
 ```
+
+---
+
+## Re-Import Behavior (Canvas Overwrite Semantics) — CRITICAL for offline_export.py
+
+**Finding (2026-07-12 research, verified against Canvas docs)**: When you re-import an
+`.imscc` into a course, Canvas does **not** duplicate content — it **matches by the
+original migration identifier and overwrites the matching item in place**. This applies to
+Modules, Pages, Assignments, Files, and Quizzes.
+
+### Implication: PRESERVE identifiers on roundtrip — do NOT regenerate them
+
+For the date-adjust roundtrip (export → edit → re-import to the **same** course), you MUST
+carry the **original** identifiers from the source `.imscc` through to the output
+unchanged. If `offline_export.py` mints **new** identifiers (e.g. via
+`generate_canvas_identifier()`), Canvas sees the content as brand-new and **duplicates** it
+instead of updating.
+
+- ✅ Existing content (came from the source export) → **reuse its original identifier verbatim**
+- ✅ Genuinely new content (created locally, never in Canvas) → generate a fresh `g` + 32 hex id
+- ❌ Never regenerate identifiers for content that already exists in Canvas
+
+> This corrects earlier guidance in this file: `generate_canvas_identifier()` is ONLY for
+> net-new content. The default offline workflow (import → adjust dates → export) preserves
+> every identifier it read.
+
+### ⚠️ Overwrite is DESTRUCTIVE
+
+Canvas warns that re-importing "can cause any changes made to the destination course,
+including submissions and grades, to be **lost permanently**." Same-course re-import is
+therefore only safe when:
+
+- The destination is an **empty / new** course (the semester-copy workflow — the safe default), OR
+- The course has **no student activity yet** (no submissions/grades).
+
+`offline_export.py` / `validate_imscc.py` must surface a **loud guard** before producing an
+`.imscc` aimed at a course that already has student work. Lead faculty toward the
+**new-course** copy path.
+
+### New Quizzes revert quirk
+
+Re-importing a **New Quizzes** assessment reverts it to the original — edits don't apply. To
+update a New Quiz you must duplicate it in Canvas, then import. Flag New Quizzes during
+validation so faculty aren't surprised.
+
+### Related gradebook finding (not .imscc, but shapes the offline flow)
+
+Canvas gradebook **CSV import does not carry submission comments** — scores only (open,
+unimplemented feature request). Offline comment delivery therefore can't ride the CSV;
+it needs the API (`grader_push_comments.py`) or manual SpeedGrader paste.
+
+**Sources**:
+- Overwrite/identifier-match: <https://classhelp.screenstepslive.com/a/1859694-avoiding-overwriting-course-content-when-using-the-import-tool>
+- Destructive re-import: <https://community.canvaslms.com/t5/Idea-Conversations/Import-Course-Content-should-always-be-non-destructive/idi-p/368391>
+- CSV comments unsupported: <https://community.instructure.com/en/discussion/510567/including-comments-when-importing-a-grades-csv-file>
 
 ---
 
@@ -529,7 +589,7 @@ When building `offline_import.py` and `offline_export.py`:
 - [ ] Convert `.imscc` structure → `.canvas/` JSON structure
 - [ ] Build `adjust_dates.py` tool (operate on `.canvas/` JSON)
 - [ ] Convert `.canvas/` JSON → `.imscc` structure
-- [ ] Generate valid Canvas identifiers (`g` + 32 hex)
+- [ ] Preserve original identifiers on roundtrip; generate `g` + 32 hex ONLY for net-new content
 - [ ] Preserve timezone info in all date operations
 - [ ] Validate date constraints before repacking
 - [ ] Create valid ZIP with all required files

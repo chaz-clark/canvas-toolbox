@@ -199,9 +199,16 @@ def test_check_mode_against_tmp_repo(tmp_path):
     )
     out = result.stdout + result.stderr
 
-    # All 13 step labels must appear (catches the dispatch-wiring class of bugs)
-    for i in range(1, 14):
-        assert f"Step {i}/13:" in out, (
+    # Every step label must appear (catches the dispatch-wiring class of bugs).
+    # Derive the total from the output rather than hardcoding it, so adding a
+    # cb-init step never silently breaks this test again (it went 13→14 in
+    # v1.6.1 and this assertion wasn't updated).
+    import re
+    totals = set(re.findall(r"Step \d+/(\d+):", out))
+    assert len(totals) == 1, f"inconsistent step totals {totals} in output:\n{out}"
+    total = int(totals.pop())
+    for i in range(1, total + 1):
+        assert f"Step {i}/{total}:" in out, (
             f"step {i} missing from --check output. Full output:\n{out}"
         )
 
