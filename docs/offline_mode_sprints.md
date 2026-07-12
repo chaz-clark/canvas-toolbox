@@ -161,18 +161,22 @@ python lib/tools/grade_assignments.py --apply-comments
 
 ---
 
-## Sprint 4: .imscc Import/Export Utilities (2 weeks)
+## Sprint 4: .imscc Import/Export Utilities
 
 **Goal**: Tools to convert between .imscc files and .canvas/ directory structure
+**Size**: XL
+**Risk**: HIGH - Canvas has silent failure modes (identifier format, missing files)
+**Mitigation**: Built-in validation before export
 
 ### Tasks
-- [ ] Research .imscc format
-  - Download sample .imscc from course 145706
-  - Unzip and analyze structure (imsmanifest.xml, etc.)
-  - Document format in `docs/imscc_format.md`
+
+#### Build Phase
+- [ ] ✅ Research .imscc format - **COMPLETED**
+  - Knowledge base: `lib/agents/knowledge/imscc_format_knowledge.md`
+  - Sample data: Real .imscc from course 145706
 - [ ] Create `lib/tools/offline_import.py`
   - Unpack .imscc ZIP file
-  - Parse `imsmanifest.xml`
+  - Parse `imsmanifest.xml` + `course_settings/module_meta.xml`
   - Convert to `.canvas/` structure:
     - `index.json` (course metadata)
     - `course/modules/` (module structure)
@@ -182,49 +186,144 @@ python lib/tools/grade_assignments.py --apply-comments
   - Import gradebook CSV to `.canvas/gradebook/grades.csv`
 - [ ] Create `lib/tools/offline_export.py`
   - Read `.canvas/` structure
-  - Build `imsmanifest.xml`
+  - Build `imsmanifest.xml` + `course_settings/module_meta.xml`
+  - Generate Canvas-compatible identifiers (`g` + 32 hex chars)
   - Pack into .imscc ZIP file
   - Export gradebook CSV in Canvas format
-- [ ] Add validation
-  - Verify roundtrip: export → import → compare
-  - Check for data loss
+  - **Integrated validation** (calls validate_imscc before writing output)
+- [ ] Create `lib/tools/validate_imscc.py` - **RISK REDUCTION**
+  - Validate identifier format (detect human-readable IDs)
+  - Check Canvas trigger files (course_settings.xml, syllabus.html)
+  - Verify date constraints (unlock < due < lock)
+  - Check timezone presence in all dates
+  - Validate file references ($IMS_CC_FILEBASE$ paths exist)
+  - CLI tool for manual validation before upload
+
+#### Test Phase
+- [ ] Unit tests (`tests/test_imscc_parser.py`)
+  - Parse imsmanifest.xml correctly
+  - Parse module_meta.xml correctly
+  - Extract files from ZIP
+- [ ] Identifier generation tests (`tests/test_canvas_identifiers.py`)
+  - Generate valid `g` + 32 hex format
+  - Deterministic (same input → same ID)
+- [ ] Validation tests (`tests/test_imscc_validation.py`)
+  - Catch human-readable identifiers
+  - Catch missing Canvas trigger files
+  - Catch date constraint violations
+  - Catch missing timezones
+  - Catch broken file references
+  - Accept valid .imscc files
+- [ ] Failure injection tests (`tests/test_imscc_failure_modes.py`)
+  - Intentionally create bad .imscc with each known failure mode
+  - Verify validator catches each one
+  - Document Canvas behavior for each failure
+- [ ] Roundtrip tests (`tests/test_imscc_roundtrip.py`)
+  - Export → Import → Compare (no data loss)
+  - Dates preserved (including timezones)
+  - Files preserved
+  - Module structure preserved
+- [ ] Regression tests (Sprint 1 utilities still work)
+  - `pytest tests/test_canvas_mode.py`
+  - `pytest tests/test_csv_utils.py`
+  - `pytest tests/test_file_finder.py`
+
+#### Integration Phase
+- [ ] Canvas import verification (semi-manual)
+  - Export validated .imscc
+  - Upload to sandbox course (427952)
+  - Verify content intact
+  - Verify dates correct
+  - Document any Canvas quirks
 
 ### Success Criteria
+
+**Functionality**:
 - ✅ Can unpack real .imscc export into `.canvas/` format
 - ✅ Can pack `.canvas/` back into .imscc
-- ✅ Roundtrip preserves all content (modules, pages, assignments, files)
-- ✅ CSV import/export works
+- ✅ Roundtrip preserves all content (modules, pages, assignments, files, dates)
+- ✅ Canvas successfully imports validated .imscc
+
+**Quality** (Risk Reduction):
+- ✅ **Validator catches all known silent failure modes**
+- ✅ **No .imscc exported with validation errors**
+- ✅ **Failure injection tests pass** (validator detects intentionally broken files)
+- ✅ **All Sprint 1 regression tests pass**
+
+**Real Data**:
+- ✅ Tested with real .imscc from course 145706
+- ✅ Tested with real Canvas sandbox import (course 427952)
 
 ### Dependencies
-- Sprint 1 (CSV utils, file finder)
+- Sprint 1 (file finder, mode utils)
 
-### Testing
+### Known Failure Modes (from knowledge base)
+
+**Critical (Silent Failures)**:
+1. Human-readable identifiers (`assignment_week1` instead of `g` + 32 hex) → Canvas accepts, content missing after import
+2. Missing `course_settings/course_settings.xml` → Canvas treats as generic IMS CC, modules don't import
+
+**High (Import Errors)**:
+3. Date constraints violated (`lock_at` before `due_at`) → Canvas rejects with error
+4. Missing timezones in dates → Dates shift by hours
+
+**Medium (Incomplete Import)**:
+5. Broken file references (`$IMS_CC_FILEBASE$/missing.jpg`) → Missing images, no error
+
+### Testing Workflow
+
 ```bash
-# Export course via Canvas UI
+# 1. Export course via Canvas UI
 # Settings → Export Course Content → .imscc → ~/Downloads/course_export_145706.imscc
 
-# Import to .canvas/
+# 2. Import to .canvas/
 python lib/tools/offline_import.py \
   --imscc ~/Downloads/course_export_145706.imscc \
   --gradebook ~/Downloads/grades-145706.csv \
   --output .canvas/
 
-# Verify structure
+# 3. Verify structure
 ls -la .canvas/
 tree course/
 
-# Make local changes
+# 4. Make local changes
 python lib/tools/adjust_dates.py --shift-days 365
 
-# Export back to .imscc
+# 5. Export back to .imscc (with validation)
 python lib/tools/offline_export.py \
   --source .canvas/ \
   --imscc ~/Desktop/course_import.imscc \
   --gradebook ~/Desktop/grades_updated.csv
 
-# Upload via Canvas UI
+# Output should show:
+# Validating .imscc structure...
+# ✓ ZIP structure valid
+# ✓ Required files present
+# ✓ All identifiers valid (g + 32 hex)
+# ✓ Date constraints satisfied
+# ✓ Validated .imscc exported to: ~/Desktop/course_import.imscc
+
+# 6. Manual validation (optional)
+python lib/tools/validate_imscc.py ~/Desktop/course_import.imscc
+
+# 7. Upload via Canvas UI
 # Settings → Import Course Content → Upload course_import.imscc
+
+# 8. Verify in Canvas
+# Check modules, assignments, dates, files all present
 ```
+
+### Quality Discipline (Toyota Jidoka)
+
+**Built-in Quality**:
+- Validation runs automatically in `offline_export.py` (no manual step)
+- Export blocked if validation fails (stop-on-red)
+- Clear error messages with fix guidance
+
+**Mistake-Proofing (Poka-yoke)**:
+- Can't export .imscc with validation errors
+- Validator catches failures before Canvas upload
+- Failure injection tests document each failure mode
 
 ---
 
@@ -405,6 +504,87 @@ Sprint 1 (Infrastructure)
 
 **Risk: Faculty confusion about which mode to use**
 - Mitigation: Clear docs, auto-detection where possible, helpful error messages
+
+---
+
+## Quality Discipline (Toyota Way)
+
+### Three Core Principles
+
+**1. Genchi Gembutsu (現地現物) - Go and See**
+- Test with REAL Canvas exports, not synthetic data
+- Verify in Canvas sandbox (course 427952), don't assume
+- When uncertain about .imscc format, download and examine actual file
+- Don't trust documentation alone - check actual behavior
+
+**2. Jidoka (自働化) - Built-in Quality / Stop on Defect**
+- Write tests WITH code, not after
+- Can't export .imscc with validation errors (blocked automatically)
+- Red tests block progress - fix immediately, don't defer
+- Aligns with AGENTS.md P-003 "Stop on Defect"
+
+**3. Poka-yoke (ポカヨケ) - Mistake-Proofing**
+- Validation runs automatically (no manual step to forget)
+- Pre-commit hooks run unit tests
+- Git-ignore patterns prevent PII commits
+- Type hints + linting catch errors early
+
+### Per-Sprint Discipline
+
+**Every Sprint Must**:
+1. ✅ **Green before done** - All tests pass before moving to next sprint
+2. ✅ **Regression first** - Run previous sprint tests BEFORE writing new code
+3. ✅ **Real data** - Test with actual Canvas exports from course 145706
+4. ✅ **Stop on red** - Fix failing tests immediately (Andon cord)
+5. ✅ **API mode protected** - Verify online mode still works (no regressions)
+
+### Test Pyramid
+
+**Unit tests** (fast, many):
+- Utilities, parsers, validators
+- Run in pre-commit hook
+- Example: `test_canvas_mode.py`, `test_csv_utils.py`
+
+**Integration tests** (medium, fewer):
+- Multi-component workflows
+- Run in CI on PR
+- Example: `test_csv_deid_integration.py`
+
+**E2E tests** (slow, few):
+- Full faculty workflows
+- Run before release
+- Example: `test_offline_grading_complete.py`
+
+**Manual verification** (slowest, minimal):
+- Canvas import acceptance
+- Document in test log, not code
+
+### Continuous Integration
+
+**Pre-commit**:
+```bash
+# .git/hooks/pre-commit
+pytest tests/unit/ --maxfail=1
+```
+
+**Pull Request**:
+```bash
+# .github/workflows/test.yml
+pytest tests/ --cov=lib/
+```
+
+**Can't merge with**:
+- ❌ Red tests
+- ❌ Linting errors
+- ❌ Coverage below threshold
+
+### Kaizen (Continuous Improvement)
+
+**After Each Sprint**:
+- What tests caught issues? (Working)
+- What issues slipped through? (Needs improvement)
+- Update test suite based on findings
+- Document lessons in `lib/agents/knowledge/learned/`
 
 ---
 
