@@ -8,6 +8,8 @@ quizzes shaped as assignments, pages as .html). Gated integration imports the
 real DS 250 / DS 460 / ITM 327 / M 119 exports and confirms the loader reads them.
 """
 import json
+import os
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -130,3 +132,27 @@ def test_import_real_exports_if_present(tmp_path):
         c = load_course(out)                       # loader reads what import wrote
         assert len(c.assignments) > 0
         assert all("name" in a for a in c.assignments)
+
+
+def test_full_pipeline_cross_validation_if_present(tmp_path):
+    """Cross-validate the WHOLE offline path — import .imscc -> load -> audit —
+    across every real course, fully offline (bogus token = zero API calls)."""
+    reals = _file_finder.list_imscc(name_hint="export")
+    if not reals:
+        pytest.skip("no real *_export.imscc in ~/Downloads — integration skipped")
+    workload_tool = _TOOLS_DIR / "workload_audit.py"
+    env = {**os.environ, "CANVAS_API_TOKEN": "bogus", "CANVAS_BASE_URL": "https://x"}
+    for real in reals:
+        out = tmp_path / real.stem
+        counts = import_imscc(real, out)
+        r = subprocess.run(
+            [sys.executable, str(workload_tool), "--course-dir", str(out), "--json"],
+            capture_output=True, text=True, env=env,
+        )
+        assert r.returncode in (0, 1), f"{real.name}: {r.stderr}"
+        payload = json.loads(r.stdout)
+        assert payload["tool"] == "workload_audit"
+        assert isinstance(payload.get("verdict"), str) and payload["verdict"], f"{real.name}"
+        assert len(payload.get("week_distribution", [])) > 0, f"{real.name} produced no weeks"
+        # the audit saw the imported assignments+quizzes
+        assert counts["assignments"] + counts["quizzes"] > 0
