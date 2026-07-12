@@ -719,7 +719,19 @@ If you build a tool for one of these API categories:
   - **Testing bonus:** it would let us seed outcomes into the sandbox (427808)
     and finally exercise the outcomes path end-to-end (`clo_quality_audit`) —
     coverage we can't get from a `.imscc` export (outcomes are absent there).
-  - **Filed:** 2026-07-12 during offline-mode S7.
+  - **Reuse:** `syllabus_outcomes.extract_outcomes(html)` already parses CLOs out
+    of any HTML (used by syllabus_audit + rubric_quality) — so the parse step is
+    solved; the open question is the SOURCE.
+  - **⚠️ Feasibility not confirmed (2026-07-12 testing):** the premise "CLOs are
+    always in the open-web catalog" did NOT hold up. A general websearch surfaced
+    the BYUI catalog landing page but no per-course CLOs; the data-science course
+    page (`byuidatascience.github.io/services/math119/`) had none. And **BYU /
+    BYU-Idaho / BYU-Hawaii are distinct** — searches kept returning `catalog.byu.edu`
+    / `catalog.byuh.edu`, the wrong institutions. So before building anything we
+    need a CONFIRMED source: a specific BYUI URL (or internal doc / SIS export)
+    that actually lists per-course CLOs in a parseable form. **Blocked pending
+    that source.**
+  - **Filed:** 2026-07-12 during offline-mode S7; feasibility note added same day.
 
 ---
 
