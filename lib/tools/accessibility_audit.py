@@ -674,17 +674,22 @@ def audit_course(
     course_id: str,
     skip_syllabus: bool, skip_pages: bool, skip_assignments: bool,
     target_grade: float,
+    local_course=None,
 ) -> dict:
-    course = _get(f"/courses/{course_id}", params={"include[]": "syllabus_body"}) or {}
-    if not isinstance(course, dict):
-        return {"error": f"Could not load course {course_id}"}
-    course_name = course.get("name", "<unknown course>")
+    if local_course is not None:
+        course = {}
+        course_name = local_course.name
+    else:
+        course = _get(f"/courses/{course_id}", params={"include[]": "syllabus_body"}) or {}
+        if not isinstance(course, dict):
+            return {"error": f"Could not load course {course_id}"}
+        course_name = course.get("name", "<unknown course>")
     all_findings: list[dict] = []
     surfaces_checked = []
 
     # Syllabus
     if not skip_syllabus:
-        body = course.get("syllabus_body") or ""
+        body = local_course.syllabus() if local_course is not None else (course.get("syllabus_body") or "")
         if body:
             print(f"  Auditing syllabus...", file=sys.stderr)
             all_findings += audit_html(body, "syllabus", target_grade)
@@ -692,23 +697,31 @@ def audit_course(
 
     # Pages
     if not skip_pages:
-        pages_list = _get_paged(f"/courses/{course_id}/pages", params={"published": True})
-        print(f"  Auditing {len(pages_list)} pages...", file=sys.stderr)
-        for p in pages_list:
-            page_url = p.get("url")
-            if not page_url:
-                continue
-            page = _get(f"/courses/{course_id}/pages/{page_url}") or {}
-            body = page.get("body") or ""
+        if local_course is not None:
+            page_surfaces = [(p["title"], p["body"]) for p in local_course.pages()]
+        else:
+            pages_list = _get_paged(f"/courses/{course_id}/pages", params={"published": True})
+            page_surfaces = []
+            for p in pages_list:
+                page_url = p.get("url")
+                if not page_url:
+                    continue
+                page = _get(f"/courses/{course_id}/pages/{page_url}") or {}
+                page_surfaces.append((page.get("title", page_url), page.get("body") or ""))
+        print(f"  Auditing {len(page_surfaces)} pages...", file=sys.stderr)
+        for title, body in page_surfaces:
             if body:
-                all_findings += audit_html(body, f"page:{page.get('title', page_url)}",
-                                           target_grade)
-        surfaces_checked.append(f"pages ({len(pages_list)})")
+                all_findings += audit_html(body, f"page:{title}", target_grade)
+        surfaces_checked.append(f"pages ({len(page_surfaces)})")
 
     # Assignments
     if not skip_assignments:
-        assignments = _get_paged(f"/courses/{course_id}/assignments")
-        published = [a for a in assignments if a.get("workflow_state") == "published"]
+        if local_course is not None:
+            assignments = local_course.assignments
+        else:
+            assignments = _get_paged(f"/courses/{course_id}/assignments")
+        published = [a for a in assignments
+                     if a.get("workflow_state") == "published" or a.get("published")]
         print(f"  Auditing {len(published)} published assignments...", file=sys.stderr)
         for a in published:
             description = a.get("description") or ""
@@ -951,6 +964,13 @@ def _write_report(path: Path, body: str) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> int:
     force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
 
@@ -977,29 +997,46 @@ def main() -> int:
                          "graduate. Set to 0 to disable.")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Bypass canvas_course_guard advisory for enrolled-course reads.")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
-    if not CANVAS_API_TOKEN or not CANVAS_BASE_URL:
-        print("ERROR: CANVAS_API_TOKEN and CANVAS_BASE_URL must be set in .env.", file=sys.stderr)
-        return 2
-    course_id = args.course_id or os.environ.get(args.target, "")
-    if not course_id:
-        print(f"ERROR: course ID not found. Pass --course-id <id> or set {args.target}.",
-              file=sys.stderr)
-        return 2
-
-    guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
-                  mode="read", allow_override=args.allow_enrolled, label="audit target")
-
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    print(f"Auditing course {course_id}...", file=sys.stderr)
     # target_grade=0 disables the reading-level check; we treat anything <=0 as disabled
     effective_target = args.target_grade if args.target_grade > 0 else 999.0
+    use_local = args.local or bool(args.course_dir) or _is_offline()
+
+    local_course = None
+    if use_local:
+        from _course_loader import load_course, CourseNotFound
+        try:
+            local_course = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 2
+        course_id = str(local_course.canvas_id or "local")
+    else:
+        if not CANVAS_API_TOKEN or not CANVAS_BASE_URL:
+            print("ERROR: CANVAS_API_TOKEN and CANVAS_BASE_URL must be set in .env.", file=sys.stderr)
+            return 2
+        course_id = args.course_id or os.environ.get(args.target, "")
+        if not course_id:
+            print(f"ERROR: course ID not found. Pass --course-id <id> or set {args.target}.",
+                  file=sys.stderr)
+            return 2
+        guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
+                      mode="read", allow_override=args.allow_enrolled, label="audit target")
+
+    print(f"Auditing course {course_id}...", file=sys.stderr)
     res = audit_course(course_id,
                        skip_syllabus=args.skip_syllabus,
                        skip_pages=args.skip_pages,
                        skip_assignments=args.skip_assignments,
-                       target_grade=effective_target)
+                       target_grade=effective_target,
+                       local_course=local_course)
 
     if "error" in res:
         print(f"ERROR: {res['error']}", file=sys.stderr)
