@@ -26,6 +26,7 @@ USAGE
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import sys
@@ -47,7 +48,9 @@ def slugify(s: str) -> str:
 
 def _field(xml: str, tag: str):
     m = re.search(rf"<{tag}>([^<]*)</{tag}>", xml)
-    return m.group(1) if m else None
+    # Decode XML entities (&amp; -> &, &lt; -> <, ...) so extracted text matches
+    # what the Canvas API returns (and produces clean slugs).
+    return html.unescape(m.group(1)) if m else None
 
 
 def _dates_points(xml: str, d: dict) -> None:
@@ -81,6 +84,10 @@ def assignment_from_xml(xml: str, published: bool | None) -> dict:
     ref = _field(xml, "assignment_group_identifierref")
     if ref:
         d["assignment_group_identifierref"] = ref   # join key for assignment groups
+    rr = _field(xml, "rubric_identifierref")
+    if rr:
+        d["rubric_identifierref"] = rr              # attached in import (attach_rubric)
+        d["rubric_use_for_grading"] = _field(xml, "rubric_use_for_grading") or "false"
     _dates_points(xml, d)
     return d
 
@@ -98,6 +105,67 @@ def quiz_from_xml(xml: str, published: bool | None) -> dict:
         d["assignment_group_identifierref"] = ref   # quizzes belong to a group too
     _dates_points(xml, d)
     return d
+
+
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_rubrics(xml: str) -> dict:
+    """rubrics.xml -> {rubric_identifier: {id, title, points_possible, criteria}}.
+    Each criterion is API-shaped: {id, description, points, ratings:[{id, description, points}]}."""
+    rubrics = {}
+    for rm in re.finditer(r'<rubric\b[^>]*\bidentifier="([^"]+)"[^>]*>(.*?)</rubric>', xml, re.S):
+        rid, body = rm.group(1), rm.group(2)
+        criteria = []
+        for cm in re.finditer(r"<criterion\b[^>]*>(.*?)</criterion>", body, re.S):
+            cbody = cm.group(1)
+            head = cbody.split("<ratings>")[0]  # criterion's own fields precede its ratings
+            crit = {
+                "id": _field(head, "criterion_id"),
+                "description": _field(head, "description"),
+                "points": _num(_field(head, "points")),
+                "ratings": [],
+            }
+            rblock = re.search(r"<ratings>(.*?)</ratings>", cbody, re.S)
+            if rblock:
+                for rt in re.finditer(r"<rating\b[^>]*>(.*?)</rating>", rblock.group(1), re.S):
+                    rb = rt.group(1)
+                    crit["ratings"].append({
+                        "id": _field(rb, "id"),
+                        "description": _field(rb, "description"),
+                        "points": _num(_field(rb, "points")),
+                    })
+            criteria.append(crit)
+        rubrics[rid] = {
+            "id": rid,
+            "title": _field(body, "title"),
+            "points_possible": _num(_field(body, "points_possible")),
+            "criteria": criteria,
+        }
+    return rubrics
+
+
+def attach_rubric(data: dict, rubrics: dict) -> None:
+    """If an assignment references a rubric, attach it API-shaped: data['rubric']
+    (criteria list) + data['rubric_settings'] (use_rubric_for_grading, ...)."""
+    ref = data.pop("rubric_identifierref", None)
+    use = data.pop("rubric_use_for_grading", "false")
+    if ref and ref in rubrics:
+        r = rubrics[ref]
+        data["rubric"] = r["criteria"]
+        # The API exposes use_rubric_for_grading at the assignment TOP LEVEL
+        # (rubric_coverage_audit reads it there) — mirror that, not just settings.
+        data["use_rubric_for_grading"] = (use == "true")
+        data["rubric_settings"] = {
+            "id": r["id"],
+            "title": r["title"],
+            "points_possible": r["points_possible"],
+            "use_rubric_for_grading": (use == "true"),
+        }
 
 
 def _manifest_hrefs(manifest: str) -> dict:
@@ -150,6 +218,8 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
             })
         (out / "_assignment_groups.json").write_text(json.dumps(groups, indent=2), encoding="utf-8")
 
+    rubrics = parse_rubrics(read("course_settings/rubrics.xml"))  # attached per-assignment below
+
     hrefs = _manifest_hrefs(read("imsmanifest.xml"))
     counts = {"modules": 0, "assignments": 0, "quizzes": 0, "pages": 0}
     captured: set[str] = set()   # identifierrefs written via modules
@@ -174,6 +244,7 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
                 continue
             if ct == "Assignment" and f"{ref}/assignment_settings.xml" in names:
                 data = assignment_from_xml(read(f"{ref}/assignment_settings.xml"), it_pub)
+                attach_rubric(data, rubrics)
                 # description body is a sibling .html in the assignment dir
                 body = next((n for n in names if n.startswith(f"{ref}/") and n.endswith(".html")), None)
                 if body:
@@ -210,6 +281,7 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
         unfiled.mkdir(parents=True, exist_ok=True)
         if n.endswith("assignment_settings.xml"):
             data = assignment_from_xml(read(n), None)
+            attach_rubric(data, rubrics)
             body = next((b for b in names if b.startswith(f"{rid}/") and b.endswith(".html")), None)
             if body:
                 data["description"] = read(body)
