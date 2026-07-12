@@ -331,6 +331,25 @@ Re-importing a **New Quizzes** assessment reverts it to the original — edits d
 update a New Quiz you must duplicate it in Canvas, then import. Flag New Quizzes during
 validation so faculty aren't surprised.
 
+### Blueprint-locked items "shift back" (2026-07-12 finding)
+
+If a course is **associated with a Canvas Blueprint**, blueprint-locked items (commonly
+standardized things like the end-of-course evaluation) get their locked attributes —
+including dates — from the MASTER course. A date-shift + re-import does NOT stick on those
+items: the blueprint sync (or the import itself) overrides the shifted dates with the
+master's, so they **revert / "shift back."** Shifting a locked item is therefore futile as
+well as against policy — **do not touch blueprint-locked items.**
+
+Crucially, **blueprint-lock status is NOT in the `.imscc`** — it's a Canvas-side association,
+not exported content. So `imscc_adjust_dates` (which edits the file) cannot see or skip
+locked items; it shifts every date, and Canvas reverts the locked ones on import. A
+blueprint-aware shift (exclude/flag locked items) would require the **API**
+(`GET /courses/:id/blueprint_subscriptions` / blueprint restrictions), not the export.
+
+Observed: the sandbox's "W13 End-of-Course Evaluation" had `lock_at` 59 seconds before
+`due_at` (a blueprint-set value Canvas tolerates) — which also surfaced that the date
+validator must NOT block on pre-existing source quirks, only on issues a shift introduces.
+
 ### Related gradebook finding (not .imscc, but shapes the offline flow)
 
 Canvas gradebook **CSV import does not carry submission comments** — scores only (open,
