@@ -166,22 +166,23 @@ In short, every contributor — human or LLM — operates under these principles
 
 For the full principles and override rules, see `knowledge/behavioral_discipline.md` → "The Ten Principles". The four no-override principles (P-001 Read Before Claiming, P-003 Stop on Defect, P-007 Pull Don't Push, P-010 Respect Intent) apply unconditionally.
 
-**Project-specific rules**:
-- **Local files are source of truth.** Canvas is the sync target, not the source. Never treat Canvas as authoritative unless `--pull` was just run.
-- **Ground pedagogical work in the knowledge base — don't free-style it.** Before any course design, redesign, audit, or outcome/assessment/rubric work (e.g. *"architect a redesign — start with the CLOs"*), read [`lib/agents/knowledge/README.md`](lib/agents/knowledge/README.md) and follow its routing table to the relevant knowledge file(s) **first**, then pull them in the documented order. Cite which files you used so the operator can verify the work is grounded in the toolkit's cited frameworks rather than the model's generic training. The deterministic audit tools (`clo_quality_audit.py`, `rubric_quality_audit.py`, etc.) encode the same frameworks and emit tags — run them to get real course data, but the knowledge files carry the judgment the tools can't (e.g. catching a rubric-criterion artifact mis-discovered as a CLO).
-- **Validate audit baseline before redesign workflows.** Before starting a redesign (Flow A in [`docs/course-design-workflow.md`](docs/course-design-workflow.md)), check `.canvas/audit/<course_id>.json` for a recent audit artifact: (1) verify `course_id` matches the target course (never redesign course X using course Y's audit), (2) warn if `run_at` > 30 days (semester-scale staleness), (3) if absent/stale, run `course_audit.py` first. The artifact enables **progress tracking across iterations** — compare findings semester-over-semester (`missing_rubrics: 32 → 22 → 12`) to validate iterative improvements. See [`docs/proposals/audit-artifact-progress-tracking.md`](docs/proposals/audit-artifact-progress-tracking.md) for rationale.
-- **Canvas IDs are course-specific.** Match content across courses by title, never by ID. The same assignment has different IDs in master, blueprint, and every section.
-- **Adding content requires two steps: course + module.** Creating an assignment, quiz, or page is not enough — it must also be added as a module item, or students cannot find it.
-- **Confirm scope before any write.** Master, blueprint, and sections are different courses with different IDs. A push scoped wrong replicates to the wrong course.
-- **`request_confirmation()` must return `approved=true` before any Canvas write.** Audit agents enforce this; honor it manually too.
-- **Run `course_quality_check.py` after every push** — surfaces orphaned items, duplicates, and dates outside the course window.
-- **Completion requirements enable the prerequisite chain.** Sequential sprint locks silently fail if any item lacks `must_submit` (assignments, quizzes), `must_contribute` (discussions), or `must_view` (pages, tools, URLs). This is the `chain-complete` policy `module_settings_sync.py` applies by default.
-- **Keep institutional and course-specific facts out of committed files.** This toolkit is institution-agnostic by design. Course IDs, semester data, instructor names, institutional vocabulary that isn't already neutralized (e.g., "BYUI" outside the institution-specific `byui_course_design/` template-set), and any per-course working state belong in `.env`, in `pre_knowledge/` (gitignored), or in per-course downstream repos that subtree-pull this toolkit — never in `AGENTS.md`, `README.md`, or other committed top-level files.
-- **Sandbox-first testing: validate new or changed tools against a sandbox course before handing them off.** Before a new/changed tool is committed for a downstream repo or person to test (e.g., a course repo that subtree-pulls this toolkit), exercise it first against a write-safe sandbox course (`CANVAS_SANDBOX_ID` in `.env`) on the real Canvas API — not just unit tests and `--help`/argparse smoke. If the change needs specific conditions to exercise (e.g., rubrics of various shapes for the rubric audit tools), **create those scenarios in the sandbox** — it's write-safe and built for exactly this. Real-API failures should be caught in-house, not by downstream testers. (Motivating case: 2026-05-21, the rubric audit tools were handed to a downstream course repo with no live-API run here first; they hit a blocking `CANVAS_BASE_URL` scheme bug on the first invocation — a defect a 30-second sandbox run would have caught.)
-- **Surface-before-apply (P-002) applies to every state-changing action**, not just cross-repo handoffs. **GitHub-issue triage is in scope:** between *"I understand the issue"* and the first `Edit` / `Bash` commit / `gh issue close`, propose the fix and wait for explicit go. **A one-word reply on a *summary* is ambiguous** — *"continue"* / *"yes"* / *"ok"* can mean *"continue the conversation, what's the plan?"* or *"go execute."* Clarify, don't infer. **Explicit go triggers** (honored without re-surfacing): *"go,"* *"yes apply,"* *"flow approved,"* *"fix and ship,"* *"I trust the call here."* No smallness loophole — a one-line `replace_all` and a 200-line refactor both need surfacing. (Motivating case: 2026-06-01, issue #38 fix bypassed surfacing because the agent inferred go from a *"continue"* that was meant as continue-the-conversation. See [`lib/agents/knowledge/learned/2026-06-01_surface-before-apply-on-issue-triage.md`](lib/agents/knowledge/learned/2026-06-01_surface-before-apply-on-issue-triage.md) for the failure-mode write-up.)
-- **`git push` after every commit** — in BOTH consumer repos AND canvas-toolbox itself. A commit that isn't pushed isn't a backup; it can be lost to disk failure, mistaken `reset --hard`, or just forgotten across a session boundary. **Local-only commits are a smell.** The goal is `git log --branches --not --remotes` showing zero commits at all times. Use `git add ... && git commit -m "..." && git push` as the single operation; if `git push` is omitted, the next session inherits unpushed work. **Two motivating cases**: (a) 2026-06-17, itm327-master had 23 local-only commits ahead of origin spanning ~3 weeks of canvas-toolbox-prompted work (issue #88); (b) 2026-06-18, canvas-toolbox itself had 6 local-only commits when an adopter cloned from GitHub and found `cb_init.py` missing — the v0.54.0 work was complete locally but invisible to the world. The rule applies to maintainers, not just adopters.
-- **Placeholder names in code comments, commit messages, and prose docs must be visibly fake.** In any prose context (code comments, commit messages, AGENTS.md entries, learned-lessons docs, parking-lot entries), the first appearance of a placeholder name **gets the explicit "fake" annotation** — `"Sarah" (fake name)` — and subsequent appearances in the same artifact stay in quotes: `"Sarah"`. The annotation is an **active FERPA-discipline signal** so any reader (auditor, IRB, future contributor) immediately knows the name is not real. Inside test FIXTURES (literal grading-comment strings), names stay un-quoted because the tests assert against the literal shape; instead, the test file's top docstring documents the convention. Common first names ("Sarah", "Alex", "Maria") chosen for readability remain fine — the discipline is to make their placeholder-status VISIBLE, not to invent obscure tokens. **Motivating case**: 2026-06-22 (v0.57.1 → v0.57.2), the FERPA-fix commit for #94 used "Sarah" throughout as a placeholder (the reporter had been more careful, using `<Name>`). Operator caught the inconsistency: "we shipped a FERPA fix; did we ourselves follow FERPA discipline in the artifacts?" — answer: not visibly enough. The annotation pattern was adopted to over-communicate the discipline rather than rely on context for it.
-- **Deterministic-first grader design — bias toward Python; reach for the LLM where contextual judgment or voice-anchored prose is the better fit. It's a tuning preference, not a hard rule.** Many rubric criteria (output matching, structural checks, function-signature presence, count thresholds, completion-basis ratios, file-presence) are cleanly deterministic — `regex` / `Levenshtein` / `AST parse` / a counter + a threshold. The LLM has clear strength on: contextual judgment on prose where a rule can't reach (was the reflection coherent? did they engage with the prompt?), and writing voice-anchored student-facing comments. **But there's a real messy middle** where the right call isn't obvious — "is the code well-organized?" / "did the analysis go deep enough?" / "is the voice appropriate?" — criteria that LOOK rule-friendly but resist clean regex, OR look LLM-only but have deterministic shadows (length checks, structural-flatness heuristics) that approximate the judgment cheaply. **The principle is a preference, not a mechanical filter:** prefer Python when the criterion is cleanly deterministic; prefer the LLM when contextual judgment is genuinely required; in the messy middle, **the rubric author / instructor decides** based on pedagogical intent, available time, and what fits THEIR rubric (sometimes a deterministic prefilter + LLM-on-what-passes is the right hybrid). **Migration is fine** — a criterion may start as LLM (cheap proof-of-concept) and harden to deterministic later when patterns emerge; or start deterministic and escalate to LLM when the rule misses cases. **The grader pipeline today already follows the preference for parts of the work** (`grader_signals.py` extracts signals deterministically; `grader_reconcile.py` counts via `completion_basis`; `grader_competency_grade.py` applies tier thresholds rule-based) — the discipline is to ASK the question at design time, not to assume the LLM is the default. **Why it matters**: deterministic checks are free (no token cost), reproducible, auditable, and FERPA-safe by default. The LLM's cost / drift / pedagogical-risk concentrate on the (smaller) judgment-required portion. **Motivating case**: 2026-06-22 design conversation on a potential v1.2 auto-grade-on-cycle feature — original framing assumed the LLM grades everything per submission; operator's reframe ("use deterministic where you can; LLM for context and comments") collapsed token cost + drift + safety concerns substantially, BUT the operator also flagged the messy middle so the principle is "tuned toward Python first" — not a hard binary. See `lib/agents/knowledge/grader_knowledge.md` §16 + the v1.2 parking-lot entry for the full nuance.
+**Project-specific rules** (summaries — see [`lib/agents/knowledge/working_style_canvas_toolbox.md`](lib/agents/knowledge/working_style_canvas_toolbox.md) for detailed explanations + motivating cases):
+
+- Local files are source of truth (Canvas is sync target)
+- Ground pedagogical work in knowledge base (cite frameworks used)
+- Validate audit baseline before redesign (check `.canvas/audit/<course_id>.json`)
+- Canvas IDs are course-specific (match by title, not ID)
+- Adding content requires course + module steps
+- Confirm scope before any write (master vs blueprint vs sections)
+- `request_confirmation()` required before Canvas writes
+- Run `course_quality_check.py` after every push
+- Completion requirements enable prerequisite chain
+- Keep institutional facts out of committed files (institution-agnostic)
+- Sandbox-first testing before handoffs
+- Surface-before-apply on every state change (including GitHub issues)
+- `git push` after every commit (no local-only commits)
+- Placeholder names must be visibly fake (`"Sarah" (fake name)`)
+- Deterministic-first grader design (Python over LLM when deterministic)
 
 ## Quality Discipline (Toyota Production System)
 
@@ -389,42 +390,21 @@ private channel is for security.
 
 ## Active Context
 
-_Last updated: 2026-07-07_
+_Last updated: 2026-07-12_
 
-Latest 5 releases only — full detail for every version is in
-[`CHANGELOG.md`](CHANGELOG.md). On each release, add the new entry on top and
-rotate the oldest out. Kept to ≤5 entries / ≤150 lines / ≤25k tokens, enforced
-in CI per make_AGENTS AGENTS-QC-010 + AGENTS-QC-011.
+Latest 3 releases only — full detail for every version is in [`CHANGELOG.md`](CHANGELOG.md). On each release, add the new entry on top and rotate the oldest out. Kept to ≤3 entries / ≤100 lines / ≤10k tokens for active development phase (faster HERMES cycle during beta/sprint cadence).
 
 ### Recent: v1.6 course-centric architecture (v1.6.0, 2026-07-07)
 
-Major architecture refactor: course files (.env, AGENTS.md, course/, grading/, handoffs/) now live at course root (DS460/), not inside canvas-toolbox/. cb-init auto-detects subdirectory context and creates files in the right location. Includes v1.5 → v1.6 migration detection for .env relocation. 13-step cb-init (was 9): adds .gitignore creation, canvas-sync --pull, course-level AGENTS.md stub generation, and opt-in handoffs/ directory (--with-handoffs flag). Eliminates multi-course "which canvas-toolbox is this?" confusion. Tools continue to run from course root unchanged. Full backward compatibility for standalone mode. See docs/proposals/v1.6-cb-init-refactor-plan.md for implementation details.
+Major architecture refactor: course files (.env, AGENTS.md, course/, grading/, handoffs/) now live at course root (DS460/), not inside canvas-toolbox/. cb-init auto-detects subdirectory context and creates files in the right location. Includes v1.5 → v1.6 migration detection for .env relocation. 13-step cb-init (was 9): adds .gitignore creation, canvas-sync --pull, course-level AGENTS.md stub generation, and opt-in handoffs/ directory (--with-handoffs flag). Eliminates multi-course "which canvas-toolbox is this?" confusion. Tools continue to run from course root unchanged. Full backward compatibility for standalone mode.
 
 ### Earlier: AGENTS.md trimmed to rotating latest-5 + CI guard (v0.72.3, 2026-06-29)
 
-Active Context had grown into a 182 KB append-only release log (past host-tool
-read limits). Trimmed to the latest 5 entries; full history moved to CHANGELOG.
-CI guard enforces the rotation/size thresholds. Also repaired 25 stale relative
-links (doc moves + `lib/agents/`).
-
-### Earlier: README marketing restructure + repo-root declutter (v0.72.2, 2026-06-29)
-
-Marketing-ready landing: setup moved to the top, three-box launchpad
-(Build & revise · Audit & improve · Grade), advanced Orca multi-course option.
-Repo root decluttered 18 → 12 files (health files → `.github/`, long docs → `docs/`).
-
-### Earlier: README polish — surface quiz time extension + fix late-work intro (v0.72.1, 2026-06-26)
-
-Docs-only: gave `student_quiz_time_extension.py` a standalone README section +
-13th workflow row; fixed the late-work intro to mention both override flavors
-(drop lock_at vs `--shift-by-days`).
+Active Context had grown into a 182 KB append-only release log (past host-tool read limits). Trimmed to latest 5 entries; full history moved to CHANGELOG. CI guard enforces rotation/size thresholds. Also repaired 25 stale relative links (doc moves + `lib/agents/`).
 
 ### Earlier: BYUI SAS accommodation sprint — quiz time + test_reschedule + dispatcher (v0.72.0, 2026-06-26)
 
-Three-item SAS sprint: `student_quiz_time_extension.py` (per-student classic-quiz
-time multiplier), `--shift-by-days` mode on `student_late_accommodation.py`
-(test_reschedule), and `apply_sas_accommodations.py` (YAML dispatcher, 4-tier
-classify, FERPA audit log). +55 tests. New Quizzes (LTI) deferred.
+Three-item SAS sprint: `student_quiz_time_extension.py` (per-student classic-quiz time multiplier), `--shift-by-days` mode on `student_late_accommodation.py` (test_reschedule), and `apply_sas_accommodations.py` (YAML dispatcher, 4-tier classify, FERPA audit log). +55 tests. New Quizzes (LTI) deferred.
 
 _Earlier releases (v0.71.0 and back) live in the [CHANGELOG](CHANGELOG.md)._
 
