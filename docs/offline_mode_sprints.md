@@ -281,19 +281,22 @@ python lib/tools/sync_to_new.py --export-imscc ~/Desktop/course_new_semester.ims
   - Full offline grading workflow
   - Full offline course copy workflow
   - Hybrid mode (API + CSV backup)
-- [ ] Create `docs/offline_mode_guide.md` (faculty-facing)
-  - How to download files via Canvas UI
-  - Step-by-step grading workflow
-  - Step-by-step course copy workflow
-  - Troubleshooting common issues
-- [ ] Create `docs/offline_mode_troubleshooting.md`
-  - File not found errors
-  - CSV format mismatches
-  - De-identification issues
-  - Upload errors
-- [ ] Update main README.md
-  - Add offline mode section
-  - Link to guides
+- [ ] ✅ Create `docs/offline_readme.md` (faculty-facing) - **COMPLETED**
+  - Tool compatibility matrix (✅ supported, ⚠️ partial, ❌ not supported)
+  - Quick start guide (download → process → upload)
+  - Common workflows (grading, course copy, audits)
+  - FERPA compliance (auto de-ID/re-ID)
+  - Troubleshooting guide
+  - Hybrid mode documentation
+- [ ] Update main `README.md`
+  - Add "Offline Mode (No API Required)" section under Features
+  - Link to `docs/offline_readme.md`
+  - Update setup instructions to mention both API and offline modes
+  - Add CANVAS_MODE environment variable to config section
+- [ ] Update `.env.example`
+  - Add CANVAS_MODE documentation
+  - Explain online vs offline modes
+  - Link to offline_readme.md
 - [ ] Create demo video (optional)
   - Screen recording of offline workflow
   - Faculty-friendly walkthrough
