@@ -183,6 +183,58 @@ For the full principles and override rules, see `knowledge/behavioral_discipline
 - **Placeholder names in code comments, commit messages, and prose docs must be visibly fake.** In any prose context (code comments, commit messages, AGENTS.md entries, learned-lessons docs, parking-lot entries), the first appearance of a placeholder name **gets the explicit "fake" annotation** — `"Sarah" (fake name)` — and subsequent appearances in the same artifact stay in quotes: `"Sarah"`. The annotation is an **active FERPA-discipline signal** so any reader (auditor, IRB, future contributor) immediately knows the name is not real. Inside test FIXTURES (literal grading-comment strings), names stay un-quoted because the tests assert against the literal shape; instead, the test file's top docstring documents the convention. Common first names ("Sarah", "Alex", "Maria") chosen for readability remain fine — the discipline is to make their placeholder-status VISIBLE, not to invent obscure tokens. **Motivating case**: 2026-06-22 (v0.57.1 → v0.57.2), the FERPA-fix commit for #94 used "Sarah" throughout as a placeholder (the reporter had been more careful, using `<Name>`). Operator caught the inconsistency: "we shipped a FERPA fix; did we ourselves follow FERPA discipline in the artifacts?" — answer: not visibly enough. The annotation pattern was adopted to over-communicate the discipline rather than rely on context for it.
 - **Deterministic-first grader design — bias toward Python; reach for the LLM where contextual judgment or voice-anchored prose is the better fit. It's a tuning preference, not a hard rule.** Many rubric criteria (output matching, structural checks, function-signature presence, count thresholds, completion-basis ratios, file-presence) are cleanly deterministic — `regex` / `Levenshtein` / `AST parse` / a counter + a threshold. The LLM has clear strength on: contextual judgment on prose where a rule can't reach (was the reflection coherent? did they engage with the prompt?), and writing voice-anchored student-facing comments. **But there's a real messy middle** where the right call isn't obvious — "is the code well-organized?" / "did the analysis go deep enough?" / "is the voice appropriate?" — criteria that LOOK rule-friendly but resist clean regex, OR look LLM-only but have deterministic shadows (length checks, structural-flatness heuristics) that approximate the judgment cheaply. **The principle is a preference, not a mechanical filter:** prefer Python when the criterion is cleanly deterministic; prefer the LLM when contextual judgment is genuinely required; in the messy middle, **the rubric author / instructor decides** based on pedagogical intent, available time, and what fits THEIR rubric (sometimes a deterministic prefilter + LLM-on-what-passes is the right hybrid). **Migration is fine** — a criterion may start as LLM (cheap proof-of-concept) and harden to deterministic later when patterns emerge; or start deterministic and escalate to LLM when the rule misses cases. **The grader pipeline today already follows the preference for parts of the work** (`grader_signals.py` extracts signals deterministically; `grader_reconcile.py` counts via `completion_basis`; `grader_competency_grade.py` applies tier thresholds rule-based) — the discipline is to ASK the question at design time, not to assume the LLM is the default. **Why it matters**: deterministic checks are free (no token cost), reproducible, auditable, and FERPA-safe by default. The LLM's cost / drift / pedagogical-risk concentrate on the (smaller) judgment-required portion. **Motivating case**: 2026-06-22 design conversation on a potential v1.2 auto-grade-on-cycle feature — original framing assumed the LLM grades everything per submission; operator's reframe ("use deterministic where you can; LLM for context and comments") collapsed token cost + drift + safety concerns substantially, BUT the operator also flagged the messy middle so the principle is "tuned toward Python first" — not a hard binary. See `lib/agents/knowledge/grader_knowledge.md` §16 + the v1.2 parking-lot entry for the full nuance.
 
+## Quality Discipline (Toyota Production System)
+
+AI agents working in this repo must follow three core quality principles:
+
+### 1. Genchi Gembutsu (現地現物) - Go and See
+
+**Don't assume, verify with real data:**
+- Test with REAL user data, not synthetic fixtures
+- When uncertain about format, examine actual files
+- Verify in real environment, don't trust docs alone
+- Read actual code before claiming understanding
+
+**Behavioral trigger**: When you catch yourself saying "probably" or "should" → STOP and verify
+
+### 2. Jidoka (自働化) - Built-in Quality / Stop on Defect
+
+**Build quality in, stop when defect detected:**
+- Write tests WITH code, not after
+- Red tests block progress - fix immediately, don't defer
+- Validation runs automatically (not manual step)
+- Can't merge/export with errors (blocked by design)
+
+**Behavioral trigger**: When you want to say "we'll fix this later" → STOP and fix now
+
+**Aligns with**: P-003 Stop on Defect
+
+### 3. Poka-yoke (ポカヨケ) - Mistake-Proofing
+
+**Design so mistakes can't happen:**
+- Automate validation (no manual steps)
+- Use pre-commit hooks to catch errors
+- Type hints catch errors at write-time
+- Block operations that would create defects
+
+**Behavioral trigger**: When manual verification required → Design it out
+
+---
+
+## Quality Loop
+
+These three work together:
+
+```
+Prevent (Poka-yoke) → Detect (Jidoka) → Verify (Genchi Gembutsu)
+         ↑______________________________________________|
+```
+
+When you find a defect:
+1. **Fix it** (Jidoka - stop and correct)
+2. **Verify the fix** (Genchi Gembutsu - test with real data)
+3. **Prevent recurrence** (Poka-yoke - add automated check)
+
 ## Handoff document recognition
 
 This repo participates in the cross-repo `handoff` convention (canonical spec: [`handoff/CONVENTION.md`](https://github.com/chaz-clark/handoff/blob/main/CONVENTION.md)). When operating in this repo, treat the following file patterns as **handoff documents** — structured artifacts with a lifecycle, NOT prose conversation:

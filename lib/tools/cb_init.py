@@ -720,6 +720,49 @@ uv run python canvas-toolbox/lib/tools/course_audit.py --help
 
 ---
 
+## Quality Discipline (Toyota Production System)
+
+AI agents working on this course follow three core quality principles:
+
+### 1. Genchi Gembutsu (現地現物) - Go and See
+
+**Don't assume, verify with real data:**
+- Test with REAL course data, not synthetic fixtures
+- When uncertain about format, examine actual files
+- Verify in Canvas sandbox, don't trust docs alone
+- Read actual code before claiming understanding
+
+**Behavioral trigger**: When you catch yourself saying "probably" or "should" → STOP and verify
+
+### 2. Jidoka (自働化) - Built-in Quality / Stop on Defect
+
+**Build quality in, stop when defect detected:**
+- Write tests WITH code, not after
+- Red tests block progress - fix immediately, don't defer
+- Validation runs automatically (not manual step)
+- Can't push to Canvas with errors (blocked by design)
+
+**Behavioral trigger**: When you want to say "we'll fix this later" → STOP and fix now
+
+### 3. Poka-yoke (ポカヨケ) - Mistake-Proofing
+
+**Design so mistakes can't happen:**
+- Automate validation (no manual steps)
+- Use pre-commit hooks to catch errors
+- Type hints catch errors at write-time
+- Block operations that would create defects
+
+**Behavioral trigger**: When manual verification required → Design it out
+
+**Quality Loop**: Prevent (Poka-yoke) → Detect (Jidoka) → Verify (Genchi Gembutsu)
+
+When you find a defect:
+1. **Fix it** (Jidoka - stop and correct)
+2. **Verify the fix** (Genchi Gembutsu - test with real data)
+3. **Prevent recurrence** (Poka-yoke - add automated check)
+
+---
+
 ## Course Context
 
 [Add course-specific context here as you work]
