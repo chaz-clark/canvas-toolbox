@@ -65,8 +65,10 @@ def _dates_points(xml: str, d: dict) -> None:
 
 def assignment_from_xml(xml: str, published: bool | None) -> dict:
     d = {"name": _field(xml, "title")}
-    ws = _field(xml, "workflow_state")
-    d["published"] = (ws == "published") if ws else bool(published)
+    # Emit workflow_state (API shape) — audits filter on it ("published").
+    ws = _field(xml, "workflow_state") or ("published" if published else "unpublished")
+    d["workflow_state"] = ws
+    d["published"] = (ws == "published")
     st = _field(xml, "submission_types")
     if st is not None:
         d["submission_types"] = [s for s in st.split(",") if s]
@@ -76,17 +78,24 @@ def assignment_from_xml(xml: str, published: bool | None) -> dict:
     ae = _field(xml, "allowed_extensions")
     if ae:
         d["allowed_extensions"] = [e for e in ae.split(",") if e]
+    ref = _field(xml, "assignment_group_identifierref")
+    if ref:
+        d["assignment_group_identifierref"] = ref   # join key for assignment groups
     _dates_points(xml, d)
     return d
 
 
 def quiz_from_xml(xml: str, published: bool | None) -> dict:
     d = {"name": _field(xml, "title"), "submission_types": ["online_quiz"]}
-    ws = _field(xml, "workflow_state")
-    d["published"] = (ws == "published") if ws else bool(published)
+    ws = _field(xml, "workflow_state") or ("published" if published else "unpublished")
+    d["workflow_state"] = ws
+    d["published"] = (ws == "published")
     qt = _field(xml, "quiz_type")
     if qt:
         d["quiz_type"] = qt
+    ref = _field(xml, "assignment_group_identifierref")
+    if ref:
+        d["assignment_group_identifierref"] = ref   # quizzes belong to a group too
     _dates_points(xml, d)
     return d
 
@@ -126,8 +135,24 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
     if syllabus:
         (out / "syllabus.html").write_text(syllabus, encoding="utf-8")
 
+    # Assignment groups (for grading-structure / weighting audits). The group↔
+    # assignment link is assignment_group_identifierref on each assignment.
+    ag = read("course_settings/assignment_groups.xml")
+    if ag:
+        groups = []
+        for m in re.finditer(r'<assignmentGroup\s+identifier="([^"]+)"[^>]*>(.*?)</assignmentGroup>', ag, re.S):
+            gid, body = m.group(1), m.group(2)
+            groups.append({
+                "identifier": gid,
+                "name": _field(body, "title"),
+                "group_weight": float(_field(body, "group_weight") or 0),
+                "position": int(_field(body, "position") or 0),
+            })
+        (out / "_assignment_groups.json").write_text(json.dumps(groups, indent=2), encoding="utf-8")
+
     hrefs = _manifest_hrefs(read("imsmanifest.xml"))
     counts = {"modules": 0, "assignments": 0, "quizzes": 0, "pages": 0}
+    captured: set[str] = set()   # identifierrefs written via modules
 
     mm = read("course_settings/module_meta.xml")
     for mod in re.findall(r"<module\b[^>]*>(.*?)</module>", mm, re.S):
@@ -153,10 +178,12 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
                     data["description"] = read(body)
                 (mod_dir / f"{slugify(it_title)}.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
                 counts["assignments"] += 1
+                captured.add(ref)
             elif ct == "Quizzes::Quiz" and f"{ref}/assessment_meta.xml" in names:
                 data = quiz_from_xml(read(f"{ref}/assessment_meta.xml"), it_pub)
                 (mod_dir / f"{slugify(it_title)}.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
                 counts["quizzes"] += 1
+                captured.add(ref)
             elif ct == "WikiPage" and hrefs.get(ref) in names:
                 (mod_dir / f"{slugify(it_title)}.html").write_text(read(hrefs[ref]), encoding="utf-8")
                 counts["pages"] += 1
@@ -165,6 +192,35 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
             encoding="utf-8",
         )
         counts["modules"] += 1
+
+    # Non-module assignments/quizzes: present in the .imscc but not referenced by
+    # any module (e.g. a standalone graded item). Capture into an "_unfiled"
+    # module so grading/points audits see the full set.
+    unfiled = out / "_unfiled"
+    for n in names:
+        if not (n.endswith("/assignment_settings.xml") or n.endswith("/assessment_meta.xml")):
+            continue
+        rid = n.split("/")[0]
+        if rid in captured:
+            continue
+        captured.add(rid)
+        unfiled.mkdir(parents=True, exist_ok=True)
+        if n.endswith("assignment_settings.xml"):
+            data = assignment_from_xml(read(n), None)
+            body = next((b for b in names if b.startswith(f"{rid}/") and b.endswith(".html")), None)
+            if body:
+                data["description"] = read(body)
+            counts["assignments"] += 1
+        else:
+            data = quiz_from_xml(read(n), None)
+            counts["quizzes"] += 1
+        (unfiled / f"{slugify(data.get('name') or rid)}.json").write_text(
+            json.dumps(data, indent=2), encoding="utf-8")
+    if unfiled.is_dir():
+        (unfiled / "_module.json").write_text(
+            json.dumps({"title": "(unfiled)", "published": False, "items": []}, indent=2),
+            encoding="utf-8")
+
     return counts
 
 

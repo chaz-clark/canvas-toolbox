@@ -85,6 +85,35 @@ class Course:
         ({title, body}). Title is the file slug (identifies the page in reports)."""
         return [{"title": p.stem, "body": p.read_text(encoding="utf-8")} for p in self.page_paths()]
 
+    def assignment_groups(self) -> list[dict]:
+        """Assignment groups with their assignments nested — shaped like an API
+        /assignment_groups?include[]=assignments response. Empty if the local
+        store has no _assignment_groups.json (e.g. an older canvas_sync pull)."""
+        p = self.dir / "_assignment_groups.json"
+        if not p.is_file():
+            return []
+        groups = json.loads(p.read_text(encoding="utf-8"))
+        by_ref: dict[str, list[dict]] = {}
+        for a in self.assignments:
+            ref = a.get("assignment_group_identifierref")
+            if ref:
+                by_ref.setdefault(ref, []).append(a)
+        return [
+            {
+                "id": g.get("identifier"),
+                "name": g.get("name"),
+                "group_weight": g.get("group_weight", 0),
+                "position": g.get("position", 0),
+                "assignments": by_ref.get(g.get("identifier"), []),
+            }
+            for g in groups
+        ]
+
+    def apply_assignment_group_weights(self) -> bool:
+        """Inferred: weighting is on if any group carries a nonzero weight (the
+        .imscc course_settings.xml omits the explicit flag)."""
+        return any((g.get("group_weight") or 0) > 0 for g in self.assignment_groups())
+
 
 def load_course(course_dir=DEFAULT_COURSE_DIR) -> Course:
     """Load course/ into a Course model. Raises CourseNotFound if it isn't

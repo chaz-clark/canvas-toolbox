@@ -50,9 +50,14 @@ def _make_imscc(path: Path):
             "<assignment><title>HW 1</title><workflow_state>published</workflow_state>"
             "<points_possible>100.0</points_possible><due_at>2026-09-05T05:59:00</due_at>"
             "<submission_types>online_upload,online_text_entry</submission_types>"
+            "<assignment_group_identifierref>gGRP1</assignment_group_identifierref>"
             "<grading_type>points</grading_type></assignment>",
         "gAAA/hw-1.html": "<p>Read chapter 1 and submit.</p>",     # assignment description body
         "course_settings/syllabus.html": "<h1>Syllabus</h1><p>Grading policy...</p>",
+        "course_settings/assignment_groups.xml":
+            '<assignmentGroups><assignmentGroup identifier="gGRP1">'
+            "<title>Homework</title><position>1</position><group_weight>100.0</group_weight>"
+            "</assignmentGroup></assignmentGroups>",
         "gBBB/assessment_meta.xml":
             "<quiz><title>Quiz 1</title><points_possible>10.0</points_possible>"
             "<due_at>2026-09-12T05:59:00</due_at><quiz_type>assignment</quiz_type></quiz>",
@@ -175,6 +180,22 @@ def test_accessibility_audit_local_runs(tmp_path):
     r = _run_local_audit(tmp_path, "accessibility_audit.py", "--emit-json")
     assert r.stdout.strip(), r.stderr
     assert isinstance(json.loads(r.stdout), dict)   # ran offline, zero API calls
+
+
+def test_import_captures_assignment_groups(tmp_path):
+    import_imscc(_make_imscc(tmp_path / "c.imscc"), tmp_path / "course")
+    from _course_loader import load_course
+    groups = load_course(tmp_path / "course").assignment_groups()
+    assert any(
+        g["name"] == "Homework" and any(a["name"] == "HW 1" for a in g["assignments"])
+        for g in groups
+    )
+
+
+def test_grading_structure_audit_local_runs(tmp_path):
+    r = _run_local_audit(tmp_path, "grading_structure_audit.py", "--emit-json")
+    assert r.stdout.strip(), r.stderr
+    assert isinstance(json.loads(r.stdout), dict)   # groups joined, ran offline
 
 
 def test_full_pipeline_cross_validation_if_present(tmp_path):
