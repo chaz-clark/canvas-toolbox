@@ -156,6 +156,27 @@ def test_syllabus_audit_local_runs_without_api(tmp_path):
     assert isinstance(payload, dict) and payload
 
 
+def _run_local_audit(tmp_path, tool, flag):
+    import_imscc(_make_imscc(tmp_path / "c.imscc"), tmp_path / "course")
+    env = {**os.environ, "CANVAS_API_TOKEN": "bogus", "CANVAS_BASE_URL": "https://x"}
+    return subprocess.run(
+        [sys.executable, str(_TOOLS_DIR / tool), "--course-dir", str(tmp_path / "course"), flag],
+        capture_output=True, text=True, env=env,
+    )
+
+
+def test_content_representation_audit_local_runs(tmp_path):
+    r = _run_local_audit(tmp_path, "content_representation_audit.py", "--json")
+    assert r.stdout.strip(), r.stderr
+    assert isinstance(json.loads(r.stdout), dict)   # ran offline, zero API calls
+
+
+def test_accessibility_audit_local_runs(tmp_path):
+    r = _run_local_audit(tmp_path, "accessibility_audit.py", "--emit-json")
+    assert r.stdout.strip(), r.stderr
+    assert isinstance(json.loads(r.stdout), dict)   # ran offline, zero API calls
+
+
 def test_full_pipeline_cross_validation_if_present(tmp_path):
     """Cross-validate the WHOLE offline path — import .imscc -> load -> audit —
     across every real course, fully offline (bogus token = zero API calls)."""
