@@ -1,5 +1,66 @@
 # Offline Mode Implementation - Sprint Plan
 
+> ## ⚠️ STATUS & RE-SCOPE — updated 2026-07-12 (read this first)
+>
+> This header supersedes the original plan below, which mis-scoped the
+> architecture. The original 6-sprint plan is kept underneath as history.
+>
+> ### What actually shipped — Sprints 1–4 (merged to `main`)
+> Offline **data formats** — the pieces that let offline data exist:
+> - **S1 (#141)** — `CANVAS_MODE` flag, gradebook CSV parse/write (`_csv_utils`),
+>   download finder + offline hard-stop (`_file_finder`). Helpers live in
+>   `lib/tools/` as `_`-prefixed modules (NOT `lib/utils/`). Real env var is
+>   `CANVAS_API_TOKEN` (the plan's `CANVAS_TOKEN` was never real).
+> - **S2 (#142)** — gradebook de-identify / re-identify, reusing the toolbox-wide
+>   `deid_code_for`. Opt-out posture; deterministic code-based re-ID.
+> - **S3 (#143)** — `grader_gradebook_apply.py`: offline scores → gradebook CSV
+>   (resolves by Canvas id / de-id code / name).
+> - **S4 (#144)** — `.imscc` date-shift **in place** (identifiers preserved) +
+>   `validate_imscc` + **DST-correct** shifting via `CANVAS_TIMEZONE`.
+>
+> ### The architectural correction (the real goal)
+> The original plan assumed a `.imscc → .canvas/` converter would make the tools
+> work offline. That was wrong:
+> - **59 tools call the Canvas API directly**; only ~4 read the local `course/`.
+> - `canvas_sync --pull` ALREADY writes the full course into **`course/`**
+>   (`_course.json`, per-module `_module.json`, page `.html`, assignment/quiz
+>   `.json` with dates/points). `.canvas/index.json` is sync STATE only.
+> - So audits **re-fetch data they already have locally** — redundant API overuse.
+>
+> **Intended architecture:** every tool reads `course/`, source-agnostic.
+> `canvas_sync` fills `course/` from the API; `offline_import` fills it from
+> `.imscc`. "How the files got there" is the only difference — and reading
+> `course/` kills the API overuse in ONLINE mode too.
+>
+> **Known constraint:** `course/` doesn't yet hold everything — `canvas_sync`
+> skips **rubrics, learning outcomes, assignment groups**. Tools needing those
+> require the local store to be widened first. Analytics/engagement is API-only.
+>
+> ### Re-scoped remaining sprints
+> - **S5 — Local-read foundation:** `_course_loader.py` (reads `course/` into a
+>   model) + convert 1 pilot audit (`workload_audit.py` — needs only assignments)
+>   to read local, source-agnostic. Parity-test local-vs-API on sandbox 427808.
+> - **S6 — offline_import:** `.imscc → course/` so offline populates the SAME
+>   store. Test the pilot audit on imported DS 250 data.
+> - **S7 — Widen the local store:** pull/store rubrics + outcomes + assignment
+>   groups in `canvas_sync` (+ `offline_import`); convert the audits that need
+>   them (`grading_structure_audit`, rubric audits).
+> - **S8 — Fan out:** convert remaining content/structure audits to the loader.
+> - **S9 — Remainder + honest docs:** convert remaining local-feasible tools;
+>   document what stays API-only; correct `offline_mode.md` / `offline_readme.md`.
+>
+> ### Doc corrections to fold in at S9
+> - `grade_assignments.py` and `adjust_dates.py` are **fictional** — the real
+>   pipeline is `grader_fetch → grader_grade → grader_push`; date-shift is
+>   `imscc_adjust_dates.py`.
+> - Comments **cannot** ride a gradebook CSV import (Canvas is scores-only) —
+>   offline comments = API (`grader_push_comments`) if a token exists, else
+>   SpeedGrader paste of `feedback/_all_comments.md`.
+> - `CANVAS_API_TOKEN` (not `CANVAS_TOKEN`); sandbox is `CANVAS_SANDBOX_ID`
+>   (427808, not the docs' 427952). Helpers in `lib/tools/`, not `lib/utils/`.
+
+---
+
 **Goal**: Enable Canvas toolbox to work without API access via CANVAS_MODE flag
 **Reference**: [offline_mode.md](./offline_mode.md)
 **Timeline**: 6 sprints (~6-8 weeks)

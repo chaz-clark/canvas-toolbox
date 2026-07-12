@@ -1,6 +1,14 @@
 # Offline Mode Plan
 **Goal**: Support faculty who cannot use Canvas API tokens (IT policy restriction)
 
+> ⚠️ **This document is partly out of date — see the STATUS & RE-SCOPE header in
+> [offline_mode_sprints.md](./offline_mode_sprints.md) for what actually shipped
+> and the corrected architecture.** Known errors here (full rewrite pending S9):
+> `grade_assignments.py` / `adjust_dates.py` are fictional (real tools:
+> `grader_*`, `imscc_adjust_dates.py`); comments CANNOT ride a gradebook CSV
+> import (Canvas is scores-only); the env var is `CANVAS_API_TOKEN`, not
+> `CANVAS_TOKEN`.
+
 ## Philosophy: Unified Workflow
 
 Tools should work identically whether faculty have API access or not. The only difference is the **transfer layer**:
