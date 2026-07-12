@@ -192,6 +192,26 @@ def test_adjust_cli(tmp_path):
         assert "2026-06-30T05:59:59" in z.read("g1/assignment_settings.xml").decode()
 
 
+def test_adjust_carries_preexisting_issue_without_blocking(tmp_path):
+    # Source already has lock_at seconds before due_at (a quirk Canvas accepts).
+    # A uniform shift preserves it, so it must carry through — not block.
+    bad = ("<assignment><due_at>2026-06-23T05:59:59</due_at>"
+           "<lock_at>2026-06-23T05:59:00</lock_at></assignment>")
+    src = _make_imscc(tmp_path / "src.imscc", extra_xml={"g1/assignment_settings.xml": bad})
+    out = tmp_path / "out.imscc"
+    r = subprocess.run(
+        [sys.executable, str(ADJUST_TOOL), "--input", str(src),
+         "--shift-days", "364", "--utc", "--out", str(out)],
+        capture_output=True, text=True,
+    )
+    assert r.returncode == 0, r.stderr          # NOT blocked by the pre-existing quirk
+    assert out.exists()
+    with zipfile.ZipFile(out) as z:
+        x = z.read("g1/assignment_settings.xml").decode()
+        assert "2027-06-22T05:59:59" in x        # due_at shifted +364
+        assert "2027-06-22T05:59:00" in x        # lock_at shifted equally (quirk preserved)
+
+
 # --- integration: real exports (gated, cross-course) -----------------------
 
 def test_real_imscc_validate_and_shift_if_present(tmp_path):
@@ -199,7 +219,6 @@ def test_real_imscc_validate_and_shift_if_present(tmp_path):
     if not reals:
         pytest.skip("no real *_export.imscc in ~/Downloads — integration skipped")
     for real in reals:
-        assert validate_imscc(real) == [], f"{real.name} should validate clean"
         out = tmp_path / f"shift_{real.name}"
         n = adjust_dates_in_imscc(real, out, 365, tz=_DENVER)  # DST-correct path on real data
         assert n > 0
@@ -207,7 +226,9 @@ def test_real_imscc_validate_and_shift_if_present(tmp_path):
         with zipfile.ZipFile(real) as za, zipfile.ZipFile(out) as zb:
             assert manifest_resource_identifiers(za.read("imsmanifest.xml").decode("utf-8", "ignore")) == \
                    manifest_resource_identifiers(zb.read("imsmanifest.xml").decode("utf-8", "ignore"))
-        assert validate_imscc(out) == []  # output still clean
+        # the shift must introduce NO new validation issues (real exports may carry
+        # benign pre-existing quirks — e.g. lock_at seconds before due_at)
+        assert set(validate_imscc(out)) <= set(validate_imscc(real))
         # reverse shift restores the original date count
         back = tmp_path / f"back_{real.name}"
         assert adjust_dates_in_imscc(out, back, -365) == n

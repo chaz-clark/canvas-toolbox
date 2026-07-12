@@ -56,21 +56,27 @@ def main(argv=None) -> int:
     src = args.input or _file_finder.require_imscc()
 
     pre = validate_imscc(src)
-    if pre:
-        print(f"⚠ input has {len(pre)} pre-existing issue(s) (Canvas's, not ours):", file=sys.stderr)
-        for i in pre:
-            print(f"    - {i}", file=sys.stderr)
-
     args.out.parent.mkdir(parents=True, exist_ok=True)
     n = adjust_dates_in_imscc(src, args.out, args.shift_days, tz=tz)
 
+    # Block ONLY on issues the shift introduced — not ones already in the source.
+    # A uniform day-shift preserves date ordering, so pre-existing quirks (e.g. a
+    # lock_at seconds before due_at that Canvas already accepted) carry through
+    # and must not block an otherwise-valid shift.
     post = validate_imscc(args.out)
-    if post:
-        args.out.unlink(missing_ok=True)  # Jidoka: never hand back a broken .imscc
-        print(f"✗ output failed validation ({len(post)} issue(s)) — not written:", file=sys.stderr)
-        for i in post:
+    pre_set = set(pre)
+    new_issues = [i for i in post if i not in pre_set]
+    if new_issues:
+        args.out.unlink(missing_ok=True)  # Jidoka: don't hand back NEW breakage
+        print(f"✗ the shift INTRODUCED {len(new_issues)} validation issue(s) — not written:", file=sys.stderr)
+        for i in new_issues:
             print(f"    - {i}", file=sys.stderr)
         return 2
+    if pre:
+        print(f"⚠ {len(pre)} pre-existing source issue(s) carried through "
+              f"(Canvas already tolerates these):", file=sys.stderr)
+        for i in pre:
+            print(f"    - {i}", file=sys.stderr)
 
     mode = "raw UTC" if args.utc else f"DST-correct ({args.timezone})"
     print(f"✓ shifted {n} dates by {args.shift_days:+d} days [{mode}]")
