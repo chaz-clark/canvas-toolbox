@@ -74,6 +74,17 @@ class Course:
         """All page .html files across modules."""
         return sorted(p for m in self.modules for p in (self.dir / m.slug).glob("*.html"))
 
+    def syllabus(self) -> str:
+        """The syllabus HTML (course/syllabus.html), or '' if none — mirrors the
+        API's course.syllabus_body."""
+        p = self.dir / "syllabus.html"
+        return p.read_text(encoding="utf-8") if p.is_file() else ""
+
+    def pages(self) -> list[dict]:
+        """Page bodies shaped loosely like an API /pages response
+        ({title, body}). Title is the file slug (identifies the page in reports)."""
+        return [{"title": p.stem, "body": p.read_text(encoding="utf-8")} for p in self.page_paths()]
+
 
 def load_course(course_dir=DEFAULT_COURSE_DIR) -> Course:
     """Load course/ into a Course model. Raises CourseNotFound if it isn't

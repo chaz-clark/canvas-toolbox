@@ -121,6 +121,11 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
     }
     (out / "_course.json").write_text(json.dumps(course_meta, indent=2), encoding="utf-8")
 
+    # Syllabus (course/syllabus.html — same path canvas_sync/course_quality_check use)
+    syllabus = read("course_settings/syllabus.html")
+    if syllabus:
+        (out / "syllabus.html").write_text(syllabus, encoding="utf-8")
+
     hrefs = _manifest_hrefs(read("imsmanifest.xml"))
     counts = {"modules": 0, "assignments": 0, "quizzes": 0, "pages": 0}
 
@@ -142,6 +147,10 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
                 continue
             if ct == "Assignment" and f"{ref}/assignment_settings.xml" in names:
                 data = assignment_from_xml(read(f"{ref}/assignment_settings.xml"), it_pub)
+                # description body is a sibling .html in the assignment dir
+                body = next((n for n in names if n.startswith(f"{ref}/") and n.endswith(".html")), None)
+                if body:
+                    data["description"] = read(body)
                 (mod_dir / f"{slugify(it_title)}.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
                 counts["assignments"] += 1
             elif ct == "Quizzes::Quiz" and f"{ref}/assessment_meta.xml" in names:

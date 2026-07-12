@@ -46,6 +46,7 @@ def _make_course(root: Path):
     (m / "overview.html").write_text("<p>Welcome</p>", encoding="utf-8")
     # a non-gradeable item (external tool) — must NOT count as an assignment
     (m / "tool.json").write_text(json.dumps({"canvas_id": 13, "name": "LTI", "type": "ExternalTool"}), encoding="utf-8")
+    (root / "syllabus.html").write_text("<p>Course syllabus here</p>", encoding="utf-8")
     return root
 
 
@@ -71,6 +72,13 @@ def test_page_paths(tmp_path):
     c = load_course(_make_course(tmp_path))
     pages = c.page_paths()
     assert len(pages) == 1 and pages[0].name == "overview.html"
+
+
+def test_syllabus_and_pages_bodies(tmp_path):
+    c = load_course(_make_course(tmp_path))
+    assert "Course syllabus here" in c.syllabus()
+    pages = c.pages()
+    assert any(p["title"] == "overview" and "Welcome" in p["body"] for p in pages)
 
 
 def test_missing_course_raises(tmp_path):
