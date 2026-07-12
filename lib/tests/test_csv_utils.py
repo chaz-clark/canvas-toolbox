@@ -137,6 +137,18 @@ def test_edit_persists_through_write(tmp_path):
     assert reloaded.students[0].get_grade("1002") == "10"
 
 
+def test_writer_uses_lf_and_is_idempotent(tmp_path):
+    # Canvas exports LF; csv default is CRLF. Writer must emit LF so an
+    # unedited round-trip is byte-clean, and be stable across re-writes.
+    gb = read_canvas_gradebook_csv(FIXTURE)
+    a = tmp_path / "a.csv"
+    write_canvas_gradebook_csv(gb, a)
+    assert b"\r\n" not in a.read_bytes()
+    b = tmp_path / "b.csv"
+    write_canvas_gradebook_csv(read_canvas_gradebook_csv(a), b)
+    assert a.read_bytes() == b.read_bytes()
+
+
 def test_read_rejects_non_gradebook(tmp_path):
     bad = tmp_path / "bad.csv"
     bad.write_text("foo,bar\n1,2\n", encoding="utf-8")
