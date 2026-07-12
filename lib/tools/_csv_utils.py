@@ -243,6 +243,9 @@ def write_canvas_gradebook_csv(gradebook: Gradebook, path) -> Path:
     Canvas). Read-only/group-total columns are emitted unchanged from `raw`."""
     path = Path(path)
     with path.open("w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)  # QUOTE_MINIMAL — quotes only fields needing it
+        # LF line endings match Canvas's own export (observed); csv default is
+        # CRLF, which would make every line differ on an otherwise-clean
+        # round-trip. QUOTE_MINIMAL matches Canvas's quoting.
+        w = csv.writer(f, lineterminator="\n")
         w.writerows(gradebook.to_rows())
     return path
