@@ -36,18 +36,24 @@
 > skips **rubrics, learning outcomes, assignment groups**. Tools needing those
 > require the local store to be widened first. Analytics/engagement is API-only.
 >
-> ### Re-scoped remaining sprints
-> - **S5 — Local-read foundation:** `_course_loader.py` (reads `course/` into a
->   model) + convert 1 pilot audit (`workload_audit.py` — needs only assignments)
->   to read local, source-agnostic. Parity-test local-vs-API on sandbox 427808.
-> - **S6 — offline_import:** `.imscc → course/` so offline populates the SAME
->   store. Test the pilot audit on imported DS 250 data.
-> - **S7 — Widen the local store:** pull/store rubrics + outcomes + assignment
->   groups in `canvas_sync` (+ `offline_import`); convert the audits that need
->   them (`grading_structure_audit`, rubric audits).
-> - **S8 — Fan out:** convert remaining content/structure audits to the loader.
-> - **S9 — Remainder + honest docs:** convert remaining local-feasible tools;
->   document what stays API-only; correct `offline_mode.md` / `offline_readme.md`.
+> ### Re-scoped sprints — status
+> - **S5 ✅ (#146)** — `_course_loader.py` + `workload_audit --local`, parity-tested on 427808.
+> - **S6 ✅ (#147, #148)** — `offline_import` (`.imscc → course/`) + 4-course cross-validation.
+> - **S8 ✅ (#149, #150)** — content path (syllabus + descriptions) + 3 content audits
+>   (`syllabus`, `accessibility`, `content_representation`) read `course/`.
+> - **S9 ✅** — honest docs: `offline_readme.md` rewritten; `offline_mode.md` accurate
+>   architecture header; tool boundary documented.
+> - **S7 (pending)** — widen the store: **assignment groups** (needs a group↔assignment
+>   join) and **rubrics** (nested) in `offline_import` (+ optionally `canvas_sync`), then
+>   convert `grading_structure_audit` / `formative_variety_audit` / rubric audits.
+>   **Learning outcomes are API-only** — account-level, `learning_outcomes.xml` empty in a
+>   course export → `clo_quality_audit` stays API-only.
+>
+> ### Tool boundary (decided)
+> - **Read/report** (audits) → offline via `course/`.
+> - **Content write-back** (`imscc_adjust_dates`) → new/empty course only (destructive on live).
+> - **Student-specific writes** (SAS, quiz-time ext, late/exempt, submit-on-behalf) → **API-only**.
+> - **Outcomes / analytics** → **API-only**.
 >
 > ### Doc corrections to fold in at S9
 > - `grade_assignments.py` and `adjust_dates.py` are **fictional** — the real
