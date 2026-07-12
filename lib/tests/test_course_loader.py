@@ -38,15 +38,20 @@ def _make_course(root: Path):
     (m / "hw1.json").write_text(json.dumps({
         "canvas_id": 11, "name": "HW 1", "points_possible": 100.0,
         "due_at": "2026-09-05T05:59:00Z", "submission_types": ["online_upload"],
+        "assignment_group_identifierref": "gGRP1",
     }), encoding="utf-8")
     (m / "hw2.json").write_text(json.dumps({
         "canvas_id": 12, "name": "HW 2", "points_possible": 50.0,
         "due_at": "2026-09-12T05:59:00Z", "submission_types": ["online_text_entry"],
+        "assignment_group_identifierref": "gGRP1",
     }), encoding="utf-8")
     (m / "overview.html").write_text("<p>Welcome</p>", encoding="utf-8")
     # a non-gradeable item (external tool) — must NOT count as an assignment
     (m / "tool.json").write_text(json.dumps({"canvas_id": 13, "name": "LTI", "type": "ExternalTool"}), encoding="utf-8")
     (root / "syllabus.html").write_text("<p>Course syllabus here</p>", encoding="utf-8")
+    (root / "_assignment_groups.json").write_text(json.dumps([
+        {"identifier": "gGRP1", "name": "Homework", "group_weight": 100.0, "position": 1},
+    ]), encoding="utf-8")
     return root
 
 
@@ -79,6 +84,16 @@ def test_syllabus_and_pages_bodies(tmp_path):
     assert "Course syllabus here" in c.syllabus()
     pages = c.pages()
     assert any(p["title"] == "overview" and "Welcome" in p["body"] for p in pages)
+
+
+def test_assignment_groups_join(tmp_path):
+    c = load_course(_make_course(tmp_path))
+    groups = c.assignment_groups()
+    assert len(groups) == 1
+    g = groups[0]
+    assert g["name"] == "Homework" and g["group_weight"] == 100.0
+    assert {a["name"] for a in g["assignments"]} == {"HW 1", "HW 2"}   # joined by ref
+    assert c.apply_assignment_group_weights() is True
 
 
 def test_missing_course_raises(tmp_path):

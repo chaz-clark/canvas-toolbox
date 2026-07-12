@@ -704,6 +704,23 @@ If you build a tool for one of these API categories:
 
 **Filed:** 2026-07-09. See `docs/research/odysseus-2026-07-09.md` for detailed research notes.
 
+- **Catalog CLO importer (API-only write):** with explicit permission, look up a
+  course's catalog Course Learning Outcomes and add them into the Canvas course
+  via a script.
+  - **API-only, by nature.** Outcomes are account/catalog-level and are NOT in a
+    content export (`learning_outcomes.xml` is empty in a `.imscc`), so there is
+    no offline path — this is a live write that must go through the API. It's the
+    complement to the offline-mode work: offline covers read/report + content
+    date-shift; this fills the outcomes gap online.
+  - Design notes: needs a permission gate (writes course outcomes), a catalog
+    source (where do the catalog CLOs live — SIS? a maintained mapping?), and
+    idempotency (don't duplicate outcomes on re-run). Pairs with
+    `clo_quality_audit` (which stays API-only for the same reason).
+  - **Testing bonus:** it would let us seed outcomes into the sandbox (427808)
+    and finally exercise the outcomes path end-to-end (`clo_quality_audit`) —
+    coverage we can't get from a `.imscc` export (outcomes are absent there).
+  - **Filed:** 2026-07-12 during offline-mode S7.
+
 ---
 
 ## References

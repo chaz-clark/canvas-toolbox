@@ -547,6 +547,13 @@ def _write_report(path: Path, body: str) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> int:
     force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
 
@@ -569,35 +576,57 @@ def main() -> int:
                     help="%%-of-points-due-in-last-2-weeks threshold. Default 40.0.")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Bypass canvas_course_guard advisory for enrolled-course reads.")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
-    if not CANVAS_API_TOKEN:
-        print("ERROR: CANVAS_API_TOKEN missing from .env.", file=sys.stderr)
-        return 2
-    if not CANVAS_BASE_URL:
-        print("ERROR: CANVAS_BASE_URL missing from .env.", file=sys.stderr)
-        return 2
-
-    course_id = args.course_id or os.environ.get(args.target, "")
-    if not course_id:
-        print(f"ERROR: course ID not found. Pass --course-id <id> or set "
-              f"{args.target} in .env.", file=sys.stderr)
-        return 2
-
-    guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
-                  mode="read", allow_override=args.allow_enrolled, label="audit target")
-
+    use_local = args.local or bool(args.course_dir) or _is_offline()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    course = _get(f"/courses/{course_id}") or {}
-    if not isinstance(course, dict):
-        print(f"ERROR: couldn't load course {course_id}.", file=sys.stderr)
-        return 2
 
-    groups = _get_paged(f"/courses/{course_id}/assignment_groups",
-                        params={"include[]": "assignments"})
-    if not groups:
-        print(f"ERROR: no assignment groups for course {course_id}.", file=sys.stderr)
-        return 2
+    if use_local:
+        from _course_loader import load_course, CourseNotFound
+        try:
+            c = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 2
+        course_id = str(c.canvas_id or "local")
+        course = {"name": c.name, "apply_assignment_group_weights": c.apply_assignment_group_weights()}
+        groups = c.assignment_groups()
+        if not groups:
+            print("ERROR: no assignment groups in course/ — run offline_import first "
+                  "(canvas_sync doesn't yet store groups locally).", file=sys.stderr)
+            return 2
+    else:
+        if not CANVAS_API_TOKEN:
+            print("ERROR: CANVAS_API_TOKEN missing from .env.", file=sys.stderr)
+            return 2
+        if not CANVAS_BASE_URL:
+            print("ERROR: CANVAS_BASE_URL missing from .env.", file=sys.stderr)
+            return 2
+
+        course_id = args.course_id or os.environ.get(args.target, "")
+        if not course_id:
+            print(f"ERROR: course ID not found. Pass --course-id <id> or set "
+                  f"{args.target} in .env.", file=sys.stderr)
+            return 2
+
+        guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
+                      mode="read", allow_override=args.allow_enrolled, label="audit target")
+
+        course = _get(f"/courses/{course_id}") or {}
+        if not isinstance(course, dict):
+            print(f"ERROR: couldn't load course {course_id}.", file=sys.stderr)
+            return 2
+
+        groups = _get_paged(f"/courses/{course_id}/assignment_groups",
+                            params={"include[]": "assignments"})
+        if not groups:
+            print(f"ERROR: no assignment groups for course {course_id}.", file=sys.stderr)
+            return 2
 
     res = audit_structure(
         course, groups,
