@@ -184,56 +184,88 @@ python lib/tools/offline_export.py --gradebook ~/Desktop/grades_updated.csv
 
 ## Tool Modifications Required
 
-### 1. Auto-Detect Data Source
+### 1. Mode Selection via .env
 
-**Every tool that reads data needs**:
-```python
-def get_data_source():
-    """Determine data source in order of preference."""
-    # 1. API available?
-    if os.environ.get("CANVAS_TOKEN"):
-        return DataSource.API
+**Simple, explicit flag** (no auto-detection complexity):
 
-    # 2. Downloaded files?
-    if Path("~/Downloads").glob("grades-*.csv"):
-        return DataSource.DOWNLOADS
-
-    # 3. Cached .canvas/?
-    if Path(".canvas/index.json").exists():
-        return DataSource.CACHED
-
-    raise NoDataSourceError("No API token, downloads, or cached data")
+```bash
+# .env
+CANVAS_MODE=offline  # or "online" (default if not set)
+CANVAS_TOKEN=        # empty in offline mode, required in online mode
 ```
 
-### 2. Read Abstraction Layer
+**Every tool checks mode first**:
+```python
+import os
 
-**Before**:
+def get_canvas_mode() -> str:
+    """Get Canvas mode from environment (online by default)."""
+    return os.getenv("CANVAS_MODE", "online")
+
+def check_mode_requirements():
+    """Validate mode configuration."""
+    mode = get_canvas_mode()
+
+    if mode == "online":
+        if not os.getenv("CANVAS_TOKEN"):
+            raise ValueError("CANVAS_MODE=online requires CANVAS_TOKEN")
+
+    # offline mode doesn't require token
+    return mode
+```
+
+**Benefits**:
+- ✅ Explicit (no guessing)
+- ✅ Deterministic (same behavior every time)
+- ✅ Easy to toggle (edit one line in .env)
+- ✅ Clear error messages
+- ✅ Faculty controls the mode
+
+### 2. Simple If/Else Pattern
+
+**Before** (API-only):
 ```python
 # Direct API call
 grades = api.get_gradebook(course_id)
 ```
 
-**After**:
+**After** (mode-aware):
 ```python
-# Unified interface
-grades = get_gradebook()  # Auto-detects source
+# Check mode, branch to appropriate source
+mode = get_canvas_mode()
+
+if mode == "online":
+    # Use API
+    grades = api.get_gradebook(course_id)
+else:
+    # Use downloaded CSV
+    csv_path = find_latest_gradebook_csv("~/Downloads")
+    grades = read_canvas_gradebook_csv(csv_path)
+
+# Everything after this point is the same
+process_grades(grades)
 ```
 
-**Implementation**:
+**Pattern in grader_fetch.py**:
 ```python
-def get_gradebook() -> pd.DataFrame:
-    """Get gradebook from any available source."""
-    source = get_data_source()
+mode = get_canvas_mode()
 
-    if source == DataSource.API:
-        return api.get_gradebook(course_id)
+if mode == "online":
+    # Fetch via API (current implementation)
+    submissions = fetch_submissions_api(assignment_id)
 
-    elif source == DataSource.DOWNLOADS:
-        csv_path = find_latest_gradebook_csv("~/Downloads")
-        return read_canvas_gradebook_csv(csv_path)
+else:
+    # Read from ~/Downloads
+    zip_path = find_latest_file("~/Downloads/submissions_*.zip")
+    if not zip_path:
+        raise FileNotFoundError(
+            "Offline mode: No submissions_*.zip in ~/Downloads\n"
+            "Download via Canvas: Assignment → Download Submissions"
+        )
+    submissions = extract_submissions_zip(zip_path)
 
-    elif source == DataSource.CACHED:
-        return read_gradebook_cache(".canvas/gradebook/grades.csv")
+# Rest of tool works identically
+deidentify_submissions(submissions)
 ```
 
 ### 3. Write Abstraction Layer
