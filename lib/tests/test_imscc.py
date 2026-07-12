@@ -10,9 +10,20 @@ catches each mode. Gated integration shifts + validates the real DS 250 / DS 460
 import subprocess
 import sys
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
+
+_DENVER = ZoneInfo("America/Denver")
+
+
+def _to_local(utc_str):
+    """Interpret a naive-UTC .imscc datetime string in Mountain time."""
+    return datetime.strptime(utc_str, "%Y-%m-%dT%H:%M:%S").replace(
+        tzinfo=timezone.utc
+    ).astimezone(_DENVER)
 
 _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
@@ -81,6 +92,25 @@ def test_shift_is_reversible():
     fwd, _ = shift_dates_in_text(xml, 365)
     back, _ = shift_dates_in_text(fwd, -365)
     assert back == xml
+
+
+# --- DST-correct (local-timezone) shifting ---------------------------------
+
+def test_tz_shift_preserves_local_time_across_dst():
+    # Sat 2026-01-10 23:59:59 MST  ==  2026-01-11 06:59:59 UTC
+    winter_utc = "2026-01-11T06:59:59"
+    aware = shift_value(winter_utc, 175, tz=_DENVER)   # 25 weeks -> summer (MDT)
+    assert _to_local(aware).strftime("%H:%M:%S") == "23:59:59"   # local time held
+    raw = shift_value(winter_utc, 175)                 # tz=None drifts across DST
+    assert _to_local(raw).strftime("%H:%M:%S") != "23:59:59"
+
+
+def test_tz_shift_prevents_sunday_drift():
+    # A Saturday-11:59:59pm due date shifted winter->summer.
+    winter_utc = "2026-01-11T06:59:59"
+    assert _to_local(winter_utc).weekday() == 5                       # Saturday
+    assert _to_local(shift_value(winter_utc, 175, tz=_DENVER)).weekday() == 5   # stays Saturday
+    assert _to_local(shift_value(winter_utc, 175)).weekday() == 6     # raw drifts into SUNDAY
 
 
 # --- validation: good + failure injection ----------------------------------
@@ -171,7 +201,7 @@ def test_real_imscc_validate_and_shift_if_present(tmp_path):
     for real in reals:
         assert validate_imscc(real) == [], f"{real.name} should validate clean"
         out = tmp_path / f"shift_{real.name}"
-        n = adjust_dates_in_imscc(real, out, 365)
+        n = adjust_dates_in_imscc(real, out, 365, tz=_DENVER)  # DST-correct path on real data
         assert n > 0
         # identifiers preserved (so Canvas overwrites in place, not duplicates)
         with zipfile.ZipFile(real) as za, zipfile.ZipFile(out) as zb:

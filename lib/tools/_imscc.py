@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 import zipfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 IDENTIFIER_RE = re.compile(r"g[0-9a-f]{32}")
@@ -56,26 +56,40 @@ def parse_dt(value: str):
     return None
 
 
-def shift_value(value: str, days: int) -> str:
+def shift_value(value: str, days: int, tz=None) -> str:
     """Shift a single date/datetime string by `days`, preserving its format.
-    Values that aren't the naive Canvas format are returned unchanged."""
+
+    `tz` (a tzinfo, e.g. ZoneInfo("America/Denver")) shifts the LOCAL wall-clock
+    time so displayed due times AND weekday survive a DST boundary: the value is
+    read as UTC, converted to `tz`, moved N days on the naive local clock, then
+    re-localized (picking the target date's MST/MDT offset) and written back as
+    UTC. `tz=None` does a raw whole-day UTC shift (local time may drift 1h across
+    DST). Values that aren't the naive Canvas format are returned unchanged."""
     v = value.strip()
     if _DT_VAL.match(v):
-        return (datetime.strptime(v, _DT_FMT) + timedelta(days=days)).strftime(_DT_FMT)
+        dt = datetime.strptime(v, _DT_FMT)  # naive, represents UTC
+        if tz is None:
+            shifted = dt + timedelta(days=days)
+        else:
+            local = dt.replace(tzinfo=timezone.utc).astimezone(tz)
+            moved = (local.replace(tzinfo=None) + timedelta(days=days)).replace(tzinfo=tz)
+            shifted = moved.astimezone(timezone.utc).replace(tzinfo=None)
+        return shifted.strftime(_DT_FMT)
     if _D_VAL.match(v):
+        # date-only (all_day_date) has no time component — tz is irrelevant
         return (datetime.strptime(v, _D_FMT) + timedelta(days=days)).strftime(_D_FMT)
     return value
 
 
-def shift_dates_in_text(text: str, days: int) -> tuple[str, int]:
+def shift_dates_in_text(text: str, days: int, tz=None) -> tuple[str, int]:
     """Shift every schedule-date tag value in an XML string. Returns
-    (new_text, number_of_dates_shifted)."""
+    (new_text, number_of_dates_shifted). See shift_value for `tz`."""
     count = 0
 
     def repl(m):
         nonlocal count
         inner = m.group(2)
-        shifted = shift_value(inner, days)
+        shifted = shift_value(inner, days, tz=tz)
         if shifted != inner:
             count += 1
         return f"{m.group(1)}{shifted}{m.group(3)}"
@@ -85,10 +99,11 @@ def shift_dates_in_text(text: str, days: int) -> tuple[str, int]:
     return text, count
 
 
-def adjust_dates_in_imscc(src_path, out_path, days: int) -> int:
+def adjust_dates_in_imscc(src_path, out_path, days: int, tz=None) -> int:
     """Copy `src_path` to `out_path`, shifting every schedule date by `days`.
     Non-XML entries and all non-date bytes are copied verbatim (identifiers and
-    structure preserved). Returns the count of dates shifted."""
+    structure preserved). `tz` enables DST-correct local-time shifting (see
+    shift_value). Returns the count of dates shifted."""
     src_path, out_path = Path(src_path), Path(out_path)
     total = 0
     with zipfile.ZipFile(src_path) as zin, zipfile.ZipFile(
@@ -97,7 +112,7 @@ def adjust_dates_in_imscc(src_path, out_path, days: int) -> int:
         for item in zin.infolist():
             data = zin.read(item.filename)
             if item.filename.endswith(".xml"):
-                new_text, n = shift_dates_in_text(data.decode("utf-8"), days)
+                new_text, n = shift_dates_in_text(data.decode("utf-8"), days, tz=tz)
                 total += n
                 data = new_text.encode("utf-8")
             zout.writestr(item, data)
