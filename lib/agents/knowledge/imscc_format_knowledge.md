@@ -64,16 +64,18 @@ Assignment metadata is stored in **individual XML files** (not in imsmanifest.xm
 
 ### Date Format Specification
 
-**Format**: ISO 8601 with timezone offset
-**Timezone**: Always specify (never assume Pacific Time!)
-**Examples**:
-- `2013-08-28T23:59:00-06:00` (Mountain Time, -6 hours from UTC)
-- `2013-08-28T23:59:00Z` (UTC, "Zulu" time)
-- `2014-10-21T18:48:00-07:00` (Pacific Daylight Time)
+> ⚠️ **Corrected by real exports (2026-07-12, 4 dated courses).** The actual
+> format is **naive `YYYY-MM-DDThh:mm:ss` with NO timezone offset** — e.g.
+> `<due_at>2026-06-23T05:59:59</due_at>`. The values are already UTC (05:59:59
+> UTC = Sat 23:59:59 Mountain, matching the BYUI Saturday-11:59pm rule).
+> `all_day_date` is date-only `YYYY-MM-DD`. There is NO `Z` and NO `+/-hh:mm`.
+> Implication for date-shift: parse naive, add `timedelta(days=N)`, re-emit the
+> SAME naive format — no timezone conversion needed (and none must be
+> introduced, or Canvas would misread the value).
 
-**Storage**: `.imscc` dates are always stored in **UTC internally**
-**Display**: Convert to user's local timezone when editing
-**Re-export**: Convert from local back to UTC before packing
+**Legacy note (older/other instances may differ)**: some exports historically
+used ISO 8601 *with* an offset (`2013-08-28T23:59:00-06:00`). A robust parser
+should accept both an offset and none; the BYUI exports observed here have none.
 
 ### Date Constraints (Canvas Validation)
 
@@ -202,6 +204,27 @@ course_settings/
 
 **Without these files**: Canvas treats as generic IMS CC (limited features)
 **With these files**: Canvas enables full feature import (modules, external tools, etc.)
+
+> ⚠️ **Corrected by real export (2026-07-12, Genchi Genbutsu).** A real Canvas
+> `.imscc` export (`byui_learning_teaching`) had **NO `course_settings.xml` and
+> NO `syllabus.html`**. Its `course_settings/` held instead:
+> `canvas_export.txt`, `context.xml`, `module_meta.xml`, `assignment_groups.xml`,
+> `files_meta.xml`, `learning_outcomes.xml`, `media_tracks.xml`, `rubrics.xml`.
+> So the "required trigger" is NOT `course_settings.xml` — the reliable Canvas
+> markers are **`course_settings/canvas_export.txt`** and **`course_settings/context.xml`**.
+> Trigger detection must check for those, not hard-require `course_settings.xml`.
+> **Fuller survey (5 real exports, 2026-07-12):** 4 of 5 (DS 250, DS 460,
+> ITM 327, M 119) DID contain `course_settings.xml` + `syllabus.html`; only the
+> content-only reference course lacked them. `canvas_export.txt` + `context.xml`
+> were in ALL 5. So: `course_settings.xml` is normally present but NOT
+> guaranteed; `canvas_export.txt`/`context.xml` are the universal markers.
+>
+> Also observed: that export contained **zero date fields** (`due_at`/`unlock_at`/
+> `lock_at`/`start_at` absent everywhere) — because it had no native
+> assignments/quizzes (content/pages/modules only; LTI-heavy). Dates live in
+> per-assignment / per-quiz XMLs, so a course WITHOUT native graded items has
+> nothing to date-adjust. Test the date-adjust workflow against an export from a
+> course that HAS dated assignments (e.g. DS 250 / DS 460), not this reference course.
 
 ### course_settings.xml Structure
 
