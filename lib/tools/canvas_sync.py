@@ -683,6 +683,27 @@ def cmd_init():
     }
     _vprint(f"  [syllabus] syllabus.html ({len(syllabus_body)} chars)")
 
+    # Outcomes (course-linked) -> course/_outcomes.json. Lets audits that read
+    # course/ locally (rubric_quality, clo_quality) use outcomes without
+    # re-hitting the API. A .imscc export has NO outcomes (account-level), so a
+    # canvas_sync pull is the only local source — offline stays "unverified".
+    outcome_links = _get(f"/courses/{course_id}/outcome_group_links",
+                         params={"outcome_style": "full", "per_page": 100})
+    outcomes = []
+    if isinstance(outcome_links, list):
+        for ln in outcome_links:
+            o = ln.get("outcome") or {}
+            if o.get("id"):
+                outcomes.append({
+                    "id": o.get("id"),
+                    "title": o.get("title") or "",
+                    "description": o.get("description") or "",
+                    "display_name": o.get("display_name") or "",
+                })
+    if outcomes:
+        (COURSE_DIR / "_outcomes.json").write_text(json.dumps(outcomes, indent=2), encoding="utf-8")
+        _vprint(f"  [outcomes] _outcomes.json ({len(outcomes)} outcomes)")
+
     # Modules
     modules = _get(f"/courses/{course_id}/modules", params={"per_page": 50, "include[]": "items"})
     print(f"Pulling {len(modules)} modules...")

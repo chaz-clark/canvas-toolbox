@@ -52,6 +52,9 @@ def _make_course(root: Path):
     (root / "_assignment_groups.json").write_text(json.dumps([
         {"identifier": "gGRP1", "name": "Homework", "group_weight": 100.0, "position": 1},
     ]), encoding="utf-8")
+    (root / "_outcomes.json").write_text(json.dumps([
+        {"id": 1, "title": "CLO 1", "description": "Analyze data", "display_name": "CLO 1"},
+    ]), encoding="utf-8")
     return root
 
 
@@ -84,6 +87,20 @@ def test_syllabus_and_pages_bodies(tmp_path):
     assert "Course syllabus here" in c.syllabus()
     pages = c.pages()
     assert any(p["title"] == "overview" and "Welcome" in p["body"] for p in pages)
+
+
+def test_outcomes_from_local_file(tmp_path):
+    c = load_course(_make_course(tmp_path))
+    outs = c.outcomes()
+    assert len(outs) == 1 and outs[0]["title"] == "CLO 1"
+
+
+def test_outcomes_empty_when_absent(tmp_path):
+    # a bare course/ with no _outcomes.json — the offline .imscc case (returns [])
+    root = tmp_path / "bare"
+    root.mkdir()
+    (root / "_course.json").write_text('{"canvas_id": 1, "name": "X"}', encoding="utf-8")
+    assert load_course(root).outcomes() == []
 
 
 def test_assignment_groups_join(tmp_path):

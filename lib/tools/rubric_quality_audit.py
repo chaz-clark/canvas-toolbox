@@ -918,7 +918,20 @@ def main() -> None:
             sys.exit(2)
         course_id = str(c.canvas_id or "local")
         course_name = c.name
-        outcomes = []  # outcomes are account-level, not in a .imscc export (API-only)
+        # Mirror fetch_course_outcomes locally: real outcomes (course/_outcomes.json,
+        # written by canvas_sync --pull) as title+description strings, else the SAME
+        # syllabus-text fallback the API path uses (the syllabus IS in a .imscc, so
+        # this recovers outcomes even fully offline).
+        real = c.outcomes()
+        if real:
+            outcomes = []
+            for o in real:
+                txt = re.sub(r"<[^>]+>", " ",
+                             ((o.get("title") or "") + "  " + (o.get("description") or "")).strip()).strip()
+                if len(txt) >= 12:
+                    outcomes.append(txt)
+        else:
+            outcomes = extract_outcomes(c.syllabus())
         assignments = c.assignments
     else:
         missing: list[str] = []
