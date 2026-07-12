@@ -114,6 +114,16 @@ class Course:
         .imscc course_settings.xml omits the explicit flag)."""
         return any((g.get("group_weight") or 0) > 0 for g in self.assignment_groups())
 
+    def outcomes(self) -> list[dict]:
+        """Course outcomes ({id, title, description, display_name}) if synced to
+        course/_outcomes.json. `canvas_sync --pull` writes them; a .imscc export
+        has NO outcomes (account-level), so offline_import can't — returns [] then,
+        which is why offline rubric/CLO checks report 'unverified' rather than guess."""
+        p = self.dir / "_outcomes.json"
+        if not p.is_file():
+            return []
+        return json.loads(p.read_text(encoding="utf-8"))
+
 
 def load_course(course_dir=DEFAULT_COURSE_DIR) -> Course:
     """Load course/ into a Course model. Raises CourseNotFound if it isn't
