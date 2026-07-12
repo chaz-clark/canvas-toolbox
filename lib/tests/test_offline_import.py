@@ -51,6 +51,8 @@ def _make_imscc(path: Path):
             "<points_possible>100.0</points_possible><due_at>2026-09-05T05:59:00</due_at>"
             "<submission_types>online_upload,online_text_entry</submission_types>"
             "<grading_type>points</grading_type></assignment>",
+        "gAAA/hw-1.html": "<p>Read chapter 1 and submit.</p>",     # assignment description body
+        "course_settings/syllabus.html": "<h1>Syllabus</h1><p>Grading policy...</p>",
         "gBBB/assessment_meta.xml":
             "<quiz><title>Quiz 1</title><points_possible>10.0</points_possible>"
             "<due_at>2026-09-12T05:59:00</due_at><quiz_type>assignment</quiz_type></quiz>",
@@ -116,6 +118,11 @@ def test_import_produces_loadable_course(tmp_path):
     hw = next(a for a in c.assignments if a["name"] == "HW 1")
     assert hw["submission_types"] == ["online_upload", "online_text_entry"]
     assert hw["points_possible"] == 100.0
+    assert "Read chapter 1" in hw["description"]        # description body captured
+
+    # syllabus captured at course/syllabus.html
+    assert (out / "syllabus.html").is_file()
+    assert "Grading policy" in c.syllabus()
 
 
 # --- integration: real exports (gated, cross-course) -----------------------
@@ -132,6 +139,21 @@ def test_import_real_exports_if_present(tmp_path):
         c = load_course(out)                       # loader reads what import wrote
         assert len(c.assignments) > 0
         assert all("name" in a for a in c.assignments)
+
+
+def test_syllabus_audit_local_runs_without_api(tmp_path):
+    """The converted syllabus_audit reads the imported course/ syllabus offline."""
+    import_imscc(_make_imscc(tmp_path / "c.imscc"), tmp_path / "course")
+    env = {**os.environ, "CANVAS_API_TOKEN": "bogus", "CANVAS_BASE_URL": "https://x"}
+    r = subprocess.run(
+        [sys.executable, str(_TOOLS_DIR / "syllabus_audit.py"),
+         "--course-dir", str(tmp_path / "course"), "--json"],
+        capture_output=True, text=True, env=env,
+    )
+    # 0/1/2 are audit verdicts (complete/incomplete/near-empty), not crashes.
+    assert r.stdout.strip(), f"no output; stderr={r.stderr}"
+    payload = json.loads(r.stdout)      # ran offline (bogus token) and produced valid JSON
+    assert isinstance(payload, dict) and payload
 
 
 def test_full_pipeline_cross_validation_if_present(tmp_path):

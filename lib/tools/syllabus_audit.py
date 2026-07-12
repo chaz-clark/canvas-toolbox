@@ -689,6 +689,13 @@ def _resolve_course_id(target_env: str, literal: str | None) -> tuple[str, str]:
     return val, f"${target_env}"
 
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> None:
     force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
 
@@ -718,38 +725,55 @@ def main() -> None:
                          "instead of (or in addition to) the 9-section summary. "
                          "Scores 0/1/2 per item with link-presence detection. "
                          "Use with --detailed to keep the umbrella audit too.")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
-    missing_cfg: list[str] = []
-    if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://":
-        missing_cfg.append("CANVAS_BASE_URL")
-    if not CANVAS_API_TOKEN:
-        missing_cfg.append("CANVAS_API_TOKEN")
-    if missing_cfg:
-        print("ERROR: Missing required configuration:")
-        for m in missing_cfg:
-            print(f"  {m}")
-        print("\nSet these in your .env file.")
-        sys.exit(2)
-
-    course_id, source = _resolve_course_id(args.target, args.course_id)
-    if not course_id:
-        print(f"ERROR: course ID not found via {source}.")
-        print("       Set the env var, or pass --course-id <id> directly.")
-        sys.exit(2)
-
-    guard.enforce(
-        base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
-        mode="read", allow_override=args.allow_enrolled, label="audit target",
-    )
-
+    use_local = args.local or bool(args.course_dir) or _is_offline()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    course_name, body = fetch_syllabus(course_id)
-    if body is None:
-        print(f"\nCould not fetch course {course_id} (or the request failed).",
-              file=sys.stderr)
-        sys.exit(2)
+    if use_local:
+        from _course_loader import load_course, CourseNotFound
+        try:
+            c = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(2)
+        course_id = str(c.canvas_id or "local")
+        course_name = c.name
+        body = c.syllabus()          # mirrors course.syllabus_body
+    else:
+        missing_cfg: list[str] = []
+        if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://":
+            missing_cfg.append("CANVAS_BASE_URL")
+        if not CANVAS_API_TOKEN:
+            missing_cfg.append("CANVAS_API_TOKEN")
+        if missing_cfg:
+            print("ERROR: Missing required configuration:")
+            for m in missing_cfg:
+                print(f"  {m}")
+            print("\nSet these in your .env file.")
+            sys.exit(2)
+
+        course_id, source = _resolve_course_id(args.target, args.course_id)
+        if not course_id:
+            print(f"ERROR: course ID not found via {source}.")
+            print("       Set the env var, or pass --course-id <id> directly.")
+            sys.exit(2)
+
+        guard.enforce(
+            base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
+            mode="read", allow_override=args.allow_enrolled, label="audit target",
+        )
+
+        course_name, body = fetch_syllabus(course_id)
+        if body is None:
+            print(f"\nCould not fetch course {course_id} (or the request failed).",
+                  file=sys.stderr)
+            sys.exit(2)
 
     text = html_to_text(body)
     body_words = word_count(text)
