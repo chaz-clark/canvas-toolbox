@@ -1,0 +1,5 @@
+Student,ID,SIS User ID,SIS Login ID,Root Account,Section,HW 1 (1001),Quiz 1 (1002),Participation (1003),Homework Current Score,Homework Unposted Current Score,Homework Final Score,Homework Unposted Final Score,Current Score,Unposted Current Score,Final Score,Unposted Final Score,Current Grade,Unposted Current Grade,Final Grade,Unposted Final Grade
+    Points Possible,,,,,,100,10,1,(read only),(read only),(read only),(read only),(read only),(read only),(read only),(read only),(read only),(read only),(read only),(read only)
+"Anon, Ada",2001,a2001,student2001@example.edu,example.edu,Section A2,95,9,1,95.00,95.00,95.00,95.00,94.00,94.00,94.00,94.00,A,A,A,A
+"Byte, Ben",2002,a2002,student2002@example.edu,example.edu,Section A2,,7,EX,70.00,70.00,70.00,70.00,70.00,70.00,70.00,70.00,C,C,C,C
+"Cole, Cid",2003,a2003,student2003@example.edu,example.edu,Section A2,80,,1,80.00,80.00,80.00,80.00,80.00,80.00,80.00,80.00,B,B,B,B
