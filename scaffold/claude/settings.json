@@ -1,5 +1,5 @@
 {
-  "_comment": "Split-agent mode — worked example. Copy to .claude/settings.json in your course repo, with hooks/block_canvas.py alongside. Deny rules are the declarative layer; the hook is the catch-all (it matches command text the globs miss, e.g. a bare `python` invocation). See docs/split-agent-access.md.",
+  "_comment": "Canvas access boundary — worked example. No AI tool touches Canvas; canvas_run.py is a plain script the instructor runs. Copy to .claude/settings.json in your course repo, with hooks/block_canvas.py alongside. Deny rules are the declarative layer; the hook is the catch-all (it matches command text the globs miss, e.g. a bare `python` invocation). See docs/canvas-access-boundary.md.",
   "permissions": {
     "deny": [
       "Read(./.env.canvas)",

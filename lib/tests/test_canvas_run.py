@@ -1,4 +1,4 @@
-"""Tests for canvas_run.py — the split-agent Canvas gate.
+"""Tests for canvas_run.py — the Canvas access boundary.
 
 The gate is the ONLY process permitted to hold CANVAS_API_TOKEN. Its job is to
 turn a named subcommand into exactly one toolkit invocation, refusing anything

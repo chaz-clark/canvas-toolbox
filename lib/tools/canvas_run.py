@@ -1,69 +1,49 @@
 #!/usr/bin/env python3
-"""canvas_run.py — the split-agent Canvas gate.
+"""canvas_run.py — the Canvas access boundary. A plain CLI. No AI involved.
 
 WHY THIS EXISTS
-  Some institutions approve one AI vendor for access to university systems and
-  not another — often with no judgment implied about either tool, just an
-  approval queue that hasn't finished.
+  Campus IT has not approved AI tools for authenticated access to the university
+  Canvas instance. That policy is easy to honor once you notice that NOTHING at
+  the Canvas boundary needs intelligence: pulling a course is fetch-and-write-
+  files, auditing it is read-and-write-a-report, pushing is post. It is
+  deterministic work, and a script does it.
 
-  That collides with how this toolkit is built. It assumes ONE agent does
-  everything: the same agent that reasons about course design also runs
-  `canvas_sync.py --pull`, which authenticates to Canvas. There is no seam
-  between "thinking about the course" and "calling the Canvas API" — so a policy
-  that cuts between those two activities forces an all-or-nothing choice.
+  So: **no AI tool touches Canvas. This script does, run by the instructor.**
+  Claude Code works only on the local mirror — reading the files this script
+  writes — and holds no Canvas credential.
 
-  This tool cuts the seam. It lets an operator split the workflow at the network
-  boundary: an APPROVED agent runs this gate to talk to Canvas, while an agent
-  that is NOT approved for Canvas works only on the local mirror and never
-  authenticates.
+  The audit output is a FILE. That is the whole trick. An AI agent never needs to
+  sit at the network boundary to help with course design; it just reads the file
+  the script produced.
 
-  The gate is deliberately AGENT-NEUTRAL. It names no vendor. It enforces "only
-  this process holds the token"; which agent sits on which side is a matter of
-  local configuration, so the same structure serves the opposite institutional
-  decision.
-
-HOW IT ENFORCES THAT
+HOW THE BOUNDARY IS ENFORCED
   1. This is the ONLY process that reads the token file (default `.env.canvas`).
      The token is deliberately NOT in `.env`. Every toolkit tool reads the token
      via os.environ.get("CANVAS_API_TOKEN"), and python-dotenv's load_dotenv()
-     does not override variables already in the process environment — so the gate
-     can inject it and every tool honors it, while a tool invoked OUTSIDE the
-     gate finds no token in any file it loads.
+     does not override the process environment — so this script can inject it and
+     every tool honors it, while a tool invoked OUTSIDE this script finds no token
+     in any file it loads.
 
-     The block is therefore STRUCTURAL, not merely policy. Remove every hook and
-     ignore every instruction, and the non-approved agent still cannot reach
-     Canvas: it has no credential, and Canvas answers 401 unauthenticated.
+     The block is therefore STRUCTURAL, not policy. An AI agent denied
+     `.env.canvas` has no credential, and Canvas answers 401 unauthenticated.
+     Enforcement does not depend on the agent's cooperation.
 
-  2. Default-deny. Only named subcommands resolve. The caller never composes a
-     raw `python lib/tools/...` command line, so there is no argument-injection
-     surface to police.
+  2. Default-deny: only named subcommands resolve. No raw command-line
+     composition, so there is no argument-injection surface.
 
   3. Writes are gated on an explicit `--confirm-course <id>` matching the target
-     course, so an agent cannot push to a live course on inference alone. On a
-     live course, a grading change re-scores real student work the moment it
-     lands — Canvas has no draft state.
+     course. On a live course a grading change re-scores real student work the
+     moment it lands — Canvas has no draft state.
 
-  4. Every decision, allow or refuse, is appended to `.canvas/canvas-run.log`.
+  4. Every decision is appended to `.canvas/canvas-run.log`.
 
 HONEST LIMITS
-  This is a guardrail against drift and accident, not a defense against an
-  adversarial agent with shell access. A determined agent — or human — with a
-  shell can defeat any client-side control. What this DOES guarantee is narrower
-  and verifiable: the credential is not present, and refusals are logged.
+  A guardrail against drift and accident, not a sandbox. Anyone with shell access
+  can bypass any client-side control. What IS guaranteed: the credential is not
+  present in any file the AI tool can read, and every refusal is logged.
+  See docs/canvas-access-boundary.md.
 
-  An institution that needs a hard guarantee should scope the control at the
-  Canvas end: issue the API token to the approved workflow only, and rotate it.
-
-  See docs/split-agent-access.md.
-
-SETUP
-  1. Move CANVAS_API_TOKEN out of `.env` into `.env.canvas` (see
-     scaffold/env.canvas.example). Gitignore it — and verify with
-     `git check-ignore -v .env.canvas` BEFORE writing the secret to disk.
-  2. Restrict the non-approved agent (see scaffold/claude/ for a worked example).
-  3. Point the approved agent at this gate.
-
-USAGE
+USAGE — run this yourself. It is a script; it does not need an agent.
   uv run python lib/tools/canvas_run.py pull
   uv run python lib/tools/canvas_run.py audit
   uv run python lib/tools/canvas_run.py push --confirm-course <course_id>
@@ -151,7 +131,8 @@ def read_token(token_file: str = TOKEN_FILE) -> str:
     if not path.exists():
         raise GateRefusal(
             f"Token file {token_file} not found. It holds CANVAS_API_TOKEN and "
-            f"is the only file this gate reads. See docs/split-agent-access.md."
+            f"is the only file this gate reads. "
+            f"See docs/canvas-access-boundary.md."
         )
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -174,9 +155,7 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(
         prog="canvas_run.py",
-        description=(
-            "Split-agent Canvas gate — the only process that holds the token."
-        ),
+        description="Canvas access boundary — the only process that holds the token.",
     )
     parser.add_argument(
         "subcommand", help=f"One of: {', '.join(sorted([*FREE, *GATED]))}"

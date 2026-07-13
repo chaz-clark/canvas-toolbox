@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
-"""PreToolUse hook — block Claude Code from reaching Canvas.
+"""PreToolUse hook — block Claude from reaching Canvas.
 
-WORKED EXAMPLE for split-agent mode (see docs/split-agent-access.md). Copy to
-`.claude/hooks/block_canvas.py` in your course repo, alongside the
-`.claude/settings.json` in scaffold/claude/.
+WORKED EXAMPLE. Copy to `.claude/hooks/block_canvas.py` in your course repo,
+alongside the `.claude/settings.json` in scaffold/claude/.
+See docs/canvas-access-boundary.md.
 
-This example blocks CLAUDE and routes Canvas access to an approved agent. If
-your institution approved the other way around, the same structure inverts —
-the gate itself (lib/tools/canvas_run.py) names no vendor.
+For institutions that have not approved an AI tool for authenticated access to
+their Canvas instance. Canvas access becomes `lib/tools/canvas_run.py` — a plain
+script the INSTRUCTOR runs. The AI works only on local files and holds no Canvas
+credential.
 
-This hook is the SECOND enforcement layer. The FIRST is structural: the Canvas
-API token lives in `.env.canvas`, which the blocked agent is denied, so a Canvas
-tool it runs has no credential and Canvas returns 401 unauthenticated. The hook
-makes the refusal loud, explains the alternative, and appends to an audit log an
-institutional reviewer can inspect — positive evidence of enforcement, rather
-than an absence of records.
+This example blocks Claude Code specifically, but the pattern is agent-neutral:
+`canvas_run.py` names no vendor, so the same structure works for whichever agent
+your institution needs to keep away from Canvas.
 
-Exit 2 = block the tool call and show stderr to the agent.
+This hook is the SECOND enforcement layer. The first is structural: the Canvas
+API token lives in `.env.canvas`, which Claude is denied, so a Canvas tool run
+by Claude has no credential and Canvas returns 401. The hook makes the refusal
+loud, explains what to do instead, and appends to an audit log an IT reviewer
+can inspect — positive evidence of enforcement, rather than an absence of
+records.
+
+Exit 2 = block the tool call and show stderr to Claude.
 """
 from __future__ import annotations
 
@@ -28,13 +33,9 @@ from pathlib import Path
 
 LOG_PATH = Path(".canvas") / "claude-canvas-block.log"
 
-# Canvas-touching toolkit entrypoints, plus the gate itself (the blocked agent
-# must not launder a call through it) and the token file.
-#
-# NOTE the matcher keys on real entrypoints and the token file — NOT on the
-# substring "canvas". `grep -rn 'canvas' docs/` must stay allowed. A hook that
-# fires on harmless commands is a hook the operator learns to disable, and then
-# you have neither the hook nor the honesty.
+# Canvas-touching toolkit entrypoints, plus the gate itself (Claude must not
+# launder a call through it) and the token file. Keyed on real entrypoints —
+# NOT on the substring "canvas" — so that a grep over the docs is not blocked.
 BLOCKED = re.compile(
     r"""
       canvas_sync\.py
@@ -56,7 +57,6 @@ BLOCKED = re.compile(
 )
 
 # Direct HTTP to a Canvas host, bypassing the toolkit entirely.
-# Adjust the host pattern if your Canvas is self-hosted.
 DIRECT_HTTP = re.compile(
     r"(curl|wget|http|Invoke-WebRequest|Invoke-RestMethod)\b.*instructure\.com",
     re.IGNORECASE,
@@ -76,19 +76,22 @@ def log(command: str) -> None:
 
 
 REFUSAL = """\
-BLOCKED by the split-agent Canvas policy.
+BLOCKED by the Canvas access policy.
 
-This agent does not access Canvas in this repo. Canvas access runs through the
-approved agent, via the gate:
+No AI tool accesses Canvas in this repo. Canvas access is a plain script, run by
+the instructor:
 
     uv run python lib/tools/canvas_run.py pull
 
-Your half of the workflow is everything local: the course mirror, drafts,
-audits already written to disk, docs and plans.
+Ask the instructor to run it. Then read the results from disk: the mirror in
+course/, and the audit report in audit.md / .canvas/audit/.
+
+Your half of the workflow is everything local — the course mirror, drafts,
+audits already written to disk, docs and plans. That is where the work is, and
+none of it requires Canvas access.
 
 (Note: this command would have failed anyway — the Canvas token is not in any
-file this agent can read, and Canvas returns 401. See
-docs/split-agent-access.md.)
+file you can read, and Canvas returns 401. See docs/canvas-access-boundary.md.)
 """
 
 
