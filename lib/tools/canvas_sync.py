@@ -1227,6 +1227,22 @@ def _cleanup_stale_files(course_dir: Path, tracked_paths: set, meta_paths: set) 
     return deleted
 
 
+def _push_summary(pushed_course_level: list) -> str:
+    """The line cmd_push prints when no index["files"] entry needed pushing.
+
+    "Nothing to push" was printed unconditionally, so a run that DID push the
+    syllabus still ended with "Nothing to push — all files match Canvas." — the
+    operator had to trust the [Syllabus] OK line over the summary contradicting
+    it. Same root cause as the cmd_status gap: the summary only knew about
+    index["files"], and the course-level files live outside it.
+    """
+    if pushed_course_level:
+        return f"Pushed {len(pushed_course_level)} course-level file(s): " + ", ".join(
+            pushed_course_level
+        )
+    return "Nothing to push — all files match Canvas."
+
+
 def _special_file_changes(index: dict, course_path: Optional[Path] = None) -> list:
     """The files cmd_push writes that do NOT live in index["files"].
 
@@ -1424,6 +1440,12 @@ def cmd_push(target: Optional[str] = None):
     index = _load_index()
     files = index.get("files", {})
 
+    # Course-level files written this run (homepage / _course.json / syllabus).
+    # They live outside index["files"], so the summary below must count them —
+    # otherwise push prints "Nothing to push" in the same breath as pushing the
+    # syllabus, and the operator cannot tell whether the write landed.
+    pushed_course_level: list = []
+
     # Check homepage separately — tracked under index["homepage"], not index["files"]
     homepage_meta = index.get("homepage")
     if homepage_meta and (not target or "homepage" in target):
@@ -1440,6 +1462,7 @@ def cmd_push(target: Optional[str] = None):
                     json={"wiki_page": {"body": body}}, timeout=20)
                 if resp.status_code < 400:
                     index["homepage"]["hash"] = current_hash
+                    pushed_course_level.append("Homepage")
                     print(f"    OK")
                 else:
                     print(f"    FAILED: {resp.text[:200]}")
@@ -1462,6 +1485,7 @@ def cmd_push(target: Optional[str] = None):
                 if resp.status_code in (200, 204):
                     index["course_hash"] = course_hash
                     index["course"] = data
+                    pushed_course_level.append("Course")
                     print(f"    OK (late_policy updated)")
                 else:
                     print(f"    FAILED late_policy: {resp.text[:200]}")
@@ -1483,6 +1507,7 @@ def cmd_push(target: Optional[str] = None):
                           "error": resp.text[:200] if resp.status_code >= 400 else None}
                 if result.get("success"):
                     index["syllabus"]["hash"] = current_hash
+                    pushed_course_level.append("Syllabus")
                     print(f"    OK")
                 else:
                     print(f"    FAILED: {result.get('error')}")
@@ -1501,7 +1526,7 @@ def cmd_push(target: Optional[str] = None):
             push_candidates[filepath_str] = (path, meta)
 
     if not push_candidates:
-        print("Nothing to push — all files match Canvas.")
+        print(_push_summary(pushed_course_level))
         return
 
     # Commit-style log prompt

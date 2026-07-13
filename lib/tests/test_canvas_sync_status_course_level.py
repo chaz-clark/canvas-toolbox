@@ -75,3 +75,29 @@ def test_absent_files_are_not_reported(tmp_path):
 
 def test_empty_index_reports_nothing(tmp_path):
     assert canvas_sync._special_file_changes({}, course_path=tmp_path / "_course.json") == []
+
+
+# --- the same blind spot, on the way out ----------------------------------
+#
+# cmd_push's summary also only counted index["files"], so a run that pushed the
+# syllabus still ended with "Nothing to push — all files match Canvas.":
+#
+#     [Syllabus] course/syllabus.html
+#         OK
+#     Nothing to push — all files match Canvas.
+#
+# Cosmetic, but it makes an operator doubt a write that landed — or re-run the
+# push to "make sure", which is what happened during live verification.
+
+
+def test_push_summary_reports_a_course_level_push():
+    assert canvas_sync._push_summary(["Syllabus"]) == "Pushed 1 course-level file(s): Syllabus"
+
+
+def test_push_summary_lists_every_file_pushed():
+    out = canvas_sync._push_summary(["Homepage", "Course", "Syllabus"])
+    assert out == "Pushed 3 course-level file(s): Homepage, Course, Syllabus"
+
+
+def test_push_summary_still_says_nothing_to_push_when_nothing_was():
+    assert canvas_sync._push_summary([]) == "Nothing to push — all files match Canvas."
