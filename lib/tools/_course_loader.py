@@ -139,9 +139,13 @@ def load_course(course_dir=DEFAULT_COURSE_DIR) -> Course:
             f"  offline: uv run python lib/tools/offline_import.py --imscc <file>"
         )
     course = Course(dir=root, meta=json.loads(course_json.read_text(encoding="utf-8")))
-    for mod_meta_path in sorted(root.glob("*/_module.json")):
+    # Order modules by Canvas position (captured at import from module_meta.xml order;
+    # canvas_sync writes it too), falling back to slug for a course/ that predates it.
+    # A teacher's module order is intentional student flow — never re-sort to slug.
+    _mods = [(json.loads(p.read_text(encoding="utf-8")), p) for p in root.glob("*/_module.json")]
+    for meta, mod_meta_path in sorted(_mods, key=lambda t: (t[0].get("position", 1_000_000), t[1].parent.name)):
         mod_dir = mod_meta_path.parent
-        module = Module(slug=mod_dir.name, meta=json.loads(mod_meta_path.read_text(encoding="utf-8")))
+        module = Module(slug=mod_dir.name, meta=meta)
         for item_path in sorted(mod_dir.glob("*.json")):
             if item_path.name == "_module.json":
                 continue

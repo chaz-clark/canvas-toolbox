@@ -251,19 +251,19 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
     captured: set[str] = set()   # identifierrefs written via modules
 
     mm = read("course_settings/module_meta.xml")
-    for mod in re.findall(r"<module\b[^>]*>(.*?)</module>", mm, re.S):
+    for mpos, mod in enumerate(re.findall(r"<module\b[^>]*>(.*?)</module>", mm, re.S), start=1):
         title = _field(mod, "title") or "module"
         mod_slug = slugify(title)
         mod_dir = out / mod_slug
         mod_dir.mkdir(parents=True, exist_ok=True)
         published = _field(mod, "workflow_state") == "active"
         item_summaries = []
-        for it in re.findall(r"<item\b[^>]*>(.*?)</item>", mod, re.S):
+        for ipos, it in enumerate(re.findall(r"<item\b[^>]*>(.*?)</item>", mod, re.S), start=1):
             ct = _field(it, "content_type")
             ref = _field(it, "identifierref")
             it_title = _field(it, "title") or "item"
             it_pub = _field(it, "workflow_state") == "active"
-            item_summaries.append({"title": it_title, "content_type": ct, "identifierref": ref})
+            item_summaries.append({"title": it_title, "content_type": ct, "identifierref": ref, "position": ipos})
             # An item can be linked from several modules — write it ONCE (the
             # module summaries still reference it), else audits double-count it.
             if not ref or ref in captured:
@@ -288,7 +288,8 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
                 counts["pages"] += 1
                 captured.add(ref)
         (mod_dir / "_module.json").write_text(
-            json.dumps({"title": title, "published": published, "items": item_summaries}, indent=2),
+            json.dumps({"title": title, "position": mpos, "published": published,
+                        "items": item_summaries}, indent=2),
             encoding="utf-8",
         )
         counts["modules"] += 1
