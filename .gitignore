@@ -35,6 +35,12 @@ docs/dev/
 # GitHub issues workflow — local only
 .github_issues/
 
+# Local dev-only tools — sandbox/testing utilities, NOT shipped to consumers.
+# clean_sandbox.py wipes CANVAS_SANDBOX_EMPTY_ID's content for repeatable import
+# tests; it's tied to the maintainer's sandbox, so it stays local (+ its test).
+lib/tools/clean_sandbox.py
+lib/tests/test_clean_sandbox.py
+
 # gh-issues-agent — local clone of upstream tool used during development.
 # Populate with: git clone https://github.com/chaz-clark/gh_issues_agent.git gh-issues-agent
 # Update with:   cd gh-issues-agent && git pull origin main
