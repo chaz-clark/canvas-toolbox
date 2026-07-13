@@ -115,10 +115,12 @@ class Course:
         return any((g.get("group_weight") or 0) > 0 for g in self.assignment_groups())
 
     def outcomes(self) -> list[dict]:
-        """Course outcomes ({id, title, description, display_name}) if synced to
-        course/_outcomes.json. `canvas_sync --pull` writes them; a .imscc export
-        has NO outcomes (account-level), so offline_import can't — returns [] then,
-        which is why offline rubric/CLO checks report 'unverified' rather than guess."""
+        """Course outcomes ({id, title, description, display_name}) if present in
+        course/_outcomes.json. `canvas_sync --pull` writes them; `offline_import`
+        also writes them when the .imscc carries course-OWNED outcomes
+        (course_settings/learning_outcomes.xml). Account-level *linked* outcomes
+        aren't exported, so a course whose CLOs are account-linked yields [] offline
+        (audits fall back to the syllabus, or report 'unverified')."""
         p = self.dir / "_outcomes.json"
         if not p.is_file():
             return []

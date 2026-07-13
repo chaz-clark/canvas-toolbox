@@ -175,6 +175,22 @@ def _manifest_hrefs(manifest: str) -> dict:
     ))
 
 
+def parse_learning_outcomes(lo: str) -> list[dict]:
+    """Parse course_settings/learning_outcomes.xml into canvas_sync's
+    _outcomes.json shape: {id, title, description, display_name}. The id is the
+    cartridge identifier (there is no Canvas numeric id offline). Empty list when
+    the XML is empty/absent — account-level *linked* outcomes aren't exported."""
+    outcomes = []
+    for m in re.finditer(r'<learningOutcome\s+identifier="([^"]+)"[^>]*>(.*?)</learningOutcome>', lo or "", re.S):
+        oid, body = m.group(1), m.group(2)
+        title = _field(body, "title")
+        outcomes.append({
+            "id": oid, "title": title,
+            "description": _field(body, "description"), "display_name": title,
+        })
+    return outcomes
+
+
 def import_imscc(imscc_path, out_dir="course") -> dict:
     """Convert a .imscc into course/. Returns a summary count dict."""
     out = Path(out_dir)
@@ -217,6 +233,16 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
                 "position": int(_field(body, "position") or 0),
             })
         (out / "_assignment_groups.json").write_text(json.dumps(groups, indent=2), encoding="utf-8")
+
+    # Learning outcomes (course-OWNED CLOs). Canvas exports course-level outcomes
+    # into course_settings/learning_outcomes.xml (account-level *linked* outcomes
+    # are NOT exported). Matches canvas_sync's _outcomes.json shape
+    # {id, title, description, display_name} so the loader + CLO/alignment audits
+    # read either source identically. The id is the cartridge identifier — there's
+    # no Canvas numeric id offline, so alignment matches on text, not id.
+    outcomes = parse_learning_outcomes(read("course_settings/learning_outcomes.xml"))
+    if outcomes:
+        (out / "_outcomes.json").write_text(json.dumps(outcomes, indent=2), encoding="utf-8")
 
     rubrics = parse_rubrics(read("course_settings/rubrics.xml"))  # attached per-assignment below
 
