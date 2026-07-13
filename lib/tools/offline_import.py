@@ -103,6 +103,10 @@ def quiz_from_xml(xml: str, published: bool | None) -> dict:
     ref = _field(xml, "assignment_group_identifierref")
     if ref:
         d["assignment_group_identifierref"] = ref   # quizzes belong to a group too
+    rr = _field(xml, "rubric_identifierref")
+    if rr:
+        d["rubric_identifierref"] = rr              # a quiz can carry a rubric too
+        d["rubric_use_for_grading"] = _field(xml, "rubric_use_for_grading") or "false"
     _dates_points(xml, d)
     return d
 
@@ -280,6 +284,7 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
                 captured.add(ref)
             elif ct == "Quizzes::Quiz" and f"{ref}/assessment_meta.xml" in names:
                 data = quiz_from_xml(read(f"{ref}/assessment_meta.xml"), it_pub)
+                attach_rubric(data, rubrics)
                 (mod_dir / f"{slugify(it_title)}.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
                 counts["quizzes"] += 1
                 captured.add(ref)
@@ -315,6 +320,7 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
             counts["assignments"] += 1
         else:
             data = quiz_from_xml(read(n), None)
+            attach_rubric(data, rubrics)
             counts["quizzes"] += 1
         (unfiled / f"{slugify(data.get('name') or rid)}.json").write_text(
             json.dumps(data, indent=2), encoding="utf-8")
