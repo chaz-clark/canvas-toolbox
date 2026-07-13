@@ -2,14 +2,35 @@
 
 All notable changes to canvas-toolbox. Format follows [Keep a
 Changelog](https://keepachangelog.com/). Versioning follows [SemVer](https://semver.org/)
-on the `v0.x` line (canonical — see [AGENTS.md → Active Context](AGENTS.md#active-context)
-for the versioning rationale).
+on the `1.x` line — see the **Versioning policy** in [AGENTS.md → Active Context](AGENTS.md#active-context).
 
 For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
 ## [Unreleased]
+
+---
+
+## [1.7.0] — 2026-07-12
+
+**Offline mode — run the whole audit + gradebook + content-package workflow without a Canvas API token.**
+
+Tools now read a local `course/` folder (populated by `canvas_sync --pull` from the API *or* `offline_import` from a `.imscc`), so they run identically online and offline. Online stays the default; `--local` is additive — nothing existing changes.
+
+### Added
+- **Offline foundation:** `CANVAS_MODE` + gradebook-CSV utils + download finders (#141); gradebook **de-identify / re-identify** (#142); **apply-scores** to a gradebook CSV (#143); `.imscc` **date-shift** + validator for a semester copy (#144); the local **`course/` loader** (#146); **`offline_import`** (`.imscc → course/`) (#147); cross-validation of the full `.imscc → course/ → audit` pipeline (#148).
+- **7 audits gained `--local`:** `workload` (#146), `syllabus` (#149), `accessibility` + `content_representation` (#150), `grading_structure` (#152), `rubric_coverage` + `rubric_quality` (#154), with **exact online/offline parity** including outcomes (#155).
+- **`clo_catalog_import`** — pull a course's CLOs from the institution's Kuali catalog and create them as Canvas Outcomes (API-only, guarded, idempotent, text-normalized) (#160).
+- **`syllabus_audit` is institution-agnostic** — BYUI profile via host inference / `CANVAS_INSTITUTION` / `--institution`, not hardcoded (#156).
+
+### Changed
+- **Cloudflare Workers migrated out** to the `edge-infra` sister repo; `canvas-toolbox/infra/` removed and references repointed (the deployed `canvas-toolbox-bugs` worker is unaffected) (#159).
+- Offline guides rewritten to match the shipped architecture (#145, #151); roadmap updates for the CLO importer (#157, #161).
+
+### Fixed
+- `imscc_adjust_dates` blocks only shift-*introduced* issues, not pre-existing source quirks (#153).
+- PUBH field deployment feedback — 5 items (#139).
 
 ---
 
