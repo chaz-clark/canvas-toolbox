@@ -62,6 +62,12 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import os
 import re
 import sys
@@ -381,7 +387,98 @@ def group_assignments_by_week(assignments: list[dict], start_dt) -> dict[int, li
         wk = week_of(a, start_dt)
         if wk and 1 <= wk <= 14:
             out[wk].append(a)
+    # Deterministic within-week order — chronological, name as tiebreak — so the
+    # per-week item list is identical online and --local. (Canvas's raw /assignments
+    # order isn't reproducible from a course/, and due-date order reads better on a
+    # weekly map anyway.)
+    for wk in out:
+        out[wk].sort(key=lambda a: (a.get("due_at") or "", a.get("name") or ""))
     return dict(out)
+
+
+# ---------------------------------------------------------------------------
+# Local (offline) pull — read course/ instead of the Canvas API
+# ---------------------------------------------------------------------------
+
+# IMS-CC / module_meta.xml content_type -> Canvas API module-item `type`, so the
+# reshaped module items are byte-identical to a /modules?include[]=items response.
+_LOCAL_ITEM_TYPE = {
+    "Assignment": "Assignment",
+    "Quizzes::Quiz": "Quiz",
+    "DiscussionTopic": "Discussion",
+    "WikiPage": "Page",
+    "ContextModuleSubHeader": "SubHeader",
+    "ContextExternalTool": "ExternalTool",
+    "ExternalUrl": "ExternalUrl",
+}
+
+
+def build_local_data(course_dir: str) -> dict:
+    """Local mirror of pull_canvas_data: read course/ (produced by offline_import
+    or canvas_sync --pull) into the exact dict shape emit_report expects. Mirrors
+    each Canvas GET from pull_canvas_data:
+      /courses/:id?include[]=syllabus_body  -> _course.json + syllabus.html
+      /courses/:id/modules?include[]=items  -> per-module _module.json
+      /courses/:id/assignments              -> per-item .json (points/subs)
+      /courses/:id/pages/:url (overview)    -> per-module <slug>.html
+    """
+    from _course_loader import load_course
+    from offline_import import slugify
+
+    c = load_course(course_dir)
+
+    # Every gradeable item needs a unique id so assign_by_id doesn't collide;
+    # module-referenced items are re-keyed to their cartridge identifierref below
+    # so a module item's content_id resolves back to the right assignment.
+    assignments = c.assignments
+    for a in assignments:
+        a.setdefault("id", a.get("_source_path"))
+    loaded_by_stem = {Path(a["_source_path"]).stem: a
+                      for a in assignments if a.get("_source_path")}
+
+    # Same module filter pull_canvas_data applies before emit_report sees them.
+    _EXCLUDE_MODULE = ("do not publish", "teaching notes", "textbook information",
+                       "student resources", "instructor resources")
+    modules: list[dict] = []
+    overview_bodies: dict[str, str] = {}
+    for m in c.modules:
+        name = m.title
+        published = bool(m.meta.get("published", True))
+        items = []
+        for meta_it in m.meta.get("items", []):
+            ct = meta_it.get("content_type")
+            title = meta_it.get("title") or ""
+            ref = meta_it.get("identifierref")
+            content_id = None
+            if ct in ("Assignment", "Quizzes::Quiz") and ref:
+                loaded = loaded_by_stem.get(slugify(title))
+                if loaded is not None:
+                    loaded["id"] = ref          # stable id from the join key
+                    content_id = ref
+            items.append({"type": _LOCAL_ITEM_TYPE.get(ct, ct),
+                          "title": title, "content_id": content_id})
+            if ct == "WikiPage" and "overview" in title.lower():
+                html_path = c.dir / m.slug / f"{slugify(title)}.html"
+                if html_path.is_file():
+                    overview_bodies[title] = html_path.read_text(encoding="utf-8")
+        if published and not any(pat in name.lower() for pat in _EXCLUDE_MODULE):
+            modules.append({"name": name, "published": published, "items": items})
+
+    course = {
+        "name": c.name,
+        "course_code": c.meta.get("course_code", "[Course Code]"),
+        "syllabus_body": c.syllabus(),
+        "start_at": c.meta.get("start_at"),
+    }
+    syllabus_los = extract_syllabus_los(course["syllabus_body"])
+    print(f"  modules={len(modules)} assignments={len(assignments)} "
+          f"overview-bodies={len(overview_bodies)} syllabus_los={len(syllabus_los)}",
+          file=sys.stderr)
+    return {
+        "course": course, "modules": modules, "assignments": assignments,
+        "overview_bodies": overview_bodies, "course_id": str(c.canvas_id or "local"),
+        "syllabus_los": syllabus_los,
+    }
 
 
 # ===========================================================================
@@ -995,7 +1092,16 @@ def emit_report(data: dict | None = None) -> tuple[str, list[dict]]:
 # MAIN
 # ===========================================================================
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main():
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Generate a Course Map & Schedule artifact from Canvas data (or emit blank template).")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
@@ -1008,6 +1114,12 @@ def main():
                          "'Tue,Thu,Sun'. Default: auto-detect modal due-day.")
     ap.add_argument("--output-md", metavar="PATH", default="course_map.md",
                     help="Output Markdown path (default: ./course_map.md).")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / "
+                         "offline_import) instead of the Canvas API. Auto-on when "
+                         "CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
     if args.class_days:
@@ -1029,28 +1141,37 @@ def main():
                 pass
         return 0
 
-    token = os.environ.get("CANVAS_API_TOKEN")
-    base_url = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
-    if base_url and not base_url.startswith("http"):
-        base_url = "https://" + base_url
-    course_id = args.course or os.environ.get("MASTER_COURSE_ID") or os.environ.get("CANVAS_COURSE_ID")
+    use_local = args.local or bool(args.course_dir) or _is_offline()
+    if use_local:
+        from _course_loader import CourseNotFound
+        try:
+            data = build_local_data(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 1
+    else:
+        token = os.environ.get("CANVAS_API_TOKEN")
+        base_url = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
+        if base_url and not base_url.startswith("http"):
+            base_url = "https://" + base_url
+        course_id = args.course or os.environ.get("MASTER_COURSE_ID") or os.environ.get("CANVAS_COURSE_ID")
 
-    missing = []
-    if not token:     missing.append("CANVAS_API_TOKEN")
-    if not base_url:  missing.append("CANVAS_BASE_URL")
-    if not course_id: missing.append("MASTER_COURSE_ID (or --course)")
-    if missing:
-        print("ERROR: Missing required configuration:", file=sys.stderr)
-        for m in missing:
-            print(f"  {m}", file=sys.stderr)
-        return 1
+        missing = []
+        if not token:     missing.append("CANVAS_API_TOKEN")
+        if not base_url:  missing.append("CANVAS_BASE_URL")
+        if not course_id: missing.append("MASTER_COURSE_ID (or --course)")
+        if missing:
+            print("ERROR: Missing required configuration:", file=sys.stderr)
+            for m in missing:
+                print(f"  {m}", file=sys.stderr)
+            return 1
 
-    headers = {"Authorization": f"Bearer {token}"}
-    try:
-        data = pull_canvas_data(course_id, base_url, headers)
-    except Exception as e:
-        print(f"ERROR: Canvas pull failed: {e}", file=sys.stderr)
-        return 1
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            data = pull_canvas_data(course_id, base_url, headers)
+        except Exception as e:
+            print(f"ERROR: Canvas pull failed: {e}", file=sys.stderr)
+            return 1
 
     md, gaps = emit_report(data=data)
     out_path = Path(args.output_md)

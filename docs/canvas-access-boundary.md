@@ -123,6 +123,47 @@ quietly accepted where it does nothing is a flag that becomes muscle memory wher
 
 Every decision, allow or refuse, is appended to `.canvas/canvas-run.log`.
 
+### 2b. The launcher — `bin/Canvas.cmd` / `bin/Canvas.command`
+
+The CLI asks an instructor to remember `--confirm-course <id> --allow-enrolled`. Faculty
+who don't live in a terminal bounce off that, and the tempting "fix" is to let the AI agent
+run the command for them — which hands the Canvas credential to an AI vendor and destroys
+the only assurance this design offers.
+
+So the fix goes the other way: **make it trivial for the human.** Double-click
+`bin/Canvas.cmd` (Mac: `bin/Canvas.command`) — a numbered menu, no terminal, no flags.
+
+```text
+   Course:  Introduction to Data Science
+   ID:      111111          https://school.instructure.com
+
+    1.  Get the latest from Canvas       (safe - read only)
+    2.  See what would change in Canvas  (safe - read only)
+    3.  Check the course for problems    (safe - read only)
+
+    4.  SEND my changes to Canvas        (students see this immediately)
+```
+
+Option 4 runs `status` **first**, shows exactly what would be overwritten, names the
+course, and requires typing `SEND`. It types the two flags for you *after* asking, in
+English, whether you meant it — they are not skipped, just not memorized.
+
+It shows the course **NAME** from the local mirror, not just the id. A stale `.env` aimed
+at the wrong course id is invisible to a human (`111111` vs `111112`); a wrong course name
+is not. That is [L12](../lib/agents/knowledge/canvas_api_lessons_learned.md) made visible
+to the person who can actually catch it.
+
+**It changes nothing about the security model.** Every guard still lives in
+`canvas_run.py`; the menu is presentation. It cannot do anything the CLI could not.
+
+**But it is a path to Canvas, so the hook blocks it for the agent too.** Building it
+briefly *opened a hole* — an agent could have reached Canvas by proxy simply by running
+`Canvas.cmd`. A convenience wrapper around a gated tool is still the gated tool. That is
+the standing failure mode of this whole design, and it is worth stating plainly:
+
+> **The boundary is only as good as its enumeration of the paths to Canvas.**
+> Every new convenience script is a new path. Add it to the block list in the same commit.
+
 ### 3. Block the agent, and log the refusals
 
 `scaffold/claude/` is a worked example for Claude Code: deny rules plus a `PreToolUse` hook

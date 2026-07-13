@@ -11,7 +11,7 @@ The Worker files the GitHub issue using the maintainer's PAT and returns
 the issue URL.
 
 Per the canvas-toolbox#54 umbrella + the 2026-06-12 design conversation
-(parking lot entry). Pairs with `infra/bug-intake-worker/`.
+(parking lot entry). Pairs with `bug-intake-worker/` in the edge-infra sister repo.
 
 ARCHITECTURE
   faculty machine                    Cloudflare Worker             GitHub
@@ -79,6 +79,12 @@ EXIT CODES
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import getpass
 import json
 import os
@@ -115,7 +121,8 @@ except ImportError:
 # CONFIG — bug-intake worker endpoint
 # ----------------------------------------------------------------------------
 # Production endpoint, deployed 2026-06-15. The worker source + deploy
-# notes live in infra/bug-intake-worker/. Override via --endpoint for
+# notes live in the edge-infra sister repo (workers/bug-intake-worker/).
+# Override via --endpoint for
 # testing against a preview deployment.
 _ENDPOINT: str | None = "https://canvas-toolbox-bugs.tylerchaz5.workers.dev/bug"
 
@@ -326,6 +333,8 @@ def _post_to_worker(endpoint: str, title: str, body: str) -> tuple[int, dict]:
 # ----------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Report a canvas-toolbox bug without needing a GitHub account "
                     "or the `gh` CLI. Posts to the bug-intake worker; the worker "
@@ -378,7 +387,7 @@ def main() -> int:
     if args.dry_run:
         print("=== DRY RUN — not posting ===")
         print(f"title: {scrubbed_title}")
-        print(f"endpoint: {endpoint or '(unset — see infra/bug-intake-worker/README.md)'}")
+        print(f"endpoint: {endpoint or '(unset — see edge-infra/workers/bug-intake-worker/README.md)'}")
         print(f"body length: {len(scrubbed)} chars  (after {n_scrubs} redaction(s))")
         print()
         print(scrubbed)
@@ -387,7 +396,7 @@ def main() -> int:
     if not endpoint:
         print("⛔ _ENDPOINT not set. The bug-intake worker hasn't been deployed yet, "
               "or the URL hasn't been wired into this file. See "
-              "infra/bug-intake-worker/README.md for the one-time setup. "
+              "edge-infra/workers/bug-intake-worker/README.md for the one-time setup. "
               "Until then, file the bug at "
               "https://github.com/chaz-clark/canvas-toolbox/issues/new", file=sys.stderr)
         return 2

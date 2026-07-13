@@ -87,6 +87,19 @@ accommodation primitives. Lifted from the DS 460 pilot and generalized.
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass
+
+try:
+    from _override_recalc_helper import force_recalc_for_student
+except ImportError:
+    # If helper not available, define a no-op
+    def force_recalc_for_student(*args, **kwargs) -> int:
+        return 0  # No-op if _env_loader not available
 import csv
 import os
 import sys
@@ -323,6 +336,8 @@ def delete_override(base_url: str, course_id: str, assignment_id: int,
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     who = ap.add_mutually_exclusive_group(required=True)
     who.add_argument("--user-id", help="bare Canvas user_id (no PII surface)")
@@ -351,6 +366,11 @@ def main() -> int:
                     help="undo: delete this student's accommodation overrides")
     ap.add_argument("--apply", action="store_true",
                     help="actually write the change (without this, dry-run)")
+    ap.add_argument("--force-recalc", dest="force_recalc", action="store_true",
+                    default=False,
+                    help="force Canvas to recalculate overrides after applying (slow on large courses)")
+    ap.add_argument("--no-force-recalc", dest="force_recalc", action="store_false",
+                    help="skip forcing recalculation (default: overrides usually take effect automatically)")
     args = ap.parse_args()
 
     base_url = os.environ.get("CANVAS_BASE_URL", "").rstrip("/")
@@ -432,6 +452,33 @@ def main() -> int:
             print(f"  [{ok}] {aid}: override id={body.get('id')} "
                   f"due={body.get('due_at')} unlock={body.get('unlock_at')} "
                   f"lock={body.get('lock_at')}")
+
+    # Force recalculation if we applied overrides (not if we removed them)
+    if not args.remove and args.apply and args.force_recalc and assignment_ids:
+        print(f"\nForcing Canvas override recalculation...")
+        try:
+            headers = {"Authorization": f"Bearer {token}"}
+            touched = 0
+            # Only recalc the specific assignments we just modified (not all assignments!)
+            for aid in assignment_ids:
+                touched += force_recalc_for_student(
+                    base=base_url,
+                    headers=headers,
+                    course_id=int(course_id),
+                    student_id=uid,
+                    assignment_id=aid,  # ← Pass the specific assignment
+                    quiet=True
+                )
+            if touched > 0:
+                print(f"  [recalc] ✓ Recalculated {touched} assignment override(s)")
+            else:
+                print(f"  [recalc] No overrides found to recalculate (unexpected)")
+        except Exception as e:
+            print(f"  [recalc] Warning: recalculation failed: {e}", file=sys.stderr)
+            print(f"  [recalc] Overrides were created, but may not take effect immediately.",
+                  file=sys.stderr)
+            print(f"  [recalc] Run: fix_group_override_recalc.py --course-id {course_id} "
+                  f"--student-id {uid}", file=sys.stderr)
 
     if fails:
         print(f"\n{fails} operation(s) failed. Re-run to retry.", file=sys.stderr)

@@ -30,7 +30,7 @@ locally (names, emails, `/Users/` paths) before posting through a
 Cloudflare-fronted intake worker that files the GitHub issue.
 
 Full docstring + flags: [`lib/tools/cb_report_bug.py`](../lib/tools/cb_report_bug.py).
-Worker architecture: [`infra/bug-intake-worker/README.md`](../infra/bug-intake-worker/README.md).
+Worker architecture: [`bug-intake-worker/README.md` (edge-infra sister repo)](https://github.com/chaz-clark/edge-infra/blob/main/workers/bug-intake-worker/README.md).
 
 ---
 
@@ -116,6 +116,34 @@ environment and must pass.
 If your change adds a new tool with pure-logic helpers, **please add a
 matching test file** under `lib/tests/test_<your_tool>.py` following the
 existing patterns (e.g. [`test_grader_filename_parsing.py`](../lib/tests/test_grader_filename_parsing.py)).
+
+### Windows testing (required for cross-platform changes)
+
+If your change has **potential for Mac/Windows differences**, test on Windows 11 before opening the PR:
+
+**When Windows testing is required:**
+- Console output (Unicode glyphs, encoding, color codes)
+- File path handling (`/` vs `\`, case sensitivity)
+- Shell command execution (`cmd.exe` vs `bash`)
+- Environment variable handling (`%VAR%` vs `$VAR`)
+- Line ending handling (CRLF vs LF)
+
+**How to test via Parallels CLI** (macOS → Windows 11):
+
+```bash
+# Resume Windows 11 VM
+prlctl resume "Windows 11"
+
+# Run your test script
+prlctl exec "Windows 11" cmd /c "\"C:\Program Files\Python311\python.exe\" C:\test_script.py"
+
+# Suspend when done
+prlctl suspend "Windows 11"
+```
+
+**Why this matters:** Issue #123 (Windows UTF-8 console crash) shipped and broke Windows users because Unicode glyphs (✓, —, ⏭) weren't tested on `cp1252` console before release. The Parallels CLI workflow prevents this class of bug.
+
+If you don't have Windows 11 available, note that in your PR and the maintainer will test it.
 
 ### What the maintainer reviews
 

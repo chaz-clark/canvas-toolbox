@@ -56,6 +56,12 @@ GENERALIZED FROM: ds460-master/grading/check_name_leak.py
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import re
 import sys
@@ -176,6 +182,8 @@ def build_search_terms(fname: str, known_names: list[str], stop: set[str]) -> li
 
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="FERPA leak self-check on de-id'd outputs. Reads "
                     ".known_names.txt (primary roster, decomposed) + filename "

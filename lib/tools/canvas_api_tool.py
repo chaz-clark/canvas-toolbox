@@ -48,6 +48,73 @@ CANVAS_BASE_URL = _raw_url
 
 
 # ---------------------------------------------------------------------------
+# Agent configuration loader (YAML frontmatter + embedded YAML blocks)
+# ---------------------------------------------------------------------------
+
+def load_agent_config(agent_name: str) -> dict:
+    """
+    Load agent configuration from markdown file with YAML frontmatter + embedded YAML blocks.
+
+    Args:
+        agent_name: Agent name without extension (e.g. 'canvas_course_expert')
+
+    Returns:
+        Dict matching the old JSON structure:
+        {
+            "primary_data": {
+                "audit_rules": [...],
+                "byui_standards": [...]
+            },
+            "implementation": {
+                "llm_agent": {...}
+            }
+        }
+
+    Raises:
+        FileNotFoundError: If agent markdown file doesn't exist
+        ValueError: If YAML parsing fails
+    """
+    import yaml
+    import re
+
+    agent_path = Path(__file__).parent.parent / "agents" / f"{agent_name}.md"
+
+    if not agent_path.exists():
+        raise FileNotFoundError(f"Agent file not found: {agent_path}")
+
+    content = agent_path.read_text(encoding="utf-8")
+
+    # Extract YAML code blocks from markdown body
+    # Note: YAML frontmatter is currently unused but available at content[3:yaml_end]
+    config_data = {
+        "primary_data": {},
+        "implementation": {}
+    }
+
+    # Pattern: ```yaml\n[content]\n```
+    yaml_blocks = re.findall(r'```yaml\n(.*?)\n```', content, re.DOTALL)
+
+    for block_text in yaml_blocks:
+        try:
+            block = yaml.safe_load(block_text)
+        except yaml.YAMLError:
+            continue  # Skip malformed blocks
+
+        if not block or not isinstance(block, dict):
+            continue
+
+        # Identify block by its keys
+        if "audit_rules" in block:
+            config_data["primary_data"]["audit_rules"] = block["audit_rules"]
+        elif "byui_standards" in block:
+            config_data["primary_data"]["byui_standards"] = block["byui_standards"]
+        elif "llm_agent" in block:
+            config_data["implementation"]["llm_agent"] = block["llm_agent"]
+
+    return config_data
+
+
+# ---------------------------------------------------------------------------
 # Tool: parse_course_export
 # ---------------------------------------------------------------------------
 
@@ -570,10 +637,7 @@ def analyze_cognitive_load(
     Runs the cognitive load audit rules against parsed course_data.
     Returns a scored report with prioritized issues.
     """
-    config_path = Path(__file__).parent.parent / "agents" / "canvas_course_expert.json"
-    with open(config_path) as f:
-        config = json.load(f)
-
+    config = load_agent_config("canvas_course_expert")
     rules = config["primary_data"]["audit_rules"]
     skip_rules = set(rules_override or [])
     issues = []
@@ -755,10 +819,7 @@ def fetch_byui_resources(topic: str) -> str:
         except Exception:
             pass
 
-    config_path = Path(__file__).parent.parent / "agents" / "canvas_course_expert.json"
-    with open(config_path) as f:
-        config = json.load(f)
-
+    config = load_agent_config("canvas_course_expert")
     standards = config["primary_data"]["byui_standards"]
     matching = [
         s for s in standards
@@ -789,10 +850,7 @@ def run_agent(zip_path: str, dry_run: bool = False):
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    config_path = Path(__file__).parent.parent / "agents" / "canvas_course_expert.json"
-    with open(config_path) as f:
-        config = json.load(f)
-
+    config = load_agent_config("canvas_course_expert")
     llm_cfg = config["implementation"]["llm_agent"]
     system_prompt = llm_cfg["system_prompt"]
 

@@ -42,6 +42,12 @@ Reads: knowledge/content_representation_knowledge.md (the framework + evidence-b
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import html
 import json
 import os
@@ -180,6 +186,24 @@ def collect_items(course_id: str, max_pages: int) -> tuple[str, list[tuple[str, 
     return course_name, items
 
 
+def collect_items_from_course(course, max_pages: int) -> list[tuple[str, str]]:
+    """Local equivalent of collect_items: build the same (label, text) surfaces
+    from a loaded Course (syllabus + pages + assignment descriptions)."""
+    items: list[tuple[str, str]] = []
+    syll = _text(course.syllabus())
+    if syll:
+        items.append(("syllabus", syll))
+    for p in course.pages()[:max_pages]:
+        body = _text(p.get("body") or "")
+        if body:
+            items.append((f"page:{p.get('title')}", body))
+    for a in course.assignments:
+        body = _text(a.get("description") or "")
+        if body:
+            items.append((f"assignment:{a.get('name') or a.get('id')}", body))
+    return items
+
+
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
@@ -264,7 +288,16 @@ def _resolve_course_id(target_env: str, literal: str | None) -> tuple[str, str]:
     return val, f"${target_env}"
 
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="EXPERIMENTAL read-only content-source inventory (surfaces named "
                     "sources in course content for human representation review; not a score).")
@@ -279,22 +312,40 @@ def main() -> None:
     ap.add_argument("--json", action="store_true", dest="emit_json", help="Machine-readable JSON")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="(Read-only; advisory guard. Accepted for symmetry.)")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
-    if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://" or not CANVAS_API_TOKEN:
-        print("ERROR: set CANVAS_BASE_URL and CANVAS_API_TOKEN in .env.")
-        sys.exit(2)
-
-    course_id, source = _resolve_course_id(args.target, args.course_id)
-    if not course_id:
-        print(f"ERROR: course ID not found via {source}. Pass --course-id <id>.")
-        sys.exit(2)
-
-    guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
-                  mode="read", allow_override=args.allow_enrolled, label="audit target")
-
+    use_local = args.local or bool(args.course_dir) or _is_offline()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    course_name, items = collect_items(course_id, args.max_pages)
+
+    if use_local:
+        from _course_loader import load_course, CourseNotFound
+        try:
+            c = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(2)
+        course_id = str(c.canvas_id or "local")
+        course_name = c.name
+        items = collect_items_from_course(c, args.max_pages)
+    else:
+        if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://" or not CANVAS_API_TOKEN:
+            print("ERROR: set CANVAS_BASE_URL and CANVAS_API_TOKEN in .env.")
+            sys.exit(2)
+
+        course_id, source = _resolve_course_id(args.target, args.course_id)
+        if not course_id:
+            print(f"ERROR: course ID not found via {source}. Pass --course-id <id>.")
+            sys.exit(2)
+
+        guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
+                      mode="read", allow_override=args.allow_enrolled, label="audit target")
+
+        course_name, items = collect_items(course_id, args.max_pages)
     if not items:
         print(f"\nNo readable content fetched for course {course_id}.", file=sys.stderr)
         sys.exit(2)

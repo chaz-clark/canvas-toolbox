@@ -49,6 +49,17 @@ is_canvas_command = block_canvas.is_canvas_command
         "Get-Content .env.canvas",
         # No leading path — an entrypoint invoked from inside its own directory.
         "canvas_sync.py --push",
+        # The faculty launcher is a front-end for the gate. An agent that runs it
+        # reaches Canvas BY PROXY. A convenience wrapper around a gated tool
+        # silently widens the gate unless the block list learns about it — this is
+        # the boundary's standing failure mode, so it gets explicit tests.
+        "powershell -File bin/canvas-menu.ps1",
+        "pwsh -NoProfile -File bin/canvas-menu.ps1",
+        "./bin/canvas-menu.sh",
+        "bash bin/canvas-menu.sh",
+        "cmd /c bin\\Canvas.cmd",
+        "./bin/Canvas.command",
+        "start bin/Canvas.cmd",
     ],
 )
 def test_canvas_touching_commands_are_blocked(cmd):

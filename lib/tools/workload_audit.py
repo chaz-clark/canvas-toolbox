@@ -33,6 +33,12 @@ distribution-vs-volume split; audit signals).
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import os
 import sys
@@ -257,7 +263,16 @@ def _resolve_course_id(target_env: str, literal: str | None) -> tuple[str, str]:
     return val, f"${target_env}"
 
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Read-only student-workload distribution audit (clustering/density; "
                     "rough volume sanity with --credits).")
@@ -272,23 +287,42 @@ def main() -> None:
     ap.add_argument("--json", action="store_true", dest="emit_json", help="Machine-readable JSON")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="(Read-only; advisory guard. Accepted for symmetry.)")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
-    if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://" or not CANVAS_API_TOKEN:
-        print("ERROR: set CANVAS_BASE_URL and CANVAS_API_TOKEN in .env.")
-        sys.exit(2)
-    course_id, source = _resolve_course_id(args.target, args.course_id)
-    if not course_id:
-        print(f"ERROR: course ID not found via {source}. Pass --course-id <id>.")
-        sys.exit(2)
-
-    guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
-                  mode="read", allow_override=args.allow_enrolled, label="audit target")
-
+    use_local = args.local or bool(args.course_dir) or _is_offline()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    course = _get(f"/courses/{course_id}") or {}
-    course_name = (course.get("name") if isinstance(course, dict) else None) or "<unknown course>"
-    assignments = _get(f"/courses/{course_id}/assignments")
+
+    if use_local:
+        # Same audit, local source: course/ carries API-shaped assignment dicts.
+        from _course_loader import load_course, CourseNotFound
+        try:
+            c = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(2)
+        course_id = str(c.canvas_id or "local")
+        course_name = c.name
+        assignments = c.assignments
+    else:
+        if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://" or not CANVAS_API_TOKEN:
+            print("ERROR: set CANVAS_BASE_URL and CANVAS_API_TOKEN in .env.")
+            sys.exit(2)
+        course_id, source = _resolve_course_id(args.target, args.course_id)
+        if not course_id:
+            print(f"ERROR: course ID not found via {source}. Pass --course-id <id>.")
+            sys.exit(2)
+
+        guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
+                      mode="read", allow_override=args.allow_enrolled, label="audit target")
+
+        course = _get(f"/courses/{course_id}") or {}
+        course_name = (course.get("name") if isinstance(course, dict) else None) or "<unknown course>"
+        assignments = _get(f"/courses/{course_id}/assignments")
     if not isinstance(assignments, list) or not assignments:
         print(f"\nNo assignments returned for course {course_id}.", file=sys.stderr)
         sys.exit(2)

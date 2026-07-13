@@ -92,6 +92,12 @@ canvas_course_expert is gated on real-course exercise.
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import os
 import re
@@ -638,40 +644,63 @@ def score_rubric(
 # course_quality_check.py --alignment but lighter)
 # ---------------------------------------------------------------------------
 
-def fetch_course_outcomes(course_id: str) -> list[str]:
-    """Best-effort: try the Outcomes endpoint first; fall back to extracting
-    bullet-list lines from the syllabus body. Empty list if neither yields
-    anything (Criterion 1 then runs as 'unverified' rather than false-flagging).
+def fetch_course_outcomes_structured(course_id: str) -> list[dict]:
+    """Fetch course outcomes as structured dicts with id, title, description.
+
+    Returns list of {id: int, title: str, description: str, display_name: str}
+    from the Outcomes API. Falls back to syllabus extraction (yields dicts
+    with only 'description' field, no id).
+
+    Used by course_alignment_audit which needs outcome ids for linking.
     """
-    out: list[str] = []
+    out: list[dict] = []
 
     # Real Outcomes API: outcome_group_links with full style returns every
     # linked outcome's title + description across the course's outcome groups.
-    # (The earlier /courses/:id/outcomes path is NOT a valid endpoint — it
-    # errored and silently fell through to syllabus boilerplate. Sandbox
-    # finding 2026-05-22.)
     links = _get(f"/courses/{course_id}/outcome_group_links",
                  {"outcome_style": "full"})
     if isinstance(links, list):
         for ln in links:
             o = ln.get("outcome") or {}
-            txt = ((o.get("title") or "") + "  " + (o.get("description") or "")).strip()
-            txt = re.sub(r"<[^>]+>", " ", txt).strip()
-            if len(txt) >= 12:
-                out.append(txt)
+            if o.get("id"):
+                out.append({
+                    "id": o.get("id"),
+                    "title": o.get("title") or "",
+                    "description": o.get("description") or "",
+                    "display_name": o.get("display_name") or o.get("title") or "",
+                })
 
     if out:
         return out
 
-    # Structural syllabus fallback: the shared DOM-aware parser locates the
-    # Learning Outcomes section and returns its list ITEMS (issue #30/#31).
-    # The previous per-line marker regex captured the section stem + unrelated
-    # deadline lines and missed every real verb-first CLO; extract_outcomes
-    # treats the stem/heading as a delimiter, never as an outcome.
+    # Structural syllabus fallback: extract text-only outcomes (no id available)
     course = _get(f"/courses/{course_id}", {"include[]": "syllabus_body"})
     if isinstance(course, dict):
-        out.extend(extract_outcomes(course.get("syllabus_body") or ""))
+        for txt in extract_outcomes(course.get("syllabus_body") or ""):
+            out.append({
+                "description": txt,
+                "title": "",
+                "display_name": txt,
+            })
 
+    return out
+
+
+def fetch_course_outcomes(course_id: str) -> list[str]:
+    """Best-effort: try the Outcomes endpoint first; fall back to extracting
+    bullet-list lines from the syllabus body. Empty list if neither yields
+    anything (Criterion 1 then runs as 'unverified' rather than false-flagging).
+
+    Returns text strings (title + description concatenated) for backward
+    compatibility with clo_quality_audit and rubric_recommender.
+    """
+    structured = fetch_course_outcomes_structured(course_id)
+    out: list[str] = []
+    for o in structured:
+        txt = ((o.get("title") or "") + "  " + (o.get("description") or "")).strip()
+        txt = re.sub(r"<[^>]+>", " ", txt).strip()
+        if len(txt) >= 12:
+            out.append(txt)
     return out
 
 
@@ -839,7 +868,16 @@ def _resolve_course_id(target_env: str, literal: str | None) -> tuple[str, str]:
     return val, f"${target_env}"
 
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Read-only per-rubric quality audit. Scores each rubric "
                     "against the 4-criterion backbone meta-rubric "
@@ -861,49 +899,73 @@ def main() -> None:
                          "When combined with --report, writes JSON to file.")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="(Read-only tool; guard is advisory only. Accepted for symmetry.)")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
-    # env check
-    missing: list[str] = []
-    if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://":
-        missing.append("CANVAS_BASE_URL")
-    if not CANVAS_API_TOKEN:
-        missing.append("CANVAS_API_TOKEN")
-    if missing:
-        print("ERROR: Missing required configuration:")
-        for m in missing:
-            print(f"  {m}")
-        print("\nSet these in your .env file.")
-        sys.exit(2)
-
-    course_id, source = _resolve_course_id(args.target, args.course_id)
-    if not course_id:
-        print(f"ERROR: course ID not found via {source}.")
-        print("       Set the env var, or pass --course-id <id> directly.")
-        sys.exit(2)
-
-    # Advisory safety guard (read-only)
-    guard.enforce(
-        base_url=CANVAS_BASE_URL,
-        headers=_headers(),
-        course_id=course_id,
-        mode="read",
-        allow_override=args.allow_enrolled,
-        label="audit target",
-    )
-
+    use_local = args.local or bool(args.course_dir) or _is_offline()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    # Course meta
-    course_obj = _get(f"/courses/{course_id}") or {}
-    course_name = (course_obj.get("name") if isinstance(course_obj, dict)
-                   else None) or "<unknown course>"
+    if use_local:
+        from _course_loader import load_course, CourseNotFound
+        try:
+            c = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(2)
+        course_id = str(c.canvas_id or "local")
+        course_name = c.name
+        # Mirror fetch_course_outcomes locally: real outcomes (course/_outcomes.json,
+        # written by canvas_sync --pull) as title+description strings, else the SAME
+        # syllabus-text fallback the API path uses (the syllabus IS in a .imscc, so
+        # this recovers outcomes even fully offline).
+        real = c.outcomes()
+        if real:
+            outcomes = []
+            for o in real:
+                txt = re.sub(r"<[^>]+>", " ",
+                             ((o.get("title") or "") + "  " + (o.get("description") or "")).strip()).strip()
+                if len(txt) >= 12:
+                    outcomes.append(txt)
+        else:
+            outcomes = extract_outcomes(c.syllabus())
+        assignments = c.assignments
+    else:
+        missing: list[str] = []
+        if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://":
+            missing.append("CANVAS_BASE_URL")
+        if not CANVAS_API_TOKEN:
+            missing.append("CANVAS_API_TOKEN")
+        if missing:
+            print("ERROR: Missing required configuration:")
+            for m in missing:
+                print(f"  {m}")
+            print("\nSet these in your .env file.")
+            sys.exit(2)
 
-    # Outcomes (best-effort; empty list means Criterion 1 stays unverified)
-    outcomes = fetch_course_outcomes(course_id)
+        course_id, source = _resolve_course_id(args.target, args.course_id)
+        if not course_id:
+            print(f"ERROR: course ID not found via {source}.")
+            print("       Set the env var, or pass --course-id <id> directly.")
+            sys.exit(2)
 
-    # Assignments + rubrics
-    assignments = list_assignments_with_rubrics(course_id)
+        guard.enforce(
+            base_url=CANVAS_BASE_URL,
+            headers=_headers(),
+            course_id=course_id,
+            mode="read",
+            allow_override=args.allow_enrolled,
+            label="audit target",
+        )
+
+        course_obj = _get(f"/courses/{course_id}") or {}
+        course_name = (course_obj.get("name") if isinstance(course_obj, dict)
+                       else None) or "<unknown course>"
+        outcomes = fetch_course_outcomes(course_id)
+        assignments = list_assignments_with_rubrics(course_id)
     if not assignments:
         # stderr — stdout reserved for the audit payload (prose or JSON)
         print(f"\nNo assignments returned for course {course_id} "

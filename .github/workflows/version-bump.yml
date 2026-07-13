@@ -1,0 +1,43 @@
+name: version-tag
+
+# Auto-TAG each merged PR from the version in pyproject.toml.
+#
+# Branch protection blocks the bot from committing to `main`, so the version
+# bump rides IN the PR (bump pyproject.toml in the PR itself: patch by default,
+# minor/major for bigger shifts, unchanged for docs-only). On merge this pushes
+# the matching `vX.Y.Z` tag (tags are not branch-protected) — skipping if the tag
+# already exists (e.g. a docs-only PR that didn't bump the version).
+# See AGENTS.md -> Active Context -> Versioning policy.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Tag the merge commit from pyproject version (if the tag is new)
+        run: |
+          ver=$(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' pyproject.toml)
+          if [ -z "$ver" ]; then
+            echo "::error::no version = \"X.Y.Z\" in pyproject.toml"
+            exit 1
+          fi
+          if git ls-remote --tags origin "refs/tags/v${ver}" | grep -q .; then
+            echo "v${ver} already tagged — nothing to do"
+          else
+            git tag "v${ver}"
+            git push origin "v${ver}"
+            echo "tagged v${ver}"
+          fi

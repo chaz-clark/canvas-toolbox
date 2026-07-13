@@ -24,8 +24,22 @@ course_src/
 .cursor/
 .aider*
 
+# Dev tools — maintainer-only scripts for managing the toolkit itself
+# (e.g. add_roadmap_feature.py for updating voting system)
+lib/tools/add_roadmap_feature.py
+
+# Dev docs — maintainer-only documentation (deployment, architecture, credentials)
+# AGENTS.md is public/committed; docs/dev/ is private/gitignored
+docs/dev/
+
 # GitHub issues workflow — local only
 .github_issues/
+
+# Local dev-only tools — sandbox/testing utilities, NOT shipped to consumers.
+# clean_sandbox.py wipes CANVAS_SANDBOX_EMPTY_ID's content for repeatable import
+# tests; it's tied to the maintainer's sandbox, so it stays local (+ its test).
+lib/tools/clean_sandbox.py
+lib/tests/test_clean_sandbox.py
 
 # gh-issues-agent — local clone of upstream tool used during development.
 # Populate with: git clone https://github.com/chaz-clark/gh_issues_agent.git gh-issues-agent
@@ -51,6 +65,11 @@ __pycache__/
 *.pyc
 *.pyo
 .venv/
+
+# Rust build artifacts
+**/target/
+**/*.rs.bk
+**/Cargo.lock
 
 # macOS
 .DS_Store

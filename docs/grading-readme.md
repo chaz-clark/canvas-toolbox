@@ -1,0 +1,911 @@
+# Grading with the Canvas Toolkit
+
+A FERPA-safe, faculty-driven, AI-assisted grading pipeline. The instructor
+makes every final call; the AI never sees a student name.
+
+This document is the **faculty-facing entry point** — the canonical folder
+layout, the 8-step pipeline, the operational rules, and the link to the deep
+knowledge files for anyone who wants the reasoning. If you're an agent
+reading the repo to drive the pipeline, your spec is
+[`lib/agents/canvas_grader.md`](../lib/agents/canvas_grader.md).
+
+---
+
+## What the skill does
+
+Take any Canvas assignment (code take-home, prose self-review, lab report,
+discussion, performance review) and:
+
+1. Fetch all submissions from Canvas, **keyed by `user_id`** — the student
+   name never appears in any filename, console line, or AI context.
+2. De-identify the file contents — strip names, emails, paths, and
+   hardcoded secrets.
+3. Verify there is **no name leak** before any AI sees the submissions.
+4. Have **N independent graders** (the agent runs N passes; default N=3)
+   score each submission against your rubric, with per-question evidence
+   citations and a student-facing comment in your voice.
+5. Compute **consensus** (majority rule with spread-based auto-flag for
+   borderlines) and surface the needs-review queue first.
+6. Re-identify the keyed scores back to Canvas `user_id`s LOCALLY (the AI
+   never sees the bridge).
+7. Let you review every score + comment in one compiled document
+   (`_all_comments.md`), edit phrasing in one place, sync edits back.
+8. Push grades and comments to Canvas — gated behind `--mark-reviewed`,
+   guarded by `canvas_course_guard`, idempotent across re-runs.
+
+The pipeline has been validated on two real assignments (DS460 Spring 2026):
+KC1 code take-home (20/22 within 0.5 of the original push) and Mid
+Performance Review prose self-review (5 of 6 acceptance bars empirically
+PASS; the 6th legitimately deferred).
+
+---
+
+## Hit something unexpected? — `cb_report_bug.py`
+
+The toolkit ships with a one-command bug + enhancement reporter. **No
+GitHub account needed.** When a grader tool surprises you — wrong band,
+over-aggressive scrub, a 4xx you can't explain, an audit that flags
+everything or nothing — file it via:
+
+```bash
+uv run python lib/tools/cb_report_bug.py --from <log path>
+```
+
+It opens `$EDITOR` for your description, scrubs PII locally (names,
+emails, paths), bundles the last 150 log lines + your toolkit version,
+and files an issue on `chaz-clark/canvas-toolbox` via the Cloudflare
+intake worker. Returns the URL in ~1 second.
+
+- **For bugs**, prefix the title `bug:` — e.g. `bug: grader_push 4xx on KC1`.
+- **For enhancements** (something the tool should do but doesn't), prefix
+  `enhancement:` — e.g. `enhancement: grader_meta_summary color-code FLAG streaks`.
+
+The FERPA gate refusing, deid quarantining a docx into `_REVIEW/`, push
+guards blocking a write — those are NOT bugs; those are the system
+working as designed. Only file when the tool deviated from documented
+behavior, or when an enhancement would close a real workflow gap.
+
+Worker design + maintainer ops:
+[`bug-intake-worker/README.md` (edge-infra sister repo)](https://github.com/chaz-clark/edge-infra/blob/main/workers/bug-intake-worker/README.md).
+
+---
+
+## The FERPA boundary — non-negotiable
+
+> Read this section before changing any tool in the pipeline.
+
+The whole architecture is built on a **two-zone** principle:
+
+| Zone | What lives there | Who reads it |
+|---|---|---|
+| **Local-only** (gitignored) | submissions_raw/ · .keymap.json · .fetch_log.json · .known_names.txt · .review.csv · .push_log.md | **You** (and the local Python tools) |
+| **AI-safe** (de-identified) | submissions_deid/ · RUBRIC.md · config.json · feedback/ | The grading AI |
+
+- The student name is fetched from Canvas, used locally, and is **never**
+  printed to stdout/stderr, written into a filename, or sent to any cloud
+  surface (LLM, log aggregator, error tracker).
+- Canvas `user_id` is an internal database row ID, not a SIS/student ID;
+  printing it is FERPA-safe (FERPA protects directory info + grades, not
+  the LMS's own row IDs).
+- The re-identification step runs **locally**, by the operator, against the
+  local keymap. The grading agent never re-identifies.
+- `scaffold/grading/.gitignore` is the single source of truth for what
+  stays local. Copy it into your course repo's `grading/` directory; do
+  not remove entries from it.
+- **`submissions_raw/` is ALWAYS gitignored** — at any nesting depth, no
+  matter what's inside it. Even after de-identification, the raw files
+  stay local. The gitignore pattern is `**/submissions_raw/` plus
+  `**/_raw/`, so a sub-cohort folder like `grading/spring2026/kc1/
+  submissions_raw/` is caught too. There is no path by which a student
+  submission file gets pushed to git, even if its contents were
+  de-identified or obfuscated — the folder itself is the boundary, not
+  the contents.
+- If a name slips past de-identification, the chain stops at
+  `grader_name_leak_check.py` with a non-zero exit code. Investigate before
+  letting any AI read `submissions_deid/`.
+- **Comment threads have their own de-id path** (issue #65). Canvas
+  `submission_comments` returns `author_name` raw — any tool that needs to
+  read the comment thread (collision guard before pushing comments, retract
+  / update of a prior comment, audit of a TA exchange) must go through
+  `grader_deidentify_comments.py`, which drops `author_name`, converts
+  `author_id` to a role (`self`/`instructor`/`ta`/`peer`), scrubs the body,
+  and refuses to write if any roster name survives the scrub.
+
+---
+
+## Canonical folder layout
+
+The whole skill works against this shape. Every tool takes `--challenge-dir
+grading/<assignment>/` and derives subpaths from it.
+
+```
+grading/
+├── <assignment>/                          ← --challenge-dir (one per assignment)
+│   ├── config.json                        ← per-assignment grader config (emitted by setup interview)
+│   ├── RUBRIC.md                          ← named-tier rubric (or OUTCOMES.md for outcomes-based)
+│   ├── PROCESS.md                         ← (optional) operational doc for this assignment
+│   ├── template/                          ← (optional) source assignment template (e.g. Mid Review .docx)
+│   │
+│   ├── submissions_raw/                   ← LOCAL — names live here; never read by AI
+│   ├── submissions_deid/                  ← AI-safe — key-encoded; the grader reads this
+│   │
+│   ├── .keymap.json                       ← LOCAL — key ↔ user_id ↔ name ↔ filename bridge
+│   ├── .fetch_log.json                    ← LOCAL — fetch audit (grader_fetch)
+│   ├── .known_names.txt                   ← LOCAL — peer-mention scrub roster
+│   ├── .mark_reviewed                     ← push gate (touched only after review)
+│   ├── .push_log.md                       ← push audit trail (one line per push)
+│   ├── .review.csv                        ← re-identified review sheet (from grader_reidentify)
+│   │
+│   └── feedback/
+│       ├── _signals.json                  ← static-analysis priors (grader_signals)
+│       ├── _gradebook_actuals.csv         ← reconciliation (grader_reconcile)
+│       ├── _grader<n>.csv                 ← per-pass scores (one per grader pass)
+│       ├── _consensus.csv                 ← per-grader + consensus + spread + needs_review
+│       ├── _summary.csv                   ← key,score,one_line_reason (what reidentify reads)
+│       ├── _all_comments.md               ← compiled review document (edit here, sync back)
+│       ├── _pass<n>/<KEY>.md              ← per-pass per-student file with Evidence + Comment
+│       ├── <KEY>.md                       ← winner pass per submission (what push reads)
+│       │
+│       └── <output_label>/                ← MULTI-OUTPUT scoping (Mid Review case)
+│           ├── _grader<n>.csv  _summary.csv  _consensus.csv  _all_comments.md
+│           └── _pass<n>/<KEY>.md  <KEY>.md
+│
+└── answer_keys/                           ← optional — for code/notebook assignments
+    ├── README.md                          ← committed (the convention)
+    └── <assignment>/                      ← gitignored
+        ├── <key>.ipynb                    ← raw instructor answer key
+        └── key_clean.md                   ← secret-scrubbed reference (grader_prep_answer_key)
+```
+
+### Single-surface vs multi-surface tasks (#54 sub-E convention)
+
+m119 SP26 surfaced two layout shapes side-by-side: some tasks had ONE
+gradeable submission per student (just an AI Log) while others had TWO
+(AI Log + Cohesive Narrative for the same project task). The canonical
+convention as of v0.47+:
+
+- **Single-surface task** → `grading/<task>_<surface>/` (one assignment,
+  one keymap, one feedback tree). Example:
+  `grading/p2t1_ai_log/`.
+- **Multi-surface task** → `grading/<task>_combined/<surface>/` with
+  sibling surface subdirs (each holds its own keymap + feedback tree
+  for that surface). Example:
+  ```
+  grading/p1t1_combined/
+      ai_log/                 (.keymap.json, feedback/, ...)
+      cohesive_narrative/     (.keymap.json, feedback/, ...)
+      _userid_key_grade_join.json   ← built by grader_join.py (#54-B)
+      _meta_summary.csv             ← built by grader_meta_summary.py (#54-C)
+  ```
+
+`grader_scaffold.py` (#54 sub-A) auto-picks the right shape: one
+`--assignment-ids` → single-surface; comma-list OR `--combine` →
+combined. The downstream `grader_join.py` (#54-B) and
+`grader_meta_summary.py` (#54-C) auto-detect both layouts — operators
+don't need to pass a layout flag.
+
+Everything that is FERPA-sensitive is **gitignored by default** via
+`scaffold/grading/.gitignore`. Copy that file into your course repo's
+`grading/` folder once at setup time.
+
+---
+
+## The 8-step pipeline (default)
+
+### Pre-flight: audit your reconcile/competency config (issue #58)
+
+Before Step 1, if you have a reconcile config (`reconciliation.dimensions[]`)
+or a competency config (`competency.elements{}`, from issue #60), run:
+
+```
+uv run python lib/tools/grader_config_audit.py \
+    --config grading/<task>/config.json
+```
+
+Resolves every `assignment_id` against the live course and prints a table
+(name, group, points, due_at) with flags for 404s, group mismatches, and
+due-date busts. The **#1 silent grading bug** is a wrong-but-valid
+assignment id — the pipeline runs cleanly and grades everyone wrong. This
+audit catches it once, up front. Read-only; touches assignment metadata
+only (no student data).
+
+Optional per-dim rules (add to the config to escalate WARNs to FAILs):
+- `expected_group_regex: "DS Community"` — assignment group must match
+- `due_before: "2026-03-15"` — flag IDs whose due_at is later
+- `due_after: "2026-02-01"` — flag IDs whose due_at is earlier
+
+Exit 1 on any FAIL — wire this into a CI gate if you grade frequently.
+
+```
+1. Fetch                grader_fetch.py
+                          ├─ pre-populates .known_names.txt from FULL course roster
+                          ├─ downloads submissions keyed by user_id (no name in filename)
+                          └─ chains by default into Steps 2 + 3 (--no-chain opts out)
+
+2. De-identify          grader_deidentify_<adapter>.py    (auto-picked by file types)
+                          ├─ Adapters by submission type:
+                          │    .docx              → grader_deidentify_docx.py
+                          │    .html (Databricks) → grader_deidentify_databricks.py
+                          │    .html (bare body)  → grader_deidentify_text.py
+                          │      OR .txt / .md       (online_text_entry case)
+                          │    .ipynb             → grader_deidentify_jupyter.py
+                          │      (per-cell extraction; metadata + images dropped)
+                          │    .pdf               → grader_deidentify_pdf.py
+                          │      (warns + writes placeholder on image-only PDFs;
+                          │       operator OCRs or skips)
+                          │    .xlsx              → grader_deidentify_xlsx.py
+                          │      (workbook audit pattern: structure, formulas,
+                          │       formatting, charts — NOT the raw binary;
+                          │       file properties scrubbed)
+                          │  Plus grader_fetch.py auto-detects discussion_topic
+                          │  and online_quiz assignments and writes per-student
+                          │  files (HTML or Markdown) that route to the text
+                          │  adapter — see "Canvas submission-type coverage" below.
+                          ├─ All adapters: strip names, emails, paths, hardcoded
+                          │  secrets; honor .known_names.txt for peer-mention scrub
+                          ├─ Writes keyed .md files to submissions_deid/
+                          └─ Writes .keymap.json (key → filename bridge)
+
+3. Name-leak check      grader_name_leak_check.py
+                          └─ FAILS NON-ZERO if any name from .known_names.txt
+                             survived. STOP and fix before letting AI read deid/.
+
+4. (Optional) Signals   grader_signals.py
+                          └─ Static analysis priors (not scores) — surfaces shape
+                             of student work for the grader's reference.
+
+5. (Optional) Reconcile grader_reconcile.py
+                          └─ Anonymously pulls real Canvas gradebook scores by user_id
+                             for self-review assignments where the rubric scores
+                             "honest self-assessment" against real data.
+
+6. Grade × N            agent-in-the-loop (default; keyless)
+                        or grader_grade.py (orchestrator; requires API key)
+                          ├─ N=3 by default (cheapest configuration giving majority rule)
+                          ├─ Each pass writes feedback/_grader<n>.csv + feedback/_pass<n>/<KEY>.md
+                          ├─ Per-student file shape (see below):
+                          │     Score + Evidence per question + Confidence + Comment to student
+                          └─ Wellbeing flags surface in feedback/_checkin_flags.md
+                             (categories: health/family/stuck/ask_for_help/safety/financial)
+
+7. Consensus            grader_consensus.py
+                          ├─ MAJORITY: score ≥2/3 graders agree on wins; else median
+                          ├─ Spread auto-flags borderlines (configurable threshold)
+                          ├─ Writes _consensus.csv + _summary.csv + winner <KEY>.md
+                          └─ Compiles _all_comments.md (the edit-here document)
+
+8. Re-identify + Push   grader_reidentify.py → grader_push.py
+                          ├─ Re-identify is LOCAL — bridges keyed sheet back to user_ids
+                          ├─ grader_push refuses until --mark-reviewed is set
+                          ├─ canvas_course_guard refuses live-course writes without
+                          │  --allow-enrolled
+                          └─ Idempotent: per-assignment push_log.md prevents double-pushes
+```
+
+The default `grader_fetch.py` invocation chains 1 → 2 → 3 automatically. A
+fresh `grader_fetch.py --challenge-dir grading/kc1 --assignment-id 12345`
+call lands at a fully-de-identified, leak-verified `submissions_deid/` ready
+for grading.
+
+---
+
+## The value-only / human-graded push path
+
+Not every push needs an LLM-generated comment. Common case: a **TA already graded** the assignment, and the instructor only needs to **post the consequential number** (e.g., the Layer-2 "Your Grade" in a Mid-Review-style dual-push, or any flat numeric grade the human computed). In that case the pipeline runs as:
+
+```
+grader_reconcile  →  grader_reidentify --summary  →  review .review*.csv + _gradebook_actuals.csv  →  grader_push --mark-reviewed  →  grader_push --grade-only --push
+```
+
+Two important differences from the LLM-comment path:
+
+1. **No per-student `<KEY>.md` files exist.** The grader didn't write comments — the instructor (or a TA) graded out-of-band. `grader_push --mark-reviewed` detects this (issue #46 fix) and switches the review surface from "per-student `<KEY>.md` + `_all_comments.md`" to **`.review*.csv` + `feedback/_gradebook_actuals.csv`**. The confirmation prompt names the actual files; the mtime auto-invalidation gates on those CSVs instead.
+
+2. **`grader_push --grade-only`** is the actual write. Suppresses the comment-field write entirely — only the grade value posts to Canvas. (Pair with `--default-comment "<text>"` if you want a fixed comment on every push, e.g. *"See Mid Review for detailed feedback."*)
+
+The mtime auto-invalidation still applies: if you edit a `.review*.csv` after marking reviewed, the gate detects the change and forces re-review. Same trust guarantee as the LLM-comment path.
+
+**Building the `key,score` summary by hand.** When no LLM grader ran, the operator builds `feedback/_summary.csv` (or `_summary_<output>.csv` for multi-output) from the syllabus's competencies table, a counts→grade mapping, or just direct judgment. The CSV shape is `key,score,one_line_reason` — same as what `grader_consensus` would emit. `grader_reidentify --summary <path>` reads it and emits the keyed `.review*.csv` for human review.
+
+## The two grading paths
+
+There are **two grading paths** in step 6, with the same downstream
+artifacts.
+
+### A. Agent-in-the-loop (default — KEYLESS)
+
+The AI agent in your IDE (Claude Code / Cursor / Antigravity / Aider /
+Codex) reads `submissions_deid/<KEY>.md`, the rubric, the voice file, and
+the answer key (if present), and writes the per-pass artifacts directly:
+
+- `feedback/_grader<n>.csv` (one CSV per pass)
+- `feedback/_pass<n>/<KEY>.md` (the per-student file)
+
+You run N passes by asking the agent to re-grade with slightly different
+emphasis each time (one with strict rubric focus, one with critical-thinking
+emphasis, one with the voice file as the primary anchor). The agent does
+the random tier-order shuffle the orchestrator would do programmatically.
+
+**This is the path BYUI faculty use** because BYUI cannot issue
+`ANTHROPIC_API_KEY` to faculty for institutional reasons. It's been
+validated as the production path: KC1 alpha (20/22 within 0.5) used it; Mid
+Performance Review keyless ghost-run confirmed 5/6 acceptance bars
+empirically PASS.
+
+### B. Orchestrator (optional accelerator for key-holders)
+
+`grader_grade.py` invokes the LLM API directly with N programmatic passes,
+deterministic temperature variation (`0.3`, `0.5`, `0.7` by default),
+per-pass framing tokens, and seeded tier-order shuffling. Requires
+`ANTHROPIC_API_KEY` (or a future provider via the `GraderLLM` abstraction).
+
+When to use B over A: CI/gold-set regression checks, institutional gateway
+deployments, power users who want unattended grading runs. Otherwise A is
+the same quality with one less moving part.
+
+---
+
+## Per-student file shape (the audit-trail template)
+
+Every per-student file at `feedback/_pass<n>/<KEY>.md` and the winner copy
+at `feedback/<KEY>.md` should follow this shape — it's the audit trail that
+defends an appeal or override:
+
+```markdown
+# <PREFIX> Feedback — <KEY>
+**Score: <score> / <max> — <header_phrase>**
+_Recommendation for instructor review. Score per <rubric reference>.
+Critical-thinking notes are formative coaching, not part of the score._
+
+## Evidence for the score
+- **<Question or Section> (<location>):** <observation>. <correct/incorrect rationale, citing the specific cell/paragraph>.
+- **<Question or Section> (<location>):** ...
+
+**Confidence:** <High|Medium|Low>.
+
+## Comment to student
+
+Overall: <tier>
+<one-sentence specific strength tied to the work>
+
+Coaching Tips:
+<one idea per paragraph>
+
+<one paragraph on the habit to build going forward>
+```
+
+The two halves serve different audiences:
+
+- **"Evidence for the score"** (top half) is for the **instructor** during
+  review. Specific, citation-heavy, defensible. Cell numbers / paragraph
+  numbers / section headers. If a student appeals, this is what justifies
+  the score.
+- **"Comment to student"** (bottom half) is what gets pushed to Canvas. In
+  the instructor's voice (per the voice file). Specific strength + coaching
+  + habit-to-build. **Never feeds back data values** (concept + question
+  instead, per the voice contract — fairness + safety).
+
+The two are written together by the same grader pass so the comment is
+grounded in the evidence above it.
+
+---
+
+## The compiled review document — `_all_comments.md`
+
+After consensus runs, `grader_consensus.py` compiles every winner file's
+"Comment to student" block into a single `feedback/_all_comments.md`:
+
+```markdown
+# KC1 — all student comments (edit phrasing here)
+
+`Overall:` uses the rubric's named tiers. Coaching Tips: one idea per
+paragraph. Edit phrasing here; the sync-back step propagates edits to
+per-student files before push.
+
+## KC1-00D64F  ·  4/4
+
+Overall: Leading
+All six questions are right and you reached for the correct columns...
+
+Coaching Tips:
+The prompt describes a longer stretch of time...
+
+## KC1-3FEBAC  ·  4/4
+
+Overall: Leading
+All six right, your SQL is sharp...
+
+(etc.)
+```
+
+This is the document the instructor reads cover-to-cover before push. Edit
+phrasing in ONE place, then sync edits back to the per-student files (a
+sync-back tool is on the backlog; for now, copy edits back manually or use
+your editor's search-and-replace across `feedback/<KEY>.md`).
+
+Pass `--score-max 4` to render `<KEY>  ·  <score>/4`. Omit for just
+`<KEY>  ·  <score>`.
+
+---
+
+## Multi-output / dual-push pattern (Mid Review case)
+
+Some assignments produce **two grades** on **two different Canvas
+assignments** from ONE student artifact. Mid Performance Review is the
+canonical example:
+
+| Layer | Canvas assignment | Scale | Graders | Comment? |
+|---|---|---|---|---|
+| 1. Did the review | Mid Performance Review | 0–4 | single | yes (honest-review note + the agreed mid grade) |
+| 2. Where they stand | Your Grade | value (typical ranges) | 3 reviewers → consensus | no (value only) |
+
+The order matters: **Layer 2 runs FIRST** (3 reviewers decide where the
+student stands → consensus value), then **Layer 1 runs** (single grader
+writes the 0–4 + comment, using Layer 2's value inside the comment).
+
+For multi-output assignments, the `feedback/` directory has per-output
+sub-scoping:
+
+```
+feedback/
+├── your_grade/                    ← Layer 2 (3 reviewers, value scale)
+│   ├── _grader1.csv  _grader2.csv  _grader3.csv
+│   ├── _consensus.csv  _summary.csv  _all_comments.md
+│   └── _pass<n>/<KEY>.md  <KEY>.md
+└── did_the_review/                ← Layer 1 (single grader, 0-4 + comment)
+    ├── _grader1.csv
+    ├── _summary.csv  _all_comments.md
+    └── _pass1/<KEY>.md  <KEY>.md
+```
+
+The grader config `outputs[]` array drives this — one entry per layer,
+each with its own `grader_count`, `assignment_id`, `scale`, and optional
+`band_to_score` mapping. See
+[`lib/agents/knowledge/grader_setup_knowledge.md`](../lib/agents/knowledge/grader_setup_knowledge.md) §4–§5
+for the full config schema.
+
+---
+
+## Consensus thresholds + MAJORITY tiebreak
+
+`grader_consensus.py` computes the consensus and flags borderlines for
+review. Two parameters tune to the scale:
+
+| Scale | Recommended `--flag` (NEEDS-REVIEW threshold) |
+|---|---|
+| 0–4 named tier (KC) | 0.5 (default) |
+| Letter-tier (Mid Review your_grade) | 1 band |
+| Points / value scale (e.g. 0–100) | 10 |
+| Quarter-band scoring | 0.25 |
+
+The **MAJORITY rule** has a deliberate tiebreak: the score that ≥2 of N
+graders agree on wins, even when one grader is higher and one lower. So
+**2 high + 1 low → high**; **2 low + 1 high → low**. Only when all N
+graders disagree does the median tiebreak kick in.
+
+`--expected N` enforces the grader pool size. Default 3; lower to 1 for
+calibration cohort runs; raise to 5+ for higher-rigor pools.
+
+---
+
+## Operational rules
+
+### Non-submitters
+
+Canvas's **late/missing policy** is what handles non-submitters — typically
+an automatic 0 from a course setting. The grader does **not** handle them
+and **never pushes a 0 for a non-submitter**.
+
+The pipeline only processes the actual files in `submissions_raw/`. The
+assignment's *graded* count in Canvas (including auto-0s) will exceed the
+number this pipeline pushes, and that's expected — don't treat the
+difference as missing work. The only thing to verify is that every student
+who *did* submit has a file in `submissions_raw/`.
+
+### Out-of-band drops (Slack / email submissions)
+
+Sometimes a student sends a file directly outside Canvas. To bring it into
+the pipeline without leaking a name through the filename:
+
+1. **Filename → `<prefix>_<userid>.<ext>`** — look up the student's
+   `user_id` in Canvas (People → student → profile URL is `.../users/<id>`)
+   and rename the dropped file. The user_id is all `grader_push` needs to
+   route the grade.
+2. **Name → `.known_names.txt`** — add the student's name (one line). This
+   replaces what the Canvas filename normally gives the de-id pipeline; the
+   peer-mention scrub catches the student's own name AND any peer
+   references inside the submission.
+
+The student's name **never** goes into the filename.
+
+### Re-submissions
+
+An out-of-band file is often a *replacement* for an already-submitted file
+(e.g., a corrupt export that de-id skipped). Before adding it, check by
+**user_id** whether that student already has an entry in
+`submissions_raw/`:
+
+```bash
+ls grading/<assignment>/submissions_raw/ | grep "_<userid>\."
+```
+
+If a prior (bad) file exists: **delete the bad one, keep the good
+`<prefix>_<userid>.<ext>`, prune its stale `.keymap.json` entry, re-run
+de-id, grade, and push with `--force`** (overwrites the placeholder). Don't
+leave both — that double-counts the student under two keys.
+
+---
+
+## Setup — the 6-step interview
+
+For any new instructor / new assignment, the **6-step setup interview**
+(per `grader_setup_knowledge.md`) gets you from "I have an assignment" to a
+runnable `config.json` in 20–40 minutes:
+
+1. **Input format** → picks the de-id adapter (Databricks HTML / Word docx
+   / future plain text)
+2. **Rubric** → three paths: has-rubric / outcomes-or-contract / NEITHER
+   (Path C **builds** a rubric collaboratively — the highest-leverage step)
+3. **Critical thinking** → scored against the rubric or formative coaching?
+4. **Outputs** → one grade or several (multi-output dual-push case)
+5. **Reconciliation** → does evidence live in the gradebook or in a quiz?
+   (if quiz, branch to the Classic-quiz mirror pattern below)
+6. **Scale, bands, equivalences, voice, cost preview** → finalize the
+   config
+
+Run the interview by asking your agent: *"Run the canvas-toolbox grader
+setup interview for assignment X."* The agent reads
+`grader_setup_knowledge.md` and walks you through. Subsequent cohorts of
+the same assignment skip most of the interview — `config.json` and
+`RUBRIC.md` already exist.
+
+---
+
+## Voice — the instructor-specific comment file
+
+The student-facing comment voice is **per-instructor**. Each instructor's
+preferred phrasing, banned terms, opener/closer conventions, and tier
+diction live in
+`grading/<assignment>/student_feedback_voice_<instructor>.md` (or a shared
+voice file at the course level).
+
+The voice file is **learned**, not authored: the first cohort produces a
+calibration set, the instructor edits the phrasing in `_all_comments.md`
+(the compiled review doc), the edits are baked back into the voice file,
+and subsequent cohorts inherit the voice. See
+[`lib/agents/knowledge/grader_voice_knowledge.md`](../lib/agents/knowledge/grader_voice_knowledge.md)
+for the structure + the edit-roundtrip protocol.
+
+**One hard rule across all instructors:** never feed back data values to a
+student. Use the concept + question instead. ("How are you counting
+buildings?" not "Your count of 312 includes duplicates.") Fairness +
+safety.
+
+---
+
+## Answer keys (optional)
+
+For code/notebook take-home assignments, drop the instructor answer key
+into `grading/answer_keys/<assignment>/<key>.ipynb` and run:
+
+```bash
+uv run python canvas_toolbox/lib/tools/grader_prep_answer_key.py \
+  grading/answer_keys/<assignment>/<key>.ipynb
+```
+
+This secret-scrubs the notebook (PATs, tokens, API keys, emails redacted)
+and writes a clean `key_clean.md` next to the source — that's what the
+grader reads. The raw `.ipynb` is gitignored and never seen by the AI.
+
+The answer key is a **reference, not a gate**. Many real-world tasks have
+valid alternate approaches; the key informs feedback, it doesn't force one
+right answer into the score.
+
+See [`scaffold/grading/answer_keys/README.md`](../scaffold/grading/answer_keys/README.md)
+for the full convention.
+
+---
+
+## Classic-quiz mirror — for verifiable self-reports
+
+When an assignment depends on a student-submitted self-report quiz (weekly
+hours, stand-up completions, missed-meeting notes), Canvas's **New Quizzes
+API does NOT expose per-student item responses** (only metadata).
+**Classic Quizzes do** via `submission_data` on
+`/assignments/:aid/submissions?include[]=submission_history`.
+
+`grader_quiz_mirror.py` mirrors each New Quiz as an **unpublished** Classic
+Quiz (same title/description/due/group/module) with numeric questions and
+wide answer ranges (any answer = correct = full points → auto-grades on
+submit; no manual review). The grader then reads the Classic quiz's
+per-student answers to ground the reconciliation.
+
+This is operator-tooling, not an extra burden on students — they keep
+filling out the same New Quiz. See `grader_setup_knowledge.md` §J for the
+full pattern.
+
+---
+
+## Push — the gate
+
+`grader_push.py` is the only tool in the pipeline that writes to Canvas.
+Three gates stand between it and a destructive push:
+
+1. **`--mark-reviewed` mtime gate.** The tool refuses to push until you
+   touch a `.mark_reviewed` file. ANY edit to a per-student `<KEY>.md`
+   afterward invalidates the gate (forces re-review).
+2. **`canvas_course_guard`.** Refuses live-course writes unless you pass
+   `--allow-enrolled`. Catches the "I pointed CANVAS_COURSE_ID at a wrong
+   course" mistake.
+3. **Per-assignment idempotency.** `.push_log.md` records every successful
+   push by `<key, user_id, assignment_id, score>`. A subsequent re-run
+   skips already-pushed entries (one-line log + skip) unless `--force`.
+4. **Test Student + inactive exclusion (issue #61).** The push surface
+   defaults to active `StudentEnrollment` only — Canvas's `student_view`
+   Test Student and any `inactive`/`completed`/`rejected` enrollments are
+   filtered out before the plan prints (with the excluded user_ids
+   surfaced for review). Pass `--include-inactive` to revert for the rare
+   intentional case (e.g. posting a final grade to a withdrawn student).
+5. **Pre-push comment-collision guard (issue #62).** Before posting a
+   comment, the tool peeks at the existing `submission_comments` thread
+   through the FERPA-safe de-id layer (issue #65) and warns when a
+   non-self author posted within `--collision-window-days` (default 14).
+   The principle is: **the grade is objective and safe; qualitative
+   comments are where harm happens** — a stale TA exchange or a student
+   who already replied means an LLM comment risks duplicating or
+   contradicting active human coaching. Operator must type `collisions`
+   to acknowledge OR pass `--allow-collisions`. `--skip-if-student-replied`
+   drops rows where the latest comment is from the student. `--grade-only`
+   pushes (objective grade, no comment) skip this check entirely.
+   `--no-collision-check` opts out.
+6. **Availability awareness (issue #63).** Pulls the assignment's
+   `lock_at` / `unlock_at` and warns when a pushable comment contains
+   resubmit-style language (resubmit / redo / new template / wrong
+   file / try again) on a locked assignment — students literally can't
+   act on the guidance. Operator types `locked` to ack OR passes
+   `--allow-locked-resubmit`. `--no-lock-check` / `--grade-only` opt out.
+
+**Retract mode (issue #63).** Every comment push records a
+`- KEY: comment ID pushed to assignment AID` line in `.push_log.md`.
+`grader_push --retract [--retract-keys K1,K2]` reads that ledger and
+DELETEs the matching comments via Canvas's
+`/submissions/:uid/comments/:id`. Same dry-run-by-default + canvas_course_guard
++ confirmation discipline as the push path. Idempotent: a `retracted`
+ledger line is appended on success so repeat retracts no-op.
+
+Validate the Canvas PUT on the **Test Student first** (Canvas's standard
+test-user, display name "Test Student") — `grader_fetch.py
+--test-student-only` makes this trivially repeatable.
+
+---
+
+## Canvas submission-type coverage
+
+Canvas exposes 10 `submission_type` values. The grader pipeline currently
+covers the ones below; gaps are documented so you know what's missing and
+what to ask for if your assignment uses a format we haven't built yet.
+
+| `submission_type` | What it is | Coverage |
+|---|---|---|
+| `online_text_entry` | Student types into a box | ✅ `grader_deidentify_text.py` (HTML-strip + scrub) |
+| `online_upload` `.docx` | Word doc | ✅ `grader_deidentify_docx.py` |
+| `online_upload` `.pdf` | PDF (text-layer extraction; image-only warned) | ✅ `grader_deidentify_pdf.py` |
+| `online_upload` `.xlsx` | Excel (workbook audit pattern: structure + formulas + formatting + charts) | ✅ `grader_deidentify_xlsx.py` |
+| `online_upload` `.html` w/ Databricks marker | Databricks notebook export (cell-aware extraction) | ✅ `grader_deidentify_databricks.py` |
+| `online_upload` `.html` bare | Generic HTML body | ✅ `grader_deidentify_text.py` (flat tag-strip) |
+| `online_upload` `.ipynb` | Jupyter notebook (per-cell extraction; metadata + base64 images dropped) | ✅ `grader_deidentify_jupyter.py` |
+| `online_upload` `.txt` / `.md` / `.qmd` | Plain text / Markdown / Quarto markdown | ✅ `grader_deidentify_text.py` (encoding fallback: UTF-8 → CP1252 → Latin-1; `.qmd` accepted natively — no rename to `.md` needed) |
+| `online_upload` `.csv` | CSV data | ✅ falls through `grader_deidentify_text.py` (CSV is just text) |
+| `online_upload` code (`.py` / `.js` / `.r` / `.sql` / `.java` / `.cpp` etc.) | Raw source code | ✅ falls through `grader_deidentify_text.py` (code is already plain text) |
+| `discussion_topic` | Student's discussion-thread posts + replies | ✅ `grader_fetch.py` detects via assignment metadata + fetches `/discussion_topics/:tid/view`; aggregates per-user chronologically to bare HTML; text adapter handles |
+| `online_quiz` | Classic Canvas quiz (or NWQ→Classic-mirrored) | ✅ `grader_fetch.py` detects + extracts `submission_data` + joins with quiz questions; renders Q+A as Markdown; text adapter handles |
+| `online_upload` `.pptx` | PowerPoint | ❌ Not built — ask if your assignment needs it |
+| `online_upload` `.mp3` / `.mp4` / `.m4a` / `.wav` | Audio / video | ❌ Not built (transcription pipeline) — ask if your assignment needs it |
+| `online_upload` `.zip` | Archive | ❌ Not built (extract + delegate per inner file) — ask if your assignment needs it |
+| `student_annotation` | Annotations on instructor-uploaded doc | ❌ Not built (Canvas DocViewer API) — ask if your assignment needs it |
+| `online_url` | Student submits a URL | ⚠ `grader_fetch.py` writes the URL to a file; no content fetch (arbitrary external URLs are FERPA-risky to cache locally) |
+| `online_text_entry` with a ChatGPT/Gemini share URL (AI Log) | ✅ `grader_follow_share_url.py` v1.1 — detects + Playwright-rendered fetch + extracts rendered conversation text. Validated against 5 real SP26 fixtures (8K–14K chars extracted per fixture). Auto-chained from `grader_fetch.py --follow-share-urls auto` (default). Supports `chatgpt.com/share/`, `gemini.google.com/share/` (+ legacy bard), and `share.google/aimode/`. **First-time setup per machine:** `uv run playwright install chromium` (~92 MB, one-time). **When bot-walled by Google:** see "When `grader_follow_share_url.py` is bot-walled" below. |
+| `external_tool` | LTI tool (Pearson, McGraw-Hill, etc.) | ⚠ Vendor handles grading; NWQ has the Classic-mirror pattern (`grader_quiz_mirror.py`). Other LTIs return scores only |
+| `on_paper` | Physical submission | n/a — operator grades in the gradebook UI |
+| `none` | No submission | n/a |
+
+### Have a use case that's not covered? Reach out.
+
+If your assignment uses one of the unbuilt formats above (or a format
+that's not listed at all), file an issue at
+[chaz-clark/canvas-toolbox/issues](https://github.com/chaz-clark/canvas-toolbox/issues)
+with:
+
+1. The Canvas `submission_type` value (visible in the assignment's API
+   payload or the Edit Assignment UI)
+2. The submission file extension(s) you're seeing
+3. A sample (de-identified by you) of what one student's submission
+   looks like
+4. Whether structure (cells / slides / annotations / threads) matters
+   for grading or whether flat text extraction would suffice
+
+Each new adapter ports in 150-300 lines once a real consumer signal lands —
+the canonical layout + the FERPA two-zone architecture stay the same,
+only the file-format parser changes.
+
+## When `grader_follow_share_url.py` is bot-walled
+
+Issue #53 — Google's bot detection sometimes blocks headless Chromium on
+`share.google/aimode/` URLs (and may extend to other share-services). When
+blocked, the tool fails LOUDLY with a clear error stub at
+`submissions_raw/<prefix>_<userid>_external.md` instead of indexing the
+captcha page as if it were transcript content. The stub itself contains
+the recovery runbook; this section is the long-form context.
+
+**What "bot-walled" looks like:**
+
+```
+  415951: share.google/aimode/OkBUB9ct… → FAILED (Google bot-detection
+    wall (google.com/sorry/index). Stealth flags didn't suffice.
+    Operator may need to fetch manually …)
+```
+
+The stub file at `submissions_raw/<prefix>_<userid>_external.md` shows the
+same error plus the full URL (for operator use only — that file is in
+`submissions_raw/`, which the AI never reads).
+
+**The wall is intermittent, not stuck-on. Empirical data
+(2026-06-13, 5 sequential fetches of one fixture):**
+
+| Run | Outcome |
+|---|---|
+| 1 | ✅ Succeeded (10,229 chars) |
+| 2 | ❌ Bot-walled |
+| 3 | ❌ Bot-walled |
+| 4 | ✅ Succeeded |
+| 5 | ✅ Succeeded |
+
+**3 of 5 succeeded on first try (~60%). Consecutive failures cluster in
+a ~30-second window, then clear.** With 2-3 retries spaced 30 sec apart,
+success rate extrapolates to ~94%. So: **retry before going manual.**
+
+### Step 0 — Retry first (almost always works)
+
+The single most effective rescue is to just re-run the same command:
+
+```bash
+uv run python lib/tools/grader_follow_share_url.py \
+    --challenge-dir grading/<assignment> --force
+```
+
+Run it 1-3 times, ~30 seconds apart. If a retry succeeds (console shows
+"chars extracted" for the previously-failed key), the stub file gets
+overwritten with the real conversation. No manual paste needed.
+
+### Step 1+ — Operator manual paste (only if retries don't clear)
+
+1. Open the URL in your normal browser. (You're a human; Google's bot
+   detection lets you through.)
+2. Wait for the share page to render fully (any conversation/AI Mode UI).
+3. Select-all + copy the rendered conversation text.
+4. **Replace the entire stub file's content** with the copied text, keeping
+   a short header so the grader knows the source:
+
+   ```markdown
+   # External share — manually fetched <date>
+   _Source: share.google/aimode/<hash-prefix>… (manual paste; bot-wall bypassed)_
+
+   <paste the conversation text here>
+   ```
+
+5. Re-run the deid + leak-check chain from this challenge-dir:
+
+   ```bash
+   uv run python lib/tools/grader_deidentify_text.py --challenge-dir grading/<assignment>
+   uv run python lib/tools/grader_name_leak_check.py --challenge-dir grading/<assignment>
+   ```
+
+The deid + leak-check work the same on manually-pasted content as on
+auto-fetched content. Same FERPA two-zone gate applies.
+
+**Why this isn't automated:**
+
+Three options were considered in #53. The toolkit went with documented-
+manual (this section) because:
+
+- **Cookie reuse from operator's real browser profile** — declined. Real
+  cookies = real browser fingerprint, but the operator's full cookie jar
+  adjacent to a student-data pipeline is a FERPA-adjacent risk that needs
+  a careful scoping story we don't have yet. Parking lot.
+- **`--headless=False` interactive flag** — parked. Conceptually simple
+  (open a visible browser, click past the wall, then continue), but only
+  works on a desktop session (breaks CI/batch grading on a server) and
+  cookie persistence depends on Chromium profile setup. Trigger to pull:
+  faculty workflows where the manual-paste step is happening more than a
+  handful of times per cohort.
+- **Documented-manual** — chose this. Zero new code, zero new attack
+  surface, works for any future bot-walled service (LinkedIn, Twitter
+  shares, etc.). Operator cost is one paste per blocked URL.
+
+**Rate observation:** bot-walls appear intermittent. The same URL sometimes
+fetches cleanly, sometimes hits the wall — Google's heuristics are
+session/IP/time-dependent. **Retry once or twice** before going manual; if
+the retry succeeds, the tool's idempotent skip-if-exists means subsequent
+runs won't re-fetch.
+
+## Backlog (parked items, surfaced as they're needed)
+
+These are in the parking lot (`handoffs/parkinglot.md`); pulled into a real
+build when a triggering signal appears:
+
+1. **`grader_comments_sync.py`** — sync edits in `_all_comments.md` back to
+   per-student files (`feedback/<KEY>.md`). Currently the operator copies
+   edits manually or uses editor search-and-replace.
+2. **Per-student file shape: enforce "Evidence for the score" in the
+   orchestrator** — `grader_grade.py`'s emit shape is currently
+   "Coaching points (Strength/Growth)". The agent-in-the-loop path
+   naturally follows the ds460-style "Evidence for the score" shape (this
+   document's spec); the orchestrator's SYSTEM_PROMPT + JSON schema update
+   to match is parking-lot work for v1.0.1.
+3. **Rubric versioning + regrade/appeal loop** — track which rubric
+   version was used for which cohort; allow a clean re-grade with a new
+   rubric version.
+4. **Batch-resume on crash** — `grader_grade.py` resumes on re-run via the
+   existing-keys skip; the agent-in-the-loop path doesn't yet.
+5. **Gold-set regression check** — a curated set of submissions with
+   known-correct scores; re-run after any prompt change and compare.
+6. **Enumerated rubric with bound feedback** — the "v2 of this skill"
+   pattern: graders pick from named tiers + canned feedback fragments per
+   tier (vs. emitting free-form). The strongest known lever for
+   cross-grader consistency.
+7. **Formal bias audit on a style-varied set** — present the same
+   substance in varied writing styles (formal/informal, native/non-native
+   English) and verify the score doesn't shift.
+
+---
+
+## Validation receipts
+
+| Assignment | Result | Source |
+|---|---|---|
+| **DS460 KC1** code take-home (PySpark GroupBy, 22 students, 0-4 named-tier rubric) | 20/22 within 0.5 of original push; cohort mean within 0.09 of original; 1 real borderline flagged | KC1 alpha 2026-06-10 |
+| **DS460 Mid Performance Review** prose self-review (multi-output dual-push, 0–4 + value scale + wellbeing flags) | 5 of 6 acceptance bars EMPIRICAL PASS (1 deferred — no fitting no-rubric case to test Path C). New `safety` wellbeing category caught a domestic-abuse disclosure cleanly. | Mid Review keyless ghost-run 2026-06-10 |
+
+---
+
+## References
+
+### Knowledge files (read these for the reasoning behind the rules)
+
+- [`lib/agents/knowledge/grader_knowledge.md`](../lib/agents/knowledge/grader_knowledge.md) — FERPA architecture, holistic scoring, consensus design, prompt-injection guard (sentinel-delimited), wellbeing flags, push gate
+- [`lib/agents/knowledge/grader_voice_knowledge.md`](../lib/agents/knowledge/grader_voice_knowledge.md) — per-instructor comment voice, banned terms, edit-roundtrip protocol
+- [`lib/agents/knowledge/grader_setup_knowledge.md`](../lib/agents/knowledge/grader_setup_knowledge.md) — the 6-step interview, the three rubric paths, the Classic-quiz mirror pattern
+
+### Agent specs (read these if you're an agent driving the pipeline)
+
+- [`lib/agents/canvas_grader.md`](../lib/agents/canvas_grader.md) — the operator-facing pipeline spec; the agent reads this end-to-end before running any cohort
+- [`lib/agents/canvas_grader.json`](../lib/agents/canvas_grader.json) — agent system prompt + tool roster
+
+### Tools
+
+All grader tools live in `lib/tools/grader_*.py`. They share the
+`--challenge-dir` convention; pass `--help` to any of them for the full
+flag list:
+
+- `grader_list_assignments.py` — pre-flight discovery (issue #55): list a course's assignments with `--filter <regex>` / `--published-only` / `--include-unsubmitted-count`. Output `<id> | <name>` lines feed directly into `grader_fetch.py --assignment-id`.
+- `grader_submission_health.py` — pre-grade audit (issue #64): flag submissions that look broken (empty upload, wrong content-type, empty body) so a technical failure isn't graded as missing work. Read-only; FERPA-safe; pairs with the competency grader (#60) so a "0" that's really a broken upload doesn't flow straight into a final tier.
+- `grader_scaffold.py` — task scaffolder (issue #54 sub-A): given a Canvas assignment ID (or comma-list for multi-surface), lays down `grading/<task>[_combined]/<surface>/` with a starter `config.yml` + a `RUBRIC.md` copied from `scaffold/grading/rubric_templates/<surface>.md` (ai_log + cohesive_narrative shipped with #54 sub-F). Idempotent; replaces the manual `mkdir` + `cp RUBRIC.md` cycle.
+- `grader_join.py` — multi-surface FERPA-safe join (issue #54 sub-B): walks a `<task>_combined/<surface>/` tree, resolves each surface's `.keymap.json` → user_id, joins with `ta_grades_<surface>.json` (from #56), emits `<task>/_userid_key_grade_join.json`. The canonical input for cross-task analysis.
+- `grader_meta_summary.py` — cross-task summary (issue #54 sub-C): given multiple task dirs (`--cohort-glob 'grading/p*'` or `--task-dirs ...`), emits uid × task matrix + flag-streak detection + per-uid band distribution. Surfaces cross-task patterns that previously required eyeballing.
+- `grader_fetch.py` — Step 0 (fetch + roster + chain to deid + leak-check)
+- `grader_deidentify_databricks.py` · `grader_deidentify_docx.py` · `grader_deidentify_text.py` · `grader_deidentify_pdf.py` · `grader_deidentify_xlsx.py` · `grader_deidentify_jupyter.py` — de-id adapters by file type. `grader_fetch.py`'s auto-chain picks the right adapter automatically; `--deid-adapter` overrides.
+- `grader_deidentify_comments.py` — FERPA de-id layer for Canvas submission_comments threads (issue #65). Drops `author_name`, converts `author_id` to role (`self`/`instructor`/`ta`/`peer`/`unknown`), scrubs body, refuses to write on post-scrub leak. Prerequisite for any tool that reads comment threads (#62 collision guard, #63 retract/update).
+- `grader_fetch.py` also branches by Canvas `submission_type`: graded discussions (`/discussion_topics/:tid/view`) and Classic quizzes (`submission_data` + question join) get their own fetch paths — output routes to the text adapter downstream.
+- `grader_name_leak_check.py` — name-leak verifier (FERPA gate)
+- `grader_prep_answer_key.py` — secret-scrub instructor answer keys for code/notebook assignments
+- `grader_signals.py` — static-analysis priors (not scores)
+- `grader_config_audit.py` — pre-flight config sanity check (issue #58): resolves assignment_ids in `reconciliation.dimensions[]` / `competency.elements{}`, flags 404s + group/due-cutoff mismatches before any grading run
+- `grader_pull_ta_grades.py` — symmetric PULL counterpart to `grader_grade.py` (issue #56): pulls `[{user_id, grade, score}]` for an assignment, skipping `unsubmitted`/`deleted`. FERPA-safe; feeds `_userid_key_grade_join.json` for calibration cohorts.
+- `grader_reconcile.py` — anonymous gradebook reconciliation (self-review assignments). v0.44+: per-dimension `completion_basis` (`submitted` / `nonzero` / `full_credit`) emits a `<dim>_complete` column (issue #59).
+- `grader_competency_grade.py` — deterministic "highest tier where all thresholds met" band (issue #60). Config-driven `{elements, tiers, below}`. Lifted from DS250's `calc_mid_grades.py`; reuses #59's completion_basis primitives. FERPA-safe; output is keyed for human review or push.
+- `grader_grade.py` — optional N-pass LLM orchestrator (requires API key)
+- `grader_consensus.py` — N-grader majority + spread + `_all_comments.md` compile
+- `grader_reidentify.py` — LOCAL re-identification (key → user_id)
+- `grader_push.py` — Canvas write (gated behind `--mark-reviewed`)
+- `grader_push_comments.py` — comments-only push (issue #57): walks `feedback/_pass1/uid-<N>.md`, extracts the `## Suggested Canvas Comment` H2, posts each via the Canvas submissions API. Reuses #61/#62/#63 guards from `grader_push`; idempotent (skips uids whose thread already has the exact comment).
+- `grader_quiz_mirror.py` — Classic-quiz mirror for self-report verification

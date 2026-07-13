@@ -38,6 +38,12 @@ GENERALIZED FROM: ds460-master/grading/deidentify_databricks.py
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import base64
 import hashlib
 import json
@@ -283,6 +289,8 @@ def check_stale_prefix_files(outdir, current_prefix: str, *, cleanup: bool = Fal
 
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(description="FERPA de-identify Databricks HTML submissions.")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     ap.add_argument("--challenge-dir", dest="challenge_dir", default=None,

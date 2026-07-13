@@ -86,6 +86,12 @@ PAIRS WITH
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import os
 import re
@@ -366,6 +372,57 @@ def audit_modules(course_id: str, phases: list[dict]) -> list[dict]:
     return out
 
 
+def audit_modules_local(course, phases: list[dict]) -> list[dict]:
+    """Offline mirror of audit_modules: read modules + overview page bodies from a
+    loaded Course (the local course/ folder) instead of the Canvas API.
+
+    A module's page items are its WikiPage/Page items (offline_import tags them
+    content_type=='WikiPage'; canvas_sync tags them type=='Page'); their bodies are
+    the module dir's .html files (offline_import/canvas_sync only write .html for
+    page items, so a module dir's *.html == its page items). The synthetic
+    '(unfiled)' pseudo-module holds items not attached to any Canvas module and has
+    no API /modules equivalent, so it's skipped. module_id/position come straight
+    from _module.json — present for a canvas_sync --pull, absent (None/0) for an
+    .imscc offline_import, which carries no Canvas-assigned module ids or ordering."""
+    out: list[dict] = []
+    for m in course.modules:
+        if m.slug == "_unfiled":
+            continue
+        items = m.meta.get("items") or []
+        page_items = [i for i in items
+                      if i.get("content_type") == "WikiPage" or i.get("type") == "Page"]
+        text_parts: list[str] = []
+        for p in sorted((course.dir / m.slug).glob("*.html")):
+            body = p.read_text(encoding="utf-8")
+            if body:
+                text_parts.append(_strip_html_to_text(body))
+        full_text = " ".join(text_parts)
+        phase_results = []
+        for ph in phases:
+            phase_results.append({
+                "phase": ph["name"],
+                **detect_phase_in_text(full_text, ph),
+            })
+        present_count = sum(1 for p in phase_results if p["found"])
+        if present_count == len(phases):
+            status = "complete"
+        elif present_count > 0:
+            status = "partial"
+        else:
+            status = "missing"
+        out.append({
+            "module_id": m.meta.get("canvas_id"),
+            "module_name": m.title,
+            "position": m.meta.get("position") or 0,
+            "page_item_count": len(page_items),
+            "phase_results": phase_results,
+            "phases_present": present_count,
+            "phases_total": len(phases),
+            "status": status,
+        })
+    return out
+
+
 def aggregate(modules: list[dict], phases: list[dict]) -> dict:
     by_status = {"complete": 0, "partial": 0, "missing": 0}
     by_phase_coverage: dict[str, int] = {ph["name"]: 0 for ph in phases}
@@ -521,7 +578,16 @@ def _write_report(path: Path, body: str) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Read-only Learning Model audit (NWCCU 3.1 — generalizable across institutions).")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
@@ -540,36 +606,59 @@ def main() -> int:
                          "Shape: {'phases': [{'name': '...', 'keywords': ['...', ...]}, ...]}")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Bypass canvas_course_guard advisory for enrolled-course reads.")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
-    if not CANVAS_API_TOKEN or not CANVAS_BASE_URL:
-        print("ERROR: CANVAS_API_TOKEN and CANVAS_BASE_URL must be set in .env.", file=sys.stderr)
-        return 2
-    course_id = args.course_id or os.environ.get(args.target, "")
-    if not course_id:
-        print(f"ERROR: course ID not found. Pass --course-id <id> or set {args.target}.",
-              file=sys.stderr)
-        return 2
-
-    guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
-                  mode="read", allow_override=args.allow_enrolled, label="audit target")
+    use_local = args.local or bool(args.course_dir) or _is_offline()
 
     framework_cfg = load_phases_config(args)
     phases = framework_cfg["phases"]
     framework_name = framework_cfg.get("name", args.preset)
-
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    course = _get(f"/courses/{course_id}") or {}
-    if not isinstance(course, dict):
-        print(f"ERROR: couldn't load course {course_id}.", file=sys.stderr)
-        return 2
-    course_name = course.get("name", "<unknown course>")
 
-    print(f"Auditing {course_id} against {framework_name}...", file=sys.stderr)
-    modules = audit_modules(course_id, phases)
-    if not modules:
-        print(f"ERROR: no modules found for course {course_id}.", file=sys.stderr)
-        return 2
+    if use_local:
+        from _course_loader import load_course, CourseNotFound
+        try:
+            c = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 2
+        course_id = str(c.canvas_id or "local")
+        course_name = c.name
+        print(f"Auditing {course_id} against {framework_name} (local course/)...", file=sys.stderr)
+        modules = audit_modules_local(c, phases)
+        if not modules:
+            print("ERROR: no modules in course/ — run offline_import (or "
+                  "canvas_sync --pull) first.", file=sys.stderr)
+            return 2
+    else:
+        if not CANVAS_API_TOKEN or not CANVAS_BASE_URL:
+            print("ERROR: CANVAS_API_TOKEN and CANVAS_BASE_URL must be set in .env.", file=sys.stderr)
+            return 2
+        course_id = args.course_id or os.environ.get(args.target, "")
+        if not course_id:
+            print(f"ERROR: course ID not found. Pass --course-id <id> or set {args.target}.",
+                  file=sys.stderr)
+            return 2
+
+        guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
+                      mode="read", allow_override=args.allow_enrolled, label="audit target")
+
+        course = _get(f"/courses/{course_id}") or {}
+        if not isinstance(course, dict):
+            print(f"ERROR: couldn't load course {course_id}.", file=sys.stderr)
+            return 2
+        course_name = course.get("name", "<unknown course>")
+
+        print(f"Auditing {course_id} against {framework_name}...", file=sys.stderr)
+        modules = audit_modules(course_id, phases)
+        if not modules:
+            print(f"ERROR: no modules found for course {course_id}.", file=sys.stderr)
+            return 2
 
     agg = aggregate(modules, phases)
     verdict = overall_verdict(agg)

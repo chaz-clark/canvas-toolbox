@@ -55,6 +55,12 @@ WHEN TO RE-RUN
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import hashlib
 import json
 import re
@@ -270,6 +276,8 @@ def fetch_one(source: TitleIVSource) -> tuple[str, str, bool]:
 
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Fetch + cache canonical Title IV sources to "
                     "lib/agents/knowledge/sources/title_iv/. Reduces "

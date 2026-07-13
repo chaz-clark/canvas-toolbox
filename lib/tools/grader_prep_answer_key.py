@@ -55,6 +55,12 @@ reference).
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import sys
 from pathlib import Path
@@ -113,6 +119,8 @@ def text_outputs(cell: dict) -> str:
 
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Secret-scrub an instructor .ipynb answer key into a clean "
                     "key_clean.md grading reference (markdown + code + text outputs; "

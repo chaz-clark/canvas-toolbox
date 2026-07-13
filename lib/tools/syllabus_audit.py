@@ -82,6 +82,12 @@ work, disability/accessibility, university policies, AI policy) are broadly gene
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import html
 import json
 import os
@@ -106,6 +112,18 @@ _raw_url = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
 if _raw_url and not _raw_url.startswith("http"):
     _raw_url = "https://" + _raw_url
 CANVAS_BASE_URL = _raw_url
+
+
+def default_institution() -> str:
+    """Institution profile (keeps the audit college-agnostic). CANVAS_INSTITUTION
+    wins; else infer from the Canvas host (byui.instructure.com -> 'byui'); else
+    'generic'. Only the BYUI profile REQUIRES a generative-AI policy for a
+    'complete' verdict — other institutions treat it as advisory."""
+    inst = os.environ.get("CANVAS_INSTITUTION", "").strip().lower()
+    if inst:
+        return inst
+    return "byui" if "byui" in (CANVAS_BASE_URL or "").lower() else "generic"
+
 
 _TIMEOUT = 30
 # Below this many words of real syllabus text we treat the body as effectively
@@ -546,15 +564,19 @@ NO_SYLLABUS = "no_syllabus"
 
 
 def compute_verdict(sections: list[dict], ai_policy: dict,
-                    body_words: int) -> tuple[str, list[str]]:
-    """Verdict + the list of human-readable missing items driving it."""
+                    body_words: int, ai_policy_required: bool = True) -> tuple[str, list[str]]:
+    """Verdict + the list of human-readable missing items driving it.
+
+    ai_policy_required is a per-institution profile knob: the BYUI profile
+    REQUIRES a generative-AI statement (drives the verdict); other institutions
+    treat it as advisory (reported but not verdict-driving)."""
     if body_words < _MIN_BODY_WORDS:
         return NO_SYLLABUS, [
             "Syllabus body is empty or near-empty — the real syllabus is likely "
             "a linked Canvas page or file the syllabus_body field doesn't contain."
         ]
     missing = [s["label"] for s in sections if not s["detected"]]
-    if not ai_policy["present"]:
+    if ai_policy_required and not ai_policy["present"]:
         missing.append("AI Policy (REQUIRED — no generative-AI statement detected)")
     return (COMPLETE if not missing else INCOMPLETE), missing
 
@@ -683,7 +705,16 @@ def _resolve_course_id(target_env: str, literal: str | None) -> tuple[str, str]:
     return val, f"${target_env}"
 
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Read-only Canvas syllabus completeness audit (BYU-Idaho "
                     "template + required AI policy)."
@@ -710,45 +741,68 @@ def main() -> None:
                          "instead of (or in addition to) the 9-section summary. "
                          "Scores 0/1/2 per item with link-presence detection. "
                          "Use with --detailed to keep the umbrella audit too.")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
+    ap.add_argument("--institution", default=None,
+                    help="Institution profile: 'byui' REQUIRES an AI policy for a complete "
+                         "verdict; anything else treats it as advisory. Default: CANVAS_INSTITUTION "
+                         "env, else inferred from the Canvas host, else 'generic'.")
     args = ap.parse_args()
 
-    missing_cfg: list[str] = []
-    if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://":
-        missing_cfg.append("CANVAS_BASE_URL")
-    if not CANVAS_API_TOKEN:
-        missing_cfg.append("CANVAS_API_TOKEN")
-    if missing_cfg:
-        print("ERROR: Missing required configuration:")
-        for m in missing_cfg:
-            print(f"  {m}")
-        print("\nSet these in your .env file.")
-        sys.exit(2)
-
-    course_id, source = _resolve_course_id(args.target, args.course_id)
-    if not course_id:
-        print(f"ERROR: course ID not found via {source}.")
-        print("       Set the env var, or pass --course-id <id> directly.")
-        sys.exit(2)
-
-    guard.enforce(
-        base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
-        mode="read", allow_override=args.allow_enrolled, label="audit target",
-    )
-
+    use_local = args.local or bool(args.course_dir) or _is_offline()
+    institution = (args.institution or default_institution()).strip().lower()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    course_name, body = fetch_syllabus(course_id)
-    if body is None:
-        print(f"\nCould not fetch course {course_id} (or the request failed).",
-              file=sys.stderr)
-        sys.exit(2)
+    if use_local:
+        from _course_loader import load_course, CourseNotFound
+        try:
+            c = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(2)
+        course_id = str(c.canvas_id or "local")
+        course_name = c.name
+        body = c.syllabus()          # mirrors course.syllabus_body
+    else:
+        missing_cfg: list[str] = []
+        if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://":
+            missing_cfg.append("CANVAS_BASE_URL")
+        if not CANVAS_API_TOKEN:
+            missing_cfg.append("CANVAS_API_TOKEN")
+        if missing_cfg:
+            print("ERROR: Missing required configuration:")
+            for m in missing_cfg:
+                print(f"  {m}")
+            print("\nSet these in your .env file.")
+            sys.exit(2)
+
+        course_id, source = _resolve_course_id(args.target, args.course_id)
+        if not course_id:
+            print(f"ERROR: course ID not found via {source}.")
+            print("       Set the env var, or pass --course-id <id> directly.")
+            sys.exit(2)
+
+        guard.enforce(
+            base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
+            mode="read", allow_override=args.allow_enrolled, label="audit target",
+        )
+
+        course_name, body = fetch_syllabus(course_id)
+        if body is None:
+            print(f"\nCould not fetch course {course_id} (or the request failed).",
+                  file=sys.stderr)
+            sys.exit(2)
 
     text = html_to_text(body)
     body_words = word_count(text)
     sections = detect_sections(text)
     ai_policy = detect_ai_policy(text)
     advisory = detect_advisory(text, body)
-    verdict, missing = compute_verdict(sections, ai_policy, body_words)
+    verdict, missing = compute_verdict(sections, ai_policy, body_words,
+                                       ai_policy_required=(institution == "byui"))
 
     # v0.31 — 25-item rubric (run alongside umbrella audit; surfaced when --rubric set)
     rubric_items = detect_rubric_items(text, body)

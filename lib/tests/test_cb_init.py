@@ -177,7 +177,7 @@ def test_parse_canvas_self_handles_non_dict():
 
 def test_check_mode_against_tmp_repo(tmp_path):
     """End-to-end smoke: cb_init.py --check --mode adopter --skip-playwright
-    against a fresh git repo. Asserts ALL 8 step labels print + no .env
+    against a fresh git repo. Asserts ALL 13 step labels print + no .env
     is written. Catches "I forgot to wire step X into the dispatch."
 
     --check mode is designed to continue past failures so the operator
@@ -199,9 +199,16 @@ def test_check_mode_against_tmp_repo(tmp_path):
     )
     out = result.stdout + result.stderr
 
-    # All 8 step labels must appear (catches the dispatch-wiring class of bugs)
-    for i in range(1, 9):
-        assert f"Step {i}/8:" in out, (
+    # Every step label must appear (catches the dispatch-wiring class of bugs).
+    # Derive the total from the output rather than hardcoding it, so adding a
+    # cb-init step never silently breaks this test again (it went 13→14 in
+    # v1.6.1 and this assertion wasn't updated).
+    import re
+    totals = set(re.findall(r"Step \d+/(\d+):", out))
+    assert len(totals) == 1, f"inconsistent step totals {totals} in output:\n{out}"
+    total = int(totals.pop())
+    for i in range(1, total + 1):
+        assert f"Step {i}/{total}:" in out, (
             f"step {i} missing from --check output. Full output:\n{out}"
         )
 

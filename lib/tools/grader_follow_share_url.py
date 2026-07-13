@@ -79,6 +79,12 @@ PIPELINE INTEGRATION
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import re
 import sys
@@ -407,6 +413,8 @@ def emit_error_stub(*, service: str, hash_short: str, error: str, url: str = "")
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Follow ChatGPT/Gemini share URLs in submissions_raw/ and "
                     "render their transcripts via headless Chromium so the "

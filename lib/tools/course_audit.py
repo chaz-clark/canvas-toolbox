@@ -57,6 +57,12 @@ forwards it, then composes their JSON. All read-only — nothing is written to C
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import os
 import subprocess
@@ -214,15 +220,16 @@ def _headline(key: str, d: dict | None) -> tuple[int, str, list[str]]:
 
     if key == "formative_variety":
         v = d.get("formative_variety") or d.get("verdict", "?")
-        s = d.get("summary", {})
-        flagged = s.get("flag_count", 0)
+        flagged = d.get("flags_count", 0)  # top-level field, not in summary
         sev = 2 if v == "flags_present" else 0
         fixes = []
+        flags_obj = d.get("flags") or {}
         for flag_key, label in (("no_formative_items", "no formative items in the whole course"),
                                 ("summative_only_categories", "categories with only summative items"),
-                                ("precedence_failures", "summative items lack preceding formative practice"),
-                                ("distribution_skew", "formative items skewed across the term")):
-            if (d.get("flags") or {}).get(flag_key):
+                                ("presence_flag", "no formative items in the whole course"),
+                                ("no_precedence", "summative items lack preceding formative practice"),
+                                ("distribution", "formative items skewed across the term")):
+            if flags_obj.get(flag_key):
                 fixes.append(f"formative variety: {label}")
         return sev, f"{v} ({flagged} flag(s))", fixes
 
@@ -233,7 +240,8 @@ def _headline(key: str, d: dict | None) -> tuple[int, str, list[str]]:
         sev = 2 if v == "flags_present" else 0
         fixes = []
         f = d.get("flags") or {}
-        if f.get("sum_not_100"):
+        # sum_not_100 is a dict with "flag" subkey, not a boolean
+        if (f.get("sum_not_100") or {}).get("flag"):
             fixes.append("grading weights don't sum to 100%")
         if f.get("weight_mismatches"):
             fixes.append(f"{len(f['weight_mismatches'])} category weight/point mismatch(es)")
@@ -263,9 +271,10 @@ def _headline(key: str, d: dict | None) -> tuple[int, str, list[str]]:
     if key == "accessibility":
         v = d.get("accessibility") or d.get("verdict", "?")
         s = d.get("summary", {})
-        crit = s.get("critical_count", 0)
-        high = s.get("high_count", 0)
-        review = s.get("review_count", 0)
+        by_sev = s.get("by_severity", {})
+        crit = by_sev.get("CRITICAL", 0)
+        high = by_sev.get("HIGH", 0)
+        review = by_sev.get("REVIEW", 0)
         sev_map = {"compliant": 0, "compliant_with_review": 1,
                    "partial_compliant": 2, "non_compliant": 2}
         sev = sev_map.get(v, 1)
@@ -365,6 +374,83 @@ def _write_report(path: Path, body: str) -> None:
             pass
 
 
+def _write_artifact(course_id: str, course_name: str, tier: str, ts: str,
+                    combined: int, rows: list[dict], raw: dict[str, dict | None]) -> None:
+    """Write structured audit findings to .canvas/audit/<course_id>.json for iterative
+    improvement tracking across semesters (enables comparing findings: missing: 32 → 22)."""
+    # .canvas/ is already gitignored runtime dir; artifact is machine-readable only
+    artifact_dir = Path.cwd() / ".canvas" / "audit"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    # Build structured findings from specialist outputs
+    areas = {}
+    for r in rows:
+        key = r["key"]
+        specialist_data = raw.get(key)
+        if not specialist_data:
+            continue
+
+        # Extract key metrics from each specialist's JSON output
+        if key == "rubric_coverage":
+            areas[key] = {
+                "verdict": r["headline"].lower().replace(" ", "_"),
+                "missing": specialist_data.get("missing_rubrics", 0),
+                "decorative": specialist_data.get("decorative_rubrics", 0),
+                "ok": specialist_data.get("coverage_ok", 0),
+                "total_assignments": specialist_data.get("total_assignments", 0),
+            }
+        elif key == "rubric_quality":
+            areas[key] = {
+                "verdict": r["headline"].lower().replace(" ", "_"),
+                "meets_criteria": specialist_data.get("meets", 0),
+                "partial": specialist_data.get("partial", 0),
+                "needs_revision": specialist_data.get("needs_revision", 0),
+            }
+        elif key == "syllabus":
+            areas[key] = {
+                "verdict": r["headline"].lower().replace(" ", "_"),
+                "sections_present": f"{specialist_data.get('present', 0)}/{specialist_data.get('total', 9)}",
+                "missing": specialist_data.get("missing", []),
+            }
+        elif key == "clo_quality":
+            areas[key] = {
+                "verdict": r["headline"].lower().replace(" ", "_"),
+                "clos": specialist_data.get("clo_count", 0),
+                "scope": specialist_data.get("scope_note", "unknown"),
+            }
+        elif key == "workload":
+            areas[key] = {
+                "verdict": r["headline"].lower().replace(" ", "_"),
+                "peak_week": specialist_data.get("peak_week", 0),
+                "peak_hours": specialist_data.get("peak_hours", 0.0),
+            }
+        else:
+            # For other specialists, store verdict only
+            areas[key] = {"verdict": r["headline"].lower().replace(" ", "_")}
+
+    # Collect top fixes across all specialists
+    top_fixes = []
+    for r in rows:
+        if r["fixes"]:
+            top_fixes.extend(r["fixes"][:2])  # Top 2 from each specialist
+    top_fixes = top_fixes[:5]  # Limit to top 5 overall
+
+    artifact = {
+        "schema_version": 1,
+        "course_id": course_id,
+        "course_name": course_name,
+        "run_at": ts,
+        "tier": tier,
+        "verdict": _COMBINED[combined],
+        "areas": areas,
+        "top_fixes": top_fixes,
+    }
+
+    artifact_path = artifact_dir / f"{course_id}.json"
+    artifact_path.write_text(json.dumps(artifact, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"Audit artifact: {artifact_path}", file=sys.stderr)
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -377,6 +463,8 @@ def _resolve_course_id(target_env: str, literal: str | None) -> tuple[str, str]:
 
 
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="One-command read-only course health audit. QUICK tier (default) "
                     "runs the four core audits; --full adds the standards-gap audits + "
@@ -452,6 +540,11 @@ def main() -> None:
         print("\n".join(lines))
         if args.report:
             _write_report(Path(args.report), "\n".join(lines))
+
+    # Write structured audit artifact for iterative improvement tracking (enables
+    # progress comparison across semesters: missing rubrics 32 → 22 → 12).
+    # Based on research from @matjmiles (PR #125) — semester-scale iteration pattern.
+    _write_artifact(course_id, course_name, tier, ts, combined, rows, raw)
 
     sys.exit(0 if combined == 0 else 1)
 

@@ -48,6 +48,12 @@ no live course — static + argparse verification only when developed here.
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import os
 import sys
 from collections import defaultdict
@@ -301,6 +307,8 @@ def _write_report(path: Path, body: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Per-section Blueprint sync exception report (#28)"
     )

@@ -58,6 +58,13 @@ BLOCKED = re.compile(
       canvas_sync\.py
     | canvas_run\.py
     | canvas-run\.(ps1|sh)
+    # The faculty launcher. It is a front-end for canvas_run.py, so an agent that
+    # runs it reaches Canvas just as surely - by proxy. Adding a convenience
+    # wrapper around a gated tool silently widens the gate unless the block list
+    # learns about it, and THIS is the failure mode to watch for: the boundary is
+    # only as good as its enumeration of the paths to Canvas.
+    | canvas-menu\.(ps1|sh)
+    | Canvas\.(cmd|command)
     | canvas_api_tool\.py
     | canvas_quiz_questions\.py
     | course_mirror\.py

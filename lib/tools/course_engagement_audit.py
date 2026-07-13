@@ -80,6 +80,14 @@ TITLE IV SOURCES — VERIFIED 2026-06-26
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import os
 import sys
 from dataclasses import dataclass
@@ -337,6 +345,8 @@ def _env_canvas(course_id_override: str | None = None) -> tuple[str, str, str]:
     """Read CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID from env."""
     tok = os.environ.get("CANVAS_API_TOKEN", "")
     base = (os.environ.get("CANVAS_BASE_URL", "") or "").rstrip("/")
+    if base and not base.startswith(("http://", "https://")):
+        base = f"https://{base}"
     cid = course_id_override or os.environ.get("CANVAS_COURSE_ID", "")
     return tok, base, cid
 
@@ -473,6 +483,8 @@ class EngagementRow:
 
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Title IV last-date-of-academic-engagement classifier "
                     "for the course's enrolled students. Outputs PDF + MD "
@@ -576,30 +588,86 @@ def main() -> int:
     print(f"  {len(keyed_rows)} active enrollment(s) found. Fetching engagement events...")
 
     # Step 2: Per-student engagement events (KEYED — operates on user_id)
-    for i, row in enumerate(keyed_rows, 1):
+    # Dispatcher: Use Rust binary if available, otherwise Python fallback
+    script_dir = Path(__file__).parent
+    rust_bin = script_dir / "engagement_audit_rs" / "target" / "release" / "engagement-audit"
+
+    user_ids = [row["user_id"] for row in keyed_rows]
+    engagement_data = {}  # user_id -> {submission_timestamps, discussion_timestamps}
+
+    if rust_bin.exists():
+        # Rust path - concurrent fetching
+        print("  Using Rust implementation (concurrent, fast)...", file=sys.stderr)
+        try:
+            user_ids_csv = ",".join(str(uid) for uid in user_ids)
+            result = subprocess.run(
+                [
+                    str(rust_bin),
+                    "--course-id", cid,
+                    "--base-url", base,
+                    "--token", tok,
+                    "--user-ids", user_ids_csv,
+                    "--quiet",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=False,
+            )
+            if result.returncode == 0:
+                engagement_results = json.loads(result.stdout)
+                for item in engagement_results:
+                    engagement_data[item["user_id"]] = item
+            else:
+                print(f"  ⚠ Rust binary failed (exit {result.returncode}), falling back to Python", file=sys.stderr)
+                if result.stderr:
+                    print(f"  Error: {result.stderr[:200]}", file=sys.stderr)
+                # Fall through to Python fallback
+                rust_bin = None  # Force Python fallback
+        except Exception as e:
+            print(f"  ⚠ Rust binary error: {e}, falling back to Python", file=sys.stderr)
+            rust_bin = None  # Force Python fallback
+
+    if not rust_bin or not rust_bin.exists():
+        # Python fallback - sequential fetching
+        print("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
+        print("  ⚠ Rust binary not found — using Python fallback (SLOW)", file=sys.stderr)
+        print("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
+        print(file=sys.stderr)
+        print("  Python fallback is slow for large courses (5-10 min for 100+ students).", file=sys.stderr)
+        print("  For 10-20x speedup, install Rust:", file=sys.stderr)
+        print("    cb-init --with-rust", file=sys.stderr)
+        print(file=sys.stderr)
+        print("  Proceeding with Python fallback...", file=sys.stderr)
+        print(file=sys.stderr)
+
+        try:
+            from _course_engagement_audit_python import run_python_fallback
+            engagement_results = run_python_fallback(
+                base_url=base,
+                course_id=cid,
+                token=tok,
+                user_ids=user_ids,
+            )
+            for item in engagement_results:
+                engagement_data[item["user_id"]] = item
+        except ImportError as e:
+            print(f"  ERROR: Failed to import Python fallback: {e}", file=sys.stderr)
+            sys.exit(2)
+
+    # Apply engagement data to rows and classify
+    for row in keyed_rows:
         uid = row["user_id"]
-        # Submissions (assignments + quizzes)
-        try:
-            subs = fetch_student_submissions(base, cid, headers, uid)
-        except (requests.HTTPError, requests.RequestException):
-            subs = []
-        sub_timestamps = [s.get("submitted_at") for s in subs if s.get("submitted_at")]
-        # Discussion entries
-        try:
-            disc_timestamps = fetch_discussion_entries(base, cid, headers, uid)
-        except (requests.HTTPError, requests.RequestException):
-            disc_timestamps = []
-        # Quiz timestamps are already included in /students/submissions
-        # for graded quizzes; no separate quiz fetch needed
+        data = engagement_data.get(uid, {})
+        sub_timestamps = data.get("submission_timestamps", [])
+        disc_timestamps = data.get("discussion_timestamps", [])
+
         last = compute_last_engagement(sub_timestamps, disc_timestamps, [])
         row["last_engagement"] = last
         row["last_engagement_str"] = last.strftime("%Y-%m-%d") if last else "(never)"
         row["classification"] = classify_student(
             last, uf_date, row["current_score"], args.passing_score,
         )
-        if i % 10 == 0:
-            print(f"  ...processed {i}/{len(keyed_rows)}")
-    print(f"  ...processed {len(keyed_rows)}/{len(keyed_rows)}")
     print()
 
     # Step 3: classification summary (KEYED — no names in console)

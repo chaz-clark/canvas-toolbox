@@ -2,8 +2,7 @@
 
 All notable changes to canvas-toolbox. Format follows [Keep a
 Changelog](https://keepachangelog.com/). Versioning follows [SemVer](https://semver.org/)
-on the `v0.x` line (canonical — see [AGENTS.md → Active Context](AGENTS.md#active-context)
-for the versioning rationale).
+on the `1.x` line — see the **Versioning policy** in [AGENTS.md → Active Context](AGENTS.md#active-context).
 
 For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
@@ -11,14 +10,226 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+---
+
+## [1.7.0] — 2026-07-12
+
+**Offline mode — run the whole audit + gradebook + content-package workflow without a Canvas API token.**
+
+Tools now read a local `course/` folder (populated by `canvas_sync --pull` from the API *or* `offline_import` from a `.imscc`), so they run identically online and offline. Online stays the default; `--local` is additive — nothing existing changes.
+
+### Added
+- **Offline foundation:** `CANVAS_MODE` + gradebook-CSV utils + download finders (#141); gradebook **de-identify / re-identify** (#142); **apply-scores** to a gradebook CSV (#143); `.imscc` **date-shift** + validator for a semester copy (#144); the local **`course/` loader** (#146); **`offline_import`** (`.imscc → course/`) (#147); cross-validation of the full `.imscc → course/ → audit` pipeline (#148).
+- **7 audits gained `--local`:** `workload` (#146), `syllabus` (#149), `accessibility` + `content_representation` (#150), `grading_structure` (#152), `rubric_coverage` + `rubric_quality` (#154), with **exact online/offline parity** including outcomes (#155).
+- **`clo_catalog_import`** — pull a course's CLOs from the institution's Kuali catalog and create them as Canvas Outcomes (API-only, guarded, idempotent, text-normalized) (#160).
+- **`syllabus_audit` is institution-agnostic** — BYUI profile via host inference / `CANVAS_INSTITUTION` / `--institution`, not hardcoded (#156).
+
 ### Changed
-- **Active Context condensed to brief highlights** (~44 lines, was 176). Each
-  of the latest-5 entries is now a short summary; full per-release detail lives
-  here in CHANGELOG. Removes the verbatim AGENTS.md↔CHANGELOG duplication.
-- **CI guard aligned to the canonical `make_AGENTS` checks** (shipped upstream
-  as [AGENTS-QC-010 + AGENTS-QC-011](https://github.com/chaz-clark/Make-AI-Agents/issues/17), now closed):
-  `test_agents_active_context.py` enforces ≤5 Active Context entries **and**
-  ≤150 lines **and** a ≤25k-token total-file hard cap.
+- **Cloudflare Workers migrated out** to the `edge-infra` sister repo; `canvas-toolbox/infra/` removed and references repointed (the deployed `canvas-toolbox-bugs` worker is unaffected) (#159).
+- Offline guides rewritten to match the shipped architecture (#145, #151); roadmap updates for the CLO importer (#157, #161).
+
+### Fixed
+- `imscc_adjust_dates` blocks only shift-*introduced* issues, not pre-existing source quirks (#153).
+- PUBH field deployment feedback — 5 items (#139).
+
+---
+
+## [1.6.1] — 2026-07-08
+
+**Accommodation system performance + reliability fix**
+
+Addresses the accommodation force-recalc "working 0-100% of the time" issue reported in production. Root cause: force_recalc was iterating ALL assignments in the course (200+) instead of only the modified assignments, causing 10+ minute hangs on slow Canvas instances.
+
+### Fixed
+- **student_late_accommodation.py** — now passes specific assignment_ids to force_recalc (50-100x faster)
+  - Before: 200+ API calls to check every assignment in course
+  - After: 3-5 API calls to check only modified assignments
+  - Runtime: 10+ minutes → seconds
+- **student_quiz_time_extension.py** — extracts assignment_id from graded quizzes for targeted recalc
+  - Practice quizzes/surveys (no assignment_id) now skip recalc appropriately
+  - More accurate messaging when no assignment overrides exist
+
+### Added (reliability improvements to _override_recalc_helper.py)
+- **verify_override_updated()** — workaround for Canvas Issue #1774 (stale data after PUT)
+- **_request_with_backoff()** — exponential backoff for 429 rate limiting (1s, 2s, 4s retries)
+- All API calls now use backoff logic (GET assignments, GET overrides, PUT override)
+
+### Documentation
+- **docs/research/accommodation-recalc-findings.md** — comprehensive deep dive on Canvas override recalc mechanism, API research, and implementation plan
+
+---
+
+## [1.6.0] — 2026-07-07
+
+**Major: v1.6 course-centric architecture refactor**
+
+Breaking change for multi-course instructors: course files (.env, AGENTS.md, course/, grading/, handoffs/) now live at course root (DS460/), not inside canvas-toolbox/. This eliminates "which canvas-toolbox folder is this?" confusion when teaching multiple courses.
+
+### Added
+- **cb-init auto-detects subdirectory context** — when run from DS460/canvas-toolbox/, creates course files at DS460/ automatically (no manual copying)
+- **4 new cb-init steps** (now 13 total):
+  - Step 10: Create .gitignore at course root (subdirectory mode)
+  - Step 11: Run canvas-sync --pull to populate course/ directory
+  - Step 12: Generate course-specific AGENTS.md stub (references toolkit AGENTS.md)
+  - Step 13: Create handoffs/ directory (opt-in via --with-handoffs flag)
+- **--with-handoffs flag** — creates handoffs/ directory for AI session tracking (dev/power-user feature, opt-in)
+- **v1.5 → v1.6 migration detection** — cb-init detects .env at old location (canvas-toolbox/.env) and offers to migrate to course root
+
+### Changed
+- **.env location in subdirectory mode** — DS460/.env instead of DS460/canvas-toolbox/.env
+- **Course-root .gitignore auto-created** — includes .env, canvas-toolbox/, course/, grading/, handoffs/
+- **AGENTS.md structure section updated** — documents v1.6 architecture and course-root working directory
+- **cb-init step count** — 9 steps → 13 steps
+- **Test expectations updated** — test_cb_init.py now expects 13 steps
+
+### Technical
+- Added `detect_course_context()` function to distinguish subdirectory vs standalone mode
+- Course root detection uses parent folder name heuristics (dev folders vs course folders)
+- Migration uses shutil.move for .env relocation
+- Backward compatible: standalone mode (canvas-toolbox/ as repo root) unchanged
+- Implementation plan: docs/proposals/v1.6-cb-init-refactor-plan.md
+
+### Migration Guide
+For existing v1.5 users with course files in canvas-toolbox/:
+
+**Automated migration (recommended)**:
+```bash
+python3 canvas-toolbox/scaffold/migrate_v15_to_v16.py        # dry-run (shows what it would do)
+python3 canvas-toolbox/scaffold/migrate_v15_to_v16.py --apply  # actually move files
+uv run python canvas-toolbox/lib/tools/cb_init.py           # finish setup
+```
+
+This moves .env, course/, grading/, .canvas/ to course root, then cb-init creates .gitignore and AGENTS.md.
+
+**Manual migration**: Re-run cb-init from canvas-toolbox/. It will detect your old .env and offer to migrate it (but you'll need to manually move course/, grading/, .canvas/).
+
+See docs/UPGRADING.md for detailed migration steps.
+
+---
+
+## [1.5.4] — 2026-07-07
+
+**Bug fixes and dependency updates**
+
+### Fixed
+- **student_late_accommodation.py default changed to `--no-force-recalc`** — prevents
+  10+ minute hangs on slow Canvas courses. Canvas automatically recognizes overrides
+  within minutes; forced recalculation is now opt-in via `--force-recalc` flag.
+  Fixes #138.
+- **engagement audit HTTPS prepending** — `course_engagement_audit.py` now correctly
+  prepends `https://` to base URL when missing, matching other Canvas API tools.
+  Fixes PR #137.
+- **cb_init test updated for 9 steps** — `test_cb_init.py` was checking for 8 steps
+  but cb_init now has 9 steps (Rust installation added in v1.5.x). Test now correctly
+  expects 9 steps.
+
+### Changed
+- **Dependency updates** — anthropic 0.113.0 → 0.116.0, markdownify 1.2.2 → 1.2.3.
+  PR #133.
+
+---
+
+## [1.5.3] — 2026-07-07
+
+**YAML frontmatter migration (industry compliance)**
+
+### Changed
+- **All 7 agents migrated from MD+JSON to MD+YAML frontmatter** — follows
+  industry standard pattern (Anthropic Agent Skills, agentskills.io, Make-AI-Agents).
+  Zero major platforms use separate JSON companion files.
+- **canvas_api_tool.py updated with YAML parser** — new `load_agent_config()`
+  function extracts structured data from YAML frontmatter + embedded YAML code blocks.
+- **Zero functional changes** — all tools work identically, smoke tests pass.
+
+### Removed
+- **All 7 agent JSON files** — canvas_blueprint_sync.json, canvas_content_sync.json,
+  canvas_course_expert.json, canvas_grader.json, canvas_schedule_auditor.json,
+  canvas_semester_setup.json, ira_program_alignment.json. Data now embedded in
+  corresponding .md files.
+
+### Technical
+- Created `lib/tools/_migrate_agent_to_yaml.py` — migration script for MD+JSON → MD+YAML.
+- `load_agent_config()` parser uses `yaml.safe_load()` + regex to extract YAML blocks.
+- Embedded YAML blocks preserve audit_rules, byui_standards, llm_agent config for
+  runtime use by canvas_api_tool.py.
+- YAML frontmatter contains metadata (name, version, description, complexity, agent_type).
+
+---
+
+## [1.5.2] — 2026-07-07
+
+**Rust engagement audit (10-20x speedup for Title IV compliance)**
+
+### Added
+- **Rust implementation of `course_engagement_audit.py`** — 10-20x speedup
+  (5-10 minutes → 30-60 seconds) for courses with 100+ students. Uses concurrent
+  per-student HTTP requests (tokio + reqwest) instead of sequential Python loops.
+  Bottleneck: 3 API endpoints per student (submissions, discussions, quiz data).
+- **Python fallback implementation** (`_course_engagement_audit_python.py`) —
+  sequential implementation matching original behavior. Slower than Rust but works
+  without Rust installed.
+- **Dispatcher pattern in `course_engagement_audit.py`** — automatically detects
+  Rust binary (`lib/tools/engagement_audit_rs/target/release/engagement-audit`),
+  falls back to Python if not found with performance warning.
+
+### Changed
+- **Engagement audit tool now has Rust acceleration** — Title IV unofficial
+  withdrawal audits for large courses (100+ students) now complete in under a
+  minute instead of 5-10 minutes. Tool still works without Rust (Python fallback).
+
+### Technical
+- Created `lib/tools/engagement_audit_rs/` — Rust crate using tokio for async
+  HTTP, reqwest for Canvas API calls, serde for JSON serialization.
+- Output format matches Python implementation exactly (JSON array of per-student
+  engagement data: submission timestamps, discussion timestamps).
+- FERPA boundary preserved: Rust handles only anonymous user_id + timestamps;
+  Python layer handles name re-identification and classification logic.
+
+---
+
+## [1.5.1] — 2026-07-07
+
+**Python fallback for override recalculation (no Rust required)**
+
+### Added
+- **Python fallback implementation** (`_fix_group_override_recalc_python.py`) —
+  sequential implementation of override recalculation logic. Slower than Rust
+  (5-10 minutes vs 5-15 seconds for 100+ assignments) but works without any
+  additional setup.
+- **Dispatcher pattern** in `fix_group_override_recalc.py` — automatically
+  detects Rust binary availability and falls back to Python if not found.
+  Warns users about performance difference and suggests Rust install.
+
+### Changed
+- **Override recalc tool now works without Rust** — graceful degradation when
+  Rust binary not available. Users get clear warning about slower performance
+  and instructions for installing Rust, but tool completes successfully.
+
+---
+
+## [1.5.0] — 2026-07-07
+
+**Rust opt-in for 10-100x speedup on large courses**
+
+### Added
+- **Rust implementation of `fix_group_override_recalc.py`** — 10-100x speedup
+  (5-10 minutes → 5-15 seconds) for courses with 100+ assignments. Uses
+  concurrent HTTP requests (tokio + reqwest) instead of sequential Python loops.
+- **`cb-init --with-rust` flag** — opt-in Rust installation during bootstrap.
+  Manual install instructions shown in v1.5.0; auto-install deferred to v1.5.1.
+  Rust is optional in v1.5.x, will become required in v2.x.
+
+### Changed
+- **Version scheme bumped to v1.5.0** — signals the start of the hybrid
+  Python+Rust transition phase. See [Rust migration strategy](docs/proposals/rust-migration-3-phase-strategy.md)
+  for the 3-phase roadmap (v1.x Python-only → v1.5.x hybrid → v2.x Rust-required).
+- **README updated** — documents `cb-init --with-rust` for large-course
+  performance optimization; adds performance note to `fix_group_override_recalc`
+  section.
+
+### Fixed
+- **PR #136** — merged Rust rewrite with improved error messaging when Rust
+  binary not found (directs users to `cb-init --with-rust`).
 
 ---
 
@@ -37,7 +248,7 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
   Context entries (local enforcement of [Make-AI-Agents#17](https://github.com/chaz-clark/Make-AI-Agents/issues/17)).
 
 ### Fixed
-- 17 outbound links in `docs/grading_readme.md`, `docs/UPGRADING.md`, and
+- 17 outbound links in `docs/grading-readme.md`, `docs/UPGRADING.md`, and
   `.github/CONTRIBUTING.md` that broke in v0.72.2 when those files moved out of
   the repo root (their root-relative links were not re-pathed at the time).
 - 8 pre-existing broken relative links in `lib/agents/` (wrong relative depth / missing `knowledge/` prefix; two `forthcoming` references de-linked).
@@ -60,7 +271,7 @@ changes (605 tests unchanged).
 ### Moved
 - Decluttered the repo root listing (18 → 12 tracked files): community-health
   files (`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`) → `.github/`
-  (still GitHub-detected); long docs (`UPGRADING.md`, `grading_readme.md`) →
+  (still GitHub-detected); long docs (`UPGRADING.md`, `grading-readme.md`) →
   `docs/`. All internal links repointed; 0 broken links repo-wide.
 
 ---
@@ -500,7 +711,7 @@ you should scal all my *-master courses for their voicing."*
    being filed."*
 3. **Length** — 447 lines (up from v0.68.0's 206, down from
    legacy's 862). The audit-tool catalog stays inline; grading
-   pipeline links to `grading_readme.md`; no TODO links to
+   pipeline links to `grading-readme.md`; no TODO links to
    nonexistent `INSTALL.md` / `OPERATIONS.md` (those references
    were premature in v0.68.0 — the legacy is still in
    `lib/marketing/README-LEGACY-2026-06-26.md` as source material
@@ -2147,7 +2358,7 @@ Doc sweep: agent-facing surfaces now know about `cb_report_bug.py`.
 - `README.md` adds a "Hit a bug? Hit a wish?" section with title-prefix
   examples (`bug:` / `enhancement:`) + the always-works
   github.com/issues/new fallback.
-- `grading_readme.md` adds a grader-scoped reporter section with the
+- `grading-readme.md` adds a grader-scoped reporter section with the
   "FERPA gate is not a bug" caveat.
 - `lib/agents/canvas_grader.md` gains principle **P-011 Surface the
   bug-report path** + a tooling-table row for `cb_report_bug.py`.
@@ -2237,7 +2448,7 @@ path for faculty without GitHub accounts.
 
 ### Changed
 - **#54-E** Single-surface vs multi-surface convention codified in
-  grading_readme.md.
+  grading-readme.md.
 
 ## [0.47.0] — 2026-06-14
 

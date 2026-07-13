@@ -1,5 +1,5 @@
 # Auto-applies the `agent-submitted` label to issues filed by the
-# canvas-toolbox bug-intake worker (infra/bug-intake-worker/).
+# canvas-toolbox bug-intake worker (edge-infra sister repo: workers/bug-intake-worker/).
 #
 # Why this lives here instead of in the worker:
 #   GitHub fine-grained PATs scoped Issues:read+write empirically can't

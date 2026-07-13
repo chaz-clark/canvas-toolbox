@@ -67,6 +67,12 @@ EXIT CODES
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import csv
 import glob
 import io
@@ -404,6 +410,8 @@ def render_json(matrix: dict, aggregates: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Cross-task meta-summary: uid × task matrix + flag-streak + band "
                     "distribution per uid (canvas-toolbox#54 sub-C).")

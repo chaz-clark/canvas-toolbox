@@ -58,6 +58,12 @@ Reads (knowledge grounding):
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import os
 import re
@@ -71,6 +77,7 @@ from dotenv import load_dotenv
 import canvas_course_guard as guard
 from __toolbox_version__ import __version__
 from rubric_quality_audit import fetch_course_outcomes
+from syllabus_outcomes import extract_outcomes
 from bloom_verbs import detect_bloom, all_bloom_levels, leading_nonobservable, BLOOM_RANK
 
 load_dotenv()
@@ -90,6 +97,22 @@ _VAGUE_TERMS = [
     "adequately", "sufficient", "sufficiently", "proper", "properly",
     "reasonable", "reasonably", "better", "improved", "high-quality",
     "good ", "well ", "as needed",
+]
+
+# Process vs. Outcome anti-pattern (outcomes_quality_knowledge.md). Patterns that
+# describe scoring instruments, instructor activities, or process instead of
+# student achievement. Conservative list — hard flag only on clear violations.
+_PROCESS_PATTERNS = [
+    # Rubric criterion / scoring instrument language
+    r"\bthis\s+criterion\s+uses?\b",
+    r"\bassignment\s+total\s+score\b",
+    r"\bto\s+assess\s+mastery\b",
+    r"\bevaluated\s+by\b",
+    r"\bmeasured\s+using\b",
+    r"\bscoring\s+(?:method|rubric|instrument)\b",
+    # Instructor-focused (not student-focused)
+    r"\b(?:instructor|teacher)\s+will\b",
+    r"\b(?:instructor|teacher)\s+(?:describes?|explains?|presents?|shows?)\b",
 ]
 
 # Scope thresholds (AoL): 3-6 ideal, 3-8 acceptable.
@@ -164,6 +187,7 @@ def score_clo(clo: str) -> dict:
     aren't penalized). Double-barrel uses the conservative leading-clause rule;
     vague language is advisory."""
     text = _plain(clo)
+    low = text.lower()
     hard_flags: list[str] = []
     advisory: list[str] = []
 
@@ -173,12 +197,18 @@ def score_clo(clo: str) -> dict:
     if leading_nonobservable(text) is not None:
         hard_flags.append("not_measurable")
 
+    # process_not_outcome — flag scoring instruments / instructor activities (#122).
+    # Conservative: only fire when text clearly describes HOW something is scored or
+    # WHAT the instructor does, instead of what the student achieves. Prevents false
+    # positive where rubric criterion text ("this criterion uses...") gets counted as CLO.
+    if any(re.search(p, low) for p in _PROCESS_PATTERNS):
+        hard_flags.append("process_not_outcome")
+
     # single_barreled — conservative leading-clause conjunction of two goals.
     if _is_double_barreled(text):
         hard_flags.append("double_barreled")
 
     # vague_language — advisory only (AoL clarity; kept soft to avoid over-fire).
-    low = text.lower()
     if any(t in low for t in _VAGUE_TERMS):
         advisory.append("vague_language")
     # no recognized observable verb (and not explicitly non-observable) → advisory
@@ -360,7 +390,16 @@ def _resolve_course_id(target_env: str, literal: str | None) -> tuple[str, str]:
     return val, f"${target_env}"
 
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> None:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Read-only CLO quality audit against the AoL 6-criteria rubric.")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
@@ -373,32 +412,64 @@ def main() -> None:
     ap.add_argument("--json", action="store_true", dest="emit_json", help="Machine-readable JSON")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="(Read-only; safety guard is advisory. Accepted for symmetry.)")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
-    missing = []
-    if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://":
-        missing.append("CANVAS_BASE_URL")
-    if not CANVAS_API_TOKEN:
-        missing.append("CANVAS_API_TOKEN")
-    if missing:
-        print("ERROR: Missing required configuration:")
-        for m in missing:
-            print(f"  {m}")
-        sys.exit(2)
-
-    course_id, source = _resolve_course_id(args.target, args.course_id)
-    if not course_id:
-        print(f"ERROR: course ID not found via {source}. Pass --course-id <id>.")
-        sys.exit(2)
-
-    guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
-                  mode="read", allow_override=args.allow_enrolled, label="audit target")
-
+    use_local = args.local or bool(args.course_dir) or _is_offline()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    course = _get(f"/courses/{course_id}") or {}
-    course_name = (course.get("name") if isinstance(course, dict) else None) or "<unknown course>"
 
-    clos = fetch_course_outcomes(course_id)
+    if use_local:
+        from _course_loader import load_course, CourseNotFound
+        try:
+            c = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(2)
+        course_id = str(c.canvas_id or "local")
+        course_name = c.name
+        # Mirror fetch_course_outcomes offline: real outcomes (course/_outcomes.json,
+        # written by canvas_sync --pull / offline_import) as title+description strings,
+        # else the SAME syllabus-text fallback the API path uses (the syllabus IS in a
+        # .imscc, so this recovers CLOs even fully offline).
+        real = c.outcomes()
+        if real:
+            clos = []
+            for o in real:
+                txt = ((o.get("title") or "") + "  " + (o.get("description") or "")).strip()
+                txt = re.sub(r"<[^>]+>", " ", txt).strip()
+                if len(txt) >= 12:
+                    clos.append(txt)
+        else:
+            clos = extract_outcomes(c.syllabus())
+    else:
+        missing = []
+        if not CANVAS_BASE_URL or CANVAS_BASE_URL == "https://":
+            missing.append("CANVAS_BASE_URL")
+        if not CANVAS_API_TOKEN:
+            missing.append("CANVAS_API_TOKEN")
+        if missing:
+            print("ERROR: Missing required configuration:")
+            for m in missing:
+                print(f"  {m}")
+            sys.exit(2)
+
+        course_id, source = _resolve_course_id(args.target, args.course_id)
+        if not course_id:
+            print(f"ERROR: course ID not found via {source}. Pass --course-id <id>.")
+            sys.exit(2)
+
+        guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
+                      mode="read", allow_override=args.allow_enrolled, label="audit target")
+
+        course = _get(f"/courses/{course_id}") or {}
+        course_name = (course.get("name") if isinstance(course, dict) else None) or "<unknown course>"
+
+        clos = fetch_course_outcomes(course_id)
+
     res = audit_clos(clos)
 
     if args.emit_json:

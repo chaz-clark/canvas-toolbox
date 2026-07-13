@@ -384,6 +384,111 @@ def _md_to_html(md_text: str) -> str:
     return md_lib.markdown(body, extensions=["tables", "fenced_code"])
 
 
+def _assignment_json_to_md(assignment: dict) -> str:
+    """Convert Canvas assignment JSON to markdown with YAML frontmatter."""
+    from bs4 import BeautifulSoup
+    import markdownify
+
+    # Extract description HTML and convert to markdown
+    description_html = assignment.get("description", "")
+    body_md = ""
+    if description_html:
+        soup = BeautifulSoup(description_html, "lxml")
+        # Remove script tags
+        for tag in soup.find_all("script"):
+            tag.decompose()
+        body_md = markdownify.markdownify(
+            str(soup),
+            heading_style="ATX",
+            strip=["div"]
+        ).strip()
+
+    # Build YAML frontmatter
+    frontmatter = "---\n"
+    frontmatter += f"title: {assignment.get('name', 'Untitled')}\n"
+    frontmatter += "type: assignment\n"
+    frontmatter += f"canvas_id: {assignment.get('canvas_id', 0)}\n"
+    if assignment.get("points_possible") is not None:
+        frontmatter += f"points: {assignment['points_possible']}\n"
+    if assignment.get("due_at"):
+        frontmatter += f"due_at: {assignment['due_at']}\n"
+    if assignment.get("grading_type"):
+        frontmatter += f"grading_type: {assignment['grading_type']}\n"
+    if assignment.get("submission_types"):
+        frontmatter += f"submission_types: {', '.join(assignment['submission_types'])}\n"
+    frontmatter += "---\n\n"
+
+    return frontmatter + body_md
+
+
+def _quiz_json_to_md(quiz: dict) -> str:
+    """Convert Canvas quiz JSON to markdown with YAML frontmatter."""
+    from bs4 import BeautifulSoup
+    import markdownify
+
+    # Extract description HTML and convert to markdown
+    description_html = quiz.get("description", "")
+    body_md = ""
+    if description_html:
+        soup = BeautifulSoup(description_html, "lxml")
+        for tag in soup.find_all("script"):
+            tag.decompose()
+        body_md = markdownify.markdownify(
+            str(soup),
+            heading_style="ATX",
+            strip=["div"]
+        ).strip()
+
+    # Build YAML frontmatter
+    frontmatter = "---\n"
+    frontmatter += f"title: {quiz.get('title', 'Untitled')}\n"
+    frontmatter += "type: quiz\n"
+    frontmatter += f"canvas_id: {quiz.get('canvas_id', 0)}\n"
+    if quiz.get("points_possible") is not None:
+        frontmatter += f"points: {quiz['points_possible']}\n"
+    if quiz.get("quiz_type"):
+        frontmatter += f"quiz_type: {quiz['quiz_type']}\n"
+    if quiz.get("time_limit") is not None:
+        frontmatter += f"time_limit: {quiz['time_limit']}\n"
+    if quiz.get("allowed_attempts") is not None:
+        frontmatter += f"allowed_attempts: {quiz['allowed_attempts']}\n"
+    if quiz.get("due_at"):
+        frontmatter += f"due_at: {quiz['due_at']}\n"
+    frontmatter += "---\n\n"
+
+    return frontmatter + body_md
+
+
+def _discussion_json_to_md(discussion: dict) -> str:
+    """Convert Canvas discussion JSON to markdown with YAML frontmatter."""
+    from bs4 import BeautifulSoup
+    import markdownify
+
+    # Extract message HTML and convert to markdown
+    message_html = discussion.get("message", "")
+    body_md = ""
+    if message_html:
+        soup = BeautifulSoup(message_html, "lxml")
+        for tag in soup.find_all("script"):
+            tag.decompose()
+        body_md = markdownify.markdownify(
+            str(soup),
+            heading_style="ATX",
+            strip=["div"]
+        ).strip()
+
+    # Build YAML frontmatter
+    frontmatter = "---\n"
+    frontmatter += f"title: {discussion.get('title', 'Untitled')}\n"
+    frontmatter += "type: discussion\n"
+    frontmatter += f"canvas_id: {discussion.get('canvas_id', 0)}\n"
+    if discussion.get("todo_date"):
+        frontmatter += f"todo_date: {discussion['todo_date']}\n"
+    frontmatter += "---\n\n"
+
+    return frontmatter + body_md
+
+
 # ---------------------------------------------------------------------------
 # Pull: Canvas → local files
 # ---------------------------------------------------------------------------
@@ -578,6 +683,27 @@ def cmd_init():
     }
     _vprint(f"  [syllabus] syllabus.html ({len(syllabus_body)} chars)")
 
+    # Outcomes (course-linked) -> course/_outcomes.json. Lets audits that read
+    # course/ locally (rubric_quality, clo_quality) use outcomes without
+    # re-hitting the API. A .imscc export has NO outcomes (account-level), so a
+    # canvas_sync pull is the only local source — offline stays "unverified".
+    outcome_links = _get(f"/courses/{course_id}/outcome_group_links",
+                         params={"outcome_style": "full", "per_page": 100})
+    outcomes = []
+    if isinstance(outcome_links, list):
+        for ln in outcome_links:
+            o = ln.get("outcome") or {}
+            if o.get("id"):
+                outcomes.append({
+                    "id": o.get("id"),
+                    "title": o.get("title") or "",
+                    "description": o.get("description") or "",
+                    "display_name": o.get("display_name") or "",
+                })
+    if outcomes:
+        (COURSE_DIR / "_outcomes.json").write_text(json.dumps(outcomes, indent=2), encoding="utf-8")
+        _vprint(f"  [outcomes] _outcomes.json ({len(outcomes)} outcomes)")
+
     # Modules
     modules = _get(f"/courses/{course_id}/modules", params={"per_page": 50, "include[]": "items"})
     print(f"Pulling {len(modules)} modules...")
@@ -687,6 +813,17 @@ def cmd_init():
                         "published": published,
                     }
 
+                    # Write markdown mirror to course_src/ (for LLM consumption)
+                    if entry_type == "Assignment":
+                        src_mod_dir = COURSE_SRC_DIR / mod_slug
+                        src_mod_dir.mkdir(parents=True, exist_ok=True)
+                        md_path = src_mod_dir / f"{item_slug}.md"
+                        md_path.write_text(
+                            _assignment_json_to_md(data),
+                            encoding="utf-8",
+                        )
+                        index_entry["markdown_path"] = str(md_path)
+
                     # Pull New Quiz sidecar (settings + items) via /api/quiz/v1/
                     if entry_type == "NewQuiz":
                         sidecar = _pull_new_quiz_sidecar(course_id, content_id)
@@ -717,6 +854,15 @@ def cmd_init():
                         "lock_at": data.get("assignment", {}).get("lock_at") if isinstance(data.get("assignment"), dict) else None,
                         "unlock_at": data.get("assignment", {}).get("unlock_at") if isinstance(data.get("assignment"), dict) else None,
                     }
+                    # Write markdown mirror to course_src/ (for LLM consumption)
+                    src_mod_dir = COURSE_SRC_DIR / mod_slug
+                    src_mod_dir.mkdir(parents=True, exist_ok=True)
+                    md_path = src_mod_dir / f"{item_slug}.md"
+                    md_path.write_text(
+                        _discussion_json_to_md(data),
+                        encoding="utf-8",
+                    )
+
                     index["files"][str(filepath)] = {
                         "canvas_id": content_id,
                         "type": "Discussion",
@@ -726,6 +872,7 @@ def cmd_init():
                         "module_canvas_id": mod.get("id"),
                         "hash": h,
                         "published": published,
+                        "markdown_path": str(md_path),
                     }
                     _vprint(f"      [discussion] {filename}")
 
@@ -744,6 +891,16 @@ def cmd_init():
                         "lock_at": data.get("lock_at"),
                         "unlock_at": data.get("unlock_at"),
                     }
+
+                    # Write markdown mirror to course_src/ (for LLM consumption)
+                    src_mod_dir = COURSE_SRC_DIR / mod_slug
+                    src_mod_dir.mkdir(parents=True, exist_ok=True)
+                    md_path = src_mod_dir / f"{item_slug}.md"
+                    md_path.write_text(
+                        _quiz_json_to_md(data),
+                        encoding="utf-8",
+                    )
+
                     index["files"][str(filepath)] = {
                         "canvas_id": content_id,
                         "type": "Quiz",
@@ -753,6 +910,7 @@ def cmd_init():
                         "module_canvas_id": mod.get("id"),
                         "hash": h,
                         "published": published,
+                        "markdown_path": str(md_path),
                     }
                     _vprint(f"      [quiz] {filename}")
 
@@ -1123,6 +1281,11 @@ def _push_assignment(filepath: Path, meta: dict) -> bool:
             print(f"    ERROR: unsupported grading_type '{gt}'. Valid values: {sorted(_VALID_GRADING_TYPES)}")
             return False
         payload["grading_type"] = gt
+    # Handle date fields - include in payload even if None to allow clearing stale dates
+    # Setting due_at/lock_at/unlock_at to null in JSON will clear the date in Canvas
+    for date_field in ["due_at", "lock_at", "unlock_at"]:
+        if date_field in data:
+            payload[date_field] = data[date_field]
     result = _put(f"/courses/{CANVAS_COURSE_ID}/assignments/{canvas_id}", {
         "assignment": payload
     })

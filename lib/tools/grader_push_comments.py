@@ -64,6 +64,12 @@ EXIT CODES
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import os
 import re
 import sys
@@ -192,6 +198,8 @@ def fetch_thread(base: str, cid: str, headers: dict, aid: int) -> dict[int, dict
 
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Push staged '## Suggested Canvas Comment' markdown blocks to Canvas (#57).")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")

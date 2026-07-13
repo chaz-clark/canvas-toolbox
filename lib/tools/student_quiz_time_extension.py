@@ -56,6 +56,20 @@ Resolves SAS catalog keys: extra_time_1.5x, extra_time_2.0x
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
+
+try:
+    from _override_recalc_helper import force_recalc_for_student
+except ImportError:
+    # If helper not available, define a no-op
+    def force_recalc_for_student(*args, **kwargs) -> int:
+        return 0
+
 import csv
 import math
 import os
@@ -217,6 +231,8 @@ def post_extension(base_url: str, course_id: str, quiz_id: int,
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     who = ap.add_mutually_exclusive_group(required=True)
     who.add_argument("--user-id", help="bare Canvas user_id (no PII surface)")
@@ -232,6 +248,11 @@ def main() -> int:
                     help=f"deid master path (default {str(_DEFAULT_MASTER)!r})")
     ap.add_argument("--apply", action="store_true",
                     help="actually write the change (without this, dry-run)")
+    ap.add_argument("--force-recalc", dest="force_recalc", action="store_true",
+                    default=True,
+                    help="force Canvas to recalculate overrides after applying (default: True)")
+    ap.add_argument("--no-force-recalc", dest="force_recalc", action="store_false",
+                    help="skip forcing recalculation (faster, but extensions may not take effect)")
     args = ap.parse_args()
 
     if args.multiplier <= 1.0:
@@ -274,6 +295,7 @@ def main() -> int:
         return 0
 
     fails = 0
+    assignment_ids = []  # Track assignment IDs from graded quizzes
     for q in quizzes:
         qid = q["id"]
         tl = q.get("time_limit")
@@ -293,9 +315,42 @@ def main() -> int:
             fails += 1
         print(f"  [{ok}] quiz {qid} ({title}): +{extra} min (HTTP {code})")
 
+        # Track assignment_id for graded quizzes (needed for recalc)
+        if code in (200, 201) and q.get("assignment_id"):
+            assignment_ids.append(q["assignment_id"])
+
+    # Force recalculation if we applied extensions to graded quizzes
+    # (practice quizzes/surveys don't have assignment_ids, so nothing to recalc)
+    if args.apply and args.force_recalc and assignment_ids:
+        print(f"\nForcing Canvas override recalculation for graded quizzes...")
+        try:
+            headers = {"Authorization": f"Bearer {token}"}
+            touched = 0
+            # Only recalc the specific assignments for the quizzes we just modified
+            for aid in assignment_ids:
+                touched += force_recalc_for_student(
+                    base=base_url,
+                    headers=headers,
+                    course_id=int(course_id),
+                    student_id=uid,
+                    assignment_id=aid,  # ← Pass the specific assignment
+                    quiet=True
+                )
+            if touched > 0:
+                print(f"  [recalc] ✓ Recalculated {touched} assignment(s)")
+            else:
+                print(f"  [recalc] No assignment overrides found (quiz extensions use different mechanism)")
+        except Exception as e:
+            print(f"  [recalc] Warning: recalculation failed: {e}", file=sys.stderr)
+            print(f"  [recalc] Extensions were created, but may not take effect immediately.",
+                  file=sys.stderr)
+            print(f"  [recalc] Fallback: Run fix_group_override_recalc.py --course-id {course_id} "
+                  f"--student-id {uid}", file=sys.stderr)
+
     if fails:
         print(f"\n{fails} operation(s) failed. Re-run to retry.", file=sys.stderr)
         return 1
+
     return 0
 
 

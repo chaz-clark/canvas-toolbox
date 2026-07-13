@@ -1,0 +1,661 @@
+# Offline Mode Plan
+**Goal**: Support faculty who cannot use Canvas API tokens (IT policy restriction)
+
+> ⚠️ **The design notes below this box are the ORIGINAL plan and are partly
+> superseded.** For the user guide see [offline_readme.md](./offline_readme.md);
+> for build status see [offline_mode_sprints.md](./offline_mode_sprints.md).
+>
+> ### What actually shipped (accurate architecture)
+>
+> Tools read a local **`course/`** folder, source-agnostic: `canvas_sync --pull`
+> fills it from the API; **`offline_import`** fills it from a `.imscc`. A tool run
+> with `--local` / `CANVAS_MODE=offline` reads `course/` and makes **zero API
+> calls**. Gradebook workflows use the exported **CSV** (not `course/`).
+>
+> **Tool boundary** (the load-bearing distinction):
+> - **Read/report** (audits, analysis) → run offline against `course/`. ✅
+> - **Content write-back** (`imscc_adjust_dates.py`) → new/empty course only. ⚠️
+> - **Student-specific writes** (SAS accommodations, quiz-time extensions,
+>   late/exempt, submit-on-behalf) → **API-only** — per-student data isn't in a
+>   content export and there's no safe offline write-back. ❌
+> - **Outcomes / analytics** → **API-only** (outcomes are account-level, absent
+>   from exports; page-views/participation are API-only).
+>
+> **Corrections to the notes below:** `grade_assignments.py` / `adjust_dates.py`
+> are **fictional** (real: `grader_*`, `imscc_adjust_dates.py`); comments
+> **cannot** ride a gradebook CSV import (Canvas is scores-only — use
+> `grader_push_comments.py` with a token, else SpeedGrader paste); the env var is
+> **`CANVAS_API_TOKEN`**; helpers live in `lib/tools/`, not `lib/utils/`;
+> the sandbox is `CANVAS_SANDBOX_ID` (427808).
+
+## Philosophy: Unified Workflow
+
+Tools should work identically whether faculty have API access or not. The only difference is the **transfer layer**:
+
+```
+API Mode:     Tool → Canvas API → Canvas
+Offline Mode: Tool → Local Files → Faculty Upload → Canvas
+```
+
+Everything between "download" and "upload" is **exactly the same**.
+
+---
+
+## Current API Operations → File Equivalents
+
+### Read Operations
+
+| Current API Call | Canvas UI Download | File Format | Location |
+|------------------|-------------------|-------------|----------|
+| **Course Content** |
+| GET /courses/:id | Settings → Export Course Content | `.imscc` (ZIP) | `~/Downloads/` |
+| GET /courses/:id/modules | ↑ (included in export) | `imsmanifest.xml` | Inside `.imscc` |
+| GET /courses/:id/pages | ↑ (included in export) | `*.html` files | Inside `.imscc` |
+| GET /courses/:id/assignments | ↑ (included in export) | `*.xml` per assignment | Inside `.imscc` |
+| GET /courses/:id/files | ↑ (included in export) | Actual files | Inside `.imscc` |
+| **Gradebook** |
+| GET /courses/:id/students | Grades → Export Entire Gradebook | `grades-{id}.csv` | `~/Downloads/` |
+| GET /assignments/:id/submissions | ↑ (grades included) | CSV columns per assignment | Same CSV |
+| GET /submissions/:id/comments | ↑ (comments included) | `Comments` column | Same CSV |
+| **Submissions** |
+| GET /assignments/:id/submissions (files) | Assignment → Download Submissions | `submissions.zip` | `~/Downloads/` |
+| **Analytics** |
+| GET /courses/:id/analytics | No UI equivalent | ❌ Not available offline | N/A |
+
+### Write Operations
+
+| Current API Call | Canvas UI Upload | File Format | Process |
+|------------------|------------------|-------------|---------|
+| **Content Updates** |
+| POST /courses/:id/pages | Settings → Import Course Content | `.imscc` (modified) | Manual import |
+| PUT /assignments/:id | ↑ (assignments included) | `.imscc` (modified) | Manual import |
+| **Grades & Comments** |
+| POST /submissions/:id/grade | Grades → Import | `grades-{id}.csv` (edited) | Manual upload |
+| POST /submissions/:id/comment | ↑ (comments column) | CSV with `Comments` column | Same |
+| PUT /assignments/:id/due_at | Must use API or edit in UI | ❌ Not in CSV | Manual in UI |
+
+---
+
+## Offline Workflow Architecture
+
+### Phase 1: Download (Faculty Action)
+
+**Via Canvas UI**:
+1. **Course Content**: Settings → Export → `.imscc` → Save to `~/Downloads/course_export.imscc`
+2. **Gradebook**: Grades → Export → `.csv` → Save to `~/Downloads/grades-{course_id}.csv`
+3. *(Optional)* **Submissions**: Per-assignment → Download → Save to `~/Downloads/submissions_assignment_{id}.zip`
+
+**Tool Auto-Detection**:
+```bash
+# Tool checks for files in order of preference:
+# 1. API available? Use it
+# 2. Files in ~/Downloads? Use them
+# 3. Files in .canvas/? Use them (cached)
+# 4. Error: No data source available
+```
+
+### Phase 2: Unpack → Standard Format
+
+**Tool**: `offline_import.py`
+
+```bash
+# Convert Canvas exports to .canvas/ directory structure
+python lib/tools/offline_import.py \
+  --imscc ~/Downloads/course_export.imscc \
+  --gradebook ~/Downloads/grades-145706.csv \
+  --output .canvas/
+```
+
+**Result**: Same `.canvas/` structure that `canvas_sync.py --pull-all` creates:
+```
+.canvas/
+  index.json           # Course metadata + structure
+  files/               # Mapping of all files
+course/
+  modules/             # Module structure
+  pages/               # Page HTML files
+  assignments/         # Assignment JSON files
+  _files/              # Actual file attachments
+gradebook/
+  grades.csv           # Normalized gradebook
+  students.json        # Student roster
+```
+
+### Phase 3: Work Locally (Existing Tools - No Changes!)
+
+Tools work **identically** in both modes because they read from `.canvas/`:
+
+```bash
+# Date adjustment (existing)
+python lib/tools/adjust_dates.py --shift-days 365
+
+# Grading workflow (existing)
+python lib/tools/grade_assignments.py --generate-comments
+# Edit: course/_all_comments.md
+python lib/tools/grade_assignments.py --apply-comments
+
+# Analysis (existing)
+python lib/tools/course_audit.py
+```
+
+### Phase 4: Pack → Export Format
+
+**Tool**: `offline_export.py`
+
+```bash
+# Convert .canvas/ back to Canvas import formats
+python lib/tools/offline_export.py \
+  --source .canvas/ \
+  --imscc ~/Desktop/course_import.imscc \
+  --gradebook ~/Desktop/grades_updated.csv
+```
+
+**Outputs**:
+1. `course_import.imscc` - Modified course content (dates adjusted, assignments updated)
+2. `grades_updated.csv` - Updated grades + comments (from `_all_comments.md`)
+
+### Phase 5: Upload (Faculty Action)
+
+**Via Canvas UI**:
+1. **Course Content**: Settings → Import → Upload `course_import.imscc` → Import
+2. **Gradebook**: Grades → Import → Upload `grades_updated.csv` → Import
+
+---
+
+## Implementation: Gradebook CSV → _all_comments.md Integration
+
+### Current Workflow (API Mode):
+```bash
+# 1. Download via API
+python lib/tools/grade_assignments.py --generate-comments
+
+# 2. Creates course/_all_comments.md with:
+# Student Name | Assignment | Current Grade | Comments | New Grade
+
+# 3. Faculty edits in markdown
+
+# 4. Upload via API
+python lib/tools/grade_assignments.py --apply-comments
+```
+
+### New Workflow (Offline Mode):
+```bash
+# 1. Faculty downloads CSV: grades-145706.csv → ~/Downloads/
+
+# 2. Tool imports CSV → .canvas/gradebook/
+python lib/tools/offline_import.py --gradebook ~/Downloads/grades-145706.csv
+
+# 3. Generate comments (same tool!)
+python lib/tools/grade_assignments.py --generate-comments
+# Reads from: .canvas/gradebook/grades.csv (normalized from Canvas CSV)
+# Writes to: course/_all_comments.md
+
+# 4. Faculty edits _all_comments.md
+
+# 5. Apply comments to CSV (same tool, different output!)
+python lib/tools/grade_assignments.py --apply-comments --offline
+# Reads from: course/_all_comments.md
+# Writes to: .canvas/gradebook/grades.csv (updated)
+
+# 6. Export CSV in Canvas format
+python lib/tools/offline_export.py --gradebook ~/Desktop/grades_updated.csv
+# Converts: .canvas/gradebook/grades.csv → Canvas CSV format
+
+# 7. Faculty uploads via Canvas UI
+# Grades → Import → Upload grades_updated.csv
+```
+
+**Key insight**: `_all_comments.md` stays **exactly the same** - tools just read/write different formats at the edges.
+
+---
+
+## Tool Modifications Required
+
+### 1. Mode Selection via .env
+
+**Simple, explicit flag** (no auto-detection complexity):
+
+```bash
+# .env
+CANVAS_MODE=offline  # or "online" (default if not set)
+CANVAS_TOKEN=        # empty in offline mode, required in online mode
+```
+
+**Every tool checks mode first**:
+```python
+import os
+
+def get_canvas_mode() -> str:
+    """Get Canvas mode from environment (online by default)."""
+    return os.getenv("CANVAS_MODE", "online")
+
+def check_mode_requirements():
+    """Validate mode configuration."""
+    mode = get_canvas_mode()
+
+    if mode == "online":
+        if not os.getenv("CANVAS_TOKEN"):
+            raise ValueError("CANVAS_MODE=online requires CANVAS_TOKEN")
+
+    # offline mode doesn't require token
+    return mode
+```
+
+**Benefits**:
+- ✅ Explicit (no guessing)
+- ✅ Deterministic (same behavior every time)
+- ✅ Easy to toggle (edit one line in .env)
+- ✅ Clear error messages
+- ✅ Faculty controls the mode
+
+### 2. Simple If/Else Pattern
+
+**Before** (API-only):
+```python
+# Direct API call
+grades = api.get_gradebook(course_id)
+```
+
+**After** (mode-aware):
+```python
+# Check mode, branch to appropriate source
+mode = get_canvas_mode()
+
+if mode == "online":
+    # Use API
+    grades = api.get_gradebook(course_id)
+else:
+    # Use downloaded CSV
+    csv_path = find_latest_gradebook_csv("~/Downloads")
+    grades = read_canvas_gradebook_csv(csv_path)
+
+# Everything after this point is the same
+process_grades(grades)
+```
+
+**Pattern in grader_fetch.py**:
+```python
+mode = get_canvas_mode()
+
+if mode == "online":
+    # Fetch via API (current implementation)
+    submissions = fetch_submissions_api(assignment_id)
+
+else:
+    # Read from ~/Downloads
+    zip_path = find_latest_file("~/Downloads/submissions_*.zip")
+    if not zip_path:
+        raise FileNotFoundError(
+            "Offline mode: No submissions_*.zip in ~/Downloads\n"
+            "Download via Canvas: Assignment → Download Submissions"
+        )
+    submissions = extract_submissions_zip(zip_path)
+
+# Rest of tool works identically
+deidentify_submissions(submissions)
+```
+
+### 3. Write Abstraction Layer
+
+**Before**:
+```python
+# Direct API call
+api.update_grade(submission_id, grade, comment)
+```
+
+**After**:
+```python
+# Unified interface
+update_grade(student_id, assignment_id, grade, comment)  # Auto-routes
+```
+
+**Implementation**:
+```python
+def update_grade(student_id, assignment_id, grade, comment):
+    """Update grade via any available method."""
+    source = get_data_source()
+
+    if source == DataSource.API:
+        api.update_grade(submission_id, grade, comment)
+        print("✓ Updated via API")
+
+    else:  # DOWNLOADS or CACHED
+        # Update local CSV
+        update_gradebook_csv(student_id, assignment_id, grade, comment)
+        print("✓ Updated local CSV")
+        print("  Export and upload to Canvas when ready:")
+        print("  python lib/tools/offline_export.py --gradebook grades_updated.csv")
+```
+
+---
+
+## Tools That Need Offline Support
+
+### Priority 1: Grading Tools (Most Critical)
+
+| Tool | Current Mode | Offline Support | Effort |
+|------|--------------|-----------------|--------|
+| `grade_assignments.py --generate-comments` | API read | ✅ CSV read | Low |
+| `grade_assignments.py --apply-comments` | API write | ✅ CSV write | Low |
+| `fix_group_override_recalc.py` | API read/write | ✅ CSV read/write | Medium |
+
+### Priority 2: Course Management
+
+| Tool | Current Mode | Offline Support | Effort |
+|------|--------------|-----------------|--------|
+| `canvas_sync.py --pull-all` | API read | ✅ Import from .imscc | High |
+| `sync_to_new.py` | API write | ✅ Export to .imscc | High |
+| `adjust_dates.py` | Local files | ✅ Already works | None |
+
+### Priority 3: Analysis Tools
+
+| Tool | Current Mode | Offline Support | Effort |
+|------|--------------|-----------------|--------|
+| `course_audit.py` | API read | ✅ .imscc read | Medium |
+| `course_engagement_audit.py` | API read | ⚠️ Partial (no analytics) | High |
+
+---
+
+## File Format Specifications
+
+### Canvas Gradebook CSV Format
+
+**Structure**:
+```csv
+Student,ID,SIS User ID,SIS Login ID,Section,Assignment1,Assignment2,...
+"Doe, John",12345,sis123,john@example.com,Section 01,95,87,...
+```
+
+**Columns**:
+- `Student`: Full name (Last, First)
+- `ID`: Canvas user ID
+- `SIS User ID`: Institution ID
+- `SIS Login ID`: Email/username
+- `Section`: Course section
+- `[Assignment Name]`: Grade (points or blank)
+- `[Assignment Name] (Comments)`: Submission comments (optional)
+
+**Special Values**:
+- `""` or blank: No submission
+- `EX`: Excused
+- `0`: Zero points (different from no submission!)
+
+### Canvas Common Cartridge (.imscc) Format
+
+**Structure** (ZIP file):
+```
+course_export.imscc/
+  imsmanifest.xml          # Table of contents
+  course_settings/
+    course_settings.xml    # Course metadata
+  wiki_content/
+    *.html                 # Pages
+  assessment/
+    *.xml                  # Quizzes/assignments
+  web_resources/
+    *.jpg, *.pdf, ...      # Files
+```
+
+**Key Files**:
+- `imsmanifest.xml`: Maps all resources (modules, pages, files)
+- `course_settings.xml`: Dates, navigation, settings
+- Individual HTML/XML files for content
+
+---
+
+## FERPA Compliance: De-Identification Tool
+
+**Problem**: Downloaded CSV contains PII (student names, IDs, emails)
+
+**Use Cases**:
+- Sharing with TAs/graders
+- Testing tools with sample data
+- Documentation/examples
+- Git commits (for tracking changes to structure)
+
+### De-Identification Tool: `deidentify_gradebook.py`
+
+**Usage**:
+```bash
+# De-identify downloaded gradebook
+python lib/tools/deidentify_gradebook.py \
+  --input ~/Downloads/grades-145706.csv \
+  --output grades-145706-deidentified.csv \
+  --mapping .canvas/gradebook/student_mapping.json
+```
+
+**What It Does**:
+```csv
+Before:
+Student,ID,SIS User ID,SIS Login ID,Section,Assignment1
+"Doe, John",12345,sis123,john@example.com,Section 01,95
+
+After:
+Student,ID,SIS User ID,SIS Login ID,Section,Assignment1
+"Student 001",1,sid001,student001@example.com,Section 01,95
+```
+
+**Mapping File** (`.canvas/gradebook/student_mapping.json`):
+```json
+{
+  "12345": {
+    "original_name": "Doe, John",
+    "anonymous_name": "Student 001",
+    "original_id": "sis123",
+    "anonymous_id": "sid001"
+  }
+}
+```
+
+**Re-Identification** (for re-upload):
+```bash
+# After grading with anonymous data, restore real names
+python lib/tools/reidentify_gradebook.py \
+  --input grades-deidentified-updated.csv \
+  --mapping .canvas/gradebook/student_mapping.json \
+  --output grades-145706-updated.csv
+```
+
+**Security**:
+- Mapping file stored in `.canvas/gradebook/` (git-ignored)
+- Never commit real student data
+- Tools detect de-identified CSVs and warn before upload
+
+### Workflow Integration with Existing Grading Tool
+
+**Current Pattern** (grade_assignments.py already does this):
+```python
+# 1. Check for API
+if has_api_token():
+    submissions = api.download_submissions()
+
+# 2. Fallback to ~/Downloads
+else:
+    zip_path = find_latest_file("~/Downloads/submissions_*.zip")
+    submissions = extract_submissions(zip_path)
+
+# 3. Process locally (same code path)
+process_submissions(submissions)
+```
+
+**Add Gradebook CSV Support** (same pattern):
+```python
+# 1. Check for API
+if has_api_token():
+    gradebook = api.get_gradebook()
+
+# 2. Fallback to ~/Downloads
+else:
+    csv_path = find_latest_file("~/Downloads/grades-*.csv")
+
+    # Auto-detect if de-identification needed
+    if contains_real_names(csv_path):
+        print("⚠ Real student data detected")
+        print("  De-identifying for local work...")
+        gradebook = deidentify_csv(csv_path)
+    else:
+        gradebook = read_csv(csv_path)
+
+# 3. Process locally (same code path)
+generate_comments(gradebook)  # → _all_comments.md
+```
+
+**Faculty Workflow** (simplified):
+```bash
+# Faculty downloads via UI:
+# 1. Grades → Export → grades-145706.csv → ~/Downloads/
+# 2. Assignment → Download Submissions → submissions_123.zip → ~/Downloads/
+
+# Run tool (auto-detects and uses Downloads):
+$ python lib/tools/grade_assignments.py --generate-comments
+✓ Found gradebook: ~/Downloads/grades-145706.csv
+⚠ Real student data detected - de-identifying for local work...
+✓ Found submissions: ~/Downloads/submissions_123.zip
+✓ Generated course/_all_comments.md (42 students, de-identified)
+
+# Edit comments:
+$ vim course/_all_comments.md
+
+# Apply comments:
+$ python lib/tools/grade_assignments.py --apply-comments
+✓ Updated grades in: .canvas/gradebook/grades.csv (de-identified)
+✓ Export for upload: grades-145706-updated.csv (re-identified)
+
+Then upload via Canvas UI: Grades → Import → grades-145706-updated.csv
+```
+
+**Key Simplification**:
+- No explicit de-ID command needed
+- Tool auto-detects PII and handles it
+- Faculty just: Download → Edit → Upload
+- Same 3-step workflow as API mode
+
+**Features**:
+- ✅ Consistent IDs across sessions (same student always gets same anonymous ID)
+- ✅ Preserves section structure
+- ✅ Maintains grade/comment relationships
+- ✅ Reversible (mapping file = key)
+- ✅ Git-safe (no PII in commits)
+
+---
+
+## Implementation Phases
+
+### Phase A: Foundation (Week 1)
+- [ ] `offline_import.py` - Unpack `.imscc` → `.canvas/`
+- [ ] `offline_export.py` - Pack `.canvas/` → `.imscc`
+- [ ] CSV import/export utilities
+- [ ] Data source auto-detection
+- [ ] `deidentify_gradebook.py` - Remove PII from CSV
+- [ ] `reidentify_gradebook.py` - Restore PII before upload
+
+### Phase B: Grading Tools (Week 2)
+- [ ] `grade_assignments.py` offline mode
+- [ ] CSV ↔ `_all_comments.md` integration
+- [ ] `fix_group_override_recalc.py` offline mode
+- [ ] De-ID detection in all tools (warn if uploading anonymous data)
+
+### Phase C: Course Management (Week 3)
+- [ ] `canvas_sync.py` import from `.imscc`
+- [ ] `sync_to_new.py` export to `.imscc`
+- [ ] Date adjustment verification
+
+### Phase D: Testing & Documentation (Week 4)
+- [ ] End-to-end offline workflow test
+- [ ] Faculty user guide
+- [ ] Troubleshooting guide
+
+---
+
+## User Experience Comparison
+
+### API Mode (Current):
+```bash
+# 1-step workflow
+$ python lib/tools/grade_assignments.py --apply-comments
+✓ Updated 42 grades via API
+```
+
+### Offline Mode (New):
+```bash
+# Multi-step but still straightforward
+$ python lib/tools/grade_assignments.py --apply-comments --offline
+✓ Updated 42 grades in local CSV
+
+Export for Canvas upload:
+  python lib/tools/offline_export.py --gradebook ~/Desktop/grades.csv
+
+Then in Canvas:
+  Grades → Import → Upload grades.csv
+```
+
+**Key**: Same editing workflow (`_all_comments.md`), different transfer method.
+
+---
+
+## Edge Cases & Limitations
+
+### What Works Offline:
+- ✅ Course content (pages, assignments, files)
+- ✅ Gradebook (grades, comments)
+- ✅ Date adjustments
+- ✅ Local analysis/reports
+
+### What Requires API:
+- ❌ Analytics data (page views, participation)
+- ❌ Real-time grade sync
+- ❌ Automated submission downloads
+- ❌ Bulk operations (>1000 students)
+
+### Import Behavior:
+- **Canvas matches by name**: "Assignment 1" in CSV must match "Assignment 1" in course
+- **Overwrites on conflict**: New grade replaces old (irreversible via UI)
+- **Preserves unmentioned**: Grades not in CSV stay unchanged
+- **Student matching**: Uses SIS ID > Canvas ID > Name (in that order)
+
+---
+
+## Migration Path
+
+Faculty can transition gradually:
+
+```
+100% API → Hybrid (API + CSV backup) → 100% Offline
+```
+
+**Hybrid Mode Benefits**:
+- API for automation
+- CSV backup for verification
+- Can switch to offline if API revoked
+- Best of both worlds
+
+**Recommendation**: All faculty should download CSV regularly (even with API) as backup.
+
+---
+
+## Open Questions
+
+1. **IMSCC Import Fidelity**: Does Canvas preserve all metadata when re-importing?
+   - Test: Export course → Import to sandbox → Verify all fields match
+
+2. **Gradebook Import Limits**: Max rows/columns in CSV import?
+   - Test: Large course (1000+ students, 100+ assignments)
+
+3. **File Upload in IMSCC**: Are embedded images preserved correctly?
+   - Test: Page with 10+ images → Export → Import → Verify all render
+
+4. **Overwrite Behavior**: What happens if assignment names don't match exactly?
+   - Test: CSV with "Assignment 1" vs course with "Assignment 1 (Updated)"
+
+5. **Comment Format**: Exact syntax for multi-line comments in CSV?
+   - Test: Comment with newlines/quotes → Export → Import → Verify formatting
+
+---
+
+## Next Steps
+
+1. **Get sample `.imscc`**: Export course 145706 to examine structure
+2. **Build CSV parser**: Read Canvas gradebook CSV format
+3. **Test import roundtrip**: Export → Import → Verify no data loss
+4. **Create offline_import.py**: `.imscc` → `.canvas/` converter
+5. **Update grading tools**: Add `--offline` flag

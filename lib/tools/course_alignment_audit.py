@@ -72,6 +72,12 @@ PAIRS WITH
 from __future__ import annotations
 
 import argparse
+
+try:
+    from _env_loader import force_utf8_console
+except ImportError:
+    def force_utf8_console() -> None:
+        pass  # No-op if _env_loader not available
 import json
 import os
 import re
@@ -84,7 +90,7 @@ from dotenv import load_dotenv
 
 import canvas_course_guard as guard
 from __toolbox_version__ import __version__
-from rubric_quality_audit import fetch_course_outcomes
+from rubric_quality_audit import fetch_course_outcomes_structured
 
 load_dotenv()
 
@@ -217,6 +223,27 @@ def pull_module_overviews(course_id: str) -> list[dict]:
     return out
 
 
+def local_module_overviews(course) -> list[dict]:
+    """Offline mirror of pull_module_overviews — module text from the local
+    course/<module>/*.html page bodies (offline_import / canvas_sync --pull).
+
+    The API path merges each module's Page-item bodies; offline the module's
+    pages ARE its <module-slug>/*.html files, so we merge those. The module id
+    is the cartridge slug (no Canvas numeric module id exists offline)."""
+    out: list[dict] = []
+    for pos, m in enumerate(course.modules):
+        html_paths = sorted((course.dir / m.slug).glob("*.html"))
+        text = "\n".join(p.read_text(encoding="utf-8") for p in html_paths)
+        out.append({
+            "id": m.slug,
+            "name": m.title,
+            "position": m.meta.get("position", pos),
+            "text": text,
+            "tokens": _significant_tokens(text),
+        })
+    return out
+
+
 # ---------------------------------------------------------------------------
 # The audit
 # ---------------------------------------------------------------------------
@@ -239,13 +266,21 @@ def audit_alignment(
       }
     """
     # Build outcome lookup
-    outcomes_by_id: dict[int, dict] = {}
+    outcomes_by_id: dict = {}
     for clo in clos:
         oid = clo.get("id")
         if oid is None:
             continue
-        outcomes_by_id[int(oid)] = {
-            "id": int(oid),
+        # Online outcomes carry a Canvas numeric id; local (offline_import) ones
+        # carry the .imscc cartridge identifier (a string like "g126f5..."). Keep
+        # whatever id we have — coerce numerics to int, leave cartridge strings
+        # as-is. Never fabricate a numeric id (there is no Canvas outcome offline).
+        try:
+            oid = int(oid)
+        except (TypeError, ValueError):
+            pass
+        outcomes_by_id[oid] = {
+            "id": oid,
             "text": clo.get("description") or clo.get("display_name") or "",
             "short_description": clo.get("title") or clo.get("short_description") or "",
             "linked_criteria": [],
@@ -496,7 +531,16 @@ def _write_report(path: Path, body: str) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> int:
+    force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
+
     ap = argparse.ArgumentParser(
         description="Outcomes ↔ rubric criteria ↔ activities alignment audit (NWCCU 2.3).")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
@@ -512,37 +556,66 @@ def main() -> int:
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Bypass canvas_course_guard advisory for enrolled-course reads (read is "
                          "advisory anyway; this flag silences the verdict echo).")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
-    if not CANVAS_API_TOKEN:
-        print("ERROR: CANVAS_API_TOKEN missing from .env.", file=sys.stderr)
-        return 2
-    if not CANVAS_BASE_URL:
-        print("ERROR: CANVAS_BASE_URL missing from .env.", file=sys.stderr)
-        return 2
-
-    course_id = args.course_id
-    source = "--course-id"
-    if not course_id:
-        course_id = os.environ.get(args.target, "")
-        source = f"env {args.target}"
-    if not course_id:
-        print(f"ERROR: course ID not found via {source}. Pass --course-id <id>.", file=sys.stderr)
-        return 2
-
-    guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
-                  mode="read", allow_override=args.allow_enrolled, label="audit target")
-
+    use_local = args.local or bool(args.course_dir) or _is_offline()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    course = _get(f"/courses/{course_id}") or {}
-    course_name = (course.get("name") if isinstance(course, dict) else None) or "<unknown course>"
 
-    print(f"[1/3] Fetching course outcomes for {course_id}...", file=sys.stderr)
-    clos = fetch_course_outcomes(course_id)
-    print(f"[2/3] Fetching assignments + rubrics...", file=sys.stderr)
-    assignments = pull_assignments_with_rubrics(course_id)
-    print(f"[3/3] Fetching module overviews (soft-match)...", file=sys.stderr)
-    modules = pull_module_overviews(course_id)
+    if use_local:
+        from _course_loader import load_course, CourseNotFound
+        try:
+            c = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 2
+        course_id = str(c.canvas_id or "local")
+        course_name = c.name
+        # Outcomes: course/_outcomes.json (offline_import writes course-OWNED CLOs
+        # from learning_outcomes.xml). Shaped {id, title, description, display_name}
+        # exactly like fetch_course_outcomes_structured — but the `id` is the .imscc
+        # cartridge identifier, NOT a Canvas numeric outcome id. Rubric criteria
+        # carry NO learning_outcome_id offline (the .imscc doesn't export the link),
+        # so the deterministic outcome↔criterion linkage cannot be reconstructed
+        # offline: every criterion reads as orphan_criterion and every outcome as
+        # orphan_outcome. This is the correct, honest offline behavior — no id is
+        # fabricated to force a match. The soft module-overview signal still runs.
+        clos = c.outcomes()
+        assignments = c.assignments
+        modules = local_module_overviews(c)
+    else:
+        if not CANVAS_API_TOKEN:
+            print("ERROR: CANVAS_API_TOKEN missing from .env.", file=sys.stderr)
+            return 2
+        if not CANVAS_BASE_URL:
+            print("ERROR: CANVAS_BASE_URL missing from .env.", file=sys.stderr)
+            return 2
+
+        course_id = args.course_id
+        source = "--course-id"
+        if not course_id:
+            course_id = os.environ.get(args.target, "")
+            source = f"env {args.target}"
+        if not course_id:
+            print(f"ERROR: course ID not found via {source}. Pass --course-id <id>.", file=sys.stderr)
+            return 2
+
+        guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
+                      mode="read", allow_override=args.allow_enrolled, label="audit target")
+
+        course = _get(f"/courses/{course_id}") or {}
+        course_name = (course.get("name") if isinstance(course, dict) else None) or "<unknown course>"
+
+        print(f"[1/3] Fetching course outcomes for {course_id}...", file=sys.stderr)
+        clos = fetch_course_outcomes_structured(course_id)
+        print(f"[2/3] Fetching assignments + rubrics...", file=sys.stderr)
+        assignments = pull_assignments_with_rubrics(course_id)
+        print(f"[3/3] Fetching module overviews (soft-match)...", file=sys.stderr)
+        modules = pull_module_overviews(course_id)
 
     res = audit_alignment(clos, assignments, modules)
 

@@ -72,6 +72,8 @@ That's it. `cb-init` is our one-command bootstrap — it installs `uv` and Pytho
 
 Total time on a fresh machine: ~5 minutes (most of it is the agent installing dependencies in the background).
 
+> 🚀 **Performance for large courses (100+ students or assignments):** Some tools have optional Rust implementations that provide 10-100x speedup. Run `cb-init --with-rust` instead of `cb-init` to enable these optimizations (~500 MB install, 2-5 minutes). Optional in v1.5.x, will become required in v2.x. See [Rust migration strategy](docs/proposals/rust-migration-3-phase-strategy.md) for details.
+
 ---
 
 ### If a colleague is setting it up for you
@@ -89,6 +91,82 @@ They'll handle the rest.
 ---
 
 > **Already have an older canvas-toolbox setup?** Ask your agent to run `python3 canvas-toolbox/scaffold/migrate_to_clone_layout.py` — it dry-runs by default, reports what it would change, and only writes when you re-run with `--apply`.
+
+---
+
+### If your institution requires a private copy
+
+GitHub doesn't support private forks of public repos, but you can create a **private duplicate** and track the public repo as an upstream source. This pattern lets you:
+- Keep your course-specific files private (grading/, .env, etc.)
+- Pull updates from the public canvas-toolbox repo
+- Contribute improvements back upstream via PRs from a public fork
+
+**One-time setup:**
+
+```bash
+# 1. Create a bare clone of canvas-toolbox
+git clone --bare https://github.com/chaz-clark/canvas-toolbox.git
+cd canvas-toolbox.git
+
+# 2. Mirror-push to your private repo (create it first on GitHub)
+git push --mirror https://github.com/your-org/canvas-toolbox-private.git
+
+# 3. Remove the bare clone (no longer needed)
+cd ..
+rm -rf canvas-toolbox.git
+
+# 4. Clone your private repo and set up upstream
+git clone https://github.com/your-org/canvas-toolbox-private.git canvas-toolbox
+cd canvas-toolbox
+git remote add upstream https://github.com/chaz-clark/canvas-toolbox.git
+git remote set-url --push upstream DISABLE  # Prevent accidental pushes to public repo
+```
+
+**Pulling upstream updates:**
+
+```bash
+# Restore uv.lock if you've run uv commands locally (see "uv.lock workflow" below)
+git restore uv.lock
+
+# Fetch and merge upstream changes
+git fetch upstream
+git merge upstream/main
+
+# If uv.lock conflicts, prefer upstream version
+git checkout --theirs uv.lock
+uv sync  # Re-sync dependencies
+```
+
+**Contributing back:**
+
+When you build something worth sharing (a new audit, a Canvas API wrapper, a fix), contribute it back via the standard fork→PR workflow:
+
+1. Fork `chaz-clark/canvas-toolbox` on GitHub (public fork for PRs)
+2. Add your fork as a remote: `git remote add my-fork https://github.com/your-username/canvas-toolbox.git`
+3. Cherry-pick your commit to a branch: `git cherry-pick <commit-sha>`
+4. Push to your fork: `git push my-fork your-branch-name`
+5. Open a PR from your fork to `chaz-clark/canvas-toolbox`
+
+See also: [GitHub docs on duplicating a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/duplicating-a-repository)
+
+---
+
+### uv.lock workflow (important for clean upstream merges)
+
+The `uv.lock` file includes a version stamp that changes when you run `uv` commands locally (e.g., `1.5.4` → `1.6.0`). This can block clean fast-forward merges when pulling upstream updates. **Before pulling upstream changes:**
+
+```bash
+# Restore uv.lock to the committed version
+git restore uv.lock
+
+# Then pull/merge upstream
+git fetch upstream && git merge upstream/main
+
+# Re-sync dependencies (regenerates uv.lock with your local uv version)
+uv sync
+```
+
+**Alternative:** If you rarely pull upstream updates and want to avoid this workflow, you can `.gitignore` the version stamp in `uv.lock`. However, this isn't recommended because `uv.lock` is meant to be committed for reproducible builds.
 
 ---
 
@@ -216,6 +294,8 @@ Audit which gates fired in a push from the per-row console output + `.push_log.m
 
 **Canvas Toolbox isn't only for existing courses — the agent can help you build one.**
 
+> 📋 **Step-by-step process:** [`docs/course-design-workflow.md`](docs/course-design-workflow.md) walks an agent (or you) through both flows end-to-end — **redesigning** an existing course and **architecting** a new one from scratch — naming which knowledge file and which tool to use at each step (CLOs → assessments → modules → rubrics → workload).
+
 The toolkit ships with **20+ pedagogical knowledge files** the agent reads when you're designing or redesigning a course. You stay the architect; the AI is the assistant — it asks questions, surfaces tradeoffs, and writes drafts you approve.
 
 **What the agent has on hand:**
@@ -273,7 +353,7 @@ Two tiers — pick by where you are in the course lifecycle.
 **Ask your agent:** *"Run a course health audit"*
 
 ```bash
-uv run python canvas_toolbox/lib/tools/course_audit.py
+uv run python lib/tools/course_audit.py
 ```
 
 Runs the four core read-only audits — rubric coverage, rubric quality, syllabus completeness, outcome quality — and composes one report: overall verdict (**HEALTHY / REVIEW / NEEDS ATTENTION**) plus a "top things to fix" list.
@@ -283,7 +363,7 @@ Runs the four core read-only audits — rubric coverage, rubric quality, syllabu
 **Ask your agent:** *"Run the full course health sweep and share the results"*
 
 ```bash
-uv run python canvas_toolbox/lib/tools/course_audit.py --full
+uv run python lib/tools/course_audit.py --full
 ```
 
 Composes 11 read-only audits into one report — rubrics · syllabus · outcomes · alignment chain · learning model · formative variety · grading structure · grading load · accessibility · workload. Each finding gets a single page with what was checked, what was found, and what to do.
@@ -318,7 +398,7 @@ Fetch → de-identify → grade → review → push. The AI never sees a student
 
 The push surface refuses by default in the dangerous direction. Every refusal has a documented opt-out flag.
 
-**Full grading pipeline:** [`grading_readme.md`](docs/grading_readme.md) — canonical folder layout + 8-step pipeline + dual-push pattern + setup interview.
+**Full grading pipeline:** [`grading-readme.md`](docs/grading-readme.md) — canonical folder layout + 8-step pipeline + dual-push pattern + setup interview.
 
 ---
 
@@ -397,6 +477,18 @@ uv run python lib/tools/student_late_accommodation.py \
   --deid-code S-95DBB6 --from-days-ago 14 --remove --apply
 ```
 
+## When overrides don't take effect
+
+Sometimes Canvas doesn't immediately apply assignment overrides created via the API. If you've applied an accommodation but the student still can't submit, add the `--force-recalc` flag to force Canvas to recalculate:
+
+```bash
+# Apply accommodation AND force Canvas to recalculate
+uv run python lib/tools/student_late_accommodation.py \
+  --deid-code S-95DBB6 --from-days-ago 14 --apply --force-recalc
+```
+
+This performs a no-op "touch" on each override to trigger Canvas's internal recalculation. Usually not needed, but critical when students report they still can't submit after an accommodation was applied.
+
 ## The de-id master — the primitive under everything
 
 `--deid-code S-95DBB6` resolves to a Canvas user_id **without anyone ever speaking the student's name to the agent**. That works because of a new primitive in v0.70.0: a **course-wide de-identification master** at `grading/.deid_master.csv` (gitignored, FERPA tier 2).
@@ -435,31 +527,89 @@ uv run python lib/tools/student_quiz_time_extension.py \
 
 Partial minutes always round UP — the student never gets less time than the multiplier promises. Untimed quizzes are skipped automatically (no extension is needed). PII-free via the same de-id master.
 
+**If the extension doesn't take effect:** Add `--force-recalc` to force Canvas to recalculate the override:
+
+```bash
+uv run python lib/tools/student_quiz_time_extension.py \
+  --deid-code S-95DBB6 --multiplier 1.5 --all-timed --apply --force-recalc
+```
+
 > **Note on New Quizzes (LTI):** this tool covers classic Canvas quizzes only. New Quizzes use a different API path; per-student time multipliers there are currently set via the New Quizzes Moderation UI. New Quizzes API support is a follow-up.
 
 ---
 
-# BYUI Accessibility Services accommodations (SAS dispatcher)
+# Troubleshooting: Force override recalculation
 
-If you're at BYU-Idaho and you get accommodation letters from `byui.as@accessiblelearning.com`, the `apply_sas_accommodations.py` dispatcher closes the loop. Your **life-pm** repo reads your Outlook for the letters, extracts the catalog keys (PII-free), and drops a structured YAML at `grading/.sas_accommodations.yml`. Canvas-toolbox reads the YAML and dispatches each accommodation to the right tool.
+When Canvas assignment overrides don't apply correctly (student can't submit despite having a valid override), use this standalone troubleshooting tool to force Canvas to recalculate. Works for both **group overrides** and **individual student overrides**.
+
+**Common scenarios:**
+- Applied a late-work accommodation but student still can't submit
+- Applied quiz time extension but student doesn't see extra time
+- Changed group membership via API and group overrides stopped working
 
 ```bash
-# Dry-run — see what the dispatcher plans to do
-uv run python lib/tools/apply_sas_accommodations.py
+# Force recalc for one student's overrides (dry-run)
+uv run python lib/tools/fix_group_override_recalc.py \
+  --course-id 407908 --student-id 280379 --dry-run
 
-# Apply
-uv run python lib/tools/apply_sas_accommodations.py --apply
+# Apply fix for one student
+uv run python lib/tools/fix_group_override_recalc.py \
+  --course-id 407908 --student-id 280379
+
+# Force recalc for group overrides
+uv run python lib/tools/fix_group_override_recalc.py \
+  --course-id 407908 --group-id 1885662
 ```
 
-Three tiers:
+**What it does:** Performs a no-op PUT on each assignment override targeting the student or group. This triggers Canvas's `assignment_override_updated` event and forces recalculation of assignment availability.
 
-| Tier | Count | Behavior |
-|---|---|---|
-| **Canvas** | 4 keys (`extra_time_1.5x`, `extra_time_2.0x`, `occasional_extensions`, `test_reschedule`) | Dispatcher invokes the matching tool (quiz time extension or late-work override) |
-| **Proctoring** | 2 keys (`proctorio_breaks`, `private_room_exams`) | Surface as a checklist line for the operator — out of Canvas API scope |
-| **Policy** | 11 keys (`spelling_grammar`, `attendance_notification`, `recording_device`, etc.) | Surface as instructor-practice checklist — no LMS change |
+**Performance:** This tool uses Rust for 10-100x speedup (5-10 minutes → 5-15 seconds for courses with 100+ assignments). Install Rust with `cb-init --with-rust` or manually build the binary (see tool header for instructions).
 
-Every action lands in an audit log at `grading/.sas_accommodations_applied.log` (FERPA tier 2, gitignored). Full catalog + handoff schema: [`sas_accommodations_knowledge.md`](lib/agents/knowledge/sas_accommodations_knowledge.md).
+**When to use:** After accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extension.py`) have been run but the override isn't taking effect. This is the rescue tool.
+
+**Root cause:** Canvas doesn't always trigger `SubmissionLifecycleManager.recompute_users_for_course` when overrides are created/modified via REST API. The Canvas UI handles this automatically, but direct API calls don't. This tool works around that gap.
+
+---
+
+# Submit files on behalf of students (Slack/email submissions)
+
+When students submit assignments via Slack DM or email instead of through Canvas, this tool automates the "submit on behalf of student" workflow.
+
+```bash
+# Preview what would be submitted (dry-run by default)
+uv run python lib/tools/submit_on_behalf.py \
+  --deid-code S-95DBB6 \
+  --assignment-id 12345 \
+  --file ~/Downloads/essay.pdf
+
+# Actually submit
+uv run python lib/tools/submit_on_behalf.py \
+  --deid-code S-95DBB6 \
+  --assignment-id 12345 \
+  --file ~/Downloads/essay.pdf \
+  --comment "Submitted via Slack on student's behalf due to Canvas access issue" \
+  --apply
+```
+
+**Typical scenario:**
+- Student DMs you a file via Slack: *"I couldn't figure out how to submit"*
+- You save the file to Downloads/
+- Run this tool to upload the file to Canvas and create the submission
+
+**⚠️ Institutional permission required:** This tool requires the "Submit on behalf of student" Canvas permission to be enabled at your institution. **BYUI blocks this permission** (tested 2026-07-08), so the tool successfully uploads files to Canvas but cannot complete the submission. Other institutions may allow it.
+
+**What works everywhere:**
+- ✓ File upload to Canvas (3-step Canvas file API)
+- ✓ Deid code resolution (FERPA-safe student lookup)
+- ✓ Assignment validation
+
+**What requires institutional permission:**
+- Attaching files to student submissions via API
+- Triggering Canvas grading workflow
+
+**Workaround at BYUI:** Use the student accommodation tool to give late submission access, then ask the student to resubmit through Canvas. This properly triggers the grading workflow.
+
+**Request permission from Canvas admin:** See `docs/research/submit-on-behalf-findings.md` for a template email to send your Canvas team requesting this permission be enabled.
 
 ---
 
@@ -491,15 +641,98 @@ Full sharing pattern: [`grader_knowledge.md §17`](lib/agents/knowledge/grader_k
 
 # Sharing back with the project
 
-Three things you can ask your agent to do:
+Four things you can ask your agent to do:
 
 | You want to… | Ask your agent | What happens |
 |---|---|---|
 | **Report a bug** | *"Report a bug: [what went wrong]"* | Agent runs `cb-report-bug`. Opens your editor for the description, scrubs PII locally (names, emails, `/Users` paths), bundles your toolkit version + last 150 log lines, files the GitHub issue. ~1 second. No GitHub account needed. |
 | **Ask for a feature** | *"Ask for this feature: [what you want]"* | Same path as bug reporting; the title prefix triages it. |
+| **Vote for a roadmap feature** | *"I often get asked by students what they need to pass"* | Agent detects roadmap interest (e.g., "Student grade forecast"), offers to vote. Anonymous voting via `vote-feature` tool. Helps prioritize development. See [ROADMAP.md](docs/ROADMAP.md) for full feature list. |
 | **Share something you built** | *"Share this with the project: [link / paste]"* | Agent runs `cb-share`. Same intake path; `share:` prefix tells the maintainer this is contribution-shaped. |
 
 The intake loop is fast — issues filed via the worker have been driving new safety gates within hours.
+
+## Vote directly on roadmap features
+
+```bash
+# See what's planned + current vote counts
+uv run python lib/tools/vote_feature.py --list
+
+# Vote for a specific feature
+uv run python lib/tools/vote_feature.py --feature "student grade forecast"
+```
+
+Voting is anonymous, no GitHub account needed. Votes help prioritize development. Full roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
+
+---
+
+## Managing multiple courses
+
+When running 4+ courses, consistent naming conventions help teams stay organized. Here are recommended patterns:
+
+### Repository/directory naming
+
+**Pattern:** `{prefix}-{course_number}_{term}`
+
+**Examples:**
+```
+PUBH-610_F24/        # Fall 2024
+PUBH-612_S25/        # Spring 2025
+ITM-327_SU25/        # Summer 2025
+DS-250_F24-ONLN/     # Fall 2024, online section
+```
+
+**Why this works:**
+- Sorts chronologically (F24 before S25)
+- Department prefix groups related courses
+- Underscore separates course from term (readable at a glance)
+- Optional suffix for section variants (-ONLN, -002, -CAMPUS)
+
+### Environment variable naming (in `.env`)
+
+When managing multiple `.env` files:
+
+```bash
+# .env.pubh610-f24
+CANVAS_COURSE_ID=427808
+CANVAS_SANDBOX_ID=402262
+
+# .env.pubh612-s25
+CANVAS_COURSE_ID=428101
+CANVAS_SANDBOX_ID=402262  # Same sandbox, different production course
+```
+
+**Workflow:** Symlink the active course's `.env` file:
+```bash
+ln -sf .env.pubh610-f24 .env
+```
+
+### Git branch naming for course-specific work
+
+When working on features for specific courses:
+```
+pubh610/fix-week3-quiz    # Course-specific fix
+pubh612/add-module4       # Course-specific content
+shared/update-syllabus    # Cross-course change
+```
+
+### Multi-course monorepo layout (advanced teams)
+
+For teams managing 10+ courses in one repo:
+```
+courses/
+  pubh610-f24/
+    content/
+    grading/
+  pubh612-s25/
+    content/
+    grading/
+shared/
+  lib/
+  templates/
+```
+
+**Tradeoff:** Monorepo scales better for shared tooling but increases merge complexity. Recommended for teams with dedicated DevOps support.
 
 ---
 
