@@ -33,14 +33,31 @@ from pathlib import Path
 
 LOG_PATH = Path(".canvas") / "claude-canvas-block.log"
 
-# Canvas-touching toolkit entrypoints, plus the gate itself (Claude must not
+# Canvas-touching toolkit entrypoints, plus the gate itself (the agent must not
 # launder a call through it) and the token file. Keyed on real entrypoints —
 # NOT on the substring "canvas" — so that a grep over the docs is not blocked.
+#
+# Two guards keep the match on the ENTRYPOINT rather than on any string that
+# merely CONTAINS its name. Both exist because the hook fired on harmless local
+# reads, and a hook that fires on harmless commands is one the operator learns to
+# disable — at which point you have neither the hook nor an honest story to tell:
+#
+#   (?<![\w-])  the name must not be the tail of a longer identifier. Without it,
+#               `pytest lib/tests/test_canvas_run.py` matched `canvas_run.py` —
+#               the gate's own unit tests could not be run by name.
+#   (?!test_)   `\w*_audit\.py` is deliberately open-prefixed (course_audit,
+#               clo_quality_audit, ...), so on its own it also swallowed
+#               `test_clo_quality_audit.py`.
+#
+# The shim extension is likewise REQUIRED: a bare `canvas-run` also matched
+# `.canvas/canvas-run.log` — so reading the gate's own audit log, the artifact an
+# IT reviewer inspects, was refused as though it were a Canvas call.
 BLOCKED = re.compile(
     r"""
+    (?<![\w-]) (?!test_) (?:
       canvas_sync\.py
     | canvas_run\.py
-    | canvas-run(\.ps1|\.sh)?
+    | canvas-run\.(ps1|sh)
     | canvas_api_tool\.py
     | canvas_quiz_questions\.py
     | course_mirror\.py
@@ -52,6 +69,7 @@ BLOCKED = re.compile(
     | \w*_audit\.py
     | course_quality_check\.py
     | \.env\.canvas
+    )
     """,
     re.VERBOSE,
 )

@@ -80,6 +80,70 @@ def test_every_gated_subcommand_requires_confirmation():
             resolve_command(name, confirm_course=None, course_id=COURSE)
 
 
+# --- --allow-enrolled ------------------------------------------------------
+#
+# canvas_course_guard refuses a write to a course that has enrolled students
+# unless --allow-enrolled is passed. Without a way to forward it, the gate had NO
+# working write path on any live course: `push --confirm-course <id>` was refused
+# by the guard every time. Found by running it against a live course.
+#
+# Forwarded for writes only, and it does not replace --confirm-course: a live
+# push takes BOTH flags.
+
+
+def test_push_forwards_allow_enrolled_when_asked():
+    argv = resolve_command(
+        "push", confirm_course=COURSE, course_id=COURSE, allow_enrolled=True
+    )
+    assert argv == ["lib/tools/canvas_sync.py", "--push", "--allow-enrolled"]
+
+
+def test_push_omits_allow_enrolled_by_default():
+    """Default stays safe: the guard refuses, which is the correct outcome
+    unless the operator has explicitly said otherwise."""
+    argv = resolve_command("push", confirm_course=COURSE, course_id=COURSE)
+    assert "--allow-enrolled" not in argv
+
+
+def test_allow_enrolled_does_not_bypass_confirm_course():
+    """The override must not become a shortcut around the write confirmation."""
+    with pytest.raises(GateRefusal) as exc:
+        resolve_command(
+            "push", confirm_course=None, course_id=COURSE, allow_enrolled=True
+        )
+    assert "--confirm-course" in str(exc.value)
+
+
+def test_allow_enrolled_does_not_bypass_course_mismatch():
+    with pytest.raises(GateRefusal) as exc:
+        resolve_command(
+            "push", confirm_course=OTHER_COURSE, course_id=COURSE, allow_enrolled=True
+        )
+    assert "does not match" in str(exc.value)
+
+
+@pytest.mark.parametrize("name", sorted(canvas_run.FREE))
+def test_allow_enrolled_is_refused_on_read_only_subcommands(name):
+    """Refused, not ignored — so the flag never becomes muscle memory on the
+    commands where it does nothing."""
+    with pytest.raises(GateRefusal) as exc:
+        resolve_command(
+            name, confirm_course=None, course_id=COURSE, allow_enrolled=True
+        )
+    assert "WRITE override" in str(exc.value)
+
+
+def test_gated_template_is_not_mutated_across_calls():
+    """resolve_command must COPY the template. Appending to GATED[subcommand]
+    itself would arm --allow-enrolled for every later push in the process."""
+    resolve_command(
+        "push", confirm_course=COURSE, course_id=COURSE, allow_enrolled=True
+    )
+    argv = resolve_command("push", confirm_course=COURSE, course_id=COURSE)
+    assert argv == ["lib/tools/canvas_sync.py", "--push"]
+    assert canvas_run.GATED["push"] == ["lib/tools/canvas_sync.py", "--push"]
+
+
 def test_read_token_refuses_when_file_missing(tmp_path):
     missing = tmp_path / "nope.env"
     with pytest.raises(GateRefusal) as exc:

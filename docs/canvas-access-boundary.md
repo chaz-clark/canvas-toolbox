@@ -99,7 +99,7 @@ uv run python lib/tools/canvas_run.py pull       # read-only
 uv run python lib/tools/canvas_run.py status     # read-only
 uv run python lib/tools/canvas_run.py audit      # read-only
 uv run python lib/tools/canvas_run.py quality    # read-only
-uv run python lib/tools/canvas_run.py push --confirm-course <id>   # WRITES
+uv run python lib/tools/canvas_run.py push --confirm-course <id> --allow-enrolled   # WRITES
 ```
 
 Each maps to exactly one toolkit invocation defined inside the script. The caller never
@@ -108,6 +108,18 @@ surface**. Default-deny: anything unlisted is refused.
 
 `push` requires `--confirm-course <id>` matching the target. On a live course a grading
 change re-scores real student work the moment it lands — Canvas has no draft state.
+
+**A course with enrolled students takes a second flag.** `canvas_course_guard` refuses any
+write to an enrolled course unless `--allow-enrolled` is passed, so a push to a live course
+needs **both** flags. Two flags, typed on purpose, for an action students see immediately.
+`--allow-enrolled` is *refused* on the read-only subcommands rather than ignored — a flag
+quietly accepted where it does nothing is a flag that becomes muscle memory where it does.
+
+> This was **not** in the first draft of the gate, and its absence was not theoretical: the
+> allowlist had no way to forward `--allow-enrolled`, so `push --confirm-course <id>` was
+> refused by the guard **every time**. The gate shipped with no working write path at all on
+> any live course. It surfaced the first time someone actually ran a push — which is the
+> argument for running one.
 
 Every decision, allow or refuse, is appended to `.canvas/canvas-run.log`.
 
@@ -150,6 +162,24 @@ $ ./bin/canvas-run.sh definitely-not-allowed          # default-deny
 REFUSED: 'definitely-not-allowed' is not on the allowlist. Allowed: audit, pull, push, quality, status
 ```
 
+**Then run the positive path too — pull, and an actual push.** This is the step it is
+tempting to skip, and skipping it is how you ship a boundary that does not work.
+
+The first end-to-end run of this design against a live course (2026-07-13, an instructor's
+course with enrolled students) found **four defects that code review and unit tests had
+both missed**:
+
+| Defect | Consequence |
+|---|---|
+| The gate had **no working write path** — the allowlist could not forward `--allow-enrolled`, and the enrolled-course guard refuses without it | `push --confirm-course <id>` was refused every time. The write half of the workflow had never worked |
+| The hook matcher keyed on bare substrings | Reading the gate's own audit log (`cat .canvas/canvas-run.log`) was blocked as a Canvas call — as were the boundary's own unit tests, by filename |
+| `canvas_sync --status` ignored the homepage, syllabus, and `_course.json` — which `--push` writes | `--status` could report *"Everything up to date"* while `--push` was poised to overwrite a **live syllabus** |
+| `canvas_sync --push` printed *"Nothing to push"* while pushing | Caused a **duplicate push against the live course** during the verification itself — the operator re-ran it to be sure |
+
+All four are fixed here. The point is not the bug list; it is that **a control you have
+never exercised is a claim, not a control** — and the two that mattered most were only
+visible from the far side of a real Canvas write.
+
 ## Honest limits
 
 State these to your IT department. The credibility of everything else depends on it.
@@ -159,11 +189,19 @@ State these to your IT department. The credibility of everything else depends on
   already permits.
 - **What it does guarantee is narrow and verifiable:** the credential is not in any file the
   agent can read, Canvas rejects its calls with a `401`, and every attempt is logged.
+- **The write confirmations are speed bumps with an audit trail, not technical
+  impossibilities.** They stop accidents and drift, not a determined operator — who in any
+  case already has full write access to their own course through the Canvas web UI, with no
+  equivalent log. This workflow is *more* auditable than the status quo, not less. Say so.
 - **If an institution wants a hard guarantee, the strongest control is theirs, not yours** —
   issue the Canvas API token scoped to the approved workflow, and rotate it. Then
   enforcement sits at the Canvas end, where nothing on a laptop can defeat it. **Offer
   this.** A reviewer who hears you volunteer the limits of your own control will trust the
   parts you do assert.
+- **Test the write path on a sandbox course if you have one** (`CANVAS_SANDBOX_ID`). The
+  2026-07-13 verification had to push to a live course because no sandbox was configured —
+  a single character in the syllabus, reverted immediately, but briefly visible to enrolled
+  students. That cost is avoidable, and you should avoid it.
 
 ## What the agent still does
 

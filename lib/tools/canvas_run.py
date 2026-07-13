@@ -95,14 +95,37 @@ LOG_PATH = Path(".canvas") / "canvas-run.log"
 
 
 def resolve_command(
-    subcommand: str, *, confirm_course: str | None, course_id: str
+    subcommand: str,
+    *,
+    confirm_course: str | None,
+    course_id: str,
+    allow_enrolled: bool = False,
 ) -> list[str]:
     """Map a named subcommand to exactly one toolkit invocation.
 
     Raises GateRefusal for anything unlisted, and for a gated (write) command
     whose --confirm-course is absent or does not match the target course.
+
+    --allow-enrolled is forwarded to the underlying tool for WRITE subcommands
+    only. `canvas_course_guard` refuses a write to a course that has enrolled
+    students unless it is passed — so without this passthrough the gate has NO
+    working write path on any live course: `push --confirm-course <id>` is
+    refused by the guard every time. (Found the hard way, by running it.)
+
+    Requiring BOTH flags is the point. A push to a live course is student-visible
+    the moment it lands and Canvas has no draft state, so it should take two
+    deliberate flags, not one. The flag is meaningless for the read-only
+    subcommands (there the guard is advisory), so passing it to one is REFUSED
+    rather than silently ignored — an operator who types it is expressing an
+    intent the command cannot honor, and a flag that is quietly accepted where it
+    does nothing is a flag that becomes muscle memory where it does.
     """
     if subcommand in FREE:
+        if allow_enrolled:
+            raise GateRefusal(
+                f"--allow-enrolled is a WRITE override; '{subcommand}' is "
+                f"read-only. Refusing, so the flag never becomes a habit."
+            )
         template = FREE[subcommand]
     elif subcommand in GATED:
         if confirm_course is None:
@@ -115,7 +138,11 @@ def resolve_command(
                 f"--confirm-course {confirm_course} does not match the target "
                 f"course {course_id}. Refusing."
             )
-        template = GATED[subcommand]
+        # Copy: appending to GATED[subcommand] itself would arm --allow-enrolled
+        # for every later push in the process.
+        template = list(GATED[subcommand])
+        if allow_enrolled:
+            template.append("--allow-enrolled")
     else:
         allowed = ", ".join(sorted([*FREE, *GATED]))
         raise GateRefusal(
@@ -165,6 +192,16 @@ def main() -> int:
         metavar="ID",
         help="Required for write subcommands; must match the target course id.",
     )
+    parser.add_argument(
+        "--allow-enrolled",
+        action="store_true",
+        help=(
+            "Write subcommands only. Forwarded to canvas_course_guard, which "
+            "otherwise refuses any write to a course that has enrolled students. "
+            "A push to a live course is student-visible immediately — Canvas has "
+            "no draft state — so it takes this flag AND --confirm-course."
+        ),
+    )
     args = parser.parse_args()
 
     course_id = os.environ.get("CANVAS_COURSE_ID", "")
@@ -175,6 +212,7 @@ def main() -> int:
     try:
         argv = resolve_command(
             args.subcommand,
+            allow_enrolled=args.allow_enrolled,
             confirm_course=args.confirm_course,
             course_id=course_id,
         )
