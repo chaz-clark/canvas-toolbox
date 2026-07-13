@@ -396,7 +396,7 @@ _Last updated: 2026-07-12_
 
 Latest 3 releases only — full detail for every version is in [`CHANGELOG.md`](CHANGELOG.md). On each release, add the new entry on top and rotate the oldest out. Kept to ≤3 entries / ≤100 lines / ≤10k tokens for active development phase (faster HERMES cycle during beta/sprint cadence).
 
-**Versioning policy (2026-07-12):** SemVer with a continuous-patch cadence — every merged PR bumps the **patch** (3rd position); a **minor** (2nd) marks a medium shift (like the v1.7 offline suite); a **major** (1st) a breaking change. Automated by [`.github/workflows/version-bump.yml`](.github/workflows/version-bump.yml) — patch by default, a `minor` / `major` PR label bumps that position, a `no-bump` label skips. Consumers track `main` via `git pull`, so the version is a milestone + drift-detection marker, not a per-merge gate.
+**Versioning policy (2026-07-13):** SemVer with a continuous-patch cadence — bump `pyproject.toml` **in the PR itself**: **patch** (3rd) by default, **minor** (2nd) for a medium shift (like the v1.7 offline suite), **major** (1st) for a breaking change; a docs-only PR may leave it unchanged. On merge, [`.github/workflows/version-bump.yml`](.github/workflows/version-bump.yml) auto-tags the commit `vX.Y.Z` from `pyproject` (skips if the tag already exists). The bump rides the protected-PR flow — the bot can't commit to `main`, but tags aren't branch-protected. Consumers track `main` via `git pull`, so the version is a milestone + drift-detection marker, not a per-merge gate.
 
 ### Recent: v1.7 offline mode (v1.7.0, 2026-07-12)
 
