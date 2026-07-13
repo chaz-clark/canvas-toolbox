@@ -741,6 +741,16 @@ If you build a tool for one of these API categories:
     the 2026-27 catalog; DS250's 5 CLOs written into sandbox 427808, read back
     independently, re-run idempotent (0 created / 5 skipped). The outcomes path is
     now exercisable end-to-end (feeds `clo_quality_audit`).
+  - **Workflow — run this BEFORE the outcome audits.** `clo_quality_audit` and
+    `course_alignment_audit` discover CLOs via `fetch_course_outcomes` → the
+    **Canvas Outcomes API first** (`/courses/:id/outcome_group_links`), with the
+    syllabus parser only as a fallback (they do NOT read CLOs from the rubric). So
+    seed the outcomes with `clo_catalog_import` first, then audit — otherwise the
+    audit runs `unverified` or guesses from the syllabus. Verified 2026-07-12:
+    after seeding ITM327 (402262), `clo_quality_audit` found all 6 from Canvas
+    (MEETS_CRITERIA). Seed the **master/blueprint** course (e.g. DS250 → 415094,
+    ITM327 → 402262) so new courses *copied* from it inherit the outcomes (note:
+    blueprint *sync* does not push outcomes to existing children — course copy does).
   - **Filed:** 2026-07-12 during offline-mode S7; shipped same day.
 
 ---
