@@ -1,0 +1,82 @@
+name: version-bump
+
+# Auto-increment the SemVer version on every merged PR (continuous-patch cadence):
+#   - default            -> patch  (3rd position)
+#   - PR label 'minor'   -> minor  (2nd position, resets patch)
+#   - PR label 'major'   -> major  (1st position, resets minor+patch)
+#   - PR label 'no-bump' -> skip   (releases that set the version by hand)
+# Bumps pyproject.toml, commits to main with [skip ci], and pushes a matching tag.
+# See AGENTS.md -> Active Context -> Versioning policy.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    if: >-
+      github.event.pull_request.merged == true &&
+      !contains(github.event.pull_request.labels.*.name, 'no-bump')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Determine bump level from PR labels
+        id: level
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+        run: |
+          if [[ " $LABELS " == *" major "* ]]; then
+            echo "level=major" >> "$GITHUB_OUTPUT"
+          elif [[ " $LABELS " == *" minor "* ]]; then
+            echo "level=minor" >> "$GITHUB_OUTPUT"
+          else
+            echo "level=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump version in pyproject.toml
+        id: bump
+        env:
+          LEVEL: ${{ steps.level.outputs.level }}
+        run: |
+          python - <<'PY'
+          import os, re
+          level = os.environ["LEVEL"]
+          path = "pyproject.toml"
+          text = open(path, encoding="utf-8").read()
+          m = re.search(r'^(version\s*=\s*")(\d+)\.(\d+)\.(\d+)(")', text, re.M)
+          if not m:
+              raise SystemExit("no version = \"X.Y.Z\" line in pyproject.toml")
+          major, minor, patch = int(m.group(2)), int(m.group(3)), int(m.group(4))
+          if level == "major":
+              major, minor, patch = major + 1, 0, 0
+          elif level == "minor":
+              minor, patch = minor + 1, 0
+          else:
+              patch += 1
+          new = f"{major}.{minor}.{patch}"
+          text = text[:m.start()] + m.group(1) + new + m.group(5) + text[m.end():]
+          open(path, "w", encoding="utf-8").write(text)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"version={new}\n")
+          print(f"bumped ({level}) -> {new}")
+          PY
+
+      - name: Commit + tag
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git commit -m "chore(release): v${VERSION} [skip ci]"
+          git tag "v${VERSION}"
+          git push origin HEAD:main
+          git push origin "v${VERSION}"

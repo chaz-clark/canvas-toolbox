@@ -366,7 +366,7 @@ which is the per-version mechanical record). One-line check:
 uv run python canvas-toolbox/lib/tools/grader_fetch.py --version
 ```
 
-If the printed version is behind the latest (currently **v0.50.1**),
+If the printed version is behind the latest (currently **v1.7.0**),
 the upgrade is usually a clean `cd canvas-toolbox && git pull && uv sync`.
 UPGRADING.md flags behavior changes the operator might notice (the
 v0.40+ Test Student exclusion, the v0.41-0.42 push guards, the
@@ -396,6 +396,12 @@ _Last updated: 2026-07-12_
 
 Latest 3 releases only — full detail for every version is in [`CHANGELOG.md`](CHANGELOG.md). On each release, add the new entry on top and rotate the oldest out. Kept to ≤3 entries / ≤100 lines / ≤10k tokens for active development phase (faster HERMES cycle during beta/sprint cadence).
 
+**Versioning policy (2026-07-12):** SemVer with a continuous-patch cadence — every merged PR bumps the **patch** (3rd position); a **minor** (2nd) marks a medium shift (like the v1.7 offline suite); a **major** (1st) a breaking change. Automated by [`.github/workflows/version-bump.yml`](.github/workflows/version-bump.yml) — patch by default, a `minor` / `major` PR label bumps that position, a `no-bump` label skips. Consumers track `main` via `git pull`, so the version is a milestone + drift-detection marker, not a per-merge gate.
+
+### Recent: v1.7 offline mode (v1.7.0, 2026-07-12)
+
+Offline mode: tools read a local `course/` (from `canvas_sync --pull` or `offline_import` of a `.imscc`), running identically online/offline. 7 audits gained `--local` with exact parity (workload / syllabus / accessibility / content_representation / grading_structure / rubric_coverage / rubric_quality); offline foundation (`CANVAS_MODE`; gradebook de-id / re-id / apply; `.imscc` date-shift; the `course/` loader; `offline_import`). Also: `clo_catalog_import` (Kuali catalog → Canvas Outcomes), institution-agnostic `syllabus_audit`, and the Cloudflare Workers migrated out to the `edge-infra` sister repo. Proven both ways that a `.imscc` carries course-owned outcomes (export + import round-trip).
+
 ### Recent: v1.6 course-centric architecture (v1.6.0, 2026-07-07)
 
 Major architecture refactor: course files (.env, AGENTS.md, course/, grading/, handoffs/) now live at course root (DS460/), not inside canvas-toolbox/. cb-init auto-detects subdirectory context and creates files in the right location. Includes v1.5 → v1.6 migration detection for .env relocation. 13-step cb-init (was 9): adds .gitignore creation, canvas-sync --pull, course-level AGENTS.md stub generation, and opt-in handoffs/ directory (--with-handoffs flag). Eliminates multi-course "which canvas-toolbox is this?" confusion. Tools continue to run from course root unchanged. Full backward compatibility for standalone mode.
@@ -404,11 +410,7 @@ Major architecture refactor: course files (.env, AGENTS.md, course/, grading/, h
 
 Active Context had grown into a 182 KB append-only release log (past host-tool read limits). Trimmed to latest 5 entries; full history moved to CHANGELOG. CI guard enforces rotation/size thresholds. Also repaired 25 stale relative links (doc moves + `lib/agents/`).
 
-### Earlier: BYUI SAS accommodation sprint — quiz time + test_reschedule + dispatcher (v0.72.0, 2026-06-26)
-
-Three-item SAS sprint: `student_quiz_time_extension.py` (per-student classic-quiz time multiplier), `--shift-by-days` mode on `student_late_accommodation.py` (test_reschedule), and `apply_sas_accommodations.py` (YAML dispatcher, 4-tier classify, FERPA audit log). +55 tests. New Quizzes (LTI) deferred.
-
-_Earlier releases (v0.71.0 and back) live in the [CHANGELOG](CHANGELOG.md)._
+_Earlier releases (v0.72.0 and back) live in the [CHANGELOG](CHANGELOG.md)._
 
 
 ## Domain Terms
