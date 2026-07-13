@@ -1,0 +1,30 @@
+{
+  "_comment": "Split-agent mode — worked example. Copy to .claude/settings.json in your course repo, with hooks/block_canvas.py alongside. Deny rules are the declarative layer; the hook is the catch-all (it matches command text the globs miss, e.g. a bare `python` invocation). See docs/split-agent-access.md.",
+  "permissions": {
+    "deny": [
+      "Read(./.env.canvas)",
+      "Bash(uv run python lib/tools/canvas_sync.py:*)",
+      "Bash(uv run python lib/tools/canvas_run.py:*)",
+      "Bash(uv run python lib/tools/course_audit.py:*)",
+      "Bash(uv run python lib/tools/grader_push.py:*)",
+      "Bash(uv run python lib/tools/grader_fetch.py:*)",
+      "Bash(uv run python lib/tools/blueprint_sync.py:*)",
+      "Bash(uv run python lib/tools/course_mirror.py:*)",
+      "Bash(./bin/canvas-run.sh:*)",
+      "PowerShell(./bin/canvas-run.ps1:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run python .claude/hooks/block_canvas.py"
+          }
+        ]
+      }
+    ]
+  }
+}
