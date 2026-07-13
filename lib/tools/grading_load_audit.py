@@ -182,9 +182,12 @@ def _parse_due_at(due_at: str | None) -> datetime | None:
     if not due_at:
         return None
     try:
-        return datetime.fromisoformat(due_at.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(due_at.replace("Z", "+00:00"))
     except (TypeError, ValueError):
         return None
+    # .imscc dates are naive UTC; the API's are tz-aware. Coerce naive -> UTC so
+    # local and online produce byte-identical timestamps (exact --local parity).
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def estimate_minutes_per_submission(a: dict, time_defaults: dict) -> int:
@@ -192,9 +195,11 @@ def estimate_minutes_per_submission(a: dict, time_defaults: dict) -> int:
     types = a.get("submission_types") or ["none"]
     # Pick the highest-cost type listed (assignments may list multiple — instructor grades whatever the student picks)
     base = max((time_defaults.get(t, 5) for t in types), default=0)
-    # Rubric bump
+    # Rubric bump. Canvas exposes `use_rubric_for_grading` at the assignment top
+    # level (the API's rubric_settings object omits the key); offline_import
+    # nests it under rubric_settings. Read both so online + local agree.
     rs = a.get("rubric_settings") or {}
-    if rs.get("use_rubric_for_grading"):
+    if a.get("use_rubric_for_grading") or rs.get("use_rubric_for_grading"):
         base += 5
     # Peer-review bump (instructor reviews the peer reviews too)
     if (a.get("peer_review_count") or 0) > 0:
@@ -244,6 +249,15 @@ def audit_grading_load(
             "total_hours": total_minutes / 60.0,
             "points_possible": pts,
         })
+
+    # Deterministic order so the per-week + undated lists are identical
+    # regardless of source enumeration order (the API returns assignment-group /
+    # position order; the local loader returns module / filename order). Keyed on
+    # due_at + name, which are identical across sources.
+    records.sort(key=lambda r: (
+        _parse_due_at(r["due_at"]) or datetime.max.replace(tzinfo=timezone.utc),
+        r["name"],
+    ))
 
     # Week buckets — ISO week of due_at
     weekly_minutes: dict[str, float] = defaultdict(float)
@@ -468,6 +482,13 @@ def _write_report(path: Path, body: str) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+try:
+    from _canvas_mode import is_offline_mode as _is_offline
+except ImportError:
+    def _is_offline() -> bool:
+        return False
+
+
 def main() -> int:
     force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
 
@@ -491,19 +512,15 @@ def main() -> int:
                     help="Path to JSON overriding the per-submission-type minute defaults.")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Bypass canvas_course_guard advisory for enrolled-course reads.")
+    ap.add_argument("--local", action="store_true",
+                    help="Read the local course/ folder (canvas_sync --pull / offline_import) "
+                         "instead of the Canvas API. Auto-on when CANVAS_MODE=offline.")
+    ap.add_argument("--course-dir", default=None,
+                    help="Local course/ directory to read (implies --local). Default: course")
     args = ap.parse_args()
 
-    if not CANVAS_API_TOKEN or not CANVAS_BASE_URL:
-        print("ERROR: CANVAS_API_TOKEN and CANVAS_BASE_URL must be set in .env.", file=sys.stderr)
-        return 2
-    course_id = args.course_id or os.environ.get(args.target, "")
-    if not course_id:
-        print(f"ERROR: course ID not found. Pass --course-id <id> or set {args.target}.",
-              file=sys.stderr)
-        return 2
-
-    guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
-                  mode="read", allow_override=args.allow_enrolled, label="audit target")
+    use_local = args.local or bool(args.course_dir) or _is_offline()
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     # Time defaults — load overrides if given
     time_defaults = dict(DEFAULT_TIME_DEFAULTS)
@@ -515,24 +532,55 @@ def main() -> int:
             print(f"ERROR: couldn't load --time-defaults-json: {e}", file=sys.stderr)
             return 2
 
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    course = _get(f"/courses/{course_id}", params={"include[]": "total_students"}) or {}
-    if not isinstance(course, dict):
-        print(f"ERROR: couldn't load course {course_id}.", file=sys.stderr)
-        return 2
+    if use_local:
+        from _course_loader import load_course, CourseNotFound
+        try:
+            c = load_course(args.course_dir or "course")
+        except CourseNotFound as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 2
+        course = {
+            "id": c.canvas_id or "local",
+            "name": c.name,
+            "course_code": c.meta.get("course_code", ""),
+        }
+        assignments = c.assignments
+        if not assignments:
+            print("ERROR: no assignments in course/ — run offline_import (or "
+                  "canvas_sync --pull) first.", file=sys.stderr)
+            return 2
+    else:
+        if not CANVAS_API_TOKEN or not CANVAS_BASE_URL:
+            print("ERROR: CANVAS_API_TOKEN and CANVAS_BASE_URL must be set in .env.", file=sys.stderr)
+            return 2
+        course_id = args.course_id or os.environ.get(args.target, "")
+        if not course_id:
+            print(f"ERROR: course ID not found. Pass --course-id <id> or set {args.target}.",
+                  file=sys.stderr)
+            return 2
 
-    # Resolve students
+        guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
+                      mode="read", allow_override=args.allow_enrolled, label="audit target")
+
+        course = _get(f"/courses/{course_id}", params={"include[]": "total_students"}) or {}
+        if not isinstance(course, dict):
+            print(f"ERROR: couldn't load course {course_id}.", file=sys.stderr)
+            return 2
+
+        assignments = _get_paged(
+            f"/courses/{course_id}/assignments",
+            params={"include[]": ["rubric", "rubric_settings"]},
+        )
+        if not assignments:
+            print(f"ERROR: no assignments for course {course_id}.", file=sys.stderr)
+            return 2
+
+    # Resolve students — offline course/ carries no enrollment count, so it falls
+    # back to --students (or the 25 default), same as an API course with no
+    # total_students.
     students = args.students
     if students is None:
         students = course.get("total_students") or 25
-
-    assignments = _get_paged(
-        f"/courses/{course_id}/assignments",
-        params={"include[]": ["rubric", "rubric_settings"]},
-    )
-    if not assignments:
-        print(f"ERROR: no assignments for course {course_id}.", file=sys.stderr)
-        return 2
 
     res = audit_grading_load(
         course, assignments,
