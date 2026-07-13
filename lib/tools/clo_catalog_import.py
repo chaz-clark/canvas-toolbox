@@ -257,6 +257,9 @@ def main() -> int:
     ap.add_argument("--write", action="store_true", help="Actually create outcomes (default: preview only)")
     ap.add_argument("--allow-enrolled", action="store_true", help="Override the course guard for a course with students / blueprint")
     ap.add_argument("--json", action="store_true", help="Machine-readable output")
+    ap.add_argument("--save-local", nargs="?", const="course", default=None, metavar="DIR",
+                    help="Also write the CLOs to <DIR>/_outcomes.json (loader shape) so offline "
+                         "audits (e.g. clo_quality --local) read them without the API. Default DIR: course")
     args = ap.parse_args()
 
     # Catalog reads don't need a Canvas token; a write does. Only enforce the
@@ -297,6 +300,21 @@ def main() -> int:
     if not clos:
         print("⚠️  No outcomes in the catalog for this course — nothing to import.", file=sys.stderr)
         return 0
+
+    # Optional: mirror the CLOs into a local course/_outcomes.json (loader shape),
+    # so offline audits (clo_quality --local) read the same outcomes without the API.
+    if args.save_local:
+        os.makedirs(args.save_local, exist_ok=True)
+        local_outcomes = [
+            {"id": None, "title": f"{detail['code']} CLO {i}", "description": text,
+             "display_name": f"{detail['code']} CLO {i}"}
+            for i, text in enumerate(clos, 1)
+        ]
+        _p = os.path.join(args.save_local, "_outcomes.json")
+        with open(_p, "w", encoding="utf-8") as _f:
+            json.dump(local_outcomes, _f, indent=2)
+        if not args.json:
+            print(f"💾 wrote {len(local_outcomes)} outcomes to {_p}")
 
     # 2. Preview-only unless --write
     if not args.write:
