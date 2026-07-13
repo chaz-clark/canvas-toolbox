@@ -30,7 +30,7 @@ locally (names, emails, `/Users/` paths) before posting through a
 Cloudflare-fronted intake worker that files the GitHub issue.
 
 Full docstring + flags: [`lib/tools/cb_report_bug.py`](../lib/tools/cb_report_bug.py).
-Worker architecture: [`infra/bug-intake-worker/README.md`](../infra/bug-intake-worker/README.md).
+Worker architecture: [`bug-intake-worker/README.md` (edge-infra sister repo)](https://github.com/chaz-clark/edge-infra/blob/main/workers/bug-intake-worker/README.md).
 
 ---
 

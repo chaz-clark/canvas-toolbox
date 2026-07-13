@@ -152,6 +152,8 @@ canvas_toolbox/
 └── README.md              ← user-facing documentation and command reference
 ```
 
+> **Cloudflare Workers moved out (2026-07-12).** The bug-intake + voting workers (formerly `infra/`) now live in the **`edge-infra`** sister repo (`chaz-clark/edge-infra`, private), alongside the new `heartbeat-worker`. It's a *peer* repo, not cloned here. The deployed `canvas-toolbox-bugs` worker is unaffected; redeploy from `edge-infra/workers/bug-intake-worker/`.
+
 **Consumer usage (v1.6+)**: clone `canvas_toolbox` into your course folder (`git clone https://github.com/chaz-clark/canvas_toolbox.git canvas_toolbox`), then run `uv run python canvas_toolbox/lib/tools/cb_init.py` which auto-creates course files (.env, .gitignore, AGENTS.md) at course root. Tools run from course root: `uv run python canvas_toolbox/lib/tools/<script>`. Update safely: `cd canvas_toolbox && git pull origin main` — only toolkit code updates; your course files are untouched.
 
 v1.6 architecture moves all course files to course root (DS460/), not inside canvas_toolbox/. The toolkit is gitignored; course context lives in course-root AGENTS.md. Migration from v1.5: cb-init detects old .env location and offers to migrate.
@@ -307,7 +309,7 @@ The toolkit ships with TWO complementary capture mechanisms; the agent's job is 
 
 ### Channel 1 — `cb_report_bug.py` (immediate, external)
 
-A one-command CLI that files a scrubbed report on `chaz-clark/canvas-toolbox` via the Cloudflare-fronted intake worker (`infra/bug-intake-worker/`). **No GitHub account needed on the operator's side.** Use for:
+A one-command CLI that files a scrubbed report on `chaz-clark/canvas-toolbox` via the Cloudflare-fronted intake worker (now in the `edge-infra` sister repo — private — at `workers/bug-intake-worker/`). **No GitHub account needed on the operator's side.** Use for:
 
 - **Bugs** — something broke, something surprised you, something diverged from documented behavior. Title prefix: `bug:`.
 - **Enhancements** — operator articulated something the tool doesn't yet do, OR a recurring friction has been captured in `learned/` at least once already (the Hermes promotion threshold). Title prefix: `enhancement:`.

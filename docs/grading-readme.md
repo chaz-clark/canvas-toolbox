@@ -66,7 +66,7 @@ working as designed. Only file when the tool deviated from documented
 behavior, or when an enhancement would close a real workflow gap.
 
 Worker design + maintainer ops:
-[`infra/bug-intake-worker/README.md`](../infra/bug-intake-worker/README.md).
+[`bug-intake-worker/README.md` (edge-infra sister repo)](https://github.com/chaz-clark/edge-infra/blob/main/workers/bug-intake-worker/README.md).
 
 ---
 
