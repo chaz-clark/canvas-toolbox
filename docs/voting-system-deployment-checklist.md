@@ -32,7 +32,7 @@ uv run python lib/tools/vote_feature.py --feature-id grade-forecast
 ```
 
 ### ✅ 2. Cloudflare Worker Infrastructure
-**Directory:** `infra/voting-worker/`
+**Directory:** `edge-infra/workers/voting-worker/`
 
 **Files created:**
 - `src/worker.ts` (250+ lines) - Main worker with POST /vote and GET /votes endpoints
@@ -138,7 +138,7 @@ ROADMAP.md (updated with "(42 votes)" badges)
 
 ### Step 1: Create D1 Database
 ```bash
-cd infra/voting-worker
+cd edge-infra/workers/voting-worker
 wrangler d1 create canvas-toolbox-votes
 ```
 
@@ -378,11 +378,11 @@ Watch live requests to the worker. Useful for debugging.
 ### New Files (8)
 1. `lib/tools/vote_feature.py` - CLI voting tool
 2. `lib/tools/update_roadmap_votes.py` - Aggregation script
-3. `infra/voting-worker/src/worker.ts` - Cloudflare Worker
-4. `infra/voting-worker/schema.sql` - D1 database schema
-5. `infra/voting-worker/wrangler.toml` - Worker config
-6. `infra/voting-worker/README.md` - Deployment guide
-7. `infra/voting-worker/.gitignore` - Wrangler state exclusion
+3. `edge-infra/workers/voting-worker/src/worker.ts` - Cloudflare Worker
+4. `edge-infra/workers/voting-worker/schema.sql` - D1 database schema
+5. `edge-infra/workers/voting-worker/wrangler.toml` - Worker config
+6. `edge-infra/workers/voting-worker/README.md` - Deployment guide
+7. `edge-infra/workers/voting-worker/.gitignore` - Wrangler state exclusion
 8. `docs/voting-system-deployment-checklist.md` - This file
 
 ### Modified Files (3)

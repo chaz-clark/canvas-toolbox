@@ -617,10 +617,10 @@ Vote counts appear in this roadmap (updated manually or via GitHub Actions). The
 ### Voting infrastructure
 
 - **CLI tool:** `lib/tools/vote_feature.py` — posts votes to Cloudflare Worker
-- **Worker:** `infra/voting-worker/` — stores votes in D1 database, returns counts
+- **Worker:** `edge-infra/workers/voting-worker/` — stores votes in D1 database, returns counts
 - **Aggregation:** `lib/tools/update_roadmap_votes.py` — updates this file with vote counts
 
-See `infra/voting-worker/README.md` for deployment instructions (maintainer only).
+See `edge-infra/workers/voting-worker/README.md` for deployment instructions (maintainer only).
 
 ---
 
