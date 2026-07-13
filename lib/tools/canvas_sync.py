@@ -609,6 +609,10 @@ def cmd_init():
         prior_hashes[index["syllabus"]["filepath"]] = index["syllabus"].get("hash")
     index["files"] = {}  # rebuild from scratch — removes stale entries from renames/deletes
     index["modules"] = []  # rebuilt fresh each init
+    # METADATA_ONLY_TYPES sidecars written this run. Canvas-backed but not
+    # pushable (L8), so they stay out of index["files"] — and must therefore be
+    # named here, or the stale sweep deletes what this pull just wrote.
+    meta_paths: set = set()
 
     # Issue #16 — reverse map of canvas_file_id → list of source content files that reference it.
     # Built as a side effect of pulling content; consumed by --pull-files (this script) and
@@ -925,6 +929,7 @@ def cmd_init():
                     "published": published,
                 }
                 filepath.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+                meta_paths.add(str(filepath))
                 item_record["filename"] = filename
                 _vprint(f"      [meta] {filename}")
 
@@ -1149,20 +1154,7 @@ def cmd_init():
     if index.get("syllabus"):
         tracked_paths.add(index["syllabus"]["filepath"])
     tracked_paths.add(str(COURSE_DIR / "_course.json"))
-    deleted = []
-    for ext in ("*.json", "*.html"):
-        for f in COURSE_DIR.rglob(ext):
-            if f.name == "_module.json":
-                continue
-            if f.name.endswith(".questions.json"):
-                continue  # local-only quiz push source — never Canvas-backed
-            if f.name.endswith(".newquiz.json"):
-                continue  # New Quiz sidecar — tracked separately, not in index["files"]
-            rel = str(f)
-            if rel not in tracked_paths:
-                f.unlink()
-                deleted.append(rel)
-                print(f"  [deleted] {rel}")
+    deleted = _cleanup_stale_files(COURSE_DIR, tracked_paths, meta_paths)
 
     # -----------------------------------------------------------------------
     # Auto-log: record what changed vs prior index (undocumented Canvas edits)
@@ -1196,6 +1188,37 @@ def cmd_init():
 # ---------------------------------------------------------------------------
 # Status: diff local vs index
 # ---------------------------------------------------------------------------
+
+def _cleanup_stale_files(course_dir: Path, tracked_paths: set, meta_paths: set) -> list:
+    """Delete Canvas-backed files under course_dir that Canvas no longer has.
+
+    meta_paths are the METADATA_ONLY_TYPES sidecars (ExternalUrl / ExternalTool)
+    this pull just wrote. They are deliberately kept OUT of index["files"] —
+    those item types cannot be content-pushed (canvas_api_lessons_learned L8),
+    and an entry in index["files"] would make cmd_push try. But that also meant
+    this sweep saw them as untracked and deleted them in the same run that
+    created them, so the mirror silently omitted every ExternalUrl/ExternalTool
+    item. They are Canvas-backed, not stale: protect them here, and let a pull
+    that stops writing one (because Canvas dropped it) legitimately sweep it.
+    """
+    deleted = []
+    for ext in ("*.json", "*.html"):
+        for f in course_dir.rglob(ext):
+            if f.name == "_module.json":
+                continue
+            if f.name.endswith(".questions.json"):
+                continue  # local-only quiz push source — never Canvas-backed
+            if f.name.endswith(".newquiz.json"):
+                continue  # New Quiz sidecar — tracked separately, not in index["files"]
+            rel = str(f)
+            if rel in meta_paths:
+                continue  # metadata-only sidecar written by THIS pull
+            if rel not in tracked_paths:
+                f.unlink()
+                deleted.append(rel)
+                print(f"  [deleted] {rel}")
+    return deleted
+
 
 def cmd_status():
     """Show which local files differ from what was last synced to Canvas."""
