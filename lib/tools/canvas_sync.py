@@ -1227,6 +1227,33 @@ def _cleanup_stale_files(course_dir: Path, tracked_paths: set, meta_paths: set) 
     return deleted
 
 
+def _special_file_changes(index: dict, course_path: Optional[Path] = None) -> list:
+    """The files cmd_push writes that do NOT live in index["files"].
+
+    The homepage, the syllabus, and _course.json (late_policy) are tracked under
+    their own index keys and pushed by cmd_push BEFORE its "Nothing to push"
+    guard. cmd_status must diff them too — a status that under-reports what push
+    will do is the dangerous direction to be wrong in on a live course.
+
+    Returns a list of (label, filepath) for whatever is dirty.
+    """
+    course_path = Path(course_path) if course_path is not None else COURSE_DIR / "_course.json"
+    changes = []
+
+    for label, key in (("Homepage", "homepage"), ("Syllabus", "syllabus")):
+        meta = index.get(key)
+        if not meta:
+            continue
+        path = Path(meta["filepath"])
+        if path.exists() and _file_hash(path) != meta.get("hash"):
+            changes.append((label, str(path)))
+
+    if course_path.exists() and _file_hash(course_path) != index.get("course_hash"):
+        changes.append(("Course", str(course_path)))
+
+    return changes
+
+
 def cmd_status():
     """Show which local files differ from what was last synced to Canvas."""
     index = _load_index()
@@ -1248,9 +1275,16 @@ def cmd_status():
         if current_hash != meta.get("hash"):
             changed.append((filepath_str, meta))
 
-    if not changed and not missing:
+    special = _special_file_changes(index)
+
+    if not changed and not missing and not special:
         print("Everything up to date. Nothing to push.")
         return
+
+    if special:
+        print(f"Modified ({len(special)} course-level):")
+        for label, fp in special:
+            print(f"  M  {fp}  [{label}]")
 
     if changed:
         print(f"Modified ({len(changed)} files):")
