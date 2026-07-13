@@ -722,16 +722,26 @@ If you build a tool for one of these API categories:
   - **Reuse:** `syllabus_outcomes.extract_outcomes(html)` already parses CLOs out
     of any HTML (used by syllabus_audit + rubric_quality) — so the parse step is
     solved; the open question is the SOURCE.
-  - **⚠️ Feasibility not confirmed (2026-07-12 testing):** the premise "CLOs are
-    always in the open-web catalog" did NOT hold up. A general websearch surfaced
-    the BYUI catalog landing page but no per-course CLOs; the data-science course
-    page (`byuidatascience.github.io/services/math119/`) had none. And **BYU /
-    BYU-Idaho / BYU-Hawaii are distinct** — searches kept returning `catalog.byu.edu`
-    / `catalog.byuh.edu`, the wrong institutions. So before building anything we
-    need a CONFIRMED source: a specific BYUI URL (or internal doc / SIS export)
-    that actually lists per-course CLOs in a parseable form. **Blocked pending
-    that source.**
-  - **Filed:** 2026-07-12 during offline-mode S7; feasibility note added same day.
+  - **✅ SHIPPED (2026-07-12): `lib/tools/clo_catalog_import.py`.** The confirmed
+    source is the institution's **Kuali public catalog API** (`<institution>.kuali.co`),
+    not a general websearch. BYUI's per-course `outcomes` field is already structured
+    `[{id, value}]` — no HTML scraping needed. Endpoints:
+    `/api/v1/catalog/public/catalogs/` (list) → `/catalog/courses/<catalogId>`
+    (index; match `__catalogCourseId`) → `/catalog/course/<catalogId>/<pid>`
+    (detail, `.outcomes`). The earlier "feasibility not confirmed" note was a
+    general-websearch dead-end — the vendor API is the real source (BYU/BYUI/BYUH
+    each have their own `*.kuali.co`, so institution scoping still matters).
+  - **Design as built:** read-only preview by default (`--write` required to touch
+    Canvas); `canvas_course_guard.enforce(mode="write")` refuses enrolled/blueprint
+    courses unless `--allow-enrolled`; idempotent (skips outcomes whose title already
+    exists); `--institution` / `--catalog-host` / `--catalog` keep it institution-
+    agnostic within Kuali catalogs. Each CLO → one Canvas Outcome (`<CODE> CLO <n>`,
+    description = the CLO text).
+  - **Verified live (2026-07-12):** DS250 / MATH119 / ITM327 / DS460 all resolve in
+    the 2026-27 catalog; DS250's 5 CLOs written into sandbox 427808, read back
+    independently, re-run idempotent (0 created / 5 skipped). The outcomes path is
+    now exercisable end-to-end (feeds `clo_quality_audit`).
+  - **Filed:** 2026-07-12 during offline-mode S7; shipped same day.
 
 ---
 
