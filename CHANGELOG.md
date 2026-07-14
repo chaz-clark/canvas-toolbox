@@ -12,6 +12,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.9] — 2026-07-13
+
+**`submit_on_behalf` now uses Canvas's real proxy-submission path (GraphQL), not the REST endpoint that 403s on locked assignments.**
+
+The tool posted to `POST .../assignments/:id/submissions` — a general grading call that respects the assignment lock and records no proxy submitter, so it was rejected on locked/past-due assignments (previously mis-attributed to an institutional block). The actual "Submit on behalf of student" feature is the GraphQL `createSubmission` mutation: passing `studentId` flips it into a proxy submission that checks the proxy-submission permission, skips the lock, and stamps `proxySubmitter` as evidence.
+
+### Fixed
+- **`submit_on_behalf.py`** — two-step proxy flow: upload the file into the student's submission files (`.../submissions/{user_id}/files`, so it's student-owned — the mutation rejects a file from the instructor's own files), then the `createSubmission` GraphQL mutation with `studentId`. Surfaces `proxySubmitter`; `--comment` is a separate REST call (the mutation takes none). Verified live against a Test Student (proxy_submitter stamped, file + comment landed). Documented as **L19** in `canvas_api_lessons_learned.md`.
+
+---
+
 ## [1.7.8] — 2026-07-13
 
 **`pull` stale-sweep no longer deletes metadata sidecars — the whole `_*.json` class is now protected.**
