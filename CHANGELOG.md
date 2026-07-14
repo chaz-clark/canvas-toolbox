@@ -12,6 +12,19 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.7] — 2026-07-13
+
+**Offline WRITE — record `course/` edits back into the source `.imscc` faithfully (`imscc_record`).**
+
+Closes the offline loop: `course/` is the working folder (iterate freely; audits read it); the `.imscc` is the source of truth. When `course/` is final, `imscc_record` PATCHES only the fields `course/` tracks into the matching resources of the sidecar cartridge IN PLACE — everything else (quiz questions/QTI, `web_resources/`, LTI, rubric text, formatting) is copied byte-for-byte. It patches an already-valid Canvas cartridge; it never rebuilds.
+
+### Added
+- **`imscc_record`** — mirror `course/` → the source `.imscc`. Patches assignment title/dates/points/workflow_state/submission_types/grading_type/group/description, quiz title/dates/published/group (never questions), page HTML, module names/order/published/item order, assignment-group names/weights, outcomes, and syllabus — joining each item to its source resource by the preserved identifier. Self-validates (blocks only shift-*introduced* issues) and updates `course/.source.imscc` in place (or `--output`). Reusable core `mirror_course_into_imscc` in `_imscc.py`.
+- **`offline_import` saves the source cartridge** as `course/.source.imscc` (byte-for-byte) so the mirror has a faithful base to patch, plus `course/_index.json` — an EXACT `identifierref → file` map. A resource can be an item in several modules under different per-module titles (and unfiled items are in no module at all), so the mirror joins on this recorded path, never a title/slug guess — which would otherwise silently drop an item or map the wrong file. Unfiled assignments/quizzes are now recordable too. Both are invisible to the loader (top-level `_` files / it globs `*/_module.json`).
+- Tier-1 tests (`test_imscc_record.py`) — tracked tags set to `course/` values; quiz QTI + `web_resources/` bytes identical before/after; clean validation; the identifier join (incl. a resource shared across modules under different titles, and an unfiled resource); a loud error when `_index.json` is missing; byte-for-byte idempotence on a no-op mirror. Verified against a real Canvas export: 75/75 assignments map, edits patch only their own resource, quiz QTI preserved byte-for-byte.
+
+---
+
 ## [1.7.0] — 2026-07-12
 
 **Offline mode — run the whole audit + gradebook + content-package workflow without a Canvas API token.**
