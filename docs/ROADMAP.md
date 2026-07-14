@@ -441,6 +441,18 @@ Tools that streamline grading operations and support teaching assistants.
    - Useful for: grade disputes, TA oversight, accreditation
    - **Complexity:** Simple API read, CSV export (existing pattern), basic filtering
 
+3. **AI conversation grader — engagement-mode scoring (mirror aimodes.ai)** — **L** (2-3 weeks) ⭐
+   - **Model to reverse-engineer:** [aimodes.ai](https://aimodes.ai/) — Dr. Mark Keith's (BYU Information Systems) research instrument that classifies *how* a user engages with an AI assistant. Goal: make our AI Log grading mirror its framework and outputs as closely as possible.
+   - **The framework — 8 engagement modes across 3 agency tiers (Passivity → Partnership → Agency):**
+     - *Passivity:* Oracle, Production Assistant
+     - *Partnership:* Tutor, Collaborative Problem-Solver
+     - *Agency:* Verification Agent, Creative Expander, Critical Challenger, Problem Setter
+   - **Scoring to reproduce:** per-message classification into the 8 modes → tier distribution (% across the 3 agency levels) → overall intellectual-agency score (/100) → mode distribution (actual vs. target %) → student archetype (Delegator, Partner, Challenger, Explorer, Specialist, Learner) → personalized strengths / growth areas.
+   - **Builds on what exists:** `grader_follow_share_url.py` already fetches the transcript behind `chatgpt.com/share` + Gemini share URLs (issue #51); today's per-turn-mixture classifier gives only a coarse verdict ("classified" / "unable to classify"). Replace/augment it with the 8-mode / 3-tier classifier so an AI Log earns a research-grounded engagement score.
+   - **Faculty value:** grade the *quality* of a student's AI interaction (delegating vs. verifying/challenging) on a defensible, published rubric — exactly what permissive-AI-policy courses (m119, DS250) need to assess AI Log assignments.
+   - **Open questions:** aimodes.ai is a closed research tool — reverse-engineer the mode definitions + scoring from its public outputs; reach out to Dr. Keith on whether the rubric/prompts can be cited or shared (BYU-adjacent, so plausibly collaborative). Keep it FERPA-safe — run on de-identified transcripts inside the existing `grading/` pipeline.
+   - **Complexity:** LLM per-message classification against the 8-mode taxonomy, tier aggregation + scoring math, archetype mapping, prompt/rubric engineering to match aimodes' outputs, integration into the deid grader chain.
+
 ---
 
 ### Course Analytics & Early Intervention
