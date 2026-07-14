@@ -219,6 +219,7 @@ AI agents working in this repo must follow three core quality principles:
 - Use pre-commit hooks to catch errors
 - Type hints catch errors at write-time
 - Block operations that would create defects
+- **Always run via `uv run`** (`uv run pytest lib/tests -q`, `uv run python lib/tools/...`) — dependencies (`markdownify`, etc.) live in the uv venv; system `python3`/`pytest` will report false failures from missing modules.
 
 **Behavioral trigger**: When manual verification required → Design it out
 
@@ -401,6 +402,8 @@ Latest 3 releases only — full detail for every version is in [`CHANGELOG.md`](
 ### Recent: v1.7 offline mode (v1.7.0, 2026-07-12)
 
 Offline mode: tools read a local `course/` (from `canvas_sync --pull` or `offline_import` of a `.imscc`), running identically online/offline. 7 audits gained `--local` with exact parity (workload / syllabus / accessibility / content_representation / grading_structure / rubric_coverage / rubric_quality); offline foundation (`CANVAS_MODE`; gradebook de-id / re-id / apply; `.imscc` date-shift; the `course/` loader; `offline_import`). Also: `clo_catalog_import` (Kuali catalog → Canvas Outcomes), institution-agnostic `syllabus_audit`, and the Cloudflare Workers migrated out to the `edge-infra` sister repo. Proven both ways that a `.imscc` carries course-owned outcomes (export + import round-trip).
+
+**Offline write (v1.7.7):** `course/` is the working folder (iterate freely); the `.imscc` is the source of truth. `offline_import` saves the original as the sidecar `course/.source.imscc`. When done, `imscc_record` patches your `course/` edits into that sidecar in place — faithful (quiz questions / files / LTI preserved byte-for-byte; it patches, never rebuilds) — for re-import via the Canvas UI.
 
 ### Recent: v1.6 course-centric architecture (v1.6.0, 2026-07-07)
 

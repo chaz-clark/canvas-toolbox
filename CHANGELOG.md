@@ -12,6 +12,55 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.10] — 2026-07-14
+
+**`sync --status` / `--push` now report the course-level files (homepage, syllabus, `_course.json`) they write.** (#172, contributed by @matjmiles)
+
+`cmd_status` diffed only `index["files"]`, but `cmd_push` also writes the homepage, syllabus, and `_course.json` (late_policy) — each tracked under its own index key, all before the "Nothing to push" guard. So `--status` could print "Everything up to date" while `--push` overwrote a live syllabus; and `--push` printed "Nothing to push" even when it had just pushed one. `--status` is the documented pre-push safety check, so under-reporting was the dangerous direction.
+
+### Fixed
+- **`canvas_sync.py`** — `cmd_status` diffs the course-level files via `_special_file_changes` (homepage/syllabus/`course_hash`, gated exactly like push), and `cmd_push`'s summary (`_push_summary`) names what it pushed instead of always saying "Nothing to push". Correctly scoped: it inspects only those three fixed keys, so it never reports the metadata sidecars (`_outcomes.json`, `_index.json`, ExternalUrl sidecars) that #173/#180 keep out of `index["files"]`. Added an integration test driving `cmd_status()` end-to-end (guards the wiring, not just the helper).
+
+---
+
+## [1.7.9] — 2026-07-13
+
+**`submit_on_behalf` now uses Canvas's real proxy-submission path (GraphQL), not the REST endpoint that 403s on locked assignments.**
+
+The tool posted to `POST .../assignments/:id/submissions` — a general grading call that respects the assignment lock and records no proxy submitter, so it was rejected on locked/past-due assignments (previously mis-attributed to an institutional block). The actual "Submit on behalf of student" feature is the GraphQL `createSubmission` mutation: passing `studentId` flips it into a proxy submission that checks the proxy-submission permission, skips the lock, and stamps `proxySubmitter` as evidence.
+
+### Fixed
+- **`submit_on_behalf.py`** — two-step proxy flow: upload the file into the student's submission files (`.../submissions/{user_id}/files`, so it's student-owned — the mutation rejects a file from the instructor's own files), then the `createSubmission` GraphQL mutation with `studentId`. Surfaces `proxySubmitter`; `--comment` is a separate REST call (the mutation takes none). Verified live against a Test Student (proxy_submitter stamped, file + comment landed). Documented as **L19** in `canvas_api_lessons_learned.md`.
+
+---
+
+## [1.7.8] — 2026-07-13
+
+**`pull` stale-sweep no longer deletes metadata sidecars — the whole `_*.json` class is now protected.**
+
+Follow-up to #173 (which fixed the ExternalUrl/ExternalTool sidecars). The stale-file sweep in `canvas_sync.py` (`_cleanup_stale_files`) globs `*.json` / `*.html` and deletes anything untracked; it only name-exempted `_module.json`. A `_*.json` at the course root is always a metadata sidecar, never a Canvas content mirror (`<slug>.json` / `<slug>.html`), so the whole class is now exempt. This fixes two live problems:
+
+- **`_outcomes.json` self-deleted on every online pull** — the pull writes it (`canvas_sync.py:704`) but never tracked it, so the sweep removed it in the same run, silently leaving the local mirror without outcomes (broke `--local` CLO audits).
+- **Offline write-path artifacts were exposed** — `offline_import`'s `_index.json` (the `ref→file` map `imscc_record` needs) and `_assignment_groups.json` would be swept if a `pull` ran over an offline-imported `course/`. (`.source.imscc` already survived — `.imscc` isn't globbed; `_course.json` was already protected.)
+
+### Fixed
+- `_cleanup_stale_files` exempts any `_*.json` (subsumes the `_module.json` exemption; keeps `*.questions.json` / `*.newquiz.json` and #173's `meta_paths`). 3 new tests in `test_canvas_sync_metadata_sidecars.py`: `_outcomes.json` survives the sweep, `_index.json` / `_assignment_groups.json` survive, and a genuinely stale non-underscore `<slug>.json` is still deleted.
+
+---
+
+## [1.7.7] — 2026-07-13
+
+**Offline WRITE — record `course/` edits back into the source `.imscc` faithfully (`imscc_record`).**
+
+Closes the offline loop: `course/` is the working folder (iterate freely; audits read it); the `.imscc` is the source of truth. When `course/` is final, `imscc_record` PATCHES only the fields `course/` tracks into the matching resources of the sidecar cartridge IN PLACE — everything else (quiz questions/QTI, `web_resources/`, LTI, rubric text, formatting) is copied byte-for-byte. It patches an already-valid Canvas cartridge; it never rebuilds.
+
+### Added
+- **`imscc_record`** — mirror `course/` → the source `.imscc`. Patches assignment title/dates/points/workflow_state/submission_types/grading_type/group/description, quiz title/dates/published/group (never questions), page HTML, module names/order/published/item order, assignment-group names/weights, outcomes, and syllabus — joining each item to its source resource by the preserved identifier. Self-validates (blocks only shift-*introduced* issues) and updates `course/.source.imscc` in place (or `--output`). Reusable core `mirror_course_into_imscc` in `_imscc.py`.
+- **`offline_import` saves the source cartridge** as `course/.source.imscc` (byte-for-byte) so the mirror has a faithful base to patch, plus `course/_index.json` — an EXACT `identifierref → file` map. A resource can be an item in several modules under different per-module titles (and unfiled items are in no module at all), so the mirror joins on this recorded path, never a title/slug guess — which would otherwise silently drop an item or map the wrong file. Unfiled assignments/quizzes are now recordable too. Both are invisible to the loader (top-level `_` files / it globs `*/_module.json`).
+- Tier-1 tests (`test_imscc_record.py`) — tracked tags set to `course/` values; quiz QTI + `web_resources/` bytes identical before/after; clean validation; the identifier join (incl. a resource shared across modules under different titles, and an unfiled resource); a loud error when `_index.json` is missing; byte-for-byte idempotence on a no-op mirror. Verified against a real Canvas export: 75/75 assignments map, edits patch only their own resource, quiz QTI preserved byte-for-byte.
+
+---
+
 ## [1.7.0] — 2026-07-12
 
 **Offline mode — run the whole audit + gradebook + content-package workflow without a Canvas API token.**

@@ -46,18 +46,28 @@ USAGE — dry-run by default (use --apply to actually submit)
 
 REQUIRES in .env: CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID
 
-KNOWN LIMITATIONS
-  Canvas "Submit on behalf of student" permission may be disabled at institutional level:
-  - BYUI: API submissions blocked with 403 Forbidden (tested 2026-07-08)
-  - File upload still works (returns file_id)
-  - Workaround: Use uploaded file_id to manually attach in SpeedGrader
-  - Some assignments return 400 Bad Request instead of 403 (different validation)
+HOW IT WORKS (GraphQL proxy submission)
+  The REST `POST .../submissions` endpoint is a general grading call: it respects
+  the assignment lock date and records no proxy submitter, so it is rejected
+  (403/400) on a locked assignment — that is NOT an institutional block, it is
+  the wrong endpoint. This tool uses Canvas's actual "Submit on behalf of student"
+  feature instead:
+  1. Upload the file INTO the student's submission files
+     (.../assignments/{id}/submissions/{user_id}/files) so it is student-owned.
+  2. Call the GraphQL `createSubmission` mutation with `studentId` — its presence
+     flips the call into a proxy submission that checks the proxy-submission
+     permission, skips the lock, and stamps `proxySubmitter` (your name) as the
+     in-Canvas evidence. Works on locked / past-due assignments with no date change.
+
+  PREREQUISITE: your role needs the "proxy submission" permission in the course's
+  account. Group assignments upload to /groups/{group_id}/files instead (the
+  mutation is identical).
 
 NOTIFICATIONS (when submission succeeds)
   This triggers Canvas's standard submission workflow:
   - Assignment appears in SpeedGrader "Needs Grading"
   - Shows in instructor To Do list
-  - Student sees submission with "submitted by instructor" note
+  - Submission is stamped "submitted by [you] on behalf of [student]"
   - Timestamps show actual submission time
 """
 from __future__ import annotations
@@ -111,18 +121,25 @@ def resolve_deid_to_user_id(deid_code: str, master_path: Path = _DEFAULT_MASTER)
 # Canvas API
 # ---------------------------------------------------------------------------
 
-def upload_file_to_canvas(
+def upload_file_to_student_submission(
     base_url: str,
     course_id: str,
+    assignment_id: int,
+    user_id: int,
     file_path: Path,
     token: str
 ) -> int:
-    """Upload a file to Canvas and return the file_id.
+    """Upload a file INTO the student's submission files and return the file_id.
 
     Canvas file upload is a 3-step process:
     1. POST to get upload URL and parameters
     2. POST file to upload URL
     3. Confirm upload (returns file object with ID)
+
+    The endpoint (.../submissions/{user_id}/files) is what scopes the attachment
+    to the STUDENT's context — the proxy-submission mutation rejects a file from
+    the instructor's own files, so uploading to /courses/{id}/files would not
+    work. The instructor's grading permission authorizes this upload.
 
     Returns:
         Canvas file_id (integer)
@@ -132,9 +149,10 @@ def upload_file_to_canvas(
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    # Step 1: Request upload URL
+    # Step 1: Request upload URL, scoped to the student's submission files
     r = requests.post(
-        f"{base_url}/api/v1/courses/{course_id}/files",
+        f"{base_url}/api/v1/courses/{course_id}/assignments/{assignment_id}"
+        f"/submissions/{user_id}/files",
         headers=headers,
         data={
             "name": file_path.name,
@@ -179,6 +197,44 @@ def upload_file_to_canvas(
     raise ValueError(f"Unexpected upload response format: {file_data}")
 
 
+_PROXY_SUBMIT_MUTATION = (
+    "mutation ProxySubmit($assignmentId: ID!, $studentId: ID!, $fileIds: [ID!]!) {"
+    "  createSubmission(input: {"
+    "    assignmentId: $assignmentId,"
+    "    submissionType: online_upload,"      # GraphQL enum — intentionally UNQUOTED
+    "    studentId: $studentId,"              # presence of studentId = proxy submission
+    "    fileIds: $fileIds"
+    "  }) {"
+    "    submission { _id attempt submittedAt state proxySubmitter }"
+    "    errors { attribute message }"
+    "  }"
+    "}"
+)
+
+
+def add_submission_comment(
+    base_url: str,
+    course_id: str,
+    assignment_id: int,
+    user_id: int,
+    comment: str,
+    token: str,
+) -> None:
+    """Attach an instructor comment to the student's submission.
+
+    The proxy-submission mutation takes no comment, so this is a separate REST
+    call on the now-existing submission (authorized by the grading permission).
+    """
+    r = requests.put(
+        f"{base_url}/api/v1/courses/{course_id}/assignments/{assignment_id}"
+        f"/submissions/{user_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        data={"comment[text_comment]": comment},
+        timeout=_TIMEOUT,
+    )
+    r.raise_for_status()
+
+
 def submit_on_behalf(
     base_url: str,
     course_id: str,
@@ -188,39 +244,45 @@ def submit_on_behalf(
     comment: str | None,
     token: str
 ) -> dict:
-    """Submit an assignment on behalf of a student.
+    """Submit an assignment on behalf of a student via the GraphQL proxy path.
 
-    Args:
-        base_url: Canvas base URL
-        course_id: Canvas course ID
-        assignment_id: Canvas assignment ID
-        user_id: Canvas student user ID
-        file_id: Canvas file ID (from upload_file_to_canvas)
-        comment: Optional submission comment
-        token: Canvas API token
+    The REST `POST .../submissions` endpoint is a general grading call: it
+    respects the assignment lock date and does NOT record a proxy submitter, so
+    it is rejected (403/400) on a locked assignment. The real "Submit on behalf
+    of student" feature is the GraphQL `createSubmission` mutation — passing
+    `studentId` flips it into a proxy submission, which checks the proxy-submission
+    permission (not the normal submit right), skips the lock, and stamps
+    `proxySubmitter` as the in-Canvas evidence. `file_id` must already live in the
+    student's submission files (see upload_file_to_student_submission).
 
     Returns:
-        Submission object from Canvas API
+        The `submission` object from the mutation (carries `proxySubmitter`).
     """
-    headers = {"Authorization": f"Bearer {token}"}
-
-    payload = {
-        "submission[submission_type]": "online_upload",
-        "submission[file_ids][]": file_id,
-        "submission[user_id]": user_id,
-    }
-
-    if comment:
-        payload["comment[text_comment]"] = comment
-
     r = requests.post(
-        f"{base_url}/api/v1/courses/{course_id}/assignments/{assignment_id}/submissions",
-        headers=headers,
-        data=payload,
+        f"{base_url}/api/graphql",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={
+            "query": _PROXY_SUBMIT_MUTATION,
+            "variables": {
+                "assignmentId": str(assignment_id),
+                "studentId": str(user_id),
+                "fileIds": [str(file_id)],
+            },
+        },
         timeout=_TIMEOUT,
     )
     r.raise_for_status()
-    return r.json()
+    body = r.json()
+    if body.get("errors"):  # transport/schema-level GraphQL errors
+        raise RuntimeError(f"GraphQL error: {body['errors']}")
+    result = body["data"]["createSubmission"]
+    if result.get("errors"):  # mutation-level validation errors (e.g. permission)
+        raise RuntimeError(f"createSubmission rejected: {result['errors']}")
+
+    submission = result["submission"]
+    if comment:
+        add_submission_comment(base_url, course_id, assignment_id, user_id, comment, token)
+    return submission
 
 
 def get_assignment(base_url: str, course_id: str, assignment_id: int, token: str) -> dict:
@@ -354,16 +416,18 @@ def main() -> int:
         print("\nRe-run with --apply to execute.")
         return 0
 
-    # Apply mode: Upload and submit
-    print(f"\nUploading {file_path.name}...")
+    # Apply mode: Upload into the student's submission files, then proxy-submit
+    print(f"\nUploading {file_path.name} into the student's submission files...")
     try:
-        file_id = upload_file_to_canvas(base_url, course_id, file_path, token)
+        file_id = upload_file_to_student_submission(
+            base_url, course_id, args.assignment_id, uid, file_path, token
+        )
         print(f"  ✓ Uploaded (Canvas file_id: {file_id})")
     except Exception as e:
         print(f"  ✗ Upload failed: {e}", file=sys.stderr)
         return 1
 
-    print(f"\nSubmitting on behalf of user {uid}...")
+    print(f"\nSubmitting on behalf of user {uid} (GraphQL proxy)...")
     try:
         submission = submit_on_behalf(
             base_url,
@@ -374,9 +438,10 @@ def main() -> int:
             args.comment,
             token,
         )
-        print(f"  ✓ Submitted (submission_id: {submission['id']})")
-        print(f"     Submitted at: {submission.get('submitted_at', 'N/A')}")
-        print(f"     Workflow state: {submission.get('workflow_state', 'N/A')}")
+        print(f"  ✓ Submitted (attempt {submission.get('attempt', '?')}, id {submission.get('_id', 'N/A')})")
+        print(f"     Submitted at: {submission.get('submittedAt', 'N/A')}")
+        print(f"     State: {submission.get('state', 'N/A')}")
+        print(f"     Proxy submitter (evidence): {submission.get('proxySubmitter', 'N/A')}")
         if args.comment:
             print(f"     Comment added: {args.comment}")
         print("\n✓ Submission complete! Assignment now appears in SpeedGrader.")
