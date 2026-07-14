@@ -32,7 +32,7 @@ This file is the project's institutional memory of those behaviors. Every fact h
 
 ---
 
-## The 16 Lessons
+## The 19 Lessons
 
 Each lesson follows the same structure: **what Canvas does** (the behavior), **why it matters** (the failure mode), **how the toolkit handles it** (the defense), and **provenance** (issue / commit / incident).
 
@@ -233,9 +233,23 @@ data = {"quiz[due_at]": new_due, "quiz[lock_at]": None, "quiz[unlock_at]": None}
 
 ---
 
+### L19 — "Submit on behalf of student" is a GraphQL mutation, not the REST `/submissions` endpoint
+
+**What Canvas does:** `POST /api/v1/courses/:id/assignments/:aid/submissions` (with `submission[user_id]`) is a *general grading* call — it respects the assignment's lock date and records no proxy submitter, so on a locked/past-due assignment it is rejected (403, sometimes 400). This looks like an institutional block but is the **wrong endpoint**. The actual "Submit on behalf of student" feature is the GraphQL `createSubmission` mutation (`POST /api/graphql`): passing **`studentId`** flips the call into a *proxy submission*, which is authorized by the **proxy-submission permission** (not the normal submit right), **skips the lock**, and stamps **`proxySubmitter`** (the instructor's name) as in-Canvas evidence. `submissionType: online_upload` is a GraphQL **enum — unquoted**.
+
+**Why it matters:** This is the sanctioned way to submit a Slack/emailed file for a student after an assignment locks, with no date changes and a clean audit trail — exactly the accommodation case `submit_on_behalf.py` exists for. The REST 403 previously read as "BYU-I disabled it," sending the toolkit down a manual-SpeedGrader workaround; the real fix was the endpoint.
+
+**The two-step gotcha:** the mutation's `fileIds` must point at an attachment that lives in the **student's** submission files. Upload to `.../assignments/:aid/submissions/:user_id/files` (the instructor's grading permission authorizes it); a file from the instructor's own `/courses/:id/files` is **rejected** by the mutation. Group assignments upload to `/groups/:group_id/files` instead — mutation identical.
+
+**How the toolkit handles it:** `lib/tools/submit_on_behalf.py` — `upload_file_to_student_submission()` (student-scoped 3-step upload) → `submit_on_behalf()` (the `createSubmission` proxy mutation, checks both transport-level and mutation-level `errors`, returns the `submission` incl. `proxySubmitter`). `--comment` is a separate REST call on the now-existing submission (the mutation takes none). Dry-run by default; `--apply` to execute.
+
+**Provenance:** endpoint verified against the live BYU-I instance + Canvas source by the Canvas admin (2026-07-13); the browser Gradebook "Submit for Student" button fires this exact call. Prerequisite: proxy-submission permission enabled in the account (now on for all courses). Relates to L4 (instructor-token 403 on the wrong endpoint).
+
+---
+
 ## Cross-Cutting Patterns
 
-These are the toolkit conventions that bake defenses against the 17 lessons into every new tool.
+These are the toolkit conventions that bake defenses against the 19 lessons into every new tool.
 
 ### P-LL1 — Form-encoded for nested writes (defends L1, L2, L16)
 
