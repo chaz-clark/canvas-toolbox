@@ -219,6 +219,7 @@ AI agents working in this repo must follow three core quality principles:
 - Use pre-commit hooks to catch errors
 - Type hints catch errors at write-time
 - Block operations that would create defects
+- **Always run via `uv run`** (`uv run pytest lib/tests -q`, `uv run python lib/tools/...`) — dependencies (`markdownify`, etc.) live in the uv venv; system `python3`/`pytest` will report false failures from missing modules.
 
 **Behavioral trigger**: When manual verification required → Design it out
 

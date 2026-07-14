@@ -91,3 +91,47 @@ def test_sidecars_stay_out_of_index_so_push_never_touches_them():
     would try to POST an ExternalUrl/ExternalTool item back to Canvas (L8)."""
     assert "ExternalUrl" in canvas_sync.METADATA_ONLY_TYPES
     assert "ExternalTool" in canvas_sync.METADATA_ONLY_TYPES
+
+
+# --- the _*.json metadata class: same self-delete bug, other sidecars ---------
+
+def test_outcomes_json_written_by_pull_survives_the_sweep(tmp_path):
+    """The pull writes course/_outcomes.json (canvas_sync.py:704) but never adds
+    it to tracked_paths, so the sweep deleted it in the same run — the mirror lost
+    its outcomes (breaking --local CLO audits). As a `_*.json` metadata sidecar it
+    must now survive without needing an index or meta_paths entry."""
+    outcomes = tmp_path / "_outcomes.json"
+    outcomes.write_text(json.dumps([{"id": 1, "title": "CLO 1"}]), encoding="utf-8")
+
+    deleted = canvas_sync._cleanup_stale_files(tmp_path, tracked_paths=set(), meta_paths=set())
+
+    assert deleted == []
+    assert outcomes.exists(), "the pull's own _outcomes.json was deleted in the same run"
+
+
+def test_offline_import_metadata_survives_the_sweep(tmp_path):
+    """offline_import writes _index.json (the ref->file map imscc_record needs)
+    and _assignment_groups.json at the course root. A pull run over an
+    offline-imported course/ must not sweep them, or the offline write path breaks."""
+    names = ("_index.json", "_assignment_groups.json", "_course.json")
+    for name in names:
+        (tmp_path / name).write_text("{}", encoding="utf-8")
+
+    deleted = canvas_sync._cleanup_stale_files(tmp_path, tracked_paths=set(), meta_paths=set())
+
+    assert deleted == []
+    assert all((tmp_path / n).exists() for n in names)
+
+
+def test_non_underscore_stale_json_is_still_swept(tmp_path):
+    """The exemption is scoped to `_*.json` — a real content-mirror file Canvas no
+    longer has (<slug>.json, no leading underscore) must still be deleted."""
+    mod = tmp_path / "week-1"
+    mod.mkdir(parents=True)
+    stale = mod / "old-assignment.json"
+    stale.write_text("{}", encoding="utf-8")
+
+    deleted = canvas_sync._cleanup_stale_files(tmp_path, tracked_paths=set(), meta_paths=set())
+
+    assert deleted == [str(stale)]
+    assert not stale.exists()
