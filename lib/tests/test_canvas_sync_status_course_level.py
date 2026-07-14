@@ -77,6 +77,35 @@ def test_empty_index_reports_nothing(tmp_path):
     assert canvas_sync._special_file_changes({}, course_path=tmp_path / "_course.json") == []
 
 
+# --- integration: cmd_status() itself must surface the course-level edit ---
+#
+# The tests above exercise the helper in isolation. This one drives cmd_status()
+# end-to-end so the WIRING is covered: a refactor that dropped the
+# `_special_file_changes(index)` call would leave every unit test above green
+# while silently reintroducing the "Everything up to date" false-negative.
+
+
+def test_cmd_status_surfaces_a_course_level_edit(tmp_path, monkeypatch, capsys):
+    # a regular tracked file that is UP TO DATE -> the only change is course-level
+    tracked = tmp_path / "week-1" / "page.html"
+    tracked_hash = _write(tracked, "<p>page</p>")
+    syl = tmp_path / "syllabus.html"
+    index = {
+        "files": {str(tracked): {"hash": tracked_hash, "type": "Page"}},
+        "syllabus": {"filepath": str(syl), "hash": _write(syl, "<p>original</p>")},
+    }
+    syl.write_text("<p>EDITED</p>", encoding="utf-8")  # edited since the index hash
+    monkeypatch.setattr(canvas_sync, "_load_index", lambda: index)
+    monkeypatch.setattr(canvas_sync, "COURSE_DIR", tmp_path)  # for the _course.json default
+
+    canvas_sync.cmd_status()
+    out = capsys.readouterr().out
+
+    assert "course-level" in out                 # the special block fired
+    assert str(syl) in out                       # the edited syllabus is named
+    assert "Everything up to date" not in out    # NOT the dangerous false-negative
+
+
 # --- the same blind spot, on the way out ----------------------------------
 #
 # cmd_push's summary also only counted index["files"], so a run that pushed the
