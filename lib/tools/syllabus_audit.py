@@ -167,6 +167,26 @@ def fetch_syllabus(course_id: str) -> tuple[str, str | None]:
     return name, ("" if body is None else str(body))
 
 
+def fetch_late_policy(course_id: str) -> dict | None:
+    """The course's Gradebook Late Policy (GET /courses/:id/late_policy) — the
+    missing/late submission deduction settings from Gradebook → Settings → Late
+    Policies. None if the course has none set or the request fails. Online only;
+    this setting is not part of a `.imscc` export or a --pull mirror."""
+    try:
+        resp = _get(f"/courses/{course_id}/late_policy")
+    except Exception:
+        return None
+    if isinstance(resp, dict):
+        return resp.get("late_policy", resp)  # API nests under "late_policy"
+    return None
+
+
+def late_policy_enabled(lp: dict | None) -> bool:
+    """True if Canvas is set to auto-enforce a late/missing deduction."""
+    return bool(lp and (lp.get("late_submission_deduction_enabled")
+                        or lp.get("missing_submission_deduction_enabled")))
+
+
 # ---------------------------------------------------------------------------
 # HTML → text
 # ---------------------------------------------------------------------------
@@ -230,10 +250,15 @@ REQUIRED_SECTIONS: list[dict] = [
      "patterns": ["feedback", "workload", "time commitment", "hours per week",
                   "expect to spend", "expectations"], "byui": False},
     {"key": "grading", "label": "Grading (Grading Scale / Late Work)",
-     "patterns": ["grading scale", "grade scale", "grading scheme", "grade scheme",
-                  "grading policy", "grade breakdown", "letter grade",
+     # Detection vocabulary grounded in real syllabi (32 live BYU-I courses) AND
+     # Canvas's own Late Policy UI ("late/missing submission"). No "conventional
+     # term" nagging: faculty overwhelmingly write "late work", Canvas's feature
+     # says "late submission" — both are valid, so we just detect them all.
+     "patterns": ["grading scale", "grade scale", "grading policy", "grade breakdown",
+                  "letter grade", "grading scheme", "grade scheme",
                   "late work", "late policy", "late assignment", "late submission",
-                  "assignment is late", "points possible"], "byui": False},
+                  "submitted late", "grace period", "make-up work", "makeup work"],
+     "byui": False},
     {"key": "disabilities", "label": "Students with Disabilities",
      "patterns": ["disabilit", "accommodation", "accessibility", "section 504",
                   "ada ", "americans with disabilities"], "byui": False},
@@ -280,15 +305,28 @@ def _any(text: str, patterns: list[str]) -> bool:
 
 def detect_sections(text: str) -> list[dict]:
     """Return each required section with a `detected` bool."""
-    out = []
-    for spec in REQUIRED_SECTIONS:
-        out.append({
-            "key": spec["key"],
-            "label": spec["label"],
-            "byui": spec["byui"],
-            "detected": _any(text, spec["patterns"]),
-        })
-    return out
+    return [{
+        "key": spec["key"],
+        "label": spec["label"],
+        "byui": spec["byui"],
+        "detected": _any(text, spec["patterns"]),
+    } for spec in REQUIRED_SECTIONS]
+
+
+# A syllabus "states a late-work policy" if it uses any of this vocabulary. Kept
+# focused (clear late-policy language only, not generic "penalty"/"deduct") so
+# the late_policy mismatch check below doesn't false-positive.
+_LATE_POLICY_PATTERNS = [
+    "late work", "late policy", "late assignment", "late submission",
+    "submitted late", "turned in late", "accept late", "accepted late",
+    "not accepted late", "grace period", "make-up work", "makeup work",
+    "late penalty", "penalty for late",
+]
+
+
+def mentions_late_policy(text: str) -> bool:
+    """True if the syllabus text describes a late-work policy."""
+    return _any(text, _LATE_POLICY_PATTERNS)
 
 
 # ---------------------------------------------------------------------------
@@ -552,12 +590,31 @@ def detect_ai_policy(text: str) -> dict:
     return {"present": present, "frameworks": frameworks}
 
 
+# A textual grade scale maps LETTER grades to numbers — "A = 93", "B: 83", or a
+# range like "90-100% = A". A lone percentage ("10% off per day") is a late
+# penalty, not a scale, so it must NOT count (else it would suppress the
+# image-only warning below). If a grading section is present but none of this
+# appears AND the body has images, the scale may live only in an image.
+_GRADE_SCALE_RE = re.compile(
+    r"\b[a-df][+-]?\s*[=:]\s*\d{2}"                            # A = 93 / B: 83
+    r"|\d{2,3}\s*%?\s*[-–]\s*\d{2,3}\s*%?\s*[=:]?\s*[a-df]\b",  # 90-100% = A
+    re.IGNORECASE)
+
+
+def has_text_grade_scale(text: str) -> bool:
+    return bool(_GRADE_SCALE_RE.search(text))
+
+
 def detect_advisory(text: str, body: str) -> dict:
     wc = word_count(text)
     return {
         "word_count": wc,
         "bloat": wc > _BLOAT_WORDS,
         "embedded_images": count_images(body),
+        "grade_scale_in_text": has_text_grade_scale(text),
+        "syllabus_states_late_policy": mentions_late_policy(text),
+        # set online in main() to True/False; stays None when not checked (offline)
+        "late_policy_configured": None,
         # DOM-aware, shared with rubric_quality_audit / rubric_recommender (#31):
         # detects the outcomes SECTION (heading/stem), not a bare keyword hit.
         "outcomes_present": detect_outcomes_section(body) is not None,
@@ -657,10 +714,31 @@ def _render(course_id: str, course_name: str, verdict: str, missing: list[str],
                  f"{'yes' if advisory['learning_model_present'] else 'not detected'}"
                  "  [BYUI]")
     img_n = advisory["embedded_images"]
+    # Only warn when there's a real image-only-policy risk: a grading section is
+    # present, images exist, but no textual grade scale was found — so the scale
+    # may be a graphic (invisible to screen readers and this audit). A decorative
+    # banner/logo on a syllabus with a text scale is not flagged.
+    grading_present = any(s["key"] == "grading" and s["detected"] for s in sections)
+    image_only_risk = img_n and grading_present and not advisory["grade_scale_in_text"]
     lines.append(f"  • Images embedded in body: {img_n}"
-                 + (f"  ⚠️ policy content shown only as an image (e.g. a grading-scale "
-                    f"graphic) is invisible to this audit's keyword scan AND to screen "
-                    f"readers — add a plain-text equivalent" if img_n else ""))
+                 + ("  ⚠️ a grading section is present but no plain-text grade scale "
+                    "was found — if the scale is shown only as an image it's invisible "
+                    "to screen readers AND to this audit; add a text equivalent"
+                    if image_only_risk else ""))
+    # Does the course's ACTUAL Canvas Late Policy match what the syllabus states?
+    states_late = advisory.get("syllabus_states_late_policy")
+    configured = advisory.get("late_policy_configured")  # True/False, or None (offline)
+    if states_late and configured is False:
+        lines.append("  • ⚠️ Late-work policy: the syllabus describes one, but Canvas's "
+                     "Late Policy (Gradebook → Settings → Late Policies) is NOT set to "
+                     "enforce it — students can't tell what actually happens, and "
+                     "deductions fall to manual grading")
+    elif states_late and configured is True:
+        lines.append("  • Late-work policy: stated in the syllabus and Canvas's Late "
+                     "Policy is configured to enforce it ✅")
+    elif states_late:  # None — offline, not checked
+        lines.append("  • Late-work policy: stated in the syllabus "
+                     "(Canvas Late Policy setting not checked offline)")
     lines.append("")
 
     if missing:
@@ -811,12 +889,15 @@ def main() -> None:
             print(f"\nCould not fetch course {course_id} (or the request failed).",
                   file=sys.stderr)
             sys.exit(2)
+        late_policy = fetch_late_policy(course_id)
 
     text = html_to_text(body)
     body_words = word_count(text)
     sections = detect_sections(text)
     ai_policy = detect_ai_policy(text)
     advisory = detect_advisory(text, body)
+    if not use_local:  # online: compare the syllabus's late policy to Canvas's setting
+        advisory["late_policy_configured"] = late_policy_enabled(late_policy)
     verdict, missing = compute_verdict(sections, ai_policy, body_words,
                                        ai_policy_required=(institution == "byui"))
 

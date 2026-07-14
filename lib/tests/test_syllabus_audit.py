@@ -137,3 +137,87 @@ def test_grading_scheme_image_only_html_flagged_by_advisory_not_text():
     text = html_to_text(body)
     assert _grading_detected(text)
     assert count_images(body) == 1
+
+
+# ---------------------------------------------------------------------------
+# clarity advisory — call out non-standard phrasing (student cognitive load)
+# ---------------------------------------------------------------------------
+
+def _grading(text):
+    return next(s for s in detect_sections(text) if s["key"] == "grading")
+
+
+def test_points_possible_no_longer_marks_grading_present():
+    """Dropped as too generic — an assignment point value is not a grading policy."""
+    assert not _grading("quiz 1 is worth 10 points possible")["detected"]
+
+
+def test_comprehensive_late_vocabulary_detected():
+    """Real faculty + Canvas vocabulary all detect the grading/late section
+    (no false-negatives) — grounded in 32 live syllabi + Canvas's Late Policy UI."""
+    for phrase in ("late work policy", "late assignments lose 10%",
+                   "late submission deduction", "work submitted late",
+                   "a grace period after the due date", "make-up work is allowed"):
+        assert _grading(phrase)["detected"], phrase
+
+
+def test_has_text_grade_scale():
+    assert S.has_text_grade_scale("A = 93, B = 83")            # letter = number
+    assert S.has_text_grade_scale("90-100% = A, 80-89% = B")   # percent range = letter
+    # a lone percentage is a late penalty, NOT a grade scale — must not count
+    assert not S.has_text_grade_scale("10% off per day an assignment is late")
+    assert not S.has_text_grade_scale("final grades are posted in Canvas")
+
+
+# --- late-policy: syllabus statement vs the course's actual Canvas setting ----
+
+def test_mentions_late_policy():
+    assert S.mentions_late_policy("there is a 10% penalty for late work per day")
+    assert S.mentions_late_policy("no grace period after the due date")
+    assert not S.mentions_late_policy("this course covers data analysis in python")
+
+
+def test_late_policy_enabled():
+    assert S.late_policy_enabled({"late_submission_deduction_enabled": True})
+    assert S.late_policy_enabled({"missing_submission_deduction_enabled": True})
+    assert not S.late_policy_enabled({"late_submission_deduction_enabled": False,
+                                      "missing_submission_deduction_enabled": False})
+    assert not S.late_policy_enabled(None)  # course has no late policy configured
+
+
+def _render_output(sections, advisory):
+    return "\n".join(S._render(
+        "1", "Course", S.COMPLETE, [], sections,
+        {"present": True, "frameworks": []}, advisory, False, "ts"))
+
+
+_BASE_ADVISORY = {"word_count": 500, "bloat": False, "outcomes_present": True,
+                  "learning_model_present": False, "embedded_images": 0,
+                  "grade_scale_in_text": True, "syllabus_states_late_policy": False,
+                  "late_policy_configured": None}
+
+
+def test_render_flags_late_policy_mismatch():
+    """Syllabus states a late policy but Canvas isn't set to enforce it -> warn."""
+    secs = detect_sections("late work loses 10% per day")
+    out = _render_output(secs, {**_BASE_ADVISORY, "syllabus_states_late_policy": True,
+                                "late_policy_configured": False})
+    assert "NOT set to enforce it" in out
+
+
+def test_render_no_mismatch_when_canvas_policy_configured():
+    secs = detect_sections("late work loses 10% per day")
+    out = _render_output(secs, {**_BASE_ADVISORY, "syllabus_states_late_policy": True,
+                                "late_policy_configured": True})
+    assert "NOT set to enforce it" not in out
+    assert "configured to enforce it" in out
+
+
+def test_render_image_warning_only_when_grade_scale_missing():
+    secs = detect_sections("grading scale: refer to the chart")  # grading present
+    warn = _render_output(secs, {**_BASE_ADVISORY, "embedded_images": 2,
+                                 "grade_scale_in_text": False})
+    assert "invisible to screen readers" in warn          # image-only risk -> warn
+    ok = _render_output(secs, {**_BASE_ADVISORY, "embedded_images": 2,
+                               "grade_scale_in_text": True})
+    assert "invisible to screen readers" not in ok        # text scale present -> quiet
