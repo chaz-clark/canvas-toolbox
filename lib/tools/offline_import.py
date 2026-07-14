@@ -29,6 +29,7 @@ import argparse
 import html
 import json
 import re
+import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -103,6 +104,10 @@ def quiz_from_xml(xml: str, published: bool | None) -> dict:
     ref = _field(xml, "assignment_group_identifierref")
     if ref:
         d["assignment_group_identifierref"] = ref   # quizzes belong to a group too
+    rr = _field(xml, "rubric_identifierref")
+    if rr:
+        d["rubric_identifierref"] = rr              # a quiz can carry a rubric too
+        d["rubric_use_for_grading"] = _field(xml, "rubric_use_for_grading") or "false"
     _dates_points(xml, d)
     return d
 
@@ -195,6 +200,14 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
     """Convert a .imscc into course/. Returns a summary count dict."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+
+    # Keep the ORIGINAL cartridge as a sidecar (course/.source.imscc). course/ is
+    # a lossy, audit-oriented projection; the .imscc is the faithful source of
+    # truth (quiz questions, files, LTI, rubric text). imscc_record patches this
+    # sidecar in place to record course/ edits. Dotfile at the course root: the
+    # loader only globs `*/_module.json` + named files, so it never sees it.
+    shutil.copyfile(imscc_path, out / ".source.imscc")
+
     z = zipfile.ZipFile(imscc_path)
     names = set(z.namelist())
 
@@ -249,6 +262,10 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
     hrefs = _manifest_hrefs(read("imsmanifest.xml"))
     counts = {"modules": 0, "assignments": 0, "quizzes": 0, "pages": 0}
     captured: set[str] = set()   # identifierrefs written via modules
+    # EXACT ref -> file join for the WRITE path (imscc_record). A resource can be
+    # an item in several modules under different per-module titles, so the mirror
+    # cannot re-derive the filename from a title — we record the real path here.
+    index: dict[str, dict] = {}
 
     mm = read("course_settings/module_meta.xml")
     for mpos, mod in enumerate(re.findall(r"<module\b[^>]*>(.*?)</module>", mm, re.S), start=1):
@@ -275,16 +292,23 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
                 body = next((n for n in names if n.startswith(f"{ref}/") and n.endswith(".html")), None)
                 if body:
                     data["description"] = read(body)
-                (mod_dir / f"{slugify(it_title)}.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+                fn = f"{slugify(it_title)}.json"
+                (mod_dir / fn).write_text(json.dumps(data, indent=2), encoding="utf-8")
+                index[ref] = {"path": f"{mod_slug}/{fn}", "type": ct}
                 counts["assignments"] += 1
                 captured.add(ref)
             elif ct == "Quizzes::Quiz" and f"{ref}/assessment_meta.xml" in names:
                 data = quiz_from_xml(read(f"{ref}/assessment_meta.xml"), it_pub)
-                (mod_dir / f"{slugify(it_title)}.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+                attach_rubric(data, rubrics)
+                fn = f"{slugify(it_title)}.json"
+                (mod_dir / fn).write_text(json.dumps(data, indent=2), encoding="utf-8")
+                index[ref] = {"path": f"{mod_slug}/{fn}", "type": ct}
                 counts["quizzes"] += 1
                 captured.add(ref)
             elif ct == "WikiPage" and hrefs.get(ref) in names:
-                (mod_dir / f"{slugify(it_title)}.html").write_text(read(hrefs[ref]), encoding="utf-8")
+                fn = f"{slugify(it_title)}.html"
+                (mod_dir / fn).write_text(read(hrefs[ref]), encoding="utf-8")
+                index[ref] = {"path": f"{mod_slug}/{fn}", "type": ct}
                 counts["pages"] += 1
                 captured.add(ref)
         (mod_dir / "_module.json").write_text(
@@ -315,14 +339,21 @@ def import_imscc(imscc_path, out_dir="course") -> dict:
             counts["assignments"] += 1
         else:
             data = quiz_from_xml(read(n), None)
+            attach_rubric(data, rubrics)
             counts["quizzes"] += 1
-        (unfiled / f"{slugify(data.get('name') or rid)}.json").write_text(
-            json.dumps(data, indent=2), encoding="utf-8")
+        fn = f"{slugify(data.get('name') or rid)}.json"
+        (unfiled / fn).write_text(json.dumps(data, indent=2), encoding="utf-8")
+        index[rid] = {"path": f"_unfiled/{fn}",
+                      "type": "Assignment" if n.endswith("assignment_settings.xml")
+                      else "Quizzes::Quiz"}
     if unfiled.is_dir():
         (unfiled / "_module.json").write_text(
             json.dumps({"title": "(unfiled)", "published": False, "items": []}, indent=2),
             encoding="utf-8")
 
+    # The exact ref -> file map imscc_record joins on (top-level `_` file, so the
+    # loader's `*/...` globs never pick it up — same as _outcomes.json).
+    (out / "_index.json").write_text(json.dumps(index, indent=2), encoding="utf-8")
     return counts
 
 
@@ -339,6 +370,7 @@ def main(argv=None) -> int:
     c = import_imscc(args.imscc, args.out)
     print(f"✓ imported {args.imscc.name} -> {args.out}/")
     print(f"  modules={c['modules']} assignments={c['assignments']} quizzes={c['quizzes']} pages={c['pages']}")
+    print(f"  source of truth saved: {args.out}/.source.imscc (imscc_record patches this to record your edits)")
     print("  Now any tool with --local reads it: e.g. workload_audit.py --local")
     return 0
 

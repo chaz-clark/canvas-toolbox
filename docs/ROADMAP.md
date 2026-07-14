@@ -753,6 +753,29 @@ If you build a tool for one of these API categories:
     blueprint *sync* does not push outcomes to existing children — course copy does).
   - **Filed:** 2026-07-12 during offline-mode S7; shipped same day.
 
+- **SAS accommodations LTI — bundle the API-only student-write tools into a Canvas LTI app.**
+  Take the student-specific accommodation tools — `apply_sas_accommodations` (YAML dispatcher,
+  4-tier classify, FERPA audit log), `student_late_accommodation` (submit-anything-late +
+  `--shift-by-days` test-reschedule), `student_quiz_time_extension` (per-student classic-quiz
+  time multiplier), and the candidates `exempt_by_date` + `submit_on_behalf` — and expose them
+  through a **Canvas LTI 1.3 app** launched from inside a course, instead of the CLI.
+  - **Why LTI, not offline:** these are inherently **API-only** — they act on per-student data
+    (enrollments, per-student overrides / quiz extensions) that is NOT in a `.imscc` export, so
+    offline mode can't cover them. That's the tool-boundary line: read/report → offline;
+    per-student writes → API. An LTI is the right way to make them faculty-usable **without** a
+    personal API token or the CLI: LTI Advantage (OIDC launch, Names-and-Roles for the roster,
+    Assignment & Grade Services) handles auth + per-student targeting from inside Canvas.
+  - **Shape:** LTI 1.3 tool (OIDC login → launch/deep-link), registered as a Canvas Developer
+    Key; a small course-nav / assignment-level UI to pick a student + accommodation and apply it.
+    Reuses the existing FERPA discipline + `canvas_course_guard` posture. The per-student writes
+    map to the same Canvas overrides / quiz-extension endpoints the CLI already calls.
+  - **Hosting:** natural fit for **`edge-infra`** (the Cloudflare sister repo) — an LTI tool is a
+    small web service; Workers + KV/D1 can host the OIDC dance + state alongside the heartbeat /
+    bug-intake workers.
+  - **Payoff:** removes the CLI/token barrier for faculty on the accommodations that can't go
+    offline; complements offline mode (which covers the read/report + content tools).
+  - **Filed:** 2026-07-13 (parking lot).
+
 ---
 
 ## References
