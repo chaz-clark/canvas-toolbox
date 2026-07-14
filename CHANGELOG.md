@@ -12,6 +12,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.10] — 2026-07-14
+
+**`sync --status` / `--push` now report the course-level files (homepage, syllabus, `_course.json`) they write.** (#172, contributed by @matjmiles)
+
+`cmd_status` diffed only `index["files"]`, but `cmd_push` also writes the homepage, syllabus, and `_course.json` (late_policy) — each tracked under its own index key, all before the "Nothing to push" guard. So `--status` could print "Everything up to date" while `--push` overwrote a live syllabus; and `--push` printed "Nothing to push" even when it had just pushed one. `--status` is the documented pre-push safety check, so under-reporting was the dangerous direction.
+
+### Fixed
+- **`canvas_sync.py`** — `cmd_status` diffs the course-level files via `_special_file_changes` (homepage/syllabus/`course_hash`, gated exactly like push), and `cmd_push`'s summary (`_push_summary`) names what it pushed instead of always saying "Nothing to push". Correctly scoped: it inspects only those three fixed keys, so it never reports the metadata sidecars (`_outcomes.json`, `_index.json`, ExternalUrl sidecars) that #173/#180 keep out of `index["files"]`. Added an integration test driving `cmd_status()` end-to-end (guards the wiring, not just the helper).
+
+---
+
 ## [1.7.9] — 2026-07-13
 
 **`submit_on_behalf` now uses Canvas's real proxy-submission path (GraphQL), not the REST endpoint that 403s on locked assignments.**
