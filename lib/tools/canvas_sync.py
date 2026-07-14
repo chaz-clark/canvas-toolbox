@@ -1200,12 +1200,19 @@ def _cleanup_stale_files(course_dir: Path, tracked_paths: set, meta_paths: set) 
     created them, so the mirror silently omitted every ExternalUrl/ExternalTool
     item. They are Canvas-backed, not stale: protect them here, and let a pull
     that stops writing one (because Canvas dropped it) legitimately sweep it.
+
+    Any `_*.json` is a metadata sidecar, never a Canvas content mirror (which is
+    always <slug>.json / <slug>.html), so the whole class is exempt: _module.json,
+    _course.json, the pull's own _outcomes.json (written but not tracked → it
+    self-deleted every run), and offline_import's _assignment_groups.json /
+    _index.json (the ref->file join map imscc_record needs). A stale such file is
+    simply overwritten or left by its writer, not swept.
     """
     deleted = []
     for ext in ("*.json", "*.html"):
         for f in course_dir.rglob(ext):
-            if f.name == "_module.json":
-                continue
+            if f.name.startswith("_") and f.name.endswith(".json"):
+                continue  # metadata sidecar (see docstring) — never Canvas content
             if f.name.endswith(".questions.json"):
                 continue  # local-only quiz push source — never Canvas-backed
             if f.name.endswith(".newquiz.json"):

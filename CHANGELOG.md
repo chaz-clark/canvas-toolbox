@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.8] — 2026-07-13
+
+**`pull` stale-sweep no longer deletes metadata sidecars — the whole `_*.json` class is now protected.**
+
+Follow-up to #173 (which fixed the ExternalUrl/ExternalTool sidecars). The stale-file sweep in `canvas_sync.py` (`_cleanup_stale_files`) globs `*.json` / `*.html` and deletes anything untracked; it only name-exempted `_module.json`. A `_*.json` at the course root is always a metadata sidecar, never a Canvas content mirror (`<slug>.json` / `<slug>.html`), so the whole class is now exempt. This fixes two live problems:
+
+- **`_outcomes.json` self-deleted on every online pull** — the pull writes it (`canvas_sync.py:704`) but never tracked it, so the sweep removed it in the same run, silently leaving the local mirror without outcomes (broke `--local` CLO audits).
+- **Offline write-path artifacts were exposed** — `offline_import`'s `_index.json` (the `ref→file` map `imscc_record` needs) and `_assignment_groups.json` would be swept if a `pull` ran over an offline-imported `course/`. (`.source.imscc` already survived — `.imscc` isn't globbed; `_course.json` was already protected.)
+
+### Fixed
+- `_cleanup_stale_files` exempts any `_*.json` (subsumes the `_module.json` exemption; keeps `*.questions.json` / `*.newquiz.json` and #173's `meta_paths`). 3 new tests in `test_canvas_sync_metadata_sidecars.py`: `_outcomes.json` survives the sweep, `_index.json` / `_assignment_groups.json` survive, and a genuinely stale non-underscore `<slug>.json` is still deleted.
+
+---
+
 ## [1.7.7] — 2026-07-13
 
 **Offline WRITE — record `course/` edits back into the source `.imscc` faithfully (`imscc_record`).**
