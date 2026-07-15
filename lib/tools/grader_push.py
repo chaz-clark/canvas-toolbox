@@ -151,6 +151,25 @@ def comment_for(feedback_file: str) -> str:
     return t.split("## Comment to student", 1)[1].strip()
 
 
+# Transparency disclosure (default, no opt-out): every AI-drafted feedback
+# comment carries this tag so a student always knows the words were drafted by
+# AI and reviewed by their instructor — never passed off as solely the
+# instructor's own. Applied at send-time to the AI-drafted comment only; a
+# manual default_comment (not AI-drafted) is left alone by callers.
+DISCLOSURE_TAG = "— AI drafted, instructor reviewed"
+
+
+def append_disclosure_tag(comment: str) -> str:
+    """Append DISCLOSURE_TAG to an AI-drafted comment. Empty -> unchanged (never
+    invents a tag-only comment); already-tagged -> unchanged (idempotent on
+    re-push)."""
+    if not comment or not comment.strip():
+        return comment
+    if comment.rstrip().endswith(DISCLOSURE_TAG):
+        return comment
+    return f"{comment.rstrip()}\n\n{DISCLOSURE_TAG}"
+
+
 # Issue #72: HOLD_<DIMENSION> grade-hold pattern (lifted from itm327's
 # build_mid_letter_comments + push_mid_letter). When a per-student
 # feedback file's top-of-file heading carries a trailing `· HOLD_<TOKEN>`
@@ -1259,7 +1278,7 @@ def main() -> int:
         key = r.get("key", "")
         grade = (r.get("final_grade") or "").strip() or (r.get("recommended_score") or "").strip()
         comment = "" if args.grade_only else (
-            comment_for(r.get("feedback_file", "")) or args.default_comment)
+            append_disclosure_tag(comment_for(r.get("feedback_file", ""))) or args.default_comment)
         uid = resolve_user_id(r.get("submission_file", ""), subs)
         done = key in pushed_keys and not args.force
         ok = bool(grade and uid and (comment or args.grade_only)) and not done
