@@ -176,6 +176,24 @@ def _file_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
 
 
+def _course_late_policy_hash(path: Path) -> str:
+    """Hash ONLY the late_policy sub-object of _course.json.
+
+    cmd_push round-trips only late_policy (PATCH .../late_policy) — never name,
+    course_code, dates, or grading_standard_id. So status and the stored
+    course_hash must reflect exactly that. Hashing the whole file instead made an
+    edit to a non-pushable field (e.g. name) show as `M [Course]` in --status and
+    then get silently dropped by --push, which still reported OK (#182). Scoping
+    the hash to late_policy keeps status honest: [Course] appears only when
+    something push can actually write has changed.
+    """
+    try:
+        lp = json.loads(path.read_text(encoding="utf-8")).get("late_policy", {})
+    except (OSError, json.JSONDecodeError):
+        return ""
+    return hashlib.sha256(json.dumps(lp, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+
+
 def _slug(text: str) -> str:
     """Convert a title to a filesystem-safe slug."""
     text = text.lower()
@@ -651,7 +669,7 @@ def cmd_init():
     course_path = COURSE_DIR / "_course.json"
     course_path.write_text(json.dumps(course_meta, indent=2))
     index["course"] = course_meta  # summary in index for agent lookup
-    index["course_hash"] = _file_hash(course_path)
+    index["course_hash"] = _course_late_policy_hash(course_path)  # only late_policy pushes (#182)
     print(f"Course: {course.get('name')}")
 
     # Homepage (Canvas front_page — not a module item)
@@ -1251,6 +1269,11 @@ def _special_file_changes(index: dict, course_path: Optional[Path] = None) -> li
     guard. cmd_status must diff them too — a status that under-reports what push
     will do is the dangerous direction to be wrong in on a live course.
 
+    _course.json is diffed by its late_policy sub-object ONLY (via
+    _course_late_policy_hash), because that is the only field cmd_push writes.
+    Edits to name/dates/grading_standard_id are not pushable and must not show as
+    a pending [Course] change (#182).
+
     Returns a list of (label, filepath) for whatever is dirty.
     """
     course_path = Path(course_path) if course_path is not None else COURSE_DIR / "_course.json"
@@ -1264,7 +1287,7 @@ def _special_file_changes(index: dict, course_path: Optional[Path] = None) -> li
         if path.exists() and _file_hash(path) != meta.get("hash"):
             changes.append((label, str(path)))
 
-    if course_path.exists() and _file_hash(course_path) != index.get("course_hash"):
+    if course_path.exists() and _course_late_policy_hash(course_path) != index.get("course_hash"):
         changes.append(("Course", str(course_path)))
 
     return changes
@@ -1471,7 +1494,7 @@ def cmd_push(target: Optional[str] = None):
     # Check _course.json — late_policy and other course-level settings
     course_path = COURSE_DIR / "_course.json"
     if course_path.exists() and (not target or "_course" in target or "course" == target):
-        course_hash = _file_hash(course_path)
+        course_hash = _course_late_policy_hash(course_path)  # only late_policy pushes (#182)
         stored_hash = index.get("course_hash")
         if course_hash != stored_hash:
             print(f"  [Course] {course_path}")

@@ -29,6 +29,14 @@ def _write(path: Path, text: str) -> str:
     return canvas_sync._file_hash(path)
 
 
+def _write_course(path: Path, late_policy: dict, **fields) -> str:
+    """Write a realistic _course.json (late_policy + course-level fields) and
+    return its late_policy-ONLY hash — what --status/--push actually compare (#182)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"late_policy": late_policy, **fields}), encoding="utf-8")
+    return canvas_sync._course_late_policy_hash(path)
+
+
 def test_no_changes_on_a_freshly_pulled_mirror(tmp_path):
     home = tmp_path / "homepage.html"
     syl = tmp_path / "syllabus.html"
@@ -36,7 +44,7 @@ def test_no_changes_on_a_freshly_pulled_mirror(tmp_path):
     index = {
         "homepage": {"filepath": str(home), "hash": _write(home, "<p>home</p>")},
         "syllabus": {"filepath": str(syl), "hash": _write(syl, "<p>syllabus</p>")},
-        "course_hash": _write(course, json.dumps({"late_policy": {}})),
+        "course_hash": _write_course(course, {}),
     }
     assert canvas_sync._special_file_changes(index, course_path=course) == []
 
@@ -57,7 +65,7 @@ def test_detects_edited_homepage_and_course(tmp_path):
     course = tmp_path / "_course.json"
     index = {
         "homepage": {"filepath": str(home), "hash": _write(home, "<p>home</p>")},
-        "course_hash": _write(course, json.dumps({"late_policy": {"late_percent": 10}})),
+        "course_hash": _write_course(course, {"late_percent": 10}),
     }
     home.write_text("<p>EDITED</p>", encoding="utf-8")
     course.write_text(json.dumps({"late_policy": {"late_percent": 50}}), encoding="utf-8")
@@ -65,6 +73,34 @@ def test_detects_edited_homepage_and_course(tmp_path):
     labels = [label for label, _ in canvas_sync._special_file_changes(index, course_path=course)]
 
     assert labels == ["Homepage", "Course"]
+
+
+def test_name_edit_alone_is_not_flagged(tmp_path):
+    """#182: editing a non-pushable field (name) must NOT show as `[Course]`.
+    --push only round-trips late_policy, so surfacing a name edit as pending would
+    imply a sync that then gets silently dropped."""
+    course = tmp_path / "_course.json"
+    index = {"course_hash": _write_course(course, {"late_percent": 10}, name="BIO 101")}
+    # change ONLY the name; late_policy untouched
+    course.write_text(
+        json.dumps({"late_policy": {"late_percent": 10}, "name": "BIO 101 - Fall"}),
+        encoding="utf-8")
+
+    assert canvas_sync._special_file_changes(index, course_path=course) == []
+
+
+def test_late_policy_edit_is_flagged_even_with_other_fields(tmp_path):
+    """The flip side of #182: a real late_policy change IS flagged, even when the
+    file also carries name/dates that never push."""
+    course = tmp_path / "_course.json"
+    index = {"course_hash": _write_course(course, {"late_percent": 10}, name="BIO 101")}
+    course.write_text(
+        json.dumps({"late_policy": {"late_percent": 50}, "name": "BIO 101"}),
+        encoding="utf-8")
+
+    labels = [label for label, _ in canvas_sync._special_file_changes(index, course_path=course)]
+
+    assert labels == ["Course"]
 
 
 def test_absent_files_are_not_reported(tmp_path):
