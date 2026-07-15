@@ -268,6 +268,7 @@ Canvas Toolbox is the third option: **AI-assisted grading you train, review, and
 - **Brain-agnostic LLM** — Claude, GPT, Gemini, or local Ollama. You're not locked into a vendor.
 - **Read-only by default for audits** — every audit reports findings; none of them change anything in your Canvas course.
 - **Local files are source of truth** — Canvas is the sync target, not the source. Nothing pushes without your explicit approval.
+- **Trusted-operator token model** — cb reads `CANVAS_API_TOKEN` from your environment and calls Canvas directly; it assumes *you* run it. If an autonomous agent runs cb, keep the token out of the agent's environment and isolate it at the deployment layer — cb can't (and won't pretend to) hide a secret from a process that can read files.
 
 ### Grading safety gates (the highest-stakes workflow)
 
