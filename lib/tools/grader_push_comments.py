@@ -98,6 +98,7 @@ except ImportError:
 # Reuse the existing write-path guards rather than reimplementing them
 # (issues #61 / #62 / #63 / #65).
 from grader_push import (  # noqa: E402
+    append_disclosure_tag,
     fetch_active_filter,
     fetch_assignment_lock_state,
     comment_has_resubmit_language,
@@ -405,7 +406,7 @@ def main() -> int:
     failed: list[int] = []
     with log.open("a", encoding="utf-8") as lg:
         for row in pushable:
-            data = {"comment[text_comment]": row["comment"]}
+            data = {"comment[text_comment]": append_disclosure_tag(row["comment"])}
             resp = requests.put(
                 f"{base}/api/v1/courses/{cid}/assignments/{args.assignment_id}"
                 f"/submissions/{row['uid']}",

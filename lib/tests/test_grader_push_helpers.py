@@ -25,6 +25,8 @@ from grader_push import (  # noqa: E402
     validate_grade_for_grading_type,
     is_group_mirror_row,
     filter_group_mirror_rows,
+    append_disclosure_tag,
+    DISCLOSURE_TAG,
 )
 
 
@@ -759,3 +761,31 @@ def test_filter_group_mirror_whitespace_final_grade_treated_as_blank():
     kept, dropped = filter_group_mirror_rows(rows, ctx)
     assert {r["key"] for r in kept} == {"REP"}
     assert {r["key"] for r in dropped} == {"M"}
+
+
+# ---------------------------------------------------------------------------
+# append_disclosure_tag — the no-opt-out AI-disclosure tag on every comment
+# ---------------------------------------------------------------------------
+
+def test_disclosure_tag_appended_to_a_comment():
+    out = append_disclosure_tag("Great work on the SQL joins.")
+    assert out.endswith(DISCLOSURE_TAG)
+    assert out.startswith("Great work on the SQL joins.")
+
+
+def test_disclosure_tag_is_idempotent():
+    """Re-pushing an already-tagged comment must not double-tag it."""
+    once = append_disclosure_tag("Nice analysis.")
+    assert append_disclosure_tag(once) == once
+    assert once.count(DISCLOSURE_TAG) == 1
+
+
+def test_disclosure_tag_not_added_to_empty_or_whitespace():
+    """Never invent a tag-only comment (a grade-only push has no comment)."""
+    assert append_disclosure_tag("") == ""
+    assert append_disclosure_tag("   ") == "   "
+
+
+def test_disclosure_tag_wording_is_honest():
+    """It must say AI *drafted* (not 'assisted') + instructor *reviewed*."""
+    assert DISCLOSURE_TAG == "— AI drafted, instructor reviewed"

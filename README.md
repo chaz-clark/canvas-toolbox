@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/chaz-clark/canvas-toolbox/actions/workflows/ci.yml/badge.svg)](https://github.com/chaz-clark/canvas-toolbox/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
 
-**FERPA-safe AI-assisted Canvas LMS toolkit. Your voice, your choice, you're always in the loop. Your students' privacy is #1.**
+**FERPA-safe AI-assisted Canvas LMS toolkit. Your voice, your judgment, honestly disclosed — you're always in the loop. Your students' privacy is #1.**
 
 > **This is** how an instructor uses AI as a *tool* — staying the author of everything in Canvas including grades and every word the student reads.
 >
@@ -176,7 +176,7 @@ Three core jobs — jump straight in, or skim the full workflow list further dow
 
 | 🏗️ **Build & revise** | 🔍 **Audit & improve** | ✅ **Grade** |
 |:-:|:-:|:-:|
-| Add or revise modules, assessments, and rubrics in a course you already teach — or design a new one from scratch. Built backward from outcomes, guided by 20+ pedagogical knowledge files. | Run read-only health audits — alignment, accessibility, workload, Title IV UW/UF — and get a prioritized fix list. Nothing changes without your say-so. | Fetch → de-identify → 3-pass consensus → edit in your voice → push, gated end-to-end. The AI never signs its name; you do. |
+| Add or revise modules, assessments, and rubrics in a course you already teach — or design a new one from scratch. Built backward from outcomes, guided by 20+ pedagogical knowledge files. | Run read-only health audits — alignment, accessibility, workload, Title IV UW/UF — and get a prioritized fix list. Nothing changes without your say-so. | Fetch → de-identify → 3-pass consensus → edit in your voice → push, gated end-to-end. You own the judgment; every comment is tagged AI-assisted, human-reviewed. |
 | [Build or improve a course →](#architecting-a-course-with-ai-assistance) | [Audit your course →](#auditing-your-course) | [Grade an assignment →](#grading-an-assignment) |
 
 ---
@@ -240,7 +240,7 @@ The wedge moment is grading. Two faculty teaching the same Canvas course shouldn
 1. **AI does the grading and signs the AI's name to it.** Students see "AI Grader" as the comment author.
 2. **The instructor does every comment by hand.** Doesn't scale past 30 students.
 
-Canvas Toolbox is the third option: **AI-assisted everything where the instructor stays the author.** The agent does the legwork. The instructor reviews and approves. The student sees their professor — not "AI Grader" — as the author of the grade and the words.
+Canvas Toolbox is the third option: **AI-assisted grading you train, review, and disclose.** You train the agent on your own voice, set its boundaries, and review and edit every word — you own the judgment. And students are told plainly that grading is AI-assisted: every comment is tagged as such, so the AI's help is acknowledged, never passed off as solely your own. Personal *and* scalable *and* honest.
 
 ### What changes
 
@@ -248,7 +248,7 @@ Canvas Toolbox is the third option: **AI-assisted everything where the instructo
 |---|---|---|
 | **Editing course content** | Click through Canvas one item at a time | Pull to your computer; edit in any text editor; push back |
 | **Auditing your course** | Hope nothing's broken | 11 read-only audits compose one health report (PDF + MD) |
-| **Grading at scale** | Manual click-through SpeedGrader | FERPA-safe AI-assisted; you stay the author of every word |
+| **Grading at scale** | Manual click-through SpeedGrader | FERPA-safe AI-assisted in your voice; you review and edit every word, and every comment is tagged AI-assisted for students |
 | **Title IV UW/UF reporting** | Manually trawl SpeedGrader + Discussions + Quizzes per student at term-end | One command → classified report in `~/Downloads/`; compliant with 34 CFR 668.22 |
 | **Sharing with another faculty teaching the same course** | Email files; lose track of versions | Bundle + import with voice-preservation built in |
 | **Rolling out a new semester** | Manually copy modules + fix broken IDs | Sync master to Blueprint; Canvas handles section distribution |
@@ -264,6 +264,7 @@ Canvas Toolbox is the third option: **AI-assisted everything where the instructo
 
 - **FERPA two-zone** — the cloud sees opaque keys (`KC1-A1B2C3`). Only the local zone has names. The AI never reads a student name. Files on disk are keyed by `user_id`, never by name.
 - **Voice-preservation** — per-instructor voice files are NEVER copied, exported, or shared between faculty. Your voice is yours alone.
+- **AI disclosure, no opt-out** — every AI-drafted feedback comment posts with `— AI drafted, instructor reviewed` appended. You own the judgment and review/edit the words, but the disclosure itself has no off switch. Students are never led to believe feedback was solely yours when AI drafted it — honesty runs both directions (the tag is only added to AI-drafted comments, never to your own hand-written notes).
 - **Brain-agnostic LLM** — Claude, GPT, Gemini, or local Ollama. You're not locked into a vendor.
 - **Read-only by default for audits** — every audit reports findings; none of them change anything in your Canvas course.
 - **Local files are source of truth** — Canvas is the sync target, not the source. Nothing pushes without your explicit approval.

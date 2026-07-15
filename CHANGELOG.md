@@ -12,6 +12,21 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.12] — 2026-07-15
+
+**Transparency: every AI-drafted feedback comment is now tagged `— AI drafted, instructor reviewed` — default, no opt-out.**
+
+Reframes the README's grading positioning from "the instructor stays the author" (which could read as passing AI-drafted feedback off as solely the instructor's) to honest disclosure, and backs it with a real mechanism so the claim is true, not just stated.
+
+### Added
+- **`append_disclosure_tag`** (`grader_push.py`) — appends `— AI drafted, instructor reviewed` to every AI-drafted feedback comment at send-time, applied by both `grader_push` and `grader_push_comments`. Idempotent (never double-tags on re-push); never invents a tag-only comment on a grade-only push. Honesty cuts both ways: only AI-drafted comments are tagged — a manual `default_comment` or a hand-written note (`submit_on_behalf`) is left alone.
+- New architectural commitment in the README: **AI disclosure, no opt-out.**
+
+### Changed
+- README "Why this exists" / "What changes" reworked: the differentiator is now *honest disclosure of AI-assisted grading*, not who appears as the author.
+
+---
+
 ## [1.7.11] — 2026-07-15
 
 **`syllabus_audit`: comprehensive, evidence-grounded late-work detection.** (#140, by @thiebaudr-lab)
