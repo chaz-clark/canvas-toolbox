@@ -1,0 +1,24 @@
+{
+  "profile_id": "three_tier",
+  "schema_version": "1.0",
+  "version": "1.0.0",
+  "display_name": "Three-tier agency (coarse)",
+  "status": "validated",
+  "attribution": "canvas-toolbox coarse agency model. The three modes ARE the three tiers — the revert target from the finer aimodes profile. No external attribution.",
+  "tiers": [
+    {"id": "passivity",   "order": 1, "label": "Passivity",   "agency_weight": 0,   "description": "Student outsources thinking; AI produces, student receives."},
+    {"id": "partnership", "order": 2, "label": "Partnership", "agency_weight": 50,  "description": "Student and AI think together; shared cognitive load."},
+    {"id": "agency",      "order": 3, "label": "Agency",      "agency_weight": 100, "description": "Student drives and checks the AI; AI serves the student's direction."}
+  ],
+  "modes": [
+    {"id": "passivity",   "tier": "passivity",   "label": "Passivity",   "threshold": 0.20, "definition": "Student takes AI output as-is — asks for answers or delegates production.", "signals": ["'what is the answer'", "'write it for me'", "accepts output without engaging"]},
+    {"id": "partnership", "tier": "partnership", "label": "Partnership", "threshold": 0.40, "definition": "Student learns with or works alongside the AI — explanation-seeking or joint iteration.", "signals": ["'explain why'", "'here's my idea, refine it'", "back-and-forth reasoning"]},
+    {"id": "agency",      "tier": "agency",      "label": "Agency",      "threshold": 0.40, "definition": "Student drives — verifies their own work, expands options, invites critique, or sets the problem.", "signals": ["'check my work'", "'argue against this'", "student owns problem definition"]}
+  ],
+  "archetypes": [
+    {"id": "delegator", "label": "Delegator", "rule": "tier:passivity >= 0.50"},
+    {"id": "partner",   "label": "Partner",   "rule": "tier:partnership >= 0.50"},
+    {"id": "driver",    "label": "Driver",    "rule": "tier:agency >= 0.50"}
+  ],
+  "archetype_default": "partner"
+}

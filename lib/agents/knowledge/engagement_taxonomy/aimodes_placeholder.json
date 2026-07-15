@@ -1,0 +1,106 @@
+{
+  "profile_id": "aimodes_placeholder",
+  "schema_version": "1.0",
+  "version": "0.1.0-placeholder",
+  "display_name": "AI Modes (placeholder approximation)",
+  "status": "placeholder",
+  "attribution": "Structure inspired by aimodes.ai (Dr. Mark Keith, BYU). Definitions and thresholds are canvas-toolbox's own working drafts for development only — NOT Keith's validated instrument. Do not represent output as his model.",
+  "tiers": [
+    {
+      "id": "passivity",
+      "order": 1,
+      "label": "Passivity",
+      "agency_weight": 0,
+      "description": "Student outsources the thinking; AI produces, student receives."
+    },
+    {
+      "id": "partnership",
+      "order": 2,
+      "label": "Partnership",
+      "agency_weight": 50,
+      "description": "Student and AI think together; shared cognitive load."
+    },
+    {
+      "id": "agency",
+      "order": 3,
+      "label": "Agency",
+      "agency_weight": 100,
+      "description": "Student drives and checks the AI; the AI serves the student's direction."
+    }
+  ],
+  "modes": [
+    {
+      "id": "oracle",
+      "tier": "passivity",
+      "label": "Oracle",
+      "threshold": 0.10,
+      "definition": "Student asks for a fact or answer and takes it as-is, with no reasoning exchange.",
+      "signals": ["asks 'what is the answer to...'", "accepts the reply without questioning", "no attempt to reason through it themselves"]
+    },
+    {
+      "id": "production_assistant",
+      "tier": "passivity",
+      "label": "Production Assistant",
+      "threshold": 0.10,
+      "definition": "Student delegates production of an artifact and takes the output to use directly.",
+      "signals": ["'write the code/essay/email for...'", "'do X for me'", "receives a finished artifact to submit or use"]
+    },
+    {
+      "id": "tutor",
+      "tier": "partnership",
+      "label": "Tutor",
+      "threshold": 0.20,
+      "definition": "Student asks the AI to explain or teach a concept so that the student understands it.",
+      "signals": ["'explain why X works'", "'help me understand...'", "asks follow-ups that show they are trying to learn, not just get output"]
+    },
+    {
+      "id": "collab_solver",
+      "tier": "partnership",
+      "label": "Collaborative Problem-Solver",
+      "threshold": 0.20,
+      "definition": "Student and AI iterate jointly on a problem — the student proposes, the AI refines, the student pushes back and contributes.",
+      "signals": ["'here's my idea, what do you think'", "back-and-forth refinement", "student contributes substance, not just prompts"]
+    },
+    {
+      "id": "verification_agent",
+      "tier": "agency",
+      "label": "Verification Agent",
+      "threshold": 0.10,
+      "definition": "Student has done the work and uses the AI to check their own reasoning or find their own errors.",
+      "signals": ["'here is my solution — is it correct?'", "'where is my error?'", "the student's own work is present and central"]
+    },
+    {
+      "id": "creative_expander",
+      "tier": "agency",
+      "label": "Creative Expander",
+      "threshold": 0.10,
+      "definition": "Student directs the AI to broaden the option space beyond their own ideas, then selects among the results themselves.",
+      "signals": ["'give me 5 alternative approaches'", "'what haven't I considered'", "student retains selection/decision"]
+    },
+    {
+      "id": "critical_challenger",
+      "tier": "agency",
+      "label": "Critical Challenger",
+      "threshold": 0.10,
+      "definition": "Student invites adversarial pressure — asks the AI to critique, argue against, or find holes in the student's own position.",
+      "signals": ["'argue against my thesis'", "'find the holes in this'", "'steelman the opposing view'"]
+    },
+    {
+      "id": "problem_setter",
+      "tier": "agency",
+      "label": "Problem Setter",
+      "threshold": 0.10,
+      "definition": "Student frames and scopes the problem itself, sets the agenda, and uses the AI as an instrument toward a goal the student owns.",
+      "signals": ["defines what to solve and why", "directs the AI's role", "sequences sub-tasks toward a student-owned objective"]
+    }
+  ],
+  "archetypes": [
+    {"id": "delegator",  "label": "Delegator",  "rule": "tier:passivity >= 0.50"},
+    {"id": "learner",    "label": "Learner",    "rule": "modal_mode == tutor"},
+    {"id": "partner",    "label": "Partner",    "rule": "tier:partnership >= 0.50"},
+    {"id": "challenger", "label": "Challenger", "rule": "mode:critical_challenger >= threshold AND tier:agency >= 0.33"},
+    {"id": "explorer",   "label": "Explorer",   "rule": "mode:creative_expander + mode:problem_setter >= 0.25"},
+    {"id": "specialist", "label": "Specialist", "rule": "any_agency_mode >= 0.40"}
+  ],
+  "archetype_default": "partner"
+}
