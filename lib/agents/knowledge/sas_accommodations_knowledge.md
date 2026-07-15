@@ -34,6 +34,27 @@ agents reason about what's automatable vs. instructor-discretion.
 | `occasional_extensions` | "Students are expected to meet assignment deadlines. However, occasional extensions may be appropriate…" | `student_late_accommodation --all` (or scoped by YAML `scope`) | Dropped `lock_at` (no close date). Scope flags: `from_days_ago`, `from`. |
 | `test_reschedule` | "This student has health issues that may warrant a need to reschedule their exam date…" | `student_late_accommodation --shift-by-days N` | Shifts unlock/due/lock forward by N days. Distinct from `occasional_extensions`. |
 
+### `occasional_extensions` vs `test_reschedule` — pick by what should move
+
+Both call `student_late_accommodation`, but they change **different dates**. Pick by
+intent, not by the word "reschedule" (mis-picking these is what surfaced #178):
+
+| What the letter/instructor actually means | Use | What changes |
+|---|---|---|
+| **"Let the student submit late"** — open + due dates stay the same, they just need the submit button open past the close date | `occasional_extensions` | Drops `lock_at` only. `unlock_at` + `due_at` unchanged (gradebook keeps the original due date). |
+| **"Move this student's exam/assignment later"** — they'll open it later and be graded against the new dates | `test_reschedule` | Shifts `unlock_at`, `due_at`, `lock_at` all forward by N days. |
+
+**Default to `occasional_extensions` for "allow late submission."** Shifting `due_at`
+(`test_reschedule`) changes the gradebook due date and late-penalty math — only do that
+when the intent is genuinely to *move* the assignment, not to forgive lateness.
+
+**⚠️ Gotcha — an auto Late Policy undermines the drop-lock accommodation.** If the
+course's Gradebook Late Policy is on, `occasional_extensions` lets the student submit
+(lock dropped) but the submission is still past `due_at`, so Canvas **auto-deducts
+anyway** — silently undercutting the accommodation. Check `GET /courses/:id/late_policy`
+(syllabus_audit surfaces this); if it's on, either shift `due_at` too or handle that
+student's penalty manually. (See #185.)
+
 ---
 
 ## Proctoring-tier flags (faculty handle outside Canvas)
