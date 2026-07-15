@@ -188,3 +188,76 @@ def test_render_image_warning_only_when_grade_scale_missing():
     ok = _render_output(secs, {**_BASE_ADVISORY, "embedded_images": 2,
                                "grade_scale_in_text": True})
     assert "invisible to screen readers" not in ok        # text scale present -> quiet
+
+
+# ---------------------------------------------------------------------------
+# late-policy mismatch check (#185) — detection, guards, and the three render
+# states. Online-only; masters/sandboxes (no enrolled students) are skipped.
+# ---------------------------------------------------------------------------
+
+def test_mentions_late_policy_only_penalty_language():
+    # penalty-grade / auto-deduction language -> True
+    assert S.mentions_late_policy("10% is deducted per day late")
+    assert S.mentions_late_policy("a penalty applies for late work")
+    assert S.mentions_late_policy("your grade is reduced by 5% per day")
+    # soft timeliness mentions -> False (the naive false-positive #185 fixed)
+    assert not S.mentions_late_policy("late work as a sign of professionalism; "
+                                      "complete your work on time")
+    assert not S.mentions_late_policy("please submit assignments by the due date")
+
+
+def test_late_policy_enabled():
+    assert S.late_policy_enabled({"late_submission_deduction_enabled": True})
+    assert S.late_policy_enabled({"missing_submission_deduction_enabled": True})
+    assert not S.late_policy_enabled({"late_submission_deduction_enabled": False,
+                                      "missing_submission_deduction_enabled": False})
+    assert not S.late_policy_enabled(None)  # course has no late policy configured
+
+
+def test_fetch_late_policy_unwraps_api_nesting(monkeypatch):
+    monkeypatch.setattr(S, "_get", lambda ep, params=None:
+                        {"late_policy": {"late_submission_deduction_enabled": True}})
+    assert S.fetch_late_policy("1") == {"late_submission_deduction_enabled": True}
+    monkeypatch.setattr(S, "_get", lambda ep, params=None: None)
+    assert S.fetch_late_policy("1") is None
+
+
+def test_course_has_enrolled_students(monkeypatch):
+    monkeypatch.setattr(S, "_get", lambda ep, params=None: {"total_students": 30})
+    assert S.course_has_enrolled_students("1")
+    monkeypatch.setattr(S, "_get", lambda ep, params=None: {"total_students": 0})
+    assert not S.course_has_enrolled_students("1")   # master/sandbox -> skip the check
+    monkeypatch.setattr(S, "_get", lambda ep, params=None: None)
+    assert not S.course_has_enrolled_students("1")   # fetch failed -> skip, don't crash
+
+
+def test_detect_advisory_includes_late_policy_keys():
+    adv = S.detect_advisory("10% is deducted per day late", "<p>x</p>")
+    assert adv["syllabus_states_late_policy"] is True
+    assert adv["late_policy_configured"] is None      # set only online + enrolled
+    adv2 = S.detect_advisory("welcome to the course", "<p>x</p>")
+    assert adv2["syllabus_states_late_policy"] is False
+
+
+def test_render_flags_late_policy_mismatch():
+    """Syllabus states an auto-deduction but Canvas's Late Policy is off -> warn."""
+    secs = detect_sections("10% is deducted per day late")
+    out = _render_output(secs, {**_BASE_ADVISORY, "syllabus_states_late_policy": True,
+                                "late_policy_configured": False})
+    assert "Gradebook Late Policy" in out and "OFF" in out
+
+
+def test_render_confirms_when_policy_on():
+    secs = detect_sections("10% is deducted per day late")
+    out = _render_output(secs, {**_BASE_ADVISORY, "syllabus_states_late_policy": True,
+                                "late_policy_configured": True})
+    assert "on to enforce it" in out
+    assert "OFF, so Canvas" not in out
+
+
+def test_render_silent_when_late_policy_not_checked():
+    """None = skipped (offline or non-enrolled master) -> NO late-policy line at all."""
+    secs = detect_sections("10% is deducted per day late")
+    out = _render_output(secs, {**_BASE_ADVISORY, "syllabus_states_late_policy": True,
+                                "late_policy_configured": None})
+    assert "Late-work policy" not in out
