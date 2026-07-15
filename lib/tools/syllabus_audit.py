@@ -167,6 +167,33 @@ def fetch_syllabus(course_id: str) -> tuple[str, str | None]:
     return name, ("" if body is None else str(body))
 
 
+def fetch_late_policy(course_id: str) -> dict | None:
+    """The course's Gradebook Late Policy (GET /courses/:id/late_policy) — the auto
+    missing/late-submission deduction from Gradebook → Settings → Late Policies.
+    None if the course has none set or the request fails. Online only; this setting
+    is not part of a `.imscc` export or a `--pull` mirror (#185)."""
+    resp = _get(f"/courses/{course_id}/late_policy")
+    if isinstance(resp, dict):
+        return resp.get("late_policy", resp)  # API nests under "late_policy"
+    return None
+
+
+def late_policy_enabled(lp: dict | None) -> bool:
+    """True if Canvas is set to auto-enforce a late and/or missing deduction."""
+    return bool(lp and (lp.get("late_submission_deduction_enabled")
+                        or lp.get("missing_submission_deduction_enabled")))
+
+
+def course_has_enrolled_students(course_id: str) -> bool:
+    """True if the course has enrolled students. Masters/sandboxes/templates have
+    none — and legitimately leave the Gradebook Late Policy unset (it lives in the
+    derived teaching sections), so the late-policy mismatch check skips them to
+    avoid nagging loudest where an unset policy is expected (#185)."""
+    course = _get(f"/courses/{course_id}", {"include[]": "total_students"})
+    total = course.get("total_students") if isinstance(course, dict) else None
+    return isinstance(total, int) and total > 0
+
+
 # ---------------------------------------------------------------------------
 # HTML → text
 # ---------------------------------------------------------------------------
@@ -569,6 +596,28 @@ def has_text_grade_scale(text: str) -> bool:
     return bool(_GRADE_SCALE_RE.search(text))
 
 
+# A syllabus "states an enforceable late penalty" only if it uses penalty-grade
+# (auto-deduction) language — NOT any soft "late work" mention. The naive first cut
+# nagged on courses that merely encourage timeliness ("late work as a sign of
+# professionalism, complete your work on time"). #185: tightened to deduction
+# vocabulary, which is exactly what the Gradebook Late Policy automates. Hard
+# cutoffs like "not accepted late" are intentionally excluded — Canvas's Late Policy
+# models auto-deduction, not non-acceptance (that's a lock-date concern).
+_LATE_PENALTY_PATTERNS = [
+    "deduct",                      # deduct / deducted / deduction
+    "penalty", "penaliz",          # penalty / penalized / penalize
+    "% per day", "percent per day", "points per day", "per day late",
+    "lose points", "grade reduction", "reduced by", "marked down",
+    "late deduction",
+]
+
+
+def mentions_late_policy(text: str) -> bool:
+    """True if the syllabus describes an enforceable late-work *penalty* (auto-
+    deduction grade language) — not just a soft mention of timeliness (#185)."""
+    return _any(text, _LATE_PENALTY_PATTERNS)
+
+
 def detect_advisory(text: str, body: str) -> dict:
     wc = word_count(text)
     return {
@@ -580,6 +629,12 @@ def detect_advisory(text: str, body: str) -> dict:
         # detects the outcomes SECTION (heading/stem), not a bare keyword hit.
         "outcomes_present": detect_outcomes_section(body) is not None,
         "learning_model_present": _any(text, _LEARNING_MODEL_PATTERNS),
+        # #185 late-policy check: whether the syllabus states an auto-deduction, and
+        # (set online for enrolled courses in main()) whether Canvas's Gradebook Late
+        # Policy is actually configured to enforce it. None = not checked (offline or
+        # a non-enrolled master/sandbox — an unset policy is expected there).
+        "syllabus_states_late_policy": mentions_late_policy(text),
+        "late_policy_configured": None,
     }
 
 
@@ -686,6 +741,23 @@ def _render(course_id: str, course_name: str, verdict: str, missing: list[str],
                     "was found — if the scale is shown only as an image it's invisible "
                     "to screen readers AND to this audit; add a text equivalent"
                     if image_only_risk else ""))
+
+    # #185 late-policy: only rendered when actually checked (online + enrolled).
+    # `late_policy_configured` is None when skipped (offline / non-enrolled master)
+    # — we stay silent then rather than nag where an unset policy is expected.
+    states_late = advisory.get("syllabus_states_late_policy")
+    configured = advisory.get("late_policy_configured")
+    if states_late and configured is False:
+        lines.append("  • ⚠️ Late-work policy: your syllabus describes an auto-deduction, "
+                     "but the course's Gradebook Late Policy (Settings → Late Policies) is "
+                     "OFF, so Canvas won't apply it automatically. That's fine IF you deduct "
+                     "manually or per-student (student_late_accommodation); otherwise turn the "
+                     "Late Policy on so the syllabus and Canvas agree.")
+    elif states_late and configured is True:
+        lines.append("  • Late-work policy: stated in the syllabus and the Gradebook Late "
+                     "Policy is on to enforce it ✅  (note: a per-student late accommodation "
+                     "that drops lock_at but keeps due_at is still auto-deducted — shift due_at "
+                     "too, or handle that student's penalty manually)")
     lines.append("")
 
     if missing:
@@ -842,6 +914,13 @@ def main() -> None:
     sections = detect_sections(text)
     ai_policy = detect_ai_policy(text)
     advisory = detect_advisory(text, body)
+    # #185: online + enrolled courses only — compare the syllabus's stated late
+    # penalty against the actual Gradebook Late Policy. Only bother when the syllabus
+    # states one (else nothing to compare) and the course has students (masters/
+    # sandboxes legitimately leave it unset). Read-only; two cheap GETs.
+    if not use_local and advisory["syllabus_states_late_policy"] \
+            and course_has_enrolled_students(course_id):
+        advisory["late_policy_configured"] = late_policy_enabled(fetch_late_policy(course_id))
     verdict, missing = compute_verdict(sections, ai_policy, body_words,
                                        ai_policy_required=(institution == "byui"))
 
