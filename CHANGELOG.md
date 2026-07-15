@@ -12,6 +12,23 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.11] — 2026-07-15
+
+**`syllabus_audit`: comprehensive, evidence-grounded late-work detection.** (#140, by @thiebaudr-lab)
+
+Grading/late detection missed common phrasing, so syllabi with a real policy were wrongly flagged incomplete. The detection vocabulary is now grounded in evidence — 32 live BYU-I syllabi + Canvas's own Late Policy UI ("late/missing submission").
+
+### Changed
+- **Comprehensive late-work detection** — added the real vocabulary (`late work`, `late assignment`, `late submission`, `submitted late`, `grace period`, `make-up work`, `grade/grading scheme`, …). Faculty write "late work", Canvas's feature says "late submission" — both are valid, so the audit just detects them all. No "conventional term" nagging.
+- Dropped `"points possible"` — too generic (an assignment point value is not a grading policy; it risked false "present" verdicts, the audit's worst error).
+
+### Added
+- **Scoped image-only grade-scale warning** — when a grading section is present, the body has images, but no *plain-text* grade scale (letter→number mapping; a lone late-penalty "%" doesn't count), the audit flags that the scale may be image-only (invisible to screen readers and this audit). No longer fires on every decorative image.
+
+_The syllabus-vs-Canvas late-policy mismatch check explored here is deferred to its own PR — it needs guards (skip template/master courses; require penalty-grade language) and an honest reframe that accounts for per-student / manual late-work enforcement._
+
+---
+
 ## [1.7.10] — 2026-07-14
 
 **`sync --status` / `--push` now report the course-level files (homepage, syllabus, `_course.json`) they write.** (#172, contributed by @matjmiles)

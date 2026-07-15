@@ -173,6 +173,15 @@ def fetch_syllabus(course_id: str) -> tuple[str, str | None]:
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
+_IMG_RE = re.compile(r"<img\b", re.IGNORECASE)
+
+
+def count_images(body: str) -> int:
+    """Count <img> tags in the raw (untagged-stripped) syllabus body.
+    Used as an advisory signal: policy content (e.g. a grading-scale
+    graphic) embedded only as an image is invisible to this audit's
+    keyword scan AND to screen readers — same blind spot, two audiences."""
+    return len(_IMG_RE.findall(body)) if body else 0
 
 
 def html_to_text(body: str) -> str:
@@ -221,9 +230,15 @@ REQUIRED_SECTIONS: list[dict] = [
      "patterns": ["feedback", "workload", "time commitment", "hours per week",
                   "expect to spend", "expectations"], "byui": False},
     {"key": "grading", "label": "Grading (Grading Scale / Late Work)",
-     "patterns": ["grading scale", "grade scale", "grading policy",
-                  "grade breakdown", "letter grade", "late work", "late policy",
-                  "points possible"], "byui": False},
+     # Detection vocabulary grounded in real syllabi (32 live BYU-I courses) AND
+     # Canvas's own Late Policy UI ("late/missing submission"). No "conventional
+     # term" nagging: faculty overwhelmingly write "late work", Canvas's feature
+     # says "late submission" — both are valid, so we just detect them all.
+     "patterns": ["grading scale", "grade scale", "grading policy", "grade breakdown",
+                  "letter grade", "grading scheme", "grade scheme",
+                  "late work", "late policy", "late assignment", "late submission",
+                  "submitted late", "grace period", "make-up work", "makeup work"],
+     "byui": False},
     {"key": "disabilities", "label": "Students with Disabilities",
      "patterns": ["disabilit", "accommodation", "accessibility", "section 504",
                   "ada ", "americans with disabilities"], "byui": False},
@@ -270,15 +285,12 @@ def _any(text: str, patterns: list[str]) -> bool:
 
 def detect_sections(text: str) -> list[dict]:
     """Return each required section with a `detected` bool."""
-    out = []
-    for spec in REQUIRED_SECTIONS:
-        out.append({
-            "key": spec["key"],
-            "label": spec["label"],
-            "byui": spec["byui"],
-            "detected": _any(text, spec["patterns"]),
-        })
-    return out
+    return [{
+        "key": spec["key"],
+        "label": spec["label"],
+        "byui": spec["byui"],
+        "detected": _any(text, spec["patterns"]),
+    } for spec in REQUIRED_SECTIONS]
 
 
 # ---------------------------------------------------------------------------
@@ -542,11 +554,28 @@ def detect_ai_policy(text: str) -> dict:
     return {"present": present, "frameworks": frameworks}
 
 
+# A textual grade scale maps LETTER grades to numbers — "A = 93", "B: 83", or a
+# range like "90-100% = A". A lone percentage ("10% off per day") is a late
+# penalty, not a scale, so it must NOT count (else it would suppress the
+# image-only warning below). If a grading section is present but none of this
+# appears AND the body has images, the scale may live only in an image.
+_GRADE_SCALE_RE = re.compile(
+    r"\b[a-df][+-]?\s*[=:]\s*\d{2}"                            # A = 93 / B: 83
+    r"|\d{2,3}\s*%?\s*[-–]\s*\d{2,3}\s*%?\s*[=:]?\s*[a-df]\b",  # 90-100% = A
+    re.IGNORECASE)
+
+
+def has_text_grade_scale(text: str) -> bool:
+    return bool(_GRADE_SCALE_RE.search(text))
+
+
 def detect_advisory(text: str, body: str) -> dict:
     wc = word_count(text)
     return {
         "word_count": wc,
         "bloat": wc > _BLOAT_WORDS,
+        "embedded_images": count_images(body),
+        "grade_scale_in_text": has_text_grade_scale(text),
         # DOM-aware, shared with rubric_quality_audit / rubric_recommender (#31):
         # detects the outcomes SECTION (heading/stem), not a bare keyword hit.
         "outcomes_present": detect_outcomes_section(body) is not None,
@@ -645,6 +674,18 @@ def _render(course_id: str, course_name: str, verdict: str, missing: list[str],
     lines.append(f"  • BYU-I Learning Model introduced: "
                  f"{'yes' if advisory['learning_model_present'] else 'not detected'}"
                  "  [BYUI]")
+    img_n = advisory["embedded_images"]
+    # Only warn when there's a real image-only-policy risk: a grading section is
+    # present, images exist, but no textual grade scale was found — so the scale
+    # may be a graphic (invisible to screen readers and this audit). A decorative
+    # banner/logo on a syllabus with a text scale is not flagged.
+    grading_present = any(s["key"] == "grading" and s["detected"] for s in sections)
+    image_only_risk = img_n and grading_present and not advisory["grade_scale_in_text"]
+    lines.append(f"  • Images embedded in body: {img_n}"
+                 + ("  ⚠️ a grading section is present but no plain-text grade scale "
+                    "was found — if the scale is shown only as an image it's invisible "
+                    "to screen readers AND to this audit; add a text equivalent"
+                    if image_only_risk else ""))
     lines.append("")
 
     if missing:
