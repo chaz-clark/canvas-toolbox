@@ -1,3 +1,22 @@
+---
+name: experiential_learning_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: Experiential / experience-first learning (Kolb) as a course-design lens — when learners act before they abstract, understanding sticks.
+skill_type: knowledge
+shape: reference
+scope: 'Brain-aligned sequencing principle for course delivery — experience before explanation, multi-region neural activation, learning-precedes-language. Supplies the neuroscience rationale for why content is not the destination. Boundaries: does not cover Hattie phase progression (see hattie_3phase) or working-memory mechanics (see cognitive_load_theory).'
+consumed_by:
+- canvas_course_expert.md
+provenance:
+  sources:
+  - Aswad, M. How does the brain learn? And why don't we teach that way? Times Higher Education, Campus (2024). Aswad is academic vice-principal at the Nasser Centre for Science and Technology.
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: experiential_learning_knowledge
+---
+
 # Experiential Learning — Knowledge Reference
 
 Source: Aswad, M. *How does the brain learn? And why don't we teach that way?* Times Higher Education, Campus (2024). Aswad is academic vice-principal at the Nasser Centre for Science and Technology.

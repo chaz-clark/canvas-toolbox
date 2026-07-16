@@ -1,3 +1,26 @@
+---
+name: three_domains_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: The three learning domains (cognitive / affective / psychomotor) as a lesson-planning and course-design lens — ensuring intended growth is specified across all three.
+skill_type: knowledge
+shape: reference
+scope: 'Academic-research framing for the three learning domains (Wilson 2001), including the affective-domain-matters argument, the physical ≠ psychomotor boundary rule, and audit interpretation across all three domains. Boundaries: BYUI''s institutional tool view of the same three domains lives in taxonomy_explorer_knowledge (uses Simpson 7-level psychomotor instead of Harrow''s 6-level).'
+consumed_by:
+- canvas_course_expert.md
+provenance:
+  sources:
+  - Wilson, L.O. (2001, updated). Three Domains of Learning — Cognitive, Affective, Psychomotor. The Second Principle.
+  - Bloom, B.S. (1956). Taxonomy of Educational Objectives.
+  - 'Krathwohl, D.R. (1964). Taxonomy of Educational Objectives: Affective Domain.'
+  - Anderson, L.W. & Krathwohl, D.R. (2001). A Taxonomy for Learning, Teaching, and Assessing.
+  - Harrow, A.J. (1972). A Taxonomy of the Psychomotor Domain.
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: three_domains_knowledge
+---
+
 # Three Domains of Learning — Knowledge Reference
 
 Source: Wilson, L.O. (2001, updated). *Three Domains of Learning — Cognitive, Affective, Psychomotor.* The Second Principle. Drawing on Bloom (1956), Krathwohl (1964), Anderson & Krathwohl (2001), and Harrow (1972).

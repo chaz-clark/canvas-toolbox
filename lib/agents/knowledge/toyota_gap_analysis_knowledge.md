@@ -1,3 +1,27 @@
+---
+name: toyota_gap_analysis_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: Toyota gap-analysis method for writing a precise change plan for a flagged issue — Current -> Target -> Countermeasure -> Verification, scoped to the specific gap.
+skill_type: knowledge
+shape: identity
+scope: 'The Toyota Production System / A3 Problem Solving methodology applied to Canvas course design audits. The single frame is Genchi Genbutsu (go and see) — the prerequisite to honest A3 work. The A3 structure (Current/Target/Gap/Root Cause/Countermeasure/Verification) is the artifact this frame produces. Boundaries: does not cover what to audit (see hattie_3phase, cognitive_load_theory, course_design_language); covers how to write up findings as a remediation plan.'
+consumed_by:
+- canvas_course_expert.md
+provenance:
+  sources:
+  - Toyota Production System / A3 Problem Solving methodology.
+  - Applied to Canvas course design audits via canvas_course_expert.md.
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+principles:
+- id: genchi_genbutsu
+  name: Genchi Genbutsu — Go and See for Yourself
+  compact_statement: '現地現物. Don''t make decisions from reports, dashboards, or theory. Go to gemba (the actual place where work happens) and observe the real work in real conditions. Toyota holds that A3 problem-solving cannot be done honestly without first going to gemba — you cannot accurately fill in Current State from a summary, Gap from intuition, or Root Cause from speculation. Each section requires firsthand observation. Applied to Canvas: gemba is the live course/ mirror (actual pages, module items, rubrics, student-visible titles). The audit agent MUST call parse_course_export() or read the course/ mirror via canvas_sync.py BEFORE proposing any A3. The principle in one line: an A3 written without going to gemba is a wish list; an A3 written after going to gemba is a plan.'
+metadata:
+  knowledge_id: toyota_gap_analysis_knowledge
+---
+
 # Toyota Gap Analysis — Knowledge Reference
 
 Source: Toyota Production System / A3 Problem Solving methodology.

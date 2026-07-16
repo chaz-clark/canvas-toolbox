@@ -1,3 +1,29 @@
+---
+name: outcomes_quality_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: Judging the wording quality of a learning outcome — alignment to a poorly-written outcome is meaningless; criteria for measurable, well-formed outcomes.
+skill_type: knowledge
+shape: reference
+scope: 'Framework for evaluating whether learning outcomes are well-formed BEFORE auditing whether they are aligned. Alignment checks that outcomes are wired together; this framework checks that the outcomes themselves are worth wiring. Boundaries: alignment traceability lives in course_design_language Principle 6; Bloom verb classification lives in taxonomy_explorer.'
+consumed_by:
+- canvas_course_expert.md
+- canvas_new_course_setup.md
+- ira_program_alignment.md
+- clo_quality_audit.py
+provenance:
+  sources:
+  - Morrison, G.R., Ross, S.M., Morrison, J.R., & Kalman, H.K. (2019). Designing Effective Instruction, 8th ed. Chapter 5. Wiley.
+  - BYU-Idaho Learning and Teaching. Learning Outcomes. learningandteaching.byui.edu
+  - BYU-Idaho Assurance of Learning. CLO Rubric AoL (internal document).
+  - Anderson, L.W., Krathwohl, D.R., et al. (2001). A Taxonomy for Learning, Teaching, and Assessing.
+  - Merrill, M.D. (1983). Component Display Theory.
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: outcomes_quality_knowledge
+---
+
 # CLO Quality & Outcome Hierarchy
 
 A framework for evaluating whether learning outcomes are well-formed before auditing whether they are aligned. Alignment checks that outcomes are *wired together*; this framework checks that the outcomes themselves are *worth wiring*.
