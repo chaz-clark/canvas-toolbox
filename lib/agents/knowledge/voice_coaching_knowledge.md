@@ -4,7 +4,7 @@ version: "1.0"
 last_updated: 2026-06-25
 description: Upstream coaching layer for the per-instructor voice file — research grounding for effective feedback, the voice-preservation contract, and first-time voice articulation.
 skill_type: knowledge
-shape: reference   # self-labeled "Reference"; arguably identity (coaching principles/contract) — CONFIRM
+shape: reference   # settled reference; flip to identity later if coaching-principle issues surface
 scope: "The WHAT/HOW boundary, research-grounded WHAT criteria, voice dimensions faculty position on, and the articulation interview for new faculty. Out of scope: comment structure + edit roundtrip (grader_voice_knowledge)."
 consumed_by:
   - canvas_grader.md
