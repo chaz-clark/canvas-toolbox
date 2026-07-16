@@ -1,3 +1,30 @@
+---
+name: canvas_api_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: 'What Canvas''s own documentation says about its REST API: endpoints, data model, permission scopes, pagination, and the patterns Canvas itself describes. Empirical findings the toolkit discovered through use (the things Canvas does NOT docum'
+skill_type: knowledge
+shape: reference
+scope: 'Canvas''s REST API surface as Canvas documents it. Mental models, universal patterns, per-resource endpoint pointers — all sourced from Instructure''s own published documentation (rendered docs site + open-source canvas-lms YARD comments). Empirical findings live in the paired file canvas_api_lessons_learned.md. Out of scope: project conventions, canvas-toolbox tool patterns, GraphQL, LTI launch internals.'
+consumed_by:
+- canvas_course_expert.md
+- canvas_schedule_auditor.md
+- canvas_semester_setup.md
+- canvas_blueprint_sync.md
+- canvas_content_sync.md
+- canvas_new_course_setup.md
+provenance:
+  sources:
+  - Canvas LMS REST API canonical documentation — https://canvas.instructure.com/doc/api/ (Instructure's published reference docs site).
+  - instructure/canvas-lms — https://github.com/instructure/canvas-lms (open-source repo; YARD docstrings in app/controllers/*_controller.rb are Instructure's API documentation as code, canonical when the docs site is unreachable).
+  - Canvas LMS Pagination documentation — https://canvas.instructure.com/doc/api/file.pagination.html
+  - Canvas LMS OAuth / Authorization documentation — https://canvas.instructure.com/doc/api/file.oauth.html
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: canvas_api_knowledge
+---
+
 # Canvas API — Documented Surface
 
 > Reference. What Canvas's own documentation says about its REST API: endpoints, data model, permission scopes, pagination, and the patterns Canvas itself describes. Empirical findings the toolkit discovered through use (the things Canvas does NOT document, or does so incorrectly) live in the paired file [`canvas_api_lessons_learned.md`](canvas_api_lessons_learned.md).

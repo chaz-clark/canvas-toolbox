@@ -1,3 +1,23 @@
+---
+name: evidence_centered_design_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: 'Trigger-keyed playbooks for *strengthening* an assessment: clarifying the core learning, identifying convincing evidence, making learning visible, stress-testing that visibility in an AI-rich environment, and adding one architectural improv'
+skill_type: knowledge
+shape: procedural
+scope: 'Actionable sequential procedure for redesigning a single assessment into stronger evidence of learning (Evidence-Centered Design). Boundaries: does not classify/audit assessments (assessments_knowledge.md, reference shape) and does not decide what a course should teach (backwards_design_knowledge.md). The ''do'' step that runs after the audit flags weakness; composes with both, replaces neither.'
+consumed_by:
+- canvas_course_expert.json
+- ira_program_alignment.md
+provenance:
+  sources:
+  - 'BYUI ''Architects of Learning'' workshop deck — *Designing Stronger Assessments: Engineering Stronger Evidence of Learning* (13 slides; instructor name to be backfilled). pre_knowledge/assessments/Designing Stronger Assessments.pptx, retrieved 2026-05-18. The deck names its frame ''Evidence-Centered Assessment Design.'''
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: evidence_centered_design_knowledge
+---
+
 # Evidence-Centered Assessment Design (ECD) — Redesign Playbooks
 
 > Procedural. Trigger-keyed playbooks for *strengthening* an assessment: clarifying the core learning, identifying convincing evidence, making learning visible, stress-testing that visibility in an AI-rich environment, and adding one architectural improvement.
