@@ -27,6 +27,8 @@ from grader_push import (  # noqa: E402
     filter_group_mirror_rows,
     append_disclosure_tag,
     DISCLOSURE_TAG,
+    assignment_posts_manually,
+    post_assignment_grades,
 )
 
 
@@ -789,3 +791,54 @@ def test_disclosure_tag_not_added_to_empty_or_whitespace():
 def test_disclosure_tag_wording_is_honest():
     """It must say AI *drafted* (not 'assisted') + instructor *reviewed*."""
     assert DISCLOSURE_TAG == "— AI drafted, instructor reviewed"
+
+
+# ---------------------------------------------------------------------------
+# #199 — manual posting policy detection + release. The push payload is correct
+# (verified on Canvas); a MANUAL policy enters grades but leaves posted_at null
+# (hidden -> reads "needs grading"). These mock the API layer.
+# ---------------------------------------------------------------------------
+
+import grader_push as _GP  # noqa: E402
+
+
+class _Resp:
+    def __init__(self, status, payload=None, text=""):
+        self.status_code = status
+        self._payload = payload
+        self.text = text
+
+    def json(self):
+        return self._payload
+
+
+def test_assignment_posts_manually_true(monkeypatch):
+    monkeypatch.setattr(_GP.requests, "get", lambda *a, **k: _Resp(200, {"post_manually": True}))
+    assert assignment_posts_manually("b", "c", {}, 1) is True
+
+
+def test_assignment_posts_manually_false(monkeypatch):
+    monkeypatch.setattr(_GP.requests, "get", lambda *a, **k: _Resp(200, {"post_manually": False}))
+    assert assignment_posts_manually("b", "c", {}, 1) is False
+
+
+def test_assignment_posts_manually_defaults_false_on_error(monkeypatch):
+    """A failed lookup must not warn spuriously — default to False."""
+    monkeypatch.setattr(_GP.requests, "get", lambda *a, **k: _Resp(500, None, "err"))
+    assert assignment_posts_manually("b", "c", {}, 1) is False
+
+
+def test_post_assignment_grades_ok(monkeypatch):
+    monkeypatch.setattr(_GP.requests, "post", lambda *a, **k: _Resp(
+        200, {"data": {"postAssignmentGrades": {"progress": {"_id": "9", "state": "queued"},
+                                                "errors": None}}}))
+    ok, detail = post_assignment_grades("b", "c", {}, 1)
+    assert ok is True and "queued" in detail
+
+
+def test_post_assignment_grades_reports_graphql_error(monkeypatch):
+    monkeypatch.setattr(_GP.requests, "post", lambda *a, **k: _Resp(
+        200, {"data": {"postAssignmentGrades": {"progress": None,
+                                                "errors": [{"message": "not allowed"}]}}}))
+    ok, detail = post_assignment_grades("b", "c", {}, 1)
+    assert ok is False and "not allowed" in detail
