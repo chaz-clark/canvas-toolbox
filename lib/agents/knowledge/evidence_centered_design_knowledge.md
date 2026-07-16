@@ -7,7 +7,7 @@ skill_type: knowledge
 shape: procedural
 scope: 'Actionable sequential procedure for redesigning a single assessment into stronger evidence of learning (Evidence-Centered Design). Boundaries: does not classify/audit assessments (assessments_knowledge.md, reference shape) and does not decide what a course should teach (backwards_design_knowledge.md). The ''do'' step that runs after the audit flags weakness; composes with both, replaces neither.'
 consumed_by:
-- canvas_course_expert.json
+- canvas_course_expert.md
 - ira_program_alignment.md
 provenance:
   sources:
@@ -24,13 +24,13 @@ metadata:
 
 Source: BYUI "Architects of Learning" workshop deck *Designing Stronger Assessments — Engineering Stronger Evidence of Learning* (13 slides; instructor name to be backfilled), dropped in `pre_knowledge/assessments/Designing Stronger Assessments.pptx` on 2026-05-18.
 
-Used by: `canvas_course_expert.json`, `ira_program_alignment.md`
+Used by: `canvas_course_expert.md`, `ira_program_alignment.md`
 
 Companions: [`assessments_knowledge.md`](assessments_knowledge.md) (the *diagnostic* — formative/summative, the Litmus Test, the Strategies catalog; this file is what you run to *act on* a Litmus failure), [`backwards_design_knowledge.md`](backwards_design_knowledge.md) (Decision 1 ≈ UbD Stage 1 desired results; Decision 2 ≈ UbD Stage 2 assessment evidence), [`inverted_blooms_knowledge.md`](inverted_blooms_knowledge.md) (AI-agency framing feeds Decision 4), [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md) (Decision 1 "core learning" must be a well-formed outcome), [`toyota_gap_analysis_knowledge.md`](toyota_gap_analysis_knowledge.md) (A3 format for the redesign write-up).
 
 **Scope**: An actionable, sequential procedure for redesigning a *single* assessment into stronger evidence of learning. Out of scope: classifying or auditing an assessment (that is [`assessments_knowledge.md`](assessments_knowledge.md) — `reference` shape, descriptive), and deciding *what* a course should teach (that is [`backwards_design_knowledge.md`](backwards_design_knowledge.md)). This file is the *do* step that runs after the audit flags weakness; it composes with both, replacing neither.
 
-**Provenance**: BYUI Architects of Learning workshop deck *Designing Stronger Assessments* (`pre_knowledge/assessments/Designing Stronger Assessments.pptx`, 13 slides, retrieved 2026-05-18; instructor name to be backfilled). The deck names its frame "Evidence-Centered Assessment Design." See `provenance.sources` in the JSON.
+**Provenance**: BYUI Architects of Learning workshop deck *Designing Stronger Assessments* (`pre_knowledge/assessments/Designing Stronger Assessments.pptx`, 13 slides, retrieved 2026-05-18; instructor name to be backfilled). The deck names its frame "Evidence-Centered Assessment Design." See `provenance.sources` in the frontmatter.
 
 _Last updated: 2026-05-18_
 

@@ -52,11 +52,11 @@ metadata:
 
 **Scope**: Reference for auditing rubrics in Canvas courses. Covers (a) the 4-criterion meta-rubric for evaluating any rubric's well-formedness, (b) the four rubric typologies — analytic, holistic, single-point, developmental/feedback — and when each is fit-for-purpose, (c) institutional and Canvas-specific audit indicators, and (d) the `rubric_quality` audit-tag enum. Out of scope: how to *write* the rubric from scratch (that's the consuming agent's redesign playbook), and how to pull rubrics from Canvas (that's the upcoming `canvas_rubrics_api_survey` and downstream tooling — this file describes what to check, not how to fetch).
 
-**Provenance**: 10 cited sources above. The backbone is the 4×4 *Rubric for Evaluating a Rubric* PDF in `pre_knowledge/rubrics/`. Tier-2 sources (Cult of Pedagogy, Edutopia, Brown, Northeastern, BYUI Assessment Services) are summary-quality extractions; the NSTA paper is a full extraction; AAC&U VALUE and Walvoord-BU are primary PDFs on disk. See `provenance.sources` in the JSON.
+**Provenance**: 10 cited sources above. The backbone is the 4×4 *Rubric for Evaluating a Rubric* PDF in `pre_knowledge/rubrics/`. Tier-2 sources (Cult of Pedagogy, Edutopia, Brown, Northeastern, BYUI Assessment Services) are summary-quality extractions; the NSTA paper is a full extraction; AAC&U VALUE and Walvoord-BU are primary PDFs on disk. See `provenance.sources` in the frontmatter.
 
 _Last updated: 2026-05-20_
 
-> **Version note:** v1.0 — promoted 2026-05-22. Validated against real Canvas rubrics two ways: ITM327 production course (Stage 4 coverage on a real 48-assignment course) + a ground-truth fixture matrix in `CANVAS_SANDBOX_ID` (`sandbox_rubric_fixtures.py` — Stage 4 coverage 9/9; Stage 5 the 4-criterion backbone, typologies, single-point/developmental exemptions, `criterion_use_range` round-trip, and the evidence-based Criterion-1/validity treatment all exercised). Wired into `canvas_course_expert.json`'s `cross_references.knowledge_files[]`. Catalogued in [`knowledge/README.md`](README.md).
+> **Version note:** v1.0 — promoted 2026-05-22. Validated against real Canvas rubrics two ways: ITM327 production course (Stage 4 coverage on a real 48-assignment course) + a ground-truth fixture matrix in `CANVAS_SANDBOX_ID` (`sandbox_rubric_fixtures.py` — Stage 4 coverage 9/9; Stage 5 the 4-criterion backbone, typologies, single-point/developmental exemptions, `criterion_use_range` round-trip, and the evidence-based Criterion-1/validity treatment all exercised). Wired into `canvas_course_expert.md`'s `cross_references.knowledge_files[]`. Catalogued in [`knowledge/README.md`](README.md).
 
 ---
 
@@ -354,4 +354,4 @@ For each rubric encountered during a Canvas audit:
 
 ## References
 
-Full citation list — see `provenance.sources` in the JSON companion. Source files on disk in [`lib/agents/pre_knowledge/rubrics/`](../pre_knowledge/rubrics/).
+Full citation list — see `provenance.sources` in the frontmatter. Source files on disk in [`lib/agents/pre_knowledge/rubrics/`](../pre_knowledge/rubrics/).

@@ -282,6 +282,4 @@ Operator-facing note worth surfacing in audit output: *"This audit only inspects
 | Walters, J. | Tone dimension + self-care caveat | 2026 |
 | BYU-I Architects of Learning, Week 8 Day 1 workshop | Synthesis + three-purpose taxonomy framing | 2026 |
 
-> **JSON sibling note:** `syllabus_knowledge.json` was behind the MD prior to this edit (last JSON changelog entry was v0.1.1 / 2026-05-26 while the MD had advanced through v0.2 + v0.2.1). All three versions (v0.2, v0.2.1, v0.3) are now reflected in the JSON's `facts[]` array as five new facts: `three_purpose_taxonomy`, `empirical_best_practices`, `ceiling_effect_caveat`, `rubric_25_items`, `faculty_guide_3_3_1`. JSON `last_updated` and `last_reviewed` bumped to 2026-06-10; provenance.sources[] now lists the 4 cited papers + the AoL workshop + the two templates.
-
 _Last updated: 2026-06-10 (v0.3 — empirical best practices: 3-purpose taxonomy, 5 advisory dimensions, ceiling-effect caveat, 4 new sources)_

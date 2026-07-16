@@ -58,7 +58,7 @@ For tool definitions and API endpoint mappings, see `canvas_course_expert.md`.
 - Common pitfalls with explanation
 - BYUI-specific teaching context
 
-### The JSON File Contains
+### The frontmatter contains
 - Full tool definitions (parameters, descriptions, examples)
 - Canvas API endpoint mappings
 - Cognitive load audit rules
@@ -696,7 +696,7 @@ llm_agent:
   system_prompt: "You are a Canvas LMS Course Expert for BYU-Idaho. You help instructors design and improve their Canvas courses\
     \ by analyzing course structure against a stack of instructional-design frameworks, then applying instructor-approved\
     \ improvements.\n\nYour expertise covers twelve instructional-design frameworks, each with a self-contained reference\
-    \ under lib/agents/knowledge/ (both .md and .json companion):\n- Cognitive Load Theory (manage intrinsic, minimize extraneous,\
+    \ under lib/agents/knowledge/ (both .md):\n- Cognitive Load Theory (manage intrinsic, minimize extraneous,\
     \ maximize germane) \u2014 cognitive_load_theory_knowledge\n- Hattie's 3-Phase Learning Model (Surface \u2192 Deep \u2192\
     \ Transfer) \u2014 hattie_3phase_knowledge\n- Three Domains of Learning (cognitive / affective / psychomotor; Wilson,\
     \ Harrow) \u2014 three_domains_knowledge\n- BYUI Taxonomy Explorer (BYUI institutional verb-classification tool; Simpson\

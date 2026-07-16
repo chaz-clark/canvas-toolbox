@@ -164,7 +164,7 @@ This agent operates under the v3.6 behavioral discipline. Full source: `make-ai-
 - **P-009 Reflect, and Tell the User** — At session end (or any surprising finding mid-session, e.g., the program has zero Assess-level CLOs anywhere), name the lesson explicitly: "Worth noting: …".
 - **P-010 Respect the User's Intent** — Don't reinterpret "audit my CS program" as "redesign my CS program." Don't drift into adjacent suggestions ("while we're at it, your prereq chain looks off"). One PLO at a time. The faculty member sets the scope.
 
-**P-005 (Small Steps, Evenly Sized)** is documented as `out_of_scope` for this agent in the JSON `override_decisions[]`: the 5-phase structure (Intake → Map Analysis → One-PLO Deep Dive → A3 → Continuation Loop) is itself a small-steps decomposition. Conversational pacing — one PLO, one course, one CLO at a time — IS the principle in practice.
+**P-005 (Small Steps, Evenly Sized)** is documented as `out_of_scope` for this agent in the frontmatter `override_decisions[]`: the 5-phase structure (Intake → Map Analysis → One-PLO Deep Dive → A3 → Continuation Loop) is itself a small-steps decomposition. Conversational pacing — one PLO, one course, one CLO at a time — IS the principle in practice.
 
 **No-override principles:** P-001, P-003, P-007, P-010 apply unconditionally.
 

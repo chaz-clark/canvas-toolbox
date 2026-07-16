@@ -41,7 +41,7 @@ The two are Instructure's own writing, in different forms (rendered docs vs. sou
 
 **Scope**: Canvas's REST API surface as Canvas documents it. Covers (a) the data-model facts Canvas's docs describe — three-resource pattern for rubrics, two-ID pattern for classic quizzes, two-step pattern for module items, NewQuiz/ExternalTool REST gap, (b) the universal patterns Canvas documents — pagination via Link header, role-based permission scopes, parameter encoding, (c) per-resource endpoint pointers to the canonical docs and per-resource surveys derived from them. Out of scope: behaviors Canvas does NOT document or documents incorrectly (live in `canvas_api_lessons_learned.md`), canvas-toolbox tool conventions, GraphQL.
 
-**Provenance**: Each fact in the JSON companion's `facts[]` cites either a `canvas.instructure.com/doc/api/<page>.html` URL or an `instructure/canvas-lms/blob/<sha>/app/controllers/<file>.rb` path with YARD-doc line reference. No empirical citations.
+**Provenance**: Each fact in the frontmatter's `provenance.sources` cites either a `canvas.instructure.com/doc/api/<page>.html` URL or an `instructure/canvas-lms/blob/<sha>/app/controllers/<file>.rb` path with YARD-doc line reference. No empirical citations.
 
 _Last updated: 2026-05-21_
 
@@ -210,4 +210,4 @@ Pointer table — full endpoint inventories live in per-resource surveys (or Can
 
 ## References
 
-Full provenance per fact in `provenance.sources` of the JSON companion. Per-resource deep-dives in `pre_knowledge/canvas_api/` and `pre_knowledge/rubrics/`.
+Full provenance per fact in `provenance.sources` of the frontmatter. Per-resource deep-dives in `pre_knowledge/canvas_api/` and `pre_knowledge/rubrics/`.

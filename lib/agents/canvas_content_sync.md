@@ -17,7 +17,7 @@ runtime_data:
 ## Agent Instructions
 1. Read this for mission, principles, quickstart, and pitfalls.
 2. Parse `canvas_content_sync.md` for structured data, endpoint mappings, index schema, and operation procedures.
-3. Keep this file lean — structured data (endpoint quirks, payload schemas, write procedures) lives in the JSON.
+3. Keep this file lean — structured data (endpoint quirks, payload schemas, write procedures) lives in the frontmatter.
 
 ---
 
@@ -57,7 +57,7 @@ For endpoint schemas, payload formats, and index update procedures, see `canvas_
 - External System Lessons — Canvas API non-obvious behaviors
 - Workflow narrative and examples
 
-### The JSON File Contains
+### The frontmatter contains
 - Canvas API endpoint mappings with `mcp_or_python` designations
 - Payload schemas for every write operation
 - Persistent index schema and update procedures

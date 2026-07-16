@@ -42,7 +42,7 @@ metadata:
 
 **Scope**: Behaviors Canvas exhibits that are NOT in Canvas's own documentation, OR that contradict it. Covers (a) the 18 footguns the toolkit has hit and defended against, (b) the audit indicators that surface these footguns in real courses, (c) the tool-author checklist that bakes the defenses into new code. Out of scope: documented Canvas behavior (lives in [`canvas_api_knowledge.md`](canvas_api_knowledge.md)).
 
-**Provenance**: Each fact in the JSON companion's `facts[]` cites the issue / commit / incident where the lesson was discovered, and the in-repo tool that now defends against it. No facts here have a Canvas-authored citation — by design, this file documents what Canvas does NOT document.
+**Provenance**: Each fact in the frontmatter's `provenance.sources` cites the issue / commit / incident where the lesson was discovered, and the in-repo tool that now defends against it. No facts here have a Canvas-authored citation — by design, this file documents what Canvas does NOT document.
 
 _Last updated: 2026-06-01_
 
@@ -365,4 +365,4 @@ When building a new Canvas-touching tool, run through this checklist:
 
 ## References
 
-Full provenance per fact in the JSON companion's `facts[].citations` — each lesson cites its discovery issue, the production incident (if any), and the defending tool.
+Full provenance per fact in the frontmatter's `provenance.sources` — each lesson cites its discovery issue, the production incident (if any), and the defending tool.

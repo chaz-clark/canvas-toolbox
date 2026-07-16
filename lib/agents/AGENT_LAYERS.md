@@ -57,7 +57,7 @@ A capability has a **defined contract**: input schema, output schema, when-to-in
 A document that describes an agent's behavior. Read by an LLM as a system prompt at runtime to *configure* a runtime instance.
 
 Examples:
-- This repo's `make_agent.md/.json` produces specifications for canvas audit, blueprint sync, etc.
+- This repo's `make_agent.md` produces specifications for canvas audit, blueprint sync, etc.
 - A LangChain `ChatPromptTemplate` with role and instructions
 - A Claude Code subagent definition (`.claude/agents/<name>.md`)
 
@@ -139,7 +139,7 @@ Concerns: prompt engineering at the system level.
 | **Domain context** | Institution/codebase-specific facts | Without this, agents hallucinate plausible-sounding but wrong answers |
 | **MD vs JSON split** | Narrative vs. structured data | Stuffing structured data into prose loses parseability; stuffing principles into JSON loses readability |
 
-There aren't great LangChain primitives for this — specifications usually live as raw `.md` and `.json` files (your repo's pattern) or as `ChatPromptTemplate` objects in code.
+There aren't great LangChain primitives for this — specifications usually live as raw `.md` files with YAML frontmatter (your repo's pattern) or as `ChatPromptTemplate` objects in code.
 
 The AI-engineering insight: **a specification IS a prompt**, just a long one written carefully. Treat it with the same rigor as production prompt engineering.
 
@@ -169,7 +169,7 @@ When you (in Claude Code) run the Canvas course audit in this repo right now, al
 |---|---|
 | **Runtime** | Claude Code itself — the LLM in a reasoning loop, picking next steps |
 | **Capability** | Currently: the Python CLI scripts in `lib/tools/`. Future: `.agents/skills/canvas-audit/` |
-| **Specification** | `lib/agents/canvas_course_expert.md` + `.json` — load these and Claude becomes the audit agent |
+| **Specification** | `lib/agents/canvas_course_expert.md` — load these and Claude becomes the audit agent |
 | **Tool / function** | `parse_course_export()`, `analyze_cognitive_load()`, `canvas_api()` etc. — invoked from the runtime |
 
 The Roadmap in [`AGENTS.md`](../../AGENTS.md#roadmap) describes the migration: extract the audit capability from the Python CLI tools layer up into a deployable Skill (Layer 2), so any runtime — not just Claude Code — can invoke it.

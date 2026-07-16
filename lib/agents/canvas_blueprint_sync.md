@@ -56,7 +56,7 @@ runtime_data:
 - What is and is not synced
 - Pitfalls and external system quirks
 
-### The JSON File Contains:
+### The frontmatter contains:
 - Canvas API endpoint schemas for blueprint operations
 - Field mapping: master JSON keys → blueprint API payload keys
 - Validation checklist for post-sync verification

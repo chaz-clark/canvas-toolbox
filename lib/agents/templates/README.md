@@ -1,6 +1,6 @@
 # Agent Templates
 
-Reusable artifacts the audit agents can read, inject, or hand to instructors as drop-in components. Distinct from `agents/knowledge/` (which is *conceptual* — theory, principles, audit indicators) and from `agents/<agent>.md/.json` (which is *agent specification* — mission, workflow, tool definitions).
+Reusable artifacts the audit agents can read, inject, or hand to instructors as drop-in components. Distinct from `agents/knowledge/` (which is *conceptual* — theory, principles, audit indicators) and from `agents/<agent>.md` (which is *agent specification* — mission, workflow, tool definitions).
 
 Templates are the **implementation layer**: actual HTML, JSON, or text files an agent can use without rewriting from scratch.
 

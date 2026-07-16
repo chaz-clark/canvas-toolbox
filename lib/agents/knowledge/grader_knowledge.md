@@ -8,7 +8,7 @@ shape: reference
 scope: 'The domain lessons every course-grading operator needs for a FERPA-safe, fair, defensible AI-assisted grading pipeline. Covers the two-zone architecture (cloud = keys only, local = identity), holistic scoring philosophy, signals-as-priors discipline, 3-grader consensus + spread queue, prompt-injection treatment, judge-bias mitigations, multi-output grading, grade-earned reconciliation, wellbeing flags, push-back gating, and the open gaps still to design. Out of scope: per-instructor comment voice (grader_voice_knowledge) and the onboarding interview (grader_setup_knowledge).'
 consumed_by:
 - canvas_grader.md
-- canvas_grader.json
+- canvas_grader.md
 provenance:
   sources:
   - 'ds460-master grader beta — commits 754c966..91a5113 (round 1: KC1 code take-home, 0–4 rubric) + 8f7814b (round 2: Mid Performance Review prose self-review, outcomes-model + reconciliation + voice knowledge) + 2fd277f (Classic-quiz mirror addendum)'

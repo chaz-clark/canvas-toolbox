@@ -8,7 +8,7 @@ shape: reference
 scope: 'Cognitive Load Theory applied to Canvas course design audits. Supplies the working-memory mechanics that determine whether any Hattie phase can succeed. Boundaries: does not cover sequencing across phases (see hattie_3phase_knowledge) or domain coverage (see three_domains_knowledge).'
 consumed_by:
 - canvas_course_expert.md
-- canvas_course_expert.json
+- canvas_course_expert.md
 provenance:
   sources:
   - 'Sweller, J. (1988). Cognitive load during problem solving: Effects on learning. Cognitive Science, 12(2), 257–285.'
@@ -24,7 +24,7 @@ metadata:
 
 Source: Sweller, J. (1988); Atkinson & Shiffrin (1968) memory model; *Cognitive Load Theory: A Guide to Applying CLT to Your Teaching* (Medical College of Wisconsin, Office of Educational Improvement, May 2022).
 
-Used by: `canvas_course_expert.md` (audit framework), `canvas_course_expert.json` (`analyze_cognitive_load` tool, load-type tags on every audit rule).
+Used by: `canvas_course_expert.md` (audit framework), `canvas_course_expert.md` (`analyze_cognitive_load` tool, load-type tags on every audit rule).
 
 Companion: [`hattie_3phase_knowledge.md`](hattie_3phase_knowledge.md) — Hattie sequences learning (Surface → Deep → Transfer); CLT addresses the working-memory mechanics that determine whether any phase can succeed.
 
