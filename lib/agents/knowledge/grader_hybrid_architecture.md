@@ -88,11 +88,44 @@ Two **opposite** uses of NLP. Both valid; never conflate them:
 
 On local Ollama tokens are ~free → prefer **enrichment**. On the cloud path → token-reduction pays.
 
+## Stage 0 — when there is no rubric, elicit one first
+
+Everything above assumes a rubric with rows exists. Often it does not — the "rubric" lives in
+an assignment spec (e.g. a `challenge.md`), a few exemplars, or only in the professor's head.
+**Grading cannot start until that intent is made explicit.** Stage 0 is the precondition:
+co-create a structured rubric from the unstructured source *before* the layer-routed pipeline
+runs. (DS460 is the canonical case — the `challenge.md` *is* the rubric source.)
+
+It is itself a hybrid:
+- **Extract candidate criteria** — NLP/LLM pulls the explicit deliverables, requirements, and
+  constraints out of the spec (structural work).
+- **Elicit the quality bands** — the LLM proposes tiers / what-good-looks-like per criterion
+  and the professor refines them. This is the "tease out what they're looking for" step, and
+  the judgment is the professor's, not the model's.
+- **Tag each criterion by checkability** as you go (mechanical / coverage / judgment) with its
+  term-banks / required-items — so the output is already in the shape the pipeline consumes.
+
+Two Stage-0 guardrails:
+- **The professor owns the rubric.** The LLM proposes; the professor approves. Same "instructor
+  is the top layer" principle applied to the rubric itself — never grade against criteria the
+  professor didn't intend.
+- **Freeze the agreed rubric as a versioned artifact.** A teased-out rubric re-improvised each
+  run destroys reproducibility and defensibility (you'd grade against a moving target). A
+  `challenge.md`-derived rubric becomes a **checked-in** rubric the grading run reads, not a
+  fresh improvisation — that is what lets "the rubric is the source of truth" (below) hold even
+  when the rubric started life as prose.
+
+Existing cb tooling: the `grader_setup_knowledge` 6-step interview is where the elicitation
+happens; `rubrics_knowledge` / `rubric_recommender` help draft criteria. Stage 0 is those,
+aimed at producing a **hybrid-ready (checkability-tagged), frozen** rubric. After it, the full
+architecture applies unchanged.
+
 ## The rubric is the source of truth
 
 Encode rubric knowledge as **data derived from the rubric** (term banks, required-item lists,
 thresholds), not hardcoded in the script. A rubric edit must update the extractors, or you
-silently grade last term's rubric.
+silently grade last term's rubric. When the rubric came from Stage 0, "the rubric" means the
+**frozen artifact**, not the original prose spec.
 
 ## The audit loop
 
