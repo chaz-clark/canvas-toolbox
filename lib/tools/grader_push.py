@@ -890,6 +890,42 @@ def _retract_main(base: str, cid: str, headers: dict, args,
     return 0
 
 
+def assignment_posts_manually(base: str, cid: str, headers: dict, assignment_id) -> bool:
+    """True if the assignment uses a MANUAL posting policy. Under manual posting,
+    grades written via the API are ENTERED but not released — `posted_at` stays null,
+    students can't see them, and the gradebook reads 'needs grading' (issue #199).
+    Verified on Canvas: the push payload is correct; the posting policy is the gate."""
+    try:
+        r = requests.get(f"{base}/api/v1/courses/{cid}/assignments/{assignment_id}",
+                         headers=headers, timeout=_TIMEOUT)
+        if r.status_code < 400:
+            return bool(r.json().get("post_manually"))
+    except Exception:
+        pass
+    return False
+
+
+def post_assignment_grades(base: str, cid: str, headers: dict, assignment_id) -> tuple[bool, str]:
+    """Release entered grades to students via the GraphQL `postAssignmentGrades`
+    mutation — the same action as the Gradebook 'Post grades' button (Canvas has no
+    REST endpoint for it). Returns (ok, human-readable detail)."""
+    query = ("mutation ($a: ID!, $go: Boolean) { postAssignmentGrades("
+             "input: {assignmentId: $a, gradedOnly: $go}) "
+             "{ progress { _id state } errors { message } } }")
+    try:
+        r = requests.post(f"{base}/api/graphql", headers=headers,
+                          json={"query": query, "variables": {"a": str(assignment_id), "go": True}},
+                          timeout=_TIMEOUT)
+        payload = (r.json() or {}).get("data", {}).get("postAssignmentGrades") or {}
+        errs = payload.get("errors")
+        if r.status_code < 400 and not errs:
+            prog = payload.get("progress") or {}
+            return True, f"(progress {prog.get('_id')}, {prog.get('state')})"
+        return False, f"HTTP {r.status_code}: {errs or r.text[:120]}"
+    except Exception as e:
+        return False, str(e)
+
+
 def main() -> int:
     force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
 
@@ -907,6 +943,11 @@ def main() -> int:
                          "Default: uppercased basename of --challenge-dir.")
     ap.add_argument("--push", action="store_true",
                     help="Actually write to Canvas (default: dry-run). Refuses without --mark-reviewed.")
+    ap.add_argument("--post", action="store_true",
+                    help="After pushing, release grades to students via the Gradebook 'Post "
+                         "grades' action (GraphQL postAssignmentGrades). Needed when the assignment "
+                         "uses a MANUAL posting policy — otherwise grades are entered but hidden "
+                         "from students and read as 'needs grading' (issue #199).")
     ap.add_argument("--yes", action="store_true",
                     help="Skip the confirmation prompt. NOTE: REFUSED on the "
                          "LLM-comment --mark-reviewed path (issue #97) — a human "
@@ -1651,6 +1692,21 @@ def main() -> int:
         summary_line += (f"; {grade_type_skipped} grade-type row(s) skipped "
                          f"(see [HOLD] / [INVALID-GRADE] / [NOT-GRADED] above — issue #99)")
     print(f"\n{summary_line}. Logged to {log} (keyed, gitignored).")
+
+    # Issue #199: a MANUAL posting policy ENTERS grades but does not release them —
+    # posted_at stays null, students can't see them, and the gradebook reads "needs
+    # grading". The push payload is correct (verified on Canvas); the posting policy
+    # is the gate. Detect it so hidden grades are never silently shipped as done.
+    if pushed and args.push and assignment_posts_manually(base, cid, headers, args.assignment_id):
+        if args.post:
+            ok, detail = post_assignment_grades(base, cid, headers, args.assignment_id)
+            print(f"  ✅ Released grades to students {detail}" if ok
+                  else f"  ⚠️  Post-grades FAILED {detail} — use the Gradebook 'Post grades' action.")
+        else:
+            print(f"\n⚠️  MANUAL posting policy: the {pushed} grade(s) are ENTERED but NOT "
+                  "posted — students can't see them and the gradebook shows 'needs grading'. "
+                  "Release them via the Gradebook 'Post grades' action, or re-run with --post.")
+
     if failed:
         print(f"Failed: {failed}")
         return 2

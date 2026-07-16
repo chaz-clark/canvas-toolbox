@@ -275,9 +275,23 @@ data = {"quiz[due_at]": new_due, "quiz[lock_at]": None, "quiz[unlock_at]": None}
 
 ---
 
+### L20 — Grades pushed under a MANUAL posting policy are entered but HIDDEN, not "stuck"
+
+**What Canvas does:** `PUT .../submissions/:user_id` with `submission[posted_grade]` sets the grade and transitions `workflow_state` to `graded` correctly — but if the assignment's posting policy is **manual** (`post_manually: true`), the grade is **not released**: `posted_at` stays `null`, the student can't see it, and the gradebook reads **"needs grading."** This looks like a workflow_state bug but is the posting policy. `submission[workflow_state]` is **not** a settable parameter — Canvas ignores it — so "force the state to graded" fixes are a no-op. Verified on the sandbox: the *identical* `posted_grade` call leaves `posted_at` set under an automatic policy and `null` under a manual one.
+
+**Why it matters:** a bulk API grading run against manual-posting assignments (e.g. pass/fail Core Tasks) leaves every grade entered-but-invisible — it reads as done to the script and as "needs grading" to the instructor. The naive "fixes" (a null→value double-PUT, or setting `workflow_state`) don't *post* the grade; only posting does.
+
+**The fix:** release grades with the GraphQL `postAssignmentGrades` mutation (`POST /api/graphql`) — the same action as the Gradebook "Post grades" button; there is no REST endpoint for it. `postAssignmentGrades(input: {assignmentId, gradedOnly: true})`. Detect the condition by reading the assignment's `post_manually`, or a pushed submission's `posted_at == null` while `grade` is set. Setting the posting policy itself via API is still only a feature request (canvas-lms#2517); posting after the fact is the supported path.
+
+**How the toolkit handles it:** `lib/tools/grader_push.py` — after a push, `assignment_posts_manually()` checks the policy; if manual it warns that grades are entered-but-hidden, and `--post` releases them via `post_assignment_grades()` (the GraphQL mutation). Never auto-posts without the flag (posting is student-facing).
+
+**Provenance:** issue #199 (DS460 run — grades across pass/fail sprints read "needs grading", 2026-07-15); root cause + fix reproduced end-to-end on sandbox 427808 (2026-07-16): auto policy posts, manual policy hides, `postAssignmentGrades` releases. Canvas dev docs confirm `workflow_state` is a response-only field.
+
+---
+
 ## Cross-Cutting Patterns
 
-These are the toolkit conventions that bake defenses against the 19 lessons into every new tool.
+These are the toolkit conventions that bake defenses against the 20 lessons into every new tool.
 
 ### P-LL1 — Form-encoded for nested writes (defends L1, L2, L16)
 
