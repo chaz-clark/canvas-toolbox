@@ -16,7 +16,7 @@ runtime_data:
 
 ## Agent Instructions
 1. Read this file for mission, principles, and workflow.
-2. Parse `canvas_semester_setup.json` for the week-to-week due date rules, API patterns, and validation steps.
+2. Parse `canvas_semester_setup.md` for the week-to-week due date rules, API patterns, and validation steps.
 3. Do not parse this Markdown for structured data.
 
 ---
@@ -38,7 +38,7 @@ runtime_data:
 3. **Read setup notes**: Fetch `course/setup-notes-and-course-settings` page (page_url: `setup-notes-and-course-settings`) to confirm week structure, time zone, and any course-specific rules.
 4. **Build week calendar**: Map each week number to its Sunday 11:59 PM due date using the start date.
 5. **Load index**: Read `.canvas/index.json` → `modules[]` → items with `due_at`, `lock_at`, `unlock_at` fields.
-6. **Map assignments to weeks**: Use the `primary_data.week_assignment_map` in `canvas_semester_setup.json` to look up which week each `canvas_id` belongs to.
+6. **Map assignments to weeks**: Use the `primary_data.week_assignment_map` in `canvas_semester_setup.md` to look up which week each `canvas_id` belongs to.
 7. **Propose**: Show the full mapping (canvas_id, title, old due_at, new due_at) for confirmation before any writes.
 8. **Push**: Call `PUT /api/v1/courses/:id/assignments/:id` with `{"assignment": {"due_at": "...", "lock_at": null, "unlock_at": null}}`. Discussions use `PUT /discussion_topics/:id` with `{"discussion_topic": {"todo_date": "..."}}`.
 9. **Update local files**: Write the new `due_at` into each local `.json` file in `course/`.
@@ -131,7 +131,7 @@ Last day: 2026-07-22
 |---|---|---|
 | `lib/tools/canvas_sync.py --init` | Rebuilds `.canvas/index.json` from live Canvas | Run if index is stale (before semester setup) |
 | `.canvas/index.json` → `modules[]` items | Source of all assignment canvas_ids and current dates | Read at start to discover all items |
-| `canvas_semester_setup.json` → `week_assignment_map` | Week number for each canvas_id | Use to compute due date per item |
+| `canvas_semester_setup.md` → `week_assignment_map` | Week number for each canvas_id | Use to compute due date per item |
 | `course/setup-notes-and-course-settings` (page_url) | Course-specific week structure and timing rules | Read to confirm rules before computing |
 
 ---
@@ -152,7 +152,7 @@ Last day: 2026-07-22
 
 **Why it happens**: Using MST offset (T06:59:00Z) for a spring/summer semester that observes MDT (T05:59:00Z), or vice versa.
 
-**Solution**: Spring semesters (roughly Apr–Jul) = MDT = T05:59:00Z. Winter/Fall semesters (roughly Aug–Mar) = MST = T06:59:00Z. Confirm with semester dates in `canvas_semester_setup.json` → `utc_offset_rules`.
+**Solution**: Spring semesters (roughly Apr–Jul) = MDT = T05:59:00Z. Winter/Fall semesters (roughly Aug–Mar) = MST = T06:59:00Z. Confirm with semester dates in `canvas_semester_setup.md` → `utc_offset_rules`.
 
 ### 3. Updating University Survey Due Dates
 
@@ -160,7 +160,7 @@ Last day: 2026-07-22
 
 **Why it happens**: They appear in `index["modules"]` as regular assignments.
 
-**Solution**: Check `canvas_semester_setup.json` → `skip_list` before building the update batch. Never update those canvas_ids.
+**Solution**: Check `canvas_semester_setup.md` → `skip_list` before building the update batch. Never update those canvas_ids.
 
 ### 4. Classic Quiz (Syllabus Quiz) Uses Assignment ID, Not Quiz ID
 
@@ -168,7 +168,7 @@ Last day: 2026-07-22
 
 **Why it happens**: Classic Canvas Quizzes have a separate linked assignment. The quiz `canvas_id` (5911959) is the quiz_id; the linked assignment_id is 16858181.
 
-**Solution**: Use assignment_id 16858181 for Syllabus Quiz updates. This is documented in `canvas_semester_setup.json` → `special_due_dates`.
+**Solution**: Use assignment_id 16858181 for Syllabus Quiz updates. This is documented in `canvas_semester_setup.md` → `special_due_dates`.
 
 ---
 
@@ -186,7 +186,7 @@ Last day: 2026-07-22
 
 **Behavior**: The Peer Audit (W14) is a Discussion, not an Assignment. Due dates for discussions use `todo_date` in `PUT /discussion_topics/:id`, not `due_at` in `PUT /assignments/:id`.
 
-**How to handle it**: Check `canvas_semester_setup.json` → `special_due_dates` for the discussion canvas_id and the correct payload key.
+**How to handle it**: Check `canvas_semester_setup.md` → `special_due_dates` for the discussion canvas_id and the correct payload key.
 
 ---
 
@@ -204,7 +204,7 @@ After pushing all updates, verify:
 ## Resources and References
 
 ### Agent Files
-- `canvas_semester_setup.json` — week assignment map, skip list, API patterns
+- `canvas_semester_setup.md` — week assignment map, skip list, API patterns
 - `lib/tools/canvas_sync.py` — `--init` rebuilds index with current dates
 - `.canvas/index.json` — current due_at for all assignments (after --init)
 - `course/setup-notes-and-course-settings` (Canvas page, page_url: `setup-notes-and-course-settings`) — authoritative week structure

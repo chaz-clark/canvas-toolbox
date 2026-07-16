@@ -16,7 +16,7 @@ runtime_data:
 
 ## Agent Instructions
 1. Read this for mission, principles, quickstart, and pitfalls.
-2. Parse `canvas_course_expert.json` for structured data, tool definitions, validation, and API mappings.
+2. Parse `canvas_course_expert.md` for structured data, tool definitions, validation, and API mappings.
 3. The Python tool script is `lib/tools/canvas_api_tool.py` — it handles all file I/O and Canvas REST calls.
 4. `canvas_sync.py` is the course mirror tool — use it to read the live course state from `course/`. This is the only supported way to read course content. `.imscc` export parsing is deprecated.
 
@@ -45,7 +45,7 @@ runtime_data:
 7. **Confirm**: Instructor reviews and approves (all, some, or none).
 8. **Apply**: Agent calls `canvas_api()` for each approved change, then updates the local extracted files to stay in sync.
 
-For tool definitions and API endpoint mappings, see `canvas_course_expert.json`.
+For tool definitions and API endpoint mappings, see `canvas_course_expert.md`.
 
 ---
 
@@ -88,7 +88,7 @@ For tool definitions and API endpoint mappings, see `canvas_course_expert.json`.
 
 **Why**: Extraneous load — caused by unclear navigation, inconsistent naming, redundant instructions, and buried content — is entirely within the instructor's control and has the highest ROI to fix.
 
-**How**: The audit ruleset (in `canvas_course_expert.json` → `primary_data.audit_rules`) tags each rule with its load type and severity. Extraneous load issues are surfaced first in the change plan.
+**How**: The audit ruleset (in `canvas_course_expert.md` → `primary_data.audit_rules`) tags each rule with its load type and severity. Extraneous load issues are surfaced first in the change plan.
 
 ### 4. BYUI Standards as the Teaching Reference
 **Description**: Recommendations align with BYU-Idaho's published course design standards and the faculty teaching resources at teach.byui.edu.
@@ -110,13 +110,13 @@ For tool definitions and API endpoint mappings, see `canvas_course_expert.json`.
 
 **Why**: Tool selection and API parameter generation must be deterministic. A module item ID passed incorrectly to the Canvas API will update the wrong resource — there is no undo prompt.
 
-**How**: Temperature is set in `canvas_course_expert.json` → `implementation.llm_agent.parameters`. See the make_agent.md "Temperature by Agent Mode" principle.
+**How**: Temperature is set in `canvas_course_expert.md` → `implementation.llm_agent.parameters`. See the make_agent.md "Temperature by Agent Mode" principle.
 
 ---
 
 ## Behavioral Discipline (core)
 
-This agent follows the behavioral discipline defined in `make-ai-agents/knowledge/behavioral_discipline.md` and `make-ai-agents/knowledge/behavioral_discipline.json` (populated as a local clone in canvas-toolbox; see [AGENTS.md](../../AGENTS.md#existing-tooling)). The principles applicable to this agent type (single_write_workflow):
+This agent follows the behavioral discipline defined in `make-ai-agents/knowledge/behavioral_discipline.md` (populated as a local clone in canvas-toolbox; see [AGENTS.md](../../AGENTS.md#existing-tooling)). The principles applicable to this agent type (single_write_workflow):
 
 - **P-001 Read Before Claiming** (*Genchi Genbutsu*): Read the actual source before claiming anything about content, code, or system state. Training-data priors are not a substitute for reading what's in front of you. *Trigger*: Every claim about content, code, data, or system state.
 - **P-002 Plan Before Acting** (*Nemawashi + TBP*): For any state-changing task with more than one step, propose the plan and wait for user confirmation before non-reversible action. The plan is a draft — refine through back-and-forth before committing. *Trigger*: Any task with more than one step that changes state.
@@ -132,7 +132,7 @@ This agent follows the behavioral discipline defined in `make-ai-agents/knowledg
 
 P-005 (Decompose When Necessary) is omitted: single_write_workflow is by definition a one-step state change with confirmation, so the decomposition discipline doesn't apply.
 
-The Key Principles section above operationalizes this discipline for the Canvas audit workflow. The CRITICAL RULES embedded in `canvas_course_expert.json` → `implementation.llm_agent.system_prompt` are the runtime enforcement layer.
+The Key Principles section above operationalizes this discipline for the Canvas audit workflow. The CRITICAL RULES embedded in `canvas_course_expert.md` → `implementation.llm_agent.system_prompt` are the runtime enforcement layer.
 
 For the full principle definitions, examples, and override rationale, see `make-ai-agents/knowledge/behavioral_discipline.md`.
 
@@ -333,14 +333,14 @@ course/
 
 **Why it happens**: Some BYUI faculty resources are behind CAS authentication. The agent cannot authenticate with BYU-Idaho's SSO.
 
-**Solution**: The agent falls back to its embedded BYUI best practices knowledge base (stored in `canvas_course_expert.json` → `primary_data.byui_standards`) when a URL returns 401/403. The knowledge base is updated periodically from publicly accessible content.
+**Solution**: The agent falls back to its embedded BYUI best practices knowledge base (stored in `canvas_course_expert.md` → `primary_data.byui_standards`) when a URL returns 401/403. The knowledge base is updated periodically from publicly accessible content.
 
 ### 6. Canvas API Rate Limit Hit During Bulk Operations
 **Problem**: The agent slows dramatically or returns 403 errors mid-run when applying many changes at once.
 
 **Why it happens**: Canvas enforces a 700 requests/minute rate limit. A course with 10 modules and 70 items can hit this ceiling quickly during a bulk update pass.
 
-**Solution**: `canvas_api_tool.py` implements a token bucket rate limiter with automatic exponential backoff on 403 rate-limit responses. For very large courses, use `batch_by_module` mode — apply changes one module at a time rather than all at once. See `canvas_course_expert.json` → `error_handling.known_failures`.
+**Solution**: `canvas_api_tool.py` implements a token bucket rate limiter with automatic exponential backoff on 403 rate-limit responses. For very large courses, use `batch_by_module` mode — apply changes one module at a time rather than all at once. See `canvas_course_expert.md` → `error_handling.known_failures`.
 
 ### 7. Canvas API Quirks — Non-Obvious Behaviors That Cause Silent Failures
 
@@ -482,7 +482,7 @@ python canvas_api_tool.py --test
 ```
 
 ### Test Cases
-See `canvas_course_expert.json` → `validation.test_cases` for:
+See `canvas_course_expert.md` → `validation.test_cases` for:
 - Empty module detection
 - Module item count threshold
 - Naming convention violations
@@ -496,9 +496,9 @@ See `canvas_course_expert.json` → `validation.test_cases` for:
 ### Agent Files
 - **`canvas_sync.py`**: Course mirror — pull, status, push, pull-single. Source of truth for live course state.
 - **`canvas_api_tool.py`**: Audit engine + Python Canvas write functions (`create_page`, `update_page`, `insert_module_item`, `fetch_modules`, etc.)
-- **`canvas_course_expert.json`**: Tool definitions, audit rules, API mappings, validation
+- **`canvas_course_expert.md`**: Tool definitions, audit rules, API mappings, validation
 - **`canvas_course_expert.md`**: This file
-- **`canvas_content_sync.md` / `canvas_content_sync.json`**: Agent guide for content sync operations
+- **`canvas_content_sync.md` / `canvas_content_sync.md`**: Agent guide for content sync operations
 
 ### Canvas API
 - Canvas REST API docs: https://canvas.instructure.com/doc/api/
@@ -520,7 +520,7 @@ See `canvas_course_expert.json` → `validation.test_cases` for:
 | **Audit Tags Emitted** | `hattie_phase` · `cognitive_load_type` · `learning_domain` · `taxonomy_source` · `sequencing` · `design_mode` · `design_coherence` · `design_principle` |
 | **Agent Type** | `llm_agent` |
 | **Complexity** | complex |
-| **Key Files** | `canvas_course_expert.json`, `canvas_api_tool.py` |
+| **Key Files** | `canvas_course_expert.md`, `canvas_api_tool.py` |
 | **Quickstart** | `uv run python lib/tools/canvas_sync.py --init` then audit via `analyze_cognitive_load()` |
 | **Common Pitfall** | Applying changes to a live course without checking enrollment dates |
 | **Temperature** | 0.1 (tool use) / 0.5 (recommendation narrative) |

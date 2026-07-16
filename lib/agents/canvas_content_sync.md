@@ -16,7 +16,7 @@ runtime_data:
 
 ## Agent Instructions
 1. Read this for mission, principles, quickstart, and pitfalls.
-2. Parse `canvas_content_sync.json` for structured data, endpoint mappings, index schema, and operation procedures.
+2. Parse `canvas_content_sync.md` for structured data, endpoint mappings, index schema, and operation procedures.
 3. Keep this file lean — structured data (endpoint quirks, payload schemas, write procedures) lives in the JSON.
 
 ---
@@ -44,7 +44,7 @@ runtime_data:
    - Insert or update the module item → capture `module_item_id` → write to index.
 6. **Verify**: Spot-check the index entry and confirm Canvas returned 200.
 
-For endpoint schemas, payload formats, and index update procedures, see `canvas_content_sync.json`.
+For endpoint schemas, payload formats, and index update procedures, see `canvas_content_sync.md`.
 
 ---
 
@@ -90,7 +90,7 @@ For endpoint schemas, payload formats, and index update procedures, see `canvas_
 
 **Why**: Canvas API write responses return the full updated resource — a single page update response can be thousands of tokens. At scale (syncing 6 modules × multiple items), MCP write traffic alone consumes most of the context window before reasoning can continue. Python scripts call the same API and return only `{success, resource_id, status_code, slug}`.
 
-**How**: During planning, use MCP to confirm module IDs (or check the index first — skip MCP entirely if the ID is already cached). For all writes, call Python functions in `canvas_api_tool.py` that return minimal summaries. See `canvas_content_sync.json → primary_data.canvas_api_endpoints` for the `mcp_or_python` field on each endpoint.
+**How**: During planning, use MCP to confirm module IDs (or check the index first — skip MCP entirely if the ID is already cached). For all writes, call Python functions in `canvas_api_tool.py` that return minimal summaries. See `canvas_content_sync.md → primary_data.canvas_api_endpoints` for the `mcp_or_python` field on each endpoint.
 
 ### 2. Index First, API Second
 
@@ -106,7 +106,7 @@ For endpoint schemas, payload formats, and index update procedures, see `canvas_
 
 **Why**: A Canvas API write is visible to enrolled students the moment it completes. A mis-pushed page or wrong module position cannot be undone with a single call — it requires a separate correction. Proposing first costs one turn; cleaning up a bad write costs much more.
 
-**How**: For open-ended requests ("sync Sprint 3"), present the full plan (page titles, modules, positions, publish states) and wait for approval. For complete single-step requests ("push this markdown as the Sprint 2 Overview, position 1, published"), execute and report. See `canvas_content_sync.json → constraints.autonomy_guidance` for the exact rules.
+**How**: For open-ended requests ("sync Sprint 3"), present the full plan (page titles, modules, positions, publish states) and wait for approval. For complete single-step requests ("push this markdown as the Sprint 2 Overview, position 1, published"), execute and report. See `canvas_content_sync.md → constraints.autonomy_guidance` for the exact rules.
 
 ### 4. Two-Step Page Insertion Is Not Optional
 
@@ -114,7 +114,7 @@ For endpoint schemas, payload formats, and index update procedures, see `canvas_
 
 **Why**: The Canvas API has no atomic "create page and add to module" endpoint. Skipping step 2 leaves the page created but invisible to students navigating via Modules. Skipping step 1 (trying to create a module item pointing to a non-existent page) returns a silent 422 or creates a broken link.
 
-**How**: Always follow the sequence in `canvas_content_sync.json → primary_data.write_procedures.create_page_and_insert`. Cache the slug from step 1 before making step 2 call. Never use the numeric `page_id` in the module item call — use `page_url: slug`.
+**How**: Always follow the sequence in `canvas_content_sync.md → primary_data.write_procedures.create_page_and_insert`. Cache the slug from step 1 before making step 2 call. Never use the numeric `page_id` in the module item call — use `page_url: slug`.
 
 ### 5. Never Read Credentials from .env
 
@@ -150,7 +150,7 @@ For endpoint schemas, payload formats, and index update procedures, see `canvas_
 
 ## Behavioral Discipline (core)
 
-This agent follows the behavioral discipline defined in `make-ai-agents/knowledge/behavioral_discipline.md` and `make-ai-agents/knowledge/behavioral_discipline.json` (populated as a local clone in canvas-toolbox; see [AGENTS.md](../../AGENTS.md#existing-tooling)). The principles applicable to this agent type (single_write_workflow):
+This agent follows the behavioral discipline defined in `make-ai-agents/knowledge/behavioral_discipline.md` (populated as a local clone in canvas-toolbox; see [AGENTS.md](../../AGENTS.md#existing-tooling)). The principles applicable to this agent type (single_write_workflow):
 
 - **P-001 Read Before Claiming** (*Genchi Genbutsu*): Read the actual source before claiming anything about content, code, or system state. Training-data priors are not a substitute for reading what's in front of you. *Trigger*: Every claim about content, code, data, or system state.
 - **P-002 Plan Before Acting** (*Nemawashi + TBP*): For any state-changing task with more than one step, propose the plan and wait for user confirmation before non-reversible action. The plan is a draft — refine through back-and-forth before committing. *Trigger*: Any task with more than one step that changes state.
@@ -187,7 +187,7 @@ For the full principle definitions, examples, and override rationale, see `make-
 | `.canvas/build_canvas_content.py` | Converts markdown to Canvas HTML using `.canvas/template.html`; `--strip-reader` removes reader-only blocks | Always run before pushing page content to Canvas |
 | `.canvas/index.json` | Persistent cache of Canvas IDs, slugs, and module item IDs | Check before any read API call; update after every write |
 | `canvas_api_tool.py` | Python implementation for all Canvas write operations; returns minimal summaries | All POST and PUT operations |
-| `canvas_course_expert.json → primary_data.canvas_api_endpoints` | Canonical endpoint reference with payload schemas and quirks | Cross-reference when building a write request |
+| `canvas_course_expert.md → primary_data.canvas_api_endpoints` | Canonical endpoint reference with payload schemas and quirks | Cross-reference when building a write request |
 
 **Reuse-first rule**: `build_canvas_content.py` already handles `<% slides %>`, `<% quiz %>`, `<% links %>`, `<% checklist %>`, and `<% editor %>` tags. Do not write new preprocessing logic — extend `preprocess()` in that script if new tags appear.
 
@@ -255,7 +255,7 @@ json.dump(index, open(".canvas/index.json", "w"), indent=2)
 
 **Why it happens**: Canvas module item `title` is independent of the underlying resource name. Updating the page or assignment name does not cascade to the module item.
 
-**Solution**: Every rename requires two PUT calls: (1) update the resource (page or assignment) name, and (2) update the module item `title` via `PUT /courses/:id/modules/:module_id/items/:item_id`. See `canvas_content_sync.json → primary_data.write_procedures.rename_resource`.
+**Solution**: Every rename requires two PUT calls: (1) update the resource (page or assignment) name, and (2) update the module item `title` via `PUT /courses/:id/modules/:module_id/items/:item_id`. See `canvas_content_sync.md → primary_data.write_procedures.rename_resource`.
 
 ### 4. Not Running `--strip-reader` Before Pushing
 
@@ -279,7 +279,7 @@ json.dump(index, open(".canvas/index.json", "w"), indent=2)
 
 **Why it happens**: Parallel tool use is efficient for independent operations. The two-step page insert is not independent — step 2 requires the slug from step 1's response.
 
-**Solution**: Disable parallel tool use for write sequences. `disable_parallel_tool_use` is set to `true` in `canvas_content_sync.json → implementation.llm_agent.parameters`. Never attempt both steps of the two-step insert in a single parallel call batch.
+**Solution**: Disable parallel tool use for write sequences. `disable_parallel_tool_use` is set to `true` in `canvas_content_sync.md → implementation.llm_agent.parameters`. Never attempt both steps of the two-step insert in a single parallel call batch.
 
 ---
 
@@ -299,7 +299,7 @@ json.dump(index, open(".canvas/index.json", "w"), indent=2)
 
 **Why it matters**: Students and instructors see 0 points in the gradebook even though the quiz was created successfully. This looks like a bug but is a required second API call.
 
-**How to handle it**: Always follow a quiz creation with a separate `update_quiz_points` call after all questions are added. Never rely on the initial POST to set points. See `canvas_content_sync.json → primary_data.canvas_api_endpoints.update_quiz_points`.
+**How to handle it**: Always follow a quiz creation with a separate `update_quiz_points` call after all questions are added. Never rely on the initial POST to set points. See `canvas_content_sync.md → primary_data.canvas_api_endpoints.update_quiz_points`.
 
 ### Canvas API — Assignment Group Bodies Must Be Flat (Not Nested)
 
@@ -307,7 +307,7 @@ json.dump(index, open(".canvas/index.json", "w"), indent=2)
 
 **Why it matters**: The group appears to be created successfully (200 OK, returns an object), but with the wrong name and 0% weight. Gradebook weights are wrong and the group name is a Canvas default string.
 
-**How to handle it**: Send flat JSON bodies for assignment group operations. See `canvas_content_sync.json → primary_data.canvas_api_endpoints.create_assignment_group` for the correct payload schema.
+**How to handle it**: Send flat JSON bodies for assignment group operations. See `canvas_content_sync.md → primary_data.canvas_api_endpoints.create_assignment_group` for the correct payload schema.
 
 ### Canvas API — Renames Require Two Independent Updates
 
@@ -349,7 +349,7 @@ json.dump(index, open(".canvas/index.json", "w"), indent=2)
 }
 ```
 
-**Code**: See `canvas_content_sync.json → primary_data.write_procedures.create_page_and_insert`
+**Code**: See `canvas_content_sync.md → primary_data.write_procedures.create_page_and_insert`
 
 ### Example 2: Renaming a Page That Already Exists in Canvas
 
@@ -357,7 +357,7 @@ json.dump(index, open(".canvas/index.json", "w"), indent=2)
 
 **Approach**: Index lookup gives `canvas_id` and `module_item_id` for the existing page. Agent proposes two calls: (1) `PUT /pages/:slug` to update title; (2) `PUT /modules/:id/items/:module_item_id` to update module item title. After approval, executes both and updates the index entry.
 
-**Code**: See `canvas_content_sync.json → primary_data.write_procedures.rename_resource`
+**Code**: See `canvas_content_sync.md → primary_data.write_procedures.rename_resource`
 
 ### Example 3: MCP Unavailable — Fallback to Python for Reads
 
@@ -365,7 +365,7 @@ json.dump(index, open(".canvas/index.json", "w"), indent=2)
 
 **Approach**: On MCP failure, agent switches to Python `requests` GET call to fetch modules list. Caches the returned module IDs to the index. Proceeds with all writes via Python as normal. Documents the fallback in the session summary.
 
-**Code**: See `canvas_content_sync.json → error_handling.fallbacks`
+**Code**: See `canvas_content_sync.md → error_handling.fallbacks`
 
 ---
 
@@ -377,7 +377,7 @@ json.dump(index, open(".canvas/index.json", "w"), indent=2)
 3. Confirm the page slug in the index matches what Canvas shows in the page URL.
 
 ### Comprehensive Validation
-For detailed pre/post checklists, see `canvas_content_sync.json → validation`.
+For detailed pre/post checklists, see `canvas_content_sync.md → validation`.
 
 The validation section includes:
 - Pre-run checklist (index has `course_id`, source file exists, `--strip-reader` applied)
@@ -400,13 +400,13 @@ The validation section includes:
 ## Resources and References
 
 ### Agent Files
-- **`canvas_content_sync.json`**: Endpoint mappings, payload schemas, write procedures, validation
+- **`canvas_content_sync.md`**: Endpoint mappings, payload schemas, write procedures, validation
 - **`canvas_api_tool.py`**: Python implementation for all Canvas write operations
 - **`.canvas/index.json`**: Runtime state — Canvas IDs, slugs, module item IDs for this course
 - **`.canvas/build_canvas_content.py`**: Markdown-to-HTML converter with `--strip-reader` flag
 
 ### Related Agents
-See `canvas_content_sync.json → cross_references.related_agents` for:
+See `canvas_content_sync.md → cross_references.related_agents` for:
 - `canvas_course_expert`: The audit agent that identifies what needs to change — this agent applies those changes
 - `canvas-sync`: The predecessor prompt this agent was adapted from
 
@@ -425,7 +425,7 @@ See `canvas_content_sync.json → cross_references.related_agents` for:
 | **Output** | Canvas page created/updated + module item inserted/updated + index updated |
 | **Agent Type** | `llm_agent` |
 | **Complexity** | standard |
-| **Key Files** | `canvas_content_sync.json`, `canvas_api_tool.py`, `.canvas/index.json` |
+| **Key Files** | `canvas_content_sync.md`, `canvas_api_tool.py`, `.canvas/index.json` |
 | **Quickstart** | Check index → build HTML (`--strip-reader`) → propose → create page (Python) → insert module item (Python) → update index |
 | **Common Pitfall** | Using `page_id` instead of `slug` for module item insertion — silent failure, broken link |
 | **Dependencies** | `requests>=2.31.0`, Canvas MCP server (Docker), `canvas_api_tool.py` |

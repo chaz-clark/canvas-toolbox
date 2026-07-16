@@ -14,7 +14,7 @@ runtime_data:
 
 ## Agent Instructions
 1. Read this file for mission, principles, quickstart, and pitfalls.
-2. Parse `canvas_grader.json` for tool definitions, per-assignment config schema, pipeline stage contracts, and validation cases.
+2. Parse `canvas_grader.md` for tool definitions, per-assignment config schema, pipeline stage contracts, and validation cases.
 3. Load the three knowledge files at runtime — they carry the lessons this agent's behavior is grounded in:
    - [`knowledge/grader_knowledge.md`](knowledge/grader_knowledge.md) — Core: FERPA architecture, scoring philosophy, signals-as-priors, consensus, prompt-injection, judge-bias, multi-output, grade-earned reconciliation, wellbeing flags, push gate, rubric handling, ruled-out list, open gaps, acceptance bars.
    - [`knowledge/grader_voice_knowledge.md`](knowledge/grader_voice_knowledge.md) — Per-instructor comment voice: structure, never-feed-back-values, edit-roundtrip protocol, banned patterns, per-instructor file contract.
@@ -182,7 +182,7 @@ manual control of each step.
    Idempotent (each retract appends a `retracted` line; subsequent runs
    skip already-retracted ids).
 
-For structured data — config schema, pipeline stage contracts, output formats, test cases — see `canvas_grader.json`.
+For structured data — config schema, pipeline stage contracts, output formats, test cases — see `canvas_grader.md`.
 
 ---
 
@@ -286,7 +286,7 @@ For structured data — config schema, pipeline stage contracts, output formats,
 
 ## Behavioral Discipline (core)
 
-This agent follows the behavioral discipline defined in `make-ai-agents/knowledge/behavioral_discipline.md` and `make-ai-agents/knowledge/behavioral_discipline.json` (populated as a local clone in canvas-toolbox; see [AGENTS.md](../../AGENTS.md#existing-tooling)). The principles applicable to this agent type (multi_step_batch — the full discipline applies because grading decomposes into per-submission operations that compose into a batch push):
+This agent follows the behavioral discipline defined in `make-ai-agents/knowledge/behavioral_discipline.md` (populated as a local clone in canvas-toolbox; see [AGENTS.md](../../AGENTS.md#existing-tooling)). The principles applicable to this agent type (multi_step_batch — the full discipline applies because grading decomposes into per-submission operations that compose into a batch push):
 
 - **P-001 Read Before Claiming**: Read the actual submission, rubric, and config before any claim about a grade.
 - **P-002 Plan Before Acting**: For the first cohort run, propose the calibration plan (5–10 single-grader, instructor reviews each) and wait for confirmation before bulk.
@@ -661,7 +661,7 @@ Subsequent cohorts of the same assignment skip Path C — the rubric persists.
 
 ### Comprehensive Validation
 
-See `canvas_grader.json → validation` for full test cases mapping to the six acceptance bars in `grader_knowledge.md` §12:
+See `canvas_grader.md → validation` for full test cases mapping to the six acceptance bars in `grader_knowledge.md` §12:
 
 - [x] **BAR-1** — Handles both validated assignment types through config alone. *PASS EMPIRICAL (ds460 Mid Review keyless ghost-run 2026-06-10: full multi-output flow, **zero tool-code edits**; the `feedback/<label>/` scoping fix + `band_to_score` map both work; multi-output artifacts coexist without clobbering).*
 - [ ] **BAR-2** — Setup interview takes an instructor with no rubric to a gradeable rubric. *Legitimately deferred — no fitting DS460 Path C case; re-confirms when a real no-rubric assignment arrives.*
@@ -693,7 +693,7 @@ After any cohort run, the final A3 records: (a) per-output counts (graded / push
 ## Resources and References
 
 ### Agent Files
-- **`canvas_grader.json`**: Tool definitions, config schema, pipeline stage contracts, output formats, validation cases.
+- **`canvas_grader.md`**: Tool definitions, config schema, pipeline stage contracts, output formats, validation cases.
 - **`knowledge/grader_knowledge.md`**: Core grader lessons (FERPA architecture, scoring, signals, consensus, prompt-injection, bias, multi-output, grade-earned, push gate).
 - **`knowledge/grader_voice_knowledge.md`**: Per-instructor comment voice (structure, never-feed-back-values, edit roundtrip, banned patterns).
 - **`knowledge/grader_setup_knowledge.md`**: The 6-step setup interview + per-assignment config shape + Classic-quiz mirror pattern.
