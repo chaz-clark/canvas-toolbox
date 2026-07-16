@@ -1,12 +1,18 @@
 ---
 name: canvas-toolbox-working-style
-description: Detailed working style guidelines for canvas-toolbox — project-specific rules with motivating cases
 version: "1.0"
-author: chaz-clark
-license: MIT
+last_updated: 2026-07-12
+description: Detailed working-style guidelines for canvas-toolbox — project-specific rules with the motivating cases behind each (bullet summaries live in AGENTS.md).
+skill_type: knowledge
+shape: identity
+scope: "Project-specific working-style rules for canvas-toolbox agents, with the motivating cases behind each. Quick-reference summaries live in AGENTS.md."
+consumed_by:
+  - AGENTS.md
+companion_json_deprecated: "2026-07-16 - authored as YAML frontmatter (JSON purge convention)"
+runtime_strategy: read_at_runtime
 metadata:
+  knowledge_id: canvas-toolbox-working-style
   repo: canvas-toolbox
-  last-updated: 2026-07-12
 ---
 
 # Canvas Toolbox Working Style (Detailed)

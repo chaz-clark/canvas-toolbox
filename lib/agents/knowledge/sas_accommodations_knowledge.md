@@ -1,3 +1,21 @@
+---
+name: sas_accommodations_knowledge
+version: "1.0"
+last_updated: 2026-07-16
+description: Catalog + dispatch knowledge for BYUI SAS accommodation types — the stable standardized asks and how apply_sas_accommodations.py dispatches each.
+skill_type: knowledge
+shape: reference
+scope: "The SAS accommodation catalog (canvas / proctoring / policy tiers) and the canvas-tier key -> tool dispatch. The catalog itself stays as body tables (reads better there)."
+consumed_by:
+  - apply_sas_accommodations.py
+companion_json_deprecated: "2026-07-16 - authored as YAML frontmatter (JSON purge convention)"
+provenance:
+  sources:
+    - "life-pm SAS accommodation handoffs from BYUI Accessibility Services notification letters (byui.as@accessiblelearning.com)"
+runtime_strategy: read_at_runtime
+metadata: { knowledge_id: sas_accommodations_knowledge, facts_location: body }
+---
+
 # SAS accommodations — catalog + dispatch knowledge
 
 **Source:** life-pm produces SAS accommodation handoffs from BYUI

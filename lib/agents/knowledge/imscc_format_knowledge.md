@@ -1,3 +1,21 @@
+---
+name: imscc_format_knowledge
+version: "1.0"
+last_updated: 2026-07-12
+description: Technical reference for the Canvas .imscc format (IMS Common Cartridge v1.1 + Canvas extensions) — archive structure, manifest, XML, and parsing.
+skill_type: knowledge
+shape: reference
+scope: "The .imscc archive structure, imsmanifest.xml, course_settings/ Canvas extensions, and how to parse them — for .imscc import/export implementation."
+consumed_by:
+  - canvas_content_sync.md
+companion_json_deprecated: "2026-07-16 - authored as YAML frontmatter (JSON purge convention)"
+provenance:
+  sources:
+    - "Canvas LMS docs, IMS Global Common Cartridge spec, canvas-imscc examples"
+runtime_strategy: read_at_runtime
+metadata: { knowledge_id: imscc_format_knowledge }
+---
+
 # Canvas .imscc Format - Technical Reference
 
 **Purpose**: Knowledge base for Sprint 4 (.imscc import/export) implementation

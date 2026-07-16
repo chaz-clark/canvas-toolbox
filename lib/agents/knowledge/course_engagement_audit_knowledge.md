@@ -1,3 +1,22 @@
+---
+name: course_engagement_audit_knowledge
+version: "1.0"
+last_updated: 2026-06-26
+description: The Title IV last-date-of-academic-engagement audit — classifies enrolled students into UF / UW / Never-Participated / Active for R2T4 reporting.
+skill_type: knowledge
+shape: reference
+scope: "Title IV academic-engagement definition (34 CFR 668.22), the UF/UW/Never-Participated/Active classification, the Downloads-folder FERPA pattern, re-verification cadence. Out of scope: the financial-aid office's R2T4 calculation."
+consumed_by:
+  - canvas_grader.md
+  - canvas_course_expert.md
+companion_json_deprecated: "2026-07-16 - authored as YAML frontmatter (JSON purge convention)"
+provenance:
+  sources:
+    - "34 CFR 668.22 (Title IV); local snapshots in sources/title_iv/ (verified 2026-06-26)"
+runtime_strategy: read_at_runtime
+metadata: { knowledge_id: course_engagement_audit_knowledge }
+---
+
 # Course Engagement Audit — Title IV last-date-of-engagement classifier
 
 > Reference. The Title IV federal-compliance audit that classifies enrolled students by their last date of academic engagement against an operator-provided UF cutoff date.

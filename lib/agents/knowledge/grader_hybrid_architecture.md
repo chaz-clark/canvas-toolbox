@@ -1,3 +1,28 @@
+---
+name: grader_hybrid_architecture
+version: "1.0"
+last_updated: 2026-07-16
+description: How to think about AI-assisted grading as a layer-routed NLP + LLM hybrid.
+skill_type: knowledge
+shape: identity
+scope: "Design philosophy for hybrid NLP+LLM grading — the four-layer routing + guardrails. Consumed by the grading agent and grader_signals.py / grader_grade.py / grader_consensus.py."
+consumed_by:
+  - canvas_grader.md
+companion_json_deprecated: "2026-07-16 - authored as YAML frontmatter (JSON purge convention)"
+provenance:
+  sources:
+    - "issue #192 design thread"
+    - "prior art: hybrid AES, feature-augmented LLM grading, LLM-as-judge, RAG-for-grading"
+runtime_strategy: read_at_runtime
+principles:
+  - { id: HG-1, name: Route by checkability, compact_statement: "NLP owns mechanical/coverage rows; the LLM owns judgment. Never force regex onto 'insight'." }
+  - { id: HG-2, name: Priors never score, compact_statement: "NLP produces evidence; the grade is LLM consensus confirmed by the instructor." }
+  - { id: HG-3, name: Evidence not verdict, compact_statement: "Every NLP feature is evidence to verify against the text, never met/unmet — defeats keyword-stuffing." }
+  - { id: HG-4, name: Audit stays semi-independent, compact_statement: "NLP audits the consensus and routes conflicts to a human; a signal fed into the passes is a weaker auditor." }
+  - { id: HG-5, name: Instructor is the top layer, compact_statement: "Decision support, not autonomy — the human decides." }
+metadata: { knowledge_id: grader_hybrid_architecture }
+---
+
 # Hybrid grading architecture — layer-routed NLP + LLM
 
 **Consumed by:** the grading agent + `grader_signals.py`, `grader_grade.py`,

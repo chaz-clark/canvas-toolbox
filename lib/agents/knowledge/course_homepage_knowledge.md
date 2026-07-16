@@ -1,16 +1,19 @@
 ---
 name: course_homepage_knowledge
-description: Pure-HTML/CSS Canvas course home page generator — DesignPLUS-free replacement. Reads a schedule.yml (one per course-section) + today's date; renders a static home page with the current week's section pre-expanded. Auto-tracks the semester via regenerate-on-cadence rather than runtime JS. Promotes the canvas-toolbox pattern used in `course_homepage_build.py`.
 version: "0.1"
-author: chaz-clark
-license: MIT
+last_updated: 2026-06-22
+description: Pure-HTML/CSS Canvas course home page generator (DesignPLUS-free) — reads a schedule.yml + today's date and renders a static home page with the current week pre-expanded, auto-tracked via regenerate-on-cadence rather than runtime JS.
+skill_type: knowledge
+shape: reference
+scope: "Design rationale + when-to-use for course_homepage_build.py — the HTML/CSS-native, DesignPLUS-free, regenerate-on-cadence home-page pattern."
+consumed_by:
+  - lib/tools/course_homepage_build.py
+companion_json_deprecated: "2026-07-16 - authored as YAML frontmatter (JSON purge convention)"
+runtime_strategy: read_at_runtime
 metadata:
+  knowledge_id: course_homepage_knowledge
   topic: canvas-page-generation
-  precipitating-event: 2026-06-22 — BYUI moving off DesignPLUS for cost savings; need an HTML/CSS-native course-home-page tool
-  affects: any course wanting an interactive home page without DesignPLUS or JS injection
-  consumed_by:
-    - lib/tools/course_homepage_build.py
-read_at_runtime: selective_load
+  precipitating_event: "2026-06-22 — BYUI moving off DesignPLUS for cost savings; need an HTML/CSS-native course-home-page tool"
 ---
 
 # Course-homepage generation — pure HTML/CSS, DesignPLUS-free
