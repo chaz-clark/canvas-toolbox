@@ -1,3 +1,23 @@
+---
+name: inverted_blooms_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: 'Traditional Bloom''s assumes students build understanding before creating. AI inverts that: students can now *Create* first — which means assessment design must deliberately reclaim the lower levels.'
+skill_type: knowledge
+shape: reference
+scope: 'Assessment-design framework for the AI age — audit whether assessments produce genuine student learning or inadvertently accept AI-generated work as a substitute. Boundaries: does not cover CLO well-formedness (see outcomes_quality) or Bloom verb classification (see taxonomy_explorer); layers on top of those, not replaces them.'
+consumed_by:
+- canvas_course_expert.md
+- ira_program_alignment.md
+provenance:
+  sources:
+  - Kassorla, M. Inverted Bloom's for the Age of AI. Substack. https://michellekassorla.substack.com/p/inverted-blooms-for-the-age-of-ai
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: inverted_blooms_knowledge
+---
+
 # Inverted Bloom's — Assessment Design for the Age of AI
 
 A framework for auditing whether course assessments are designed to produce genuine student learning, or whether they inadvertently accept AI-generated work as a substitute for it.

@@ -1,3 +1,24 @@
+---
+name: content_representation_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: Surfacing whose voices, authors, and examples a course's content draws on (source material, not structure), so an instructor can judge representation. v0.1 — experimental/unwired.
+skill_type: knowledge
+shape: reference
+scope: 'Surfacing whose voices/authors/examples a course''s content draws on, so an instructor can judge representation. Checks SOURCE material, not structure. Boundaries: structure/scaffolding lives in cognitive_load + course_design_language; outcome/rubric/syllabus quality have their own files. EXPERIMENTAL/UNWIRED — built ahead of an explicit decision to wire it.'
+consumed_by:
+- content_representation_audit.py
+provenance:
+  sources:
+  - University of Chicago, Chicago Center for Teaching & Integrated Learning. Inclusive Pedagogy (representation of perspectives/scholars).
+  - Tatum, B. D. (1997/2017). Why Are All the Black Kids Sitting Together in the Cafeteria? Basic Books.
+  - General inclusive-curriculum practice ('diversify the syllabus / cite a range of scholars').
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: content_representation_knowledge
+---
+
 # Content Representation — Auditor's Reference
 
 > ⚠️ **v0.1 — EXPERIMENTAL, UNWIRED.** Not yet consumed by `canvas_course_expert`

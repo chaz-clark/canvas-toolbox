@@ -1,3 +1,23 @@
+---
+name: hattie_3phase_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: Hattie's three-phase learning model (surface -> deep -> transfer) as a course-design audit lens — matching task types to the right learning phase.
+skill_type: knowledge
+shape: reference
+scope: 'Three-phase learning progression model — Surface, Deep, Transfer — used by canvas_course_expert to tag audit issues with their hattie_phase. Boundaries: does not cover working-memory mechanics within a phase (see cognitive_load_theory) or brain-aligned sequencing (see experiential_learning).'
+consumed_by:
+- canvas_course_expert.md
+- canvas_course_expert.json
+provenance:
+  sources:
+  - 'Hattie, J. (2009). Visible Learning: A Synthesis of Over 800 Meta-Analyses Relating to Achievement. Routledge.'
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: hattie_3phase_knowledge
+---
+
 # Hattie's 3-Phase Learning Model — Knowledge Reference
 
 Source: Hattie, J. (2009). *Visible Learning*. Routledge.

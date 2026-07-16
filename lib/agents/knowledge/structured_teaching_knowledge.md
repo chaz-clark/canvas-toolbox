@@ -1,3 +1,24 @@
+---
+name: structured_teaching_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: 'WHY course structure matters and matters most for the underserved — the equity interpretation layer over structural findings the toolkit already detects. A reasoning frame, not a new audit. Boundaries: detection of structure lives in cognit'
+skill_type: knowledge
+shape: reference
+scope: 'WHY course structure matters and matters most for the underserved — the equity interpretation layer over structural findings the toolkit already detects. A reasoning frame, not a new audit. Boundaries: detection of structure lives in cognitive_load + hattie + syllabus + course_quality_check; this supplies the ''so what / who it hurts'' reading. Non-demographic: reasons about course design, never labels individual students.'
+consumed_by:
+- canvas_course_expert.md
+provenance:
+  sources:
+  - 'Sathy, V., & Hogan, K. A. (2022). Inclusive Teaching: Strategies for Promoting Equity in the College Classroom. West Virginia University Press.'
+  - Walton, G. M., & Cohen, G. L. (2007/2011). Belonging uncertainty / social-belonging intervention research.
+  - Felten, P., & Lambert, L. M. (2020). Relationship-Rich Education. Johns Hopkins University Press.
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: structured_teaching_knowledge
+---
+
 # Structured Teaching as an Equity Lever — Reasoning Reference
 
 A lens for *why* the course-structure signals the toolkit already detects matter — and

@@ -1,3 +1,25 @@
+---
+name: workload_calibration_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: 'How much gradable work a course asks (volume) and how it''s distributed across the term (density/clustering). Complements cognitive_load (per-task mental load) with the aggregate budget view. Boundaries: per-task load is cognitive_load; the '
+skill_type: knowledge
+shape: reference
+scope: 'How much gradable work a course asks (volume) and how it''s distributed across the term (density/clustering). Complements cognitive_load (per-task mental load) with the aggregate budget view. Boundaries: per-task load is cognitive_load; the term schedule is syllabus; this is the aggregate work distribution. Honest scope: distribution computable from due dates; reading hours NOT reliably knowable from the API.'
+consumed_by:
+- workload_audit.py
+- canvas_course_expert.md
+provenance:
+  sources:
+  - Carnegie unit / U.S. credit-hour norm (~1 hr instruction + ~2 hrs out-of-class per credit per week).
+  - Common academic reading rate ~250 words/minute.
+  - Course Workload Estimator (Wake Forest; Betsy Barre & Justin Esarey) — estimate student hours from readings + assignments.
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: workload_calibration_knowledge
+---
+
 # Workload Calibration — Auditor's Reference
 
 How much work does a course actually ask of students, and is it distributed sanely
