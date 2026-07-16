@@ -1,3 +1,28 @@
+---
+name: designer_thinking_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: Designer's-eye principle for course design — judge teaching by what students can newly DO (transfer/capability), not by how clear the delivery was.
+skill_type: knowledge
+shape: identity
+scope: 'A framing for course design that shifts the instructor from teacher mode (''what am I covering?'') to designer mode (''what will students be able to do?''). The single frame is backward design: Outcome → Evidence → Experience → Content → Reality Check. Boundaries: does not cover artifact-level coherence (see course_design_language) or working-memory mechanics (see cognitive_load_theory).'
+consumed_by:
+- canvas_course_expert.md
+- canvas_new_course_setup.md
+- ira_program_alignment.md
+provenance:
+  sources:
+  - BYUI Architects of Learning (course 405800) — the framing the course teaches and embodies.
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+principles:
+- id: backward_design
+  name: Backward Design (the Designer-Thinking frame)
+  compact_statement: 'Five stages in order: Outcome (what will students be able to do?) → Evidence (what would convince me they can do it?) → Experience (what practice with feedback gets them there?) → Content (what content serves as a tool toward the outcome?) → Reality Check (what does success look like in practice, and how could this fail?). Outcome → Evidence comes BEFORE Experience and Content. Reality Check is last because it tests the design against use, not intent.'
+metadata:
+  knowledge_id: designer_thinking_knowledge
+---
+
 # Designer Thinking — The Backward Design Framework
 
 A framing for course design that shifts the instructor from *teacher thinking* (what am I covering?) to *designer thinking* (what will students be able to do?).

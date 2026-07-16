@@ -1,3 +1,25 @@
+---
+name: taxonomy_explorer_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: BYUI's institutional view of the three learning domains, including BYUI's chosen psychomotor model (Simpson 1972, 7 levels) and the live verb-classification tool faculty actually use. Faculty preferring BYUI tool view → this file; faculty p
+skill_type: knowledge
+shape: reference
+scope: BYUI's institutional view of the three learning domains, including BYUI's chosen psychomotor model (Simpson 1972, 7 levels) and the live verb-classification tool faculty actually use. Faculty preferring BYUI tool view → this file; faculty preferring academic-research view → three_domains_knowledge.md. For domain theory, affective-domain-matters argument, physical ≠ psychomotor distinction, and audit interpretation, defer to three_domains_knowledge.
+consumed_by:
+- canvas_course_expert.md
+provenance:
+  sources:
+  - BYU-Idaho. The Taxonomy Explorer. https://content.byui.edu/file/c5d91be3-1a6e-4f21-bf0a-610f9f1e2dd6/1/Taxonomy_Explorer.html
+  - Anderson, L.W. & Krathwohl, D.R. (2001). Cognitive taxonomy revision.
+  - Krathwohl, D.R. (1964). Affective taxonomy.
+  - Simpson, E.J. (1972). The classification of educational objectives in the psychomotor domain.
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: taxonomy_explorer_knowledge
+---
+
 # BYUI Taxonomy Explorer — Knowledge Reference
 
 Source: BYU-Idaho. *The Taxonomy Explorer.* https://content.byui.edu/file/c5d91be3-1a6e-4f21-bf0a-610f9f1e2dd6/1/Taxonomy_Explorer.html
