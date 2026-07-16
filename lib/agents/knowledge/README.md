@@ -31,6 +31,7 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 | Per-instructor comment voice for the grading pipeline | [`grader_voice_knowledge.md`](grader_voice_knowledge.md) |
 | Coaching a new faculty on feedback style — research-grounded WHAT/HOW split + first-time voice articulation | [`voice_coaching_knowledge.md`](voice_coaching_knowledge.md) |
 | Onboarding a new instructor / assignment to the grader (6-step interview) | [`grader_setup_knowledge.md`](grader_setup_knowledge.md) |
+| The layer-routed NLP + LLM hybrid grading architecture (which layer owns which rubric row; priors never score) | [`grader_hybrid_architecture.md`](grader_hybrid_architecture.md) |
 | Title IV course-engagement audit — classifying students into UW/UF/Never-Participated/Active by last engagement date for R2T4 reporting (NEW FERPA tier 3 — Downloads-folder named report) | [`course_engagement_audit_knowledge.md`](course_engagement_audit_knowledge.md) |
 
 ---
@@ -239,6 +240,17 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 **Audit tag:** none (operational reference, not an audit producer).
 **Status:** ✅ **v1.0** (ds460 KC1 alpha 2026-06-10: 20/22 within 0.5 on the medium criterion; cohort mean within 0.09 of the original push).
 **Consumed by:** `canvas_grader.md`. **Pairs with:** [`grader_voice_knowledge.md`](grader_voice_knowledge.md), [`grader_setup_knowledge.md`](grader_setup_knowledge.md), [`rubrics_knowledge.md`](rubrics_knowledge.md), [`canvas_api_knowledge.md`](canvas_api_knowledge.md), [`canvas_api_lessons_learned.md`](canvas_api_lessons_learned.md), [`assessments_knowledge.md`](assessments_knowledge.md), [`backwards_design_knowledge.md`](backwards_design_knowledge.md).
+
+---
+
+### [`grader_hybrid_architecture.md`](grader_hybrid_architecture.md)
+
+**Source:** the #192 design thread — a real 23-submission prose-methodology grading run (off-Canvas, Brightspace) plus prior art across hybrid AES, feature-augmented LLM grading, LLM-as-judge, and RAG-for-grading.
+**Core idea:** The *how to think* for AI-assisted grading as a **layer-routed hybrid**. NLP owns the deterministic layers (lexical/pattern + syntactic/structural) as *evidence*; the LLM owns the semantic + holistic-judgment layers; a deterministic pass audits the LLM consensus; the instructor is the top layer. Route each rubric row by **checkability** (mechanical/coverage → NLP authoritative; judgment → LLM). Guardrails: priors never score, evidence-not-verdict, the audit stays (semi-)independent, route by checkability. **Enrichment** (corpus + features — quality lever) vs **token-reduction** (densify-not-truncate — cost lever) are opposite uses; never conflate. Decision support, not autonomy.
+**When to use:** Designing or running any hybrid NLP+LLM grading (esp. prose/methodology). Read alongside `grader_knowledge.md` (workflow) and `critical_thinking_knowledge.md` (rubric grounding).
+**Audit tag:** none (architecture reference, not an audit producer).
+**Status:** 🔧 design (issue #192).
+**Consumed by:** the grading agent + `grader_signals.py`, `grader_grade.py`, `grader_consensus.py`. **Pairs with:** [`grader_knowledge.md`](grader_knowledge.md), [`critical_thinking_knowledge.md`](critical_thinking_knowledge.md).
 
 ---
 
