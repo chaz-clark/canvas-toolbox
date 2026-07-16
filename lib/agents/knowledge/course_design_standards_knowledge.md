@@ -1,3 +1,26 @@
+---
+name: course_design_standards
+version: '1.0'
+last_updated: '2026-07-16'
+description: 'The BYUI Campus Online institutional course-design checklist mapped to NWCCU accreditation codes. ~40 standards across 7 categories. This is the **master checklist** the canvas-toolbox audit tools should be measuring against; many existing '
+skill_type: knowledge
+shape: reference
+scope: 'Institutional course-design audit standards — what BYUI Campus Online considers ''well-designed'' at the procedural / structural / accreditation level. Covers NWCCU sections 1–7 (mission/values, outcomes/assessment, activities/engagement, organizational delivery, maintainability, student roadblock resources, successful facilitation). Two-modality split (online tab 1 vs common-core/in-person tab 2). Out of scope: visual design grammar (course_design_language_knowledge), syllabus-specific detail (syllabus_knowledge), pedagogy of specific assessment types (assessments_knowledge).'
+consumed_by:
+- canvas_course_expert.md
+- ira_program_alignment.md
+provenance:
+  sources:
+  - BYU-Idaho Campus Online team — Course Design Standards (2026), PUBLIC CANONICAL HTML at content.byui.edu/file/25dac126-7189-40a4-9781-4351263e7d25/1/course-design-standards.html. Contains the short-form titles per standard + one set (no modality tab). Fetched 2026-06-10; verbatim text matches the xlsx tracking-template tab 1.
+  - BYU-Idaho Campus Online team — Course Design Standards (2026), 2-tab xlsx tracking template, operator-supplied 2026-06-10. Parked at lib/agents/pre_knowledge/byui_learning_teaching/byui_course_design_standards_2026.xlsx (gitignored) with paired transcript .md. The HTML canonical references this xlsx as its companion tracking tool.
+  - NWCCU accreditation framework (the xlsx column A maps to NWCCU codes)
+  - Cross-walk derived 2026-06-10 from canvas-toolbox's existing audit tools (lib/tools/syllabus_audit.py, workload_audit.py, rubric_quality_audit.py, module_structure_diff.py, canvas_schedule_auditor.py, etc.)
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: course_design_standards
+---
+
 # Course Design Standards — BYU-Idaho Institutional Audit Reference
 
 > Reference. The BYUI Campus Online institutional course-design checklist mapped to NWCCU accreditation codes. ~40 standards across 7 categories. This is the **master checklist** the canvas-toolbox audit tools should be measuring against; many existing audits already cover specific standards, several gaps are named here for future tools.

@@ -1,3 +1,44 @@
+---
+name: course_design_language_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: Whether a BYU-I course reads as a coherent, well-designed artifact — visual grammar, rubric quality, and alignment across the course map.
+skill_type: knowledge
+shape: identity
+scope: 'The canonical design-language specification for BYU-Idaho Canvas courses — prescriptive principles for whether a course feels like one coherent artifact to the student. Boundaries: does not cover Hattie phase progression (see hattie_3phase) or working-memory mechanics (see cognitive_load_theory); see those files plus designer_thinking, taxonomy_explorer, toyota_gap_analysis for adjacent concerns.'
+consumed_by:
+- canvas_course_expert.md
+- canvas_content_sync.md
+provenance:
+  sources:
+  - BYU-Idaho Architects of Learning course (405800) — the course whose subject matter is course architecture and whose own build is the exemplar.
+  - 'Companion frameworks: hattie_3phase_knowledge.md, cognitive_load_theory_knowledge.md, designer_thinking_knowledge.md, taxonomy_explorer_knowledge.md, toyota_gap_analysis_knowledge.md.'
+  - 'BYUI institutional view: see agents/templates/byui_course_design/ for the 11 HTML component templates and 1 rubric JSON shape that implement these principles.'
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+principles:
+- id: unified_visual_grammar
+  name: Principle 1 — Unified Visual Grammar
+  compact_statement: Every artifact is assembled from the same small set of components (banner, role chip, title, section headers, callout boxes, cards with semantic top-borders, tables with primary-color headers). Students learn the grammar once on Week 01 and get it for free for the rest of the course.
+- id: narrative_metaphor
+  name: Principle 2 — Sustained Narrative Metaphor
+  compact_statement: The course is named for a metaphor and the metaphor is load-bearing, not decorative — it appears in the course title, recurring component names (Architect's Lens, Architect's Reflection, Architect's Question), the reasoning of every weekly purpose statement, and in the capstone.
+- id: dual_framing
+  name: Principle 3 — Dual-Framing on Every Task
+  compact_statement: Every instructional artifact opens with a two-panel header — one panel answers why this exists (Purpose / The Metaphor), the other answers what you will have by the end (Overview / The Outcome). Neither panel is optional and neither may repeat the other.
+- id: structural_beats
+  name: Principle 4 — Consistent Structural Beats
+  compact_statement: Every week page hits the same sections in the same order (Banner → Core Questions → Purpose → Preparation → Weekly Schedule); every assignment hits its own beats in order (Banner → Purpose+Overview → Instructions Parts → Submission Criteria → Architect's Reflection); every syllabus hits its order. Students develop an automatic navigation schema.
+- id: observable_rubrics
+  name: Principle 5 — Rubrics as Observable Behaviors, Not Adjectives
+  compact_statement: Use a 3-level rating scale (Meets / Developing / Does Not Yet Meet Expectations) on every rubric. Each rating has a description (name) and long_description (full sentence describing observable behavior). Meets-level descriptor names the minimum threshold, not aspirational. Include an Organization & Professional Communication criterion on every rubric.
+- id: alignment_traceability
+  name: Principle 6 — Alignment Traceability
+  compact_statement: 'You can draw a straight line from any artifact a student touches back to a course-level outcome: Course Outcome → Module Outcome → Assessment → Rubric Criterion → Activity. A broken link anywhere is a latent gap. This operationalizes Designer Thinking''s Outcome → Evidence chain at the artifact level.'
+metadata:
+  knowledge_id: course_design_language_knowledge
+---
+
 # Course Design Language — Knowledge Reference
 
 The canonical design-language spec for **BYU-Idaho** Canvas courses, derived from the faculty-development course **Architects of Learning** (course `405800`) — the course whose subject matter *is* course architecture and whose own build is the exemplar. Patterns in this file are **prescriptive**, not observational: if you are building or auditing a course at BYU-Idaho, this is the recipe.

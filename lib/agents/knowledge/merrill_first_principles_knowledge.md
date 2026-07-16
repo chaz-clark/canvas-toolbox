@@ -1,3 +1,27 @@
+---
+name: merrill_first_principles_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: Distillation of M. David Merrill's *First Principles of Instruction* — a synthesis across effective instructional-design theories. Provides canvas-toolbox a vocabulary for evaluating whether a course's design embodies the conditions that em
+skill_type: knowledge
+shape: reference
+scope: 'Five prescriptive design principles (Task-centered, Activation, Demonstration, Application, Integration) + the pebble-in-the-pond instructional sequence + audit signals per principle + gap signals + cross-walk to Hattie / Kolb / Bloom / UbD. Out of scope: the upstream question of WHICH task to design around (backwards_design UbD territory); the downstream cognitive-load mechanics (cognitive_load_theory); the empirical effect-size research (citations point to it; this file summarizes operational vocabulary).'
+consumed_by:
+- learning_model_audit.py
+- canvas_course_expert.md
+provenance:
+  sources:
+  - Merrill, M. D. (2002). First Principles of Instruction. Educational Technology Research and Development, 50(3), 43-59. The canonical synthesis paper.
+  - 'Merrill, M. D. (2013). First Principles of Instruction: Identifying and Designing Effective, Efficient, and Engaging Instruction. Pfeiffer/Wiley. Book-length treatment + the pebble-in-the-pond design method.'
+  - 'Frick, T. W., Chadha, R., Watson, C., & Zlatkovska, E. (2010). Improving course evaluations to improve instruction: A new system that hears the student voice. Empirical validation correlating Merrill scores with student-perceived learning.'
+  - Margaryan, A., Bianco, M., & Littlejohn, A. (2015). Instructional quality of Massive Open Online Courses (MOOCs). Computers & Education, 80, 77-83. Used Merrill's principles to evaluate 76 MOOCs; found most failed Application and Integration.
+  - Mayer, R. E. (2017). Using multimedia for e-learning. Journal of Computer Assisted Learning, 33(5), 403-423. Mayer's multimedia principles are consistent with + supportive of Merrill's Demonstration.
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: merrill_first_principles_knowledge
+---
+
 # Merrill's First Principles of Instruction — Reference
 
 > Reference. Distillation of M. David Merrill's *First Principles of Instruction* — a synthesis across effective instructional-design theories. Provides canvas-toolbox a vocabulary for evaluating whether a course's design embodies the conditions that empirical research associates with effective instruction. Sits at the **design-principle** layer in the knowledge stack (above the empirical mechanisms of cognitive_load_theory + hattie_3phase, below the backward-design process of backwards_design_knowledge).
