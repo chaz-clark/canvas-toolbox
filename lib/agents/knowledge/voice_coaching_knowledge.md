@@ -1,3 +1,21 @@
+---
+name: voice_coaching_knowledge
+version: "1.0"
+last_updated: 2026-06-25
+description: Upstream coaching layer for the per-instructor voice file — research grounding for effective feedback, the voice-preservation contract, and first-time voice articulation.
+skill_type: knowledge
+shape: reference   # settled reference; flip to identity later if coaching-principle issues surface
+scope: "The WHAT/HOW boundary, research-grounded WHAT criteria, voice dimensions faculty position on, and the articulation interview for new faculty. Out of scope: comment structure + edit roundtrip (grader_voice_knowledge)."
+consumed_by:
+  - canvas_grader.md
+companion_json_deprecated: "2026-07-16 - authored as YAML frontmatter (JSON purge convention)"
+provenance:
+  sources:
+    - "8 pedagogical frameworks (Hattie/Wiggins/Dweck/Brookhart/CLT/warm-demander/Black-Wiliam/AI-voice-preservation); handoffs/2026-06-25_voice-coaching-research.md"
+runtime_strategy: read_at_runtime
+metadata: { knowledge_id: voice_coaching_knowledge }
+---
+
 # Voice Coaching — Upstream Scaffolding for the Per-Instructor Voice File
 
 > Reference. **Companion to [`grader_voice_knowledge.md`](grader_voice_knowledge.md).** That file is the structural framework + the per-instructor voice file CONTRACT. This file is the **upstream coaching layer** — research grounding for what makes feedback effective, voice-preservation contract that protects faculty identity, and scaffolding for first-time voice articulation BEFORE the existing edit roundtrip can refine it.

@@ -1,3 +1,21 @@
+---
+name: deid_master_knowledge
+version: "1.0"
+last_updated: 2026-06-26
+description: The de-identification master — the foundational primitive underneath every keyed / FERPA workflow; a stable user_id <-> deid_code surface.
+skill_type: knowledge
+shape: reference
+scope: "The deid master primitive (build_deid_master.py), the FERPA rule (agents never read .deid_master.csv), and how user_id / deid_code are used across keyed tools."
+consumed_by:
+  - student_late_accommodation.py
+companion_json_deprecated: "2026-07-16 - authored as YAML frontmatter (JSON purge convention)"
+provenance:
+  sources:
+    - "issue #109 (v0.70.0, 2026-06-26)"
+runtime_strategy: read_at_runtime
+metadata: { knowledge_id: deid_master_knowledge }
+---
+
 # De-identification master — the foundational primitive
 
 **The missing primitive that sits underneath every keyed / FERPA workflow.**
