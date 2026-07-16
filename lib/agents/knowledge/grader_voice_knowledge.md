@@ -1,3 +1,24 @@
+---
+name: grader_voice_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: How the grader writes the student-facing comment. **Per-instructor**, not universal — comment voice is the part of grading that's most personal and most often wrong by default when an AI writes it. This file explains the structure and the l
+skill_type: knowledge
+shape: reference
+scope: 'The structure of the student-facing Canvas comment, the never-feed-back-values hard rule, the cross-instructor invariants, the edit-roundtrip protocol for learning a per-instructor voice, the default banned-patterns catalog, and the per-instructor file contract the grader expects to find. Out of scope: rubric design (grader_knowledge §11), gradebook reconciliation (grader_knowledge §8), wellbeing flag content (grader_knowledge §9 — kept OUT of the comment).'
+consumed_by:
+- canvas_grader.md
+- canvas_grader.json
+provenance:
+  sources:
+  - ds460-master agents/knowledge/student_feedback_voice_knowledge.md (commit 8f7814b) — the round-2 working per-instructor voice file in the beta
+  - ds460-master/handoffs/HANDOFF_generic-grader-skill.md §4a (never feed back values) + §4b (comment IS the coaching) + §F (per-instructor voice as knowledge)
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: grader_voice_knowledge
+---
+
 # Grader — Comment Voice Knowledge
 
 > Reference. How the grader writes the student-facing comment. **Per-instructor**, not universal — comment voice is the part of grading that's most personal and most often wrong by default when an AI writes it. This file explains the structure and the learning protocol; the per-instructor specifics live in a course-local `agents/knowledge/student_feedback_voice_<instructor>.md` that the grader loads at runtime.

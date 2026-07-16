@@ -1,3 +1,33 @@
+---
+name: syllabus_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: Auditing syllabus completeness and quality (BYU-I template + required AI policy) — the syllabus as the courses first student-facing communication channel.
+skill_type: knowledge
+shape: reference
+scope: 'Whether a course syllabus is COMPLETE — contains the sections students need. A completeness check, not a prose-quality judgment. Tone/clarity/''is each outcome assessed'' are human judgments surfaced as advisory data, never pass/fail. Boundaries: outcome well-formedness lives in outcomes_quality_knowledge; the rubric/assessment end lives in rubrics_knowledge; the API surface lives in canvas_api_knowledge / canvas_api_lessons_learned.'
+consumed_by:
+- syllabus_audit.py
+- canvas_course_expert.md
+provenance:
+  sources:
+  - BYU-Idaho Campus Curriculum Development syllabus template (9 required sections) — pre_knowledge/byui_learning_teaching/byui_syllabus_guidance.md
+  - BYU-Idaho AI hub 'AI in the Syllabus' (byui.edu/ai/academics/ai-in-the-syllabus) — pre_knowledge/byui_learning_teaching/byui_ai_hub.md
+  - BYU-I Syllabus Template (verbatim, Canvas course 405800/pages/syllabus-template) — lib/agents/templates/byui_syllabus_template.md
+  - BYU-I Syllabus Completeness Rubric (faculty-distributed PDF, 2026) — lib/agents/templates/syllabus_completeness_rubric.md
+  - BYU-I Faculty Guide §3.3.1 Syllabus (SharePoint, auth-required; operator-supplied verbatim text 2026-06-08)
+  - BYU-I Architects of Learning Week 8 Day 1 workshop (2026) — pre_knowledge/byui_learning_teaching/byui_aol_syllabus_design_workshop_w08d1.md + .pptx
+  - Harrington, C. & Gabert-Quillen, C. (2015) — detail + visuals dimensions
+  - Richman, E. L., et al. (2018) — framing dimension
+  - Jones, M. & Zhu, X. (2022) — flexibility dimension + ceiling-effect caveat
+  - Walters, J. (2026) — tone dimension + self-care statements caveat
+  - General higher-ed syllabus practice (instructor contact, outcomes, materials, grading, accessibility, academic integrity)
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: syllabus_knowledge
+---
+
 # Syllabus Completeness — Auditor's Reference
 
 A framework for evaluating whether a course syllabus is *complete* — whether it

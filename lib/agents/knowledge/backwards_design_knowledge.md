@@ -1,3 +1,26 @@
+---
+name: backwards_design_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: Wiggins & McTighe's Understanding by Design framework — the three stages, seven tenets, six facets of understanding, enduring understandings, essential questions, transfer goals, and the T-M-A learning-plan coding.
+skill_type: knowledge
+shape: reference
+scope: 'The Understanding by Design framework — three stages of backward design, seven tenets, six facets of understanding, T-M-A learning-plan coding. Boundaries: does not cover assessment-type definitions (see assessments_knowledge) or CLO well-formedness (see outcomes_quality_knowledge).'
+consumed_by:
+- canvas_course_expert.json
+- ira_program_alignment.md
+provenance:
+  sources:
+  - McTighe, J., & Wiggins, G. (2012). *Understanding by Design® Framework.* ASCD white paper. ©2012 ASCD. (pre_knowledge/assessments/Understanding By Design Framework.pdf; pages 1-6 ingested)
+  - Wiggins, G. *Understanding by Design.* 10-minute ASCD video. Transcript in pre_knowledge/assessments/youtube_transcript.md (10 min).
+  - Wiggins, G., & McTighe, J. (1998). *Understanding by Design.* (Original book, cited via McTighe & Wiggins 2012)
+  - Chaz Clark. *Designing Assessments — Testing the Foundation* (BYUI faculty-development Architects of Learning week notes, 2026, pre_knowledge/assessments/notes.md)
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: backwards_design_knowledge
+---
+
 # Backward Design — Understanding by Design (Wiggins & McTighe)
 
 Source: Wiggins, G., & McTighe, J. (2012). *Understanding by Design® Framework.* ASCD. https://www.ascd.org ; Wiggins, G. *Understanding by Design* (10-min video, ASCD).
