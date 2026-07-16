@@ -1,3 +1,31 @@
+---
+name: critical_thinking_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: The shared vocabulary canvas-toolbox uses when (a) **grading** student work against a rubric criterion that scores critical thinking, and (b) **auditing** whether an assignment is designed to *prompt* critical thinking in students. One file
+skill_type: knowledge
+shape: reference
+scope: 'What critical thinking IS, what counts as evidence of it in student work (grader use), what makes an assignment prompt it (audit use), what makes a rubric criterion measure it observably (rubric audit + authoring). Covers the AAC&U 5-dimension spine, the Facione 6 core skills, Paul-Elder''s 8 elements + 9 standards, Bloom upper-tier verbs as the cognitive demand layer, Brookhart''s rubric-language patterns, and the Socratic questioning taxonomy. Out of scope: domain-specific critical thinking (nursing, software, history); creativity (separable skill); problem-solving (overlaps); metacognition beyond self-regulation (Schraw/Pintrich/Zimmerman territory).'
+consumed_by:
+- canvas_grader.md
+- canvas_course_expert.md
+provenance:
+  sources:
+  - 'Facione, P. A. (1990). Critical Thinking: A Statement of Expert Consensus for Purposes of Educational Assessment and Instruction (Delphi Report). The California Academic Press.'
+  - Association of American Colleges & Universities (AAC&U). Critical Thinking VALUE Rubric. https://www.aacu.org/value/rubrics/critical-thinking
+  - Paul, R. & Elder, L. — Foundation for Critical Thinking. https://www.criticalthinking.org/
+  - 'Anderson, L. W., & Krathwohl, D. R. (Eds.). (2001). A Taxonomy for Learning, Teaching, and Assessing: A Revision of Bloom''s Taxonomy of Educational Objectives. Longman.'
+  - Brookhart, S. M. (2018, 2nd ed.). How to Assess Higher-Order Thinking Skills in Your Classroom. ASCD.
+  - Yale Poorvu Center — Socratic questioning resources (synthesized into the six-type taxonomy alongside Paul-Elder questioning literature).
+  - Toulmin, S. (1958/2003 reissue). The Uses of Argument. Cambridge UP. — claim/data/warrant/backing/qualifier/rebuttal argument-structure model (§toulmin_argument_structure fact + MD §4.5).
+  - 'Willingham, D. T. (2007/2008). Critical Thinking: Why Is It So Hard to Teach? American Educator (AFT). — empirical case that CT is domain-specific; background knowledge is a precondition (§willingham_domain_caveat fact + MD Operator notes).'
+  - 'Bean, J. C. (2011, 2nd ed.). Engaging Ideas: The Professor''s Guide to Integrating Writing, Critical Thinking, and Active Learning in the Classroom. Jossey-Bass. — prose-assignment patterns for prompting CT (§bean_prose_signals fact + MD §6 prose-specific signals).'
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: critical_thinking_knowledge
+---
+
 # Critical Thinking & Critical Questioning — Auditor's & Grader's Reference
 
 > Reference. The shared vocabulary canvas-toolbox uses when (a) **grading** student work against a rubric criterion that scores critical thinking, and (b) **auditing** whether an assignment is designed to *prompt* critical thinking in students. One file, two consumers.

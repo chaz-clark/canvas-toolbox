@@ -1,3 +1,29 @@
+---
+name: grader_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: The domain lessons for running a FERPA-safe, fair, defensible AI-assisted grading pipeline at the course level. Read at runtime when configuring or operating the canvas-toolbox grader. Voice (per-instructor comment style) and setup-intervie
+skill_type: knowledge
+shape: reference
+scope: 'The domain lessons every course-grading operator needs for a FERPA-safe, fair, defensible AI-assisted grading pipeline. Covers the two-zone architecture (cloud = keys only, local = identity), holistic scoring philosophy, signals-as-priors discipline, 3-grader consensus + spread queue, prompt-injection treatment, judge-bias mitigations, multi-output grading, grade-earned reconciliation, wellbeing flags, push-back gating, and the open gaps still to design. Out of scope: per-instructor comment voice (grader_voice_knowledge) and the onboarding interview (grader_setup_knowledge).'
+consumed_by:
+- canvas_grader.md
+- canvas_grader.json
+provenance:
+  sources:
+  - 'ds460-master grader beta — commits 754c966..91a5113 (round 1: KC1 code take-home, 0–4 rubric) + 8f7814b (round 2: Mid Performance Review prose self-review, outcomes-model + reconciliation + voice knowledge) + 2fd277f (Classic-quiz mirror addendum)'
+  - ds460-master/handoffs/HANDOFF_generic-grader-skill.md — originating spec + lessons compendium
+  - vishalsachdev/canvas-mcp — independent FERPA-design convergence (Student_xxxx anonymization, bulk-grading decision tree, create_rubric)
+  - nbgrader, otter-grader, PrairieLearn, Gradescope, ok.py, autograder.io, codePost, Artemis — grader landscape survey
+  - 2025–26 LLM-as-judge / grading-fairness research (position-bias, verbosity-bias, self-preference, style/ESL fairness)
+  - canvas-toolbox lib/tools/canvas_course_guard.py — standing safety bar that gates live-course writes
+  - canvas-toolbox lib/tools/sandbox_rubric_fixtures.py — create_rubric (POST /courses/:id/rubrics) reused by grader rubric-push path
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: grader_knowledge
+---
+
 # Grader — Core Knowledge
 
 > Reference. The domain lessons for running a FERPA-safe, fair, defensible AI-assisted grading pipeline at the course level. Read at runtime when configuring or operating the canvas-toolbox grader. Voice (per-instructor comment style) and setup-interview flow live in paired files: [`grader_voice_knowledge.md`](grader_voice_knowledge.md), [`grader_setup_knowledge.md`](grader_setup_knowledge.md).

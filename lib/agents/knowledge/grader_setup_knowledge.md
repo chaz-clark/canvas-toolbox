@@ -1,3 +1,25 @@
+---
+name: grader_setup_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: The interview the operator (or the operator's AI agent) walks an instructor through to go from "I have an assignment" to "the grader is configured for this assignment." Produces a per-assignment config object the grader pipeline runs agains
+skill_type: knowledge
+shape: reference
+scope: 'The interview flow (6 steps in order), the decisions captured at each step, the structure of the per-assignment config the interview emits, the verifiable-quiz Classic-mirror pattern that pairs with step 5 when evidence lives in quizzes, and the additional onboarding steps for a brand-new instructor. Out of scope: the grading philosophy each step grounds in (grader_knowledge), comment voice (grader_voice_knowledge), and the implementation of the per-assignment config schema in code (canvas_grader spec + tools).'
+consumed_by:
+- canvas_grader.md
+- canvas_grader.json
+provenance:
+  sources:
+  - ds460-master/handoffs/HANDOFF_generic-grader-skill.md — §A (6-step interview), §B (critical-thinking mode), §C (multi-output), §D (grade-earned reconciliation), §F (per-instructor voice baseline), §J (Classic-quiz mirror pattern)
+  - ds460-master grading/kc1/ + grading/mid_review/ — reference per-assignment configs the interview emits this shape of
+  - ds460-master mirror_standups_classic.py + reconcile_gradebook.py → classic_standup_totals (commit 2fd277f) — the §J working code
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: grader_setup_knowledge
+---
+
 # Grader — Setup Interview Knowledge
 
 > Reference. The interview the operator (or the operator's AI agent) walks an instructor through to go from "I have an assignment" to "the grader is configured for this assignment." Produces a per-assignment config object the grader pipeline runs against.

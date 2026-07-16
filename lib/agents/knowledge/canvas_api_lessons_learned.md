@@ -1,3 +1,31 @@
+---
+name: canvas_api_lessons_learned
+version: '1.0'
+last_updated: '2026-07-16'
+description: 'The 18 Canvas REST API behaviors the canvas-toolbox discovered through production use — behaviors Canvas does NOT document, documents incorrectly, or where the documented behavior diverges from observed behavior. Each lesson cost real time '
+skill_type: knowledge
+shape: reference
+scope: 'Behaviors Canvas exhibits that are NOT in Canvas''s own documentation, OR that contradict it. The 16 footguns the canvas-toolbox has hit and defended against in production, plus cross-cutting patterns that bake the defenses into new tools. Out of scope: documented Canvas behavior (lives in canvas_api_knowledge.md); speculative behaviors not yet reproduced.'
+consumed_by:
+- canvas_course_expert.md
+- canvas_schedule_auditor.md
+- canvas_semester_setup.md
+- canvas_blueprint_sync.md
+- canvas_content_sync.md
+- canvas_new_course_setup.md
+provenance:
+  sources:
+  - 'GitHub issues capturing each empirical finding: #25 (vendored-tool drift + module_settings_sync de-hardcoding + clear-quirk), #26 (Page idempotent upsert), #27 (startup safety guard), #28 (Blueprint exception report), #29 (Page-level integrity audit).'
+  - 'Production incidents: ITM-327 (4× page duplication; L12 + L15 amplification), W01 (lock-state-only body reversion observed 2026-05-20; L14).'
+  - 'Defending tools in lib/tools/: canvas_pages.py, canvas_course_guard.py, blueprint_exception_report.py, blueprint_orphan_pages.py, module_settings_sync.py, canvas_quiz_questions.py, course_quality_check.py, canvas_sync.py.'
+  - 'Defending agents: canvas_semester_setup.md, canvas_new_course_setup.md.'
+  - AGENTS.md External System Lessons table — migrated here 2026-05-21; AGENTS.md retains a pointer.
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: canvas_api_lessons_learned
+---
+
 # Canvas API — Lessons Learned (Empirical Companion)
 
 > Reference. The 18 Canvas REST API behaviors the canvas-toolbox discovered through production use — behaviors Canvas does NOT document, documents incorrectly, or where the documented behavior diverges from observed behavior. Each lesson cost real time before becoming a lesson. Paired with [`canvas_api_knowledge.md`](canvas_api_knowledge.md) (the Canvas-documented-only half).
