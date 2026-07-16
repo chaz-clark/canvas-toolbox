@@ -7,7 +7,7 @@ skill_type: knowledge
 shape: reference
 scope: 'The Understanding by Design framework — three stages of backward design, seven tenets, six facets of understanding, T-M-A learning-plan coding. Boundaries: does not cover assessment-type definitions (see assessments_knowledge) or CLO well-formedness (see outcomes_quality_knowledge).'
 consumed_by:
-- canvas_course_expert.json
+- canvas_course_expert.md
 - ira_program_alignment.md
 provenance:
   sources:
@@ -25,7 +25,7 @@ metadata:
 
 Source: Wiggins, G., & McTighe, J. (2012). *Understanding by Design® Framework.* ASCD. https://www.ascd.org ; Wiggins, G. *Understanding by Design* (10-min video, ASCD).
 
-Used by: `canvas_course_expert.json`, `ira_program_alignment.md`
+Used by: `canvas_course_expert.md`, `ira_program_alignment.md`
 
 Companions: [`assessments_knowledge.md`](assessments_knowledge.md) (formative vs. summative, AI-resistant design — the *what* you assess in Stage 2), [`designer_thinking_knowledge.md`](designer_thinking_knowledge.md) (BYUI five-stage designer thinking — the implementation lineage of UbD inside BYUI), [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md) (CLO well-formedness — the Stage 1 quality gate), [`hattie_3phase_knowledge.md`](hattie_3phase_knowledge.md) (Surface → Deep → Transfer — Stage 1 transfer-of-learning aligns with Hattie's Transfer phase), [`experiential_learning_knowledge.md`](experiential_learning_knowledge.md) (Stage 3 learning-plan sequencing), [`three_domains_knowledge.md`](three_domains_knowledge.md) and [`taxonomy_explorer_knowledge.md`](taxonomy_explorer_knowledge.md) (verb choice for transfer goals), [`cognitive_load_theory_knowledge.md`](cognitive_load_theory_knowledge.md) (Stage 3 acquisition-vs-meaning-making-vs-transfer load mix), [`course_design_language_knowledge.md`](course_design_language_knowledge.md) (alignment traceability artifacts), [`inverted_blooms_knowledge.md`](inverted_blooms_knowledge.md) (AI-era considerations for Stage 2 evidence), [`toyota_gap_analysis_knowledge.md`](toyota_gap_analysis_knowledge.md) (A3 output for gaps in UbD alignment).
 

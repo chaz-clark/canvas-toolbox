@@ -1,6 +1,6 @@
 # Knowledge References
 
-Distilled instructional-design knowledge sources used by the Canvas audit agents (`agents/canvas_course_expert.md` and the audit rules in `canvas_course_expert.json`). Each file is a self-contained reference: theory, audit indicators, and the tag the agent emits when the framework applies.
+Distilled instructional-design knowledge sources used by the Canvas audit agents (`agents/canvas_course_expert.md` and the audit rules in `canvas_course_expert.md`). Each file is a self-contained reference: theory, audit indicators, and the tag the agent emits when the framework applies.
 
 These files travel with the upstream `agents/` folder, so any course repo that pulls from canvas_toolbox gets them automatically.
 
@@ -174,7 +174,7 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 **When to use:** When the assessment audit flags a weakness and you need to *act on it*. Composes with `assessments_knowledge` (diagnostic — what type), `backwards_design` (Decisions 1–2 mirror UbD Stages 1–2), `inverted_blooms` (AI-agency framing feeds Decision 4), and `toyota_gap_analysis` (A3 format for the redesign write-up).
 **Audit tag:** none (procedural — produces redesign artifacts, not classification).
 **Status:** ⚠️ **v0.1** — extracted from source deck; field calibration pending.
-**Consumed by:** `canvas_course_expert.json`, `ira_program_alignment.md`. **Pairs with:** [`assessments_knowledge.md`](assessments_knowledge.md), [`backwards_design_knowledge.md`](backwards_design_knowledge.md), [`inverted_blooms_knowledge.md`](inverted_blooms_knowledge.md), [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md), [`toyota_gap_analysis_knowledge.md`](toyota_gap_analysis_knowledge.md).
+**Consumed by:** `canvas_course_expert.md`, `ira_program_alignment.md`. **Pairs with:** [`assessments_knowledge.md`](assessments_knowledge.md), [`backwards_design_knowledge.md`](backwards_design_knowledge.md), [`inverted_blooms_knowledge.md`](inverted_blooms_knowledge.md), [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md), [`toyota_gap_analysis_knowledge.md`](toyota_gap_analysis_knowledge.md).
 
 ---
 

@@ -198,7 +198,7 @@ For structured data — config schema, pipeline stage contracts, output formats,
 - External system lessons (Canvas grading API quirks)
 - Examples
 
-### The JSON File Contains
+### The frontmatter contains
 - Tool definitions (parameters, descriptions, examples)
 - The per-assignment config.yml schema (formal)
 - Pipeline stage contracts (input/output per stage, idempotency, failure semantics)

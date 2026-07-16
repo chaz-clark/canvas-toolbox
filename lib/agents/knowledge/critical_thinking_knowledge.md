@@ -57,7 +57,7 @@ metadata:
 
 **Scope:** what critical thinking IS, what counts as evidence of it in student work, what makes an assignment prompt it, and what makes a rubric criterion measure it observably. Out of scope: domain-specific critical thinking (we don't try to define "critical thinking in nursing" or "critical thinking in software design" — those are course-level applications of the general framework here).
 
-**Provenance:** Each fact in the JSON companion's `facts[]` cites at least one of the named sources (Facione / AAC&U / Paul-Elder / Bloom revised / Brookhart / Socratic-taxonomy synthesis). No empirical citations.
+**Provenance:** Each fact in the frontmatter's `provenance.sources` cites at least one of the named sources (Facione / AAC&U / Paul-Elder / Bloom revised / Brookhart / Socratic-taxonomy synthesis). No empirical citations.
 
 _Last updated: 2026-06-10_ · _v0.1, untested. Promotes to v1.0 after the grader scores a real cohort against a critical-thinking criterion using this file's vocabulary, OR an audit tool flags a real assignment as critical-thinking-prompting / critical-thinking-absent using this file's signals. Not catalogued in [`knowledge/README.md`](README.md) until promotion._
 

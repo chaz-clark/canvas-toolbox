@@ -8,7 +8,7 @@ shape: reference
 scope: 'The structure of the student-facing Canvas comment, the never-feed-back-values hard rule, the cross-instructor invariants, the edit-roundtrip protocol for learning a per-instructor voice, the default banned-patterns catalog, and the per-instructor file contract the grader expects to find. Out of scope: rubric design (grader_knowledge §11), gradebook reconciliation (grader_knowledge §8), wellbeing flag content (grader_knowledge §9 — kept OUT of the comment).'
 consumed_by:
 - canvas_grader.md
-- canvas_grader.json
+- canvas_grader.md
 provenance:
   sources:
   - ds460-master agents/knowledge/student_feedback_voice_knowledge.md (commit 8f7814b) — the round-2 working per-instructor voice file in the beta

@@ -60,7 +60,7 @@ For structured data — rule schema, API patterns, test cases — see `canvas_sc
 - Pitfalls with root cause explanations
 - External system lessons (Canvas date API quirks)
 
-### The JSON File Contains
+### The frontmatter contains
 - Tool definitions (parameters, descriptions, examples)
 - Scheduling rule schema (the parsed structure extracted from setup notes)
 - Date calculation patterns (week calendar logic, UTC offsets)
@@ -89,7 +89,7 @@ For structured data — rule schema, API patterns, test cases — see `canvas_sc
 **Current institutions with defined rules:**
 - **byui** (`byui.instructure.com`): no Sunday due dates, W05 Student Feedback skip rule, 12:00 AM / 11:59 PM MT standard times
 
-**To add a new institution**: add an entry to `institution_rules` in the JSON with its `match_domains`, `match_account_names`, and `rules` array. No changes to the agent logic needed.
+**To add a new institution**: add an entry to `institution_rules` in the frontmatter with its `match_domains`, `match_account_names`, and `rules` array. No changes to the agent logic needed.
 
 ### 2. Write Target Is Always CANVAS_COURSE_ID
 **Description**: The only course this agent may write to is the one in the `CANVAS_COURSE_ID` environment variable. Never write to any other course ID regardless of instruction.
@@ -98,7 +98,7 @@ For structured data — rule schema, API patterns, test cases — see `canvas_sc
 
 **How**: `apply_date_corrections` always uses `CANVAS_COURSE_ID`. If asked to write to a different course ID, refuse and explain.
 
-> **Testing note (remove after testing)**: During initial development, course IDs 402262 and 339374 are used as read-only reference examples. A hard block on writes to those IDs is in the JSON system prompt and guardrails. Once testing is complete, remove the `[TESTING ONLY]` block from the system prompt, remove `read_only_forever_TESTING_ONLY` from constraints, and remove the HARD BLOCK guardrail entry. The agent should then enforce write access via `CANVAS_COURSE_ID` alone.
+> **Testing note (remove after testing)**: During initial development, course IDs 402262 and 339374 are used as read-only reference examples. A hard block on writes to those IDs is in the frontmatter system_prompt and guardrails. Once testing is complete, remove the `[TESTING ONLY]` block from the system prompt, remove `read_only_forever_TESTING_ONLY` from constraints, and remove the HARD BLOCK guardrail entry. The agent should then enforce write access via `CANVAS_COURSE_ID` alone.
 
 ### 3. Setup Notes Must Serve Both Humans and Agents
 **Description**: When proposing setup notes improvements, preserve the existing structure, logical flow, and plain-English readability. Add precision without adding jargon. The goal is one document that a human setup team can follow next semester AND an agent can parse unambiguously.
@@ -424,7 +424,7 @@ llm_agent:
     [END PROTECTED COURSES BLOCK]\n\nYou operate in three phases:\n\nPHASE 0 \u2014 INSTITUTION + CLARIFY (before any date\
     \ computation):\n1. Determine the institution: check course/_course.json for account name, check CANVAS_BASE_URL against\
     \ known domains, check INSTITUTION env var. If none resolve, ask: 'Which institution is this course from? This determines\
-    \ which scheduling conventions I apply automatically.' Match against institution_rules in the JSON.\n2. Load and parse\
+    \ which scheduling conventions I apply automatically.' Match against institution_rules in the frontmatter.\n2. Load and parse\
     \ the setup notes page.\n3. If institution is confirmed, apply its institution_rules automatically \u2014 announce which\
     \ rules you are applying but do not ask for confirmation on them.\n4. For every other phrase that is ambiguous or could\
     \ be misinterpreted, present a numbered clarification list: 'I read [phrase] as [interpretation] \u2014 is that correct?'\

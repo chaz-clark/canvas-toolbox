@@ -51,7 +51,7 @@ runtime_data:
 ### This Markdown File Contains:
 - Mission, quickstart, principles, pitfalls, workflow narrative
 
-### The JSON File Contains:
+### The frontmatter contains:
 - `week_assignment_map` — canvas_id → week number for all 40+ items
 - `special_due_dates` — items with non-standard timing (W09 Demo 3 = Monday, W14 = end of semester)
 - `skip_list` — canvas_ids that should never be updated (university surveys, unpublished templates)

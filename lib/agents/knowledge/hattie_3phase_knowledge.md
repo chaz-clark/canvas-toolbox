@@ -8,7 +8,7 @@ shape: reference
 scope: 'Three-phase learning progression model — Surface, Deep, Transfer — used by canvas_course_expert to tag audit issues with their hattie_phase. Boundaries: does not cover working-memory mechanics within a phase (see cognitive_load_theory) or brain-aligned sequencing (see experiential_learning).'
 consumed_by:
 - canvas_course_expert.md
-- canvas_course_expert.json
+- canvas_course_expert.md
 provenance:
   sources:
   - 'Hattie, J. (2009). Visible Learning: A Synthesis of Over 800 Meta-Analyses Relating to Achievement. Routledge.'
@@ -21,7 +21,7 @@ metadata:
 # Hattie's 3-Phase Learning Model — Knowledge Reference
 
 Source: Hattie, J. (2009). *Visible Learning*. Routledge.
-Used by: `canvas_course_expert.md` (audit framework), `canvas_course_expert.json` (hattie_phase field on each audit rule)
+Used by: `canvas_course_expert.md` (audit framework), `canvas_course_expert.md` (hattie_phase field on each audit rule)
 Companion: [`cognitive_load_theory_knowledge.md`](cognitive_load_theory_knowledge.md) — Hattie sequences learning across phases; CLT addresses the working-memory mechanics within each phase.
 
 _Last updated: 2026-05-26 (added Deep-phase group-work quality sub-check — PTC gap-audit)_
