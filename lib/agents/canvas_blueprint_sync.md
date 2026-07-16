@@ -15,7 +15,7 @@ runtime_data:
 
 ## Agent Instructions
 1. Read this for mission, workflow, and pitfalls.
-2. Parse `canvas_blueprint_sync.json` for endpoint schemas, field maps, and validation data.
+2. Parse `canvas_blueprint_sync.md` for endpoint schemas, field maps, and validation data.
 3. This agent is Python-first — the heavy lifting is done by `lib/tools/blueprint_sync.py`. The agent role is to orchestrate, validate, and report.
 
 ---
@@ -261,7 +261,7 @@ Blueprint may have semester-specific dates from when it was first created (or ol
 ## Resources and References
 
 ### Agent Files
-- **`canvas_blueprint_sync.json`**: API schemas, field maps, validation checklists
+- **`canvas_blueprint_sync.md`**: API schemas, field maps, validation checklists
 - **`lib/tools/blueprint_sync.py`**: Python implementation (source of truth for behavior)
 
 ### Related Agents

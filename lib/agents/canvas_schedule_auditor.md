@@ -15,7 +15,7 @@ runtime_data:
 
 ## Agent Instructions
 1. Read this file for mission, principles, quickstart, and pitfalls.
-2. Parse `canvas_schedule_auditor.json` for tool definitions, scheduling rule schema, date calculation patterns, and validation cases.
+2. Parse `canvas_schedule_auditor.md` for tool definitions, scheduling rule schema, date calculation patterns, and validation cases.
 3. The course mirror is `lib/tools/canvas_sync.py`. Use `--pull` to refresh before auditing. Local state is the source of truth.
 4. Setup notes live at `course_src/<module>/setup-notes-and-course-settings.md` (Sprint 3 artifact). If missing, fall back to Canvas pull or infer-from-dates mode.
 
@@ -37,16 +37,16 @@ runtime_data:
 
 1. **Confirm inputs**: Ask for semester name and Week 1 Monday (e.g., "Spring 2026, starting 2026-04-20"). If course has `start_at`/`end_at` in index, use those — confirm with instructor before proceeding.
 2. **Load setup notes**: Check `course_src/` for a markdown file whose path contains `setup-notes`. If missing, pull it from Canvas. If no setup notes exist, enter **infer mode** (see Pitfalls #2).
-3. **Clarify before auditing** *(new)*: Before computing any dates, parse the rules and flag every phrase that is ambiguous or potentially misinterpretable. Present them as a numbered list with your interpretation and ask the instructor to confirm or correct each one. Apply BYUI universal rules automatically (see `canvas_schedule_auditor.json → byui_universal_rules`) — do not ask about those. Only proceed to Step 4 after clarifications are resolved.
+3. **Clarify before auditing** *(new)*: Before computing any dates, parse the rules and flag every phrase that is ambiguous or potentially misinterpretable. Present them as a numbered list with your interpretation and ask the instructor to confirm or correct each one. Apply BYUI universal rules automatically (see `canvas_schedule_auditor.md → byui_universal_rules`) — do not ask about those. Only proceed to Step 4 after clarifications are resolved.
 4. **Update setup notes language** *(new)*: For each clarified ambiguity, propose a specific wording improvement to the setup notes. Keep the language human-readable and logically ordered — do not restructure the page into machine-only syntax. The goal is notes that are clear for both a human setup team and an agent reading them next semester.
 5. **Build week calendar**: Map W01–W14 to date ranges using the Week 1 Monday start date. MDT (Apr–Oct) = UTC-6, MST (Nov–Mar) = UTC-7. Due/until 11:59 PM MT → `T05:59:00Z` (MDT) or `T06:59:00Z` (MST). Available from 12:00 AM MT → `T06:00:00Z` (MDT) or `T07:00:00Z` (MST).
 6. **Read course items**: Load `.canvas/index.json` for all items with date fields.
 7. **Audit**: For each item, infer its week from the module slug. Apply the confirmed rule. Flag any item where actual ≠ expected beyond 1-hour tolerance. Apply BYUI universal rules as hard constraints (e.g., never flag a Saturday date as wrong by proposing Sunday).
-8. **Produce audit table**: Week-by-week table: Item | Type | Current | Expected | Status. See `canvas_schedule_auditor.json → output_format`.
+8. **Produce audit table**: Week-by-week table: Item | Type | Current | Expected | Status. See `canvas_schedule_auditor.md → output_format`.
 9. **Propose corrections**: Flagged items with before/after values. Call `request_confirmation()`. Do not proceed without `approved=true`.
 10. **Apply**: Corrections to Canvas + local files + index. Log to `.canvas/push_log.md`.
 
-For structured data — rule schema, API patterns, test cases — see `canvas_schedule_auditor.json`.
+For structured data — rule schema, API patterns, test cases — see `canvas_schedule_auditor.md`.
 
 ---
 
@@ -84,7 +84,7 @@ For structured data — rule schema, API patterns, test cases — see `canvas_sc
 
 **Why**: These rules are specific to how a given school runs Canvas. A BYUI convention (e.g., never Sunday due dates) may be perfectly normal at another institution. Hardcoding institution logic without detection would silently break audits for any other school using this agent.
 
-**How**: On startup, check `course/_course.json` account name, `CANVAS_BASE_URL` against known domains, and the `INSTITUTION` env var. If none resolve, ask the instructor which institution the course is from. Once confirmed, load that institution's rules from `canvas_schedule_auditor.json → institution_rules` and apply them automatically — announcing which rules are active but not asking for confirmation on them. If institution is unknown, rely entirely on setup notes and flag all ambiguities as clarification questions.
+**How**: On startup, check `course/_course.json` account name, `CANVAS_BASE_URL` against known domains, and the `INSTITUTION` env var. If none resolve, ask the instructor which institution the course is from. Once confirmed, load that institution's rules from `canvas_schedule_auditor.md → institution_rules` and apply them automatically — announcing which rules are active but not asking for confirmation on them. If institution is unknown, rely entirely on setup notes and flag all ambiguities as clarification questions.
 
 **Current institutions with defined rules:**
 - **byui** (`byui.instructure.com`): no Sunday due dates, W05 Student Feedback skip rule, 12:00 AM / 11:59 PM MT standard times
@@ -126,7 +126,7 @@ For structured data — rule schema, API patterns, test cases — see `canvas_sc
 
 **Why**: MDT and MST are one hour apart. A timestamp computed with the wrong offset puts a due date 60 minutes off — enough to affect student submissions near the deadline, and enough to cause the audit to re-flag a "fixed" item next run.
 
-**How**: Determine DST status from the semester start date. April–October → MDT (UTC-6). November–March → MST (UTC-7). Apply consistently to all timestamps in the proposal. See `canvas_schedule_auditor.json → date_patterns.utc_offsets`.
+**How**: Determine DST status from the semester start date. April–October → MDT (UTC-6). November–March → MST (UTC-7). Apply consistently to all timestamps in the proposal. See `canvas_schedule_auditor.md → date_patterns.utc_offsets`.
 
 ### 5. 1-Hour Tolerance for Existing Dates
 **Description**: Do not flag an item whose date is within 60 minutes of the expected value.
@@ -139,7 +139,7 @@ For structured data — rule schema, API patterns, test cases — see `canvas_sc
 
 ## Behavioral Discipline (core)
 
-This agent follows the behavioral discipline defined in `make-ai-agents/knowledge/behavioral_discipline.md` and `make-ai-agents/knowledge/behavioral_discipline.json` (populated as a local clone in canvas-toolbox; see [AGENTS.md](../../AGENTS.md#existing-tooling)). The principles applicable to this agent type (multi_step_batch — the full discipline applies because batch operations decompose into individual writes):
+This agent follows the behavioral discipline defined in `make-ai-agents/knowledge/behavioral_discipline.md` (populated as a local clone in canvas-toolbox; see [AGENTS.md](../../AGENTS.md#existing-tooling)). The principles applicable to this agent type (multi_step_batch — the full discipline applies because batch operations decompose into individual writes):
 
 - **P-001 Read Before Claiming** (*Genchi Genbutsu*): Read the actual source before claiming anything about content, code, or system state. Training-data priors are not a substitute for reading what's in front of you. *Trigger*: Every claim about content, code, data, or system state.
 - **P-002 Plan Before Acting** (*Nemawashi + TBP*): For any state-changing task with more than one step, propose the plan and wait for user confirmation before non-reversible action. The plan is a draft — refine through back-and-forth before committing. *Trigger*: Any task with more than one step that changes state.
@@ -187,7 +187,7 @@ For the full principle definitions, examples, and override rationale, see `make-
 | `course/_course.json` | Course-level settings including `start_at` and `end_at` | Source for semester window — use these dates to build the week calendar |
 | `lib/tools/canvas_api_tool.py` | Canvas write functions (assignments, quizzes, modules) | Reference for correct API patterns before writing |
 
-**Reuse-first rule**: Do not write new Canvas API call code. All date update patterns are in `canvas_schedule_auditor.json → api_patterns`. Reference `canvas_api_tool.py` for any pattern not covered there.
+**Reuse-first rule**: Do not write new Canvas API call code. All date update patterns are in `canvas_schedule_auditor.md → api_patterns`. Reference `canvas_api_tool.py` for any pattern not covered there.
 
 ---
 
@@ -282,7 +282,7 @@ uv run python lib/tools/course_quality_check.py
 
 **Why it matters**: Mapping UI labels to API fields incorrectly produces updates that look right in the prompt but write to the wrong field.
 
-**How to handle it**: Always translate: UI "Until" = API `lock_at`. UI "Available From" = API `unlock_at`. See `canvas_schedule_auditor.json → field_name_mapping`.
+**How to handle it**: Always translate: UI "Until" = API `lock_at`. UI "Available From" = API `unlock_at`. See `canvas_schedule_auditor.md → field_name_mapping`.
 
 ### Canvas — Module `unlock_at` Uses a Different API Endpoint
 
@@ -334,7 +334,7 @@ uv run python lib/tools/course_quality_check.py
 
 **Approach**: Point agent at course ID 339374 and setup notes from `course_ref/setup_notes_examples/ds_339374_setup_notes.md`. Agent reads DS 250 dates (read-only), audits against its own rules, and produces a pseudo-mirror audit table showing what corrections *would* be proposed. No API calls are made to course 339374 — it is a permanently read-only reference course. The audit table is local only.
 
-**Code**: See `canvas_schedule_auditor.json → validation.cross_course_test_cases`
+**Code**: See `canvas_schedule_auditor.md → validation.cross_course_test_cases`
 
 ---
 
@@ -346,7 +346,7 @@ uv run python lib/tools/course_quality_check.py
 3. Verify UTC offset logic: Spring (MDT) 11:59 PM MT = `T05:59:00Z`. Winter (MST) 11:59 PM MT = `T06:59:00Z`.
 
 ### Comprehensive Validation
-See `canvas_schedule_auditor.json → validation` for full test cases including: week calendar edge cases, multi-week sprint handling, infer mode detection, null field handling, and cross-course comparison against known DS 250 dates.
+See `canvas_schedule_auditor.md → validation` for full test cases including: week calendar edge cases, multi-week sprint handling, infer mode detection, null field handling, and cross-course comparison against known DS 250 dates.
 
 ### Regression Guard
 After any correction run, re-run `uv run python lib/tools/canvas_sync.py --pull` and re-run the auditor. The audit table should show 100% OK. If new flags appear, the correction introduced drift — investigate before proceeding.
@@ -367,7 +367,7 @@ After any correction run, re-run `uv run python lib/tools/canvas_sync.py --pull`
 ## Resources and References
 
 ### Agent Files
-- **`canvas_schedule_auditor.json`**: Tool definitions, scheduling rule schema, date patterns, API endpoints, validation cases
+- **`canvas_schedule_auditor.md`**: Tool definitions, scheduling rule schema, date patterns, API endpoints, validation cases
 - **`lib/tools/canvas_sync.py`**: Course mirror — use `--pull` before auditing, `--push` after corrections
 - **`lib/tools/canvas_api_tool.py`**: Canvas write patterns for assignments, quizzes, modules
 

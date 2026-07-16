@@ -112,3 +112,8 @@ handoffs/
 **/.review*.csv
 **/.push_log.md
 **/.mark_reviewed
+
+# --- stray editor/backup files (git history is the backup) ---
+*.backup
+*.bak
+*.orig
