@@ -1,3 +1,34 @@
+---
+name: rubrics_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: A framework for evaluating whether a rubric is well-formed before judging whether learning is well-evidenced by it. If the rubric isn't well-formed, the grades and feedback it produces are meaningless.
+skill_type: knowledge
+shape: reference
+scope: 'Reference for auditing rubrics in Canvas courses. Covers (a) the 4-criterion meta-rubric for evaluating any rubric''s well-formedness, (b) the four rubric typologies — analytic, holistic, single-point, developmental — and when each is fit-for-purpose, (c) institutional and Canvas-specific audit indicators, and (d) the rubric_quality audit-tag enum. Out of scope: how to write a rubric from scratch (consuming agent''s redesign playbook) and how to pull rubrics from Canvas (upcoming canvas_rubrics_api_survey + downstream tooling).'
+consumed_by:
+- canvas_course_expert.md
+provenance:
+  sources:
+  - Rubric for Evaluating a Rubric — backbone 4×4 meta-rubric (pre_knowledge/rubrics/rubrics of rubrics.pdf; author/origin to be backfilled).
+  - Association of American Colleges & Universities (AAC&U). VALUE Rubrics (16 LEAP outcomes; pre_knowledge/rubrics/aacu_value_rubrics.pdf).
+  - 'Walvoord, B.E., & Anderson, V.J. Effective Grading: A Tool for Learning and Assessment in College (Primary Trait Analysis; pre_knowledge/rubrics/walvoord_departmental_assessment.pdf).'
+  - 'Czajka, C.D., Reynders, G., Stanford, C., Cole, R., Lantz, J., & Ruder, S. (2021). A Novel Rubric Format Providing Effective Feedback for Learner-Centered Teaching. J. College Sci. Teaching, July/Aug 2021 (NSF #1524399, #1524936, #1524965; pre_knowledge/rubrics/nsta_novel_rubric_process_skills.md).'
+  - 'Gonzalez, J. (2014). Know Your Terms: Holistic, Analytic, and Single-Point Rubrics. Cult of Pedagogy.'
+  - Gonzalez, J. (2015). Meet the Single Point Rubric. Cult of Pedagogy (+ 2017 three-column variation).
+  - Hashem, D. (2017). 6 Reasons to Try a Single-Point Rubric. Edutopia.
+  - Sheridan Center for Teaching and Learning, Brown University. Designing Grading Rubrics.
+  - Center for Advancing Teaching and Learning Through Research (CATLR), Northeastern University. Designing Effective Rubrics.
+  - BYU-Idaho Campus Curriculum Development. Assessment Services (pre_knowledge/rubrics/byui_assessment_services.md).
+  - Dietz, M. (2000) — origin of single-point rubric term.
+  - Fluckiger, J. (2010) — single-point rubric effectiveness research.
+  - Canvas Rubrics API Survey — paired API-surface mapping for the canvas-toolbox audit framework (pre_knowledge/rubrics/canvas_rubrics_api_survey.md; sourced from canvas-lms RubricsApiController, RubricsController, RubricAssociationsController, RubricAssessmentsController YARD docs + in-repo code review).
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: rubrics_knowledge
+---
+
 # Rubric Quality & Typology — Auditor's Reference
 
 > Reference. A framework for evaluating whether a rubric is well-formed before judging whether learning is well-evidenced by it. If the rubric isn't well-formed, the grades and feedback it produces are meaningless.

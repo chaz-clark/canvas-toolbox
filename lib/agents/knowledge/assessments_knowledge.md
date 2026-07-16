@@ -1,3 +1,29 @@
+---
+name: assessments_knowledge
+version: '1.0'
+last_updated: '2026-07-16'
+description: Indexable definitions and design principles for formative vs. summative assessment, alignment to outcomes, and AI-resistant assessment design. Consult at runtime when classifying an assessment or evaluating its design.
+skill_type: knowledge
+shape: reference
+scope: 'Formative vs. summative assessment definitions, design principles, AI-resistant design, and alignment-to-outcomes audit logic. Boundaries: does not cover backward design (see backwards_design_knowledge) or CLO well-formedness (see outcomes_quality_knowledge).'
+consumed_by:
+- canvas_course_expert.json
+- ira_program_alignment.md
+provenance:
+  sources:
+  - Yale Poorvu Center for Teaching and Learning. *Formative & Summative Assessments*. https://poorvucenter.yale.edu/teaching/teaching-resource-library/formative-summative-assessments (8 pages, retrieved 2026-05-12)
+  - Hardman, P. (2024). *Redesigning Instruction & Assessment in the Age of AI*. https://drphilippahardman.substack.com/p/redesigning-instruction-and-assessment (saved HTML in pre_knowledge/assessments/; body content not extractable from saved JS-rendered snapshot — citation by title, subtitle, and stated thesis only)
+  - Chaz Clark. *Designing Assessments — Testing the Foundation* (BYUI faculty-development Architects of Learning week notes, 2026, pre_knowledge/assessments/notes.md)
+  - Wiggins, G. *Understanding by Design* (10-min video transcript, ASCD; pre_knowledge/assessments/youtube_transcript.md)
+  - 'Nicol, D. J., & Macfarlane-Dick, D. (2007). Formative assessment and self-regulated learning: A model and seven principles of good feedback practice (cited via Poorvu)'
+  - Ali, Q. I. (2024); Bakula (2010); King (2023); Maki (2002); McLaughlin & Yan (2017); Trumbull & Lash (2013) — secondary citations via Poorvu References & Resources, p.7-8
+  - 'BYUI Architects of Learning instructor (2026, name to be backfilled) — 6-slide deck on AI-era assessment design, dropped in pre_knowledge/assessments/ on 2026-05-14. Slide titles: ''What Hasn''t Changed'', ''How AI Broke the Assumption'', ''The Limits of Grading Outputs'', ''The Assessment Litmus Test'', ''Assessment Strategies'', ''The Path Forward''.'
+companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
+runtime_strategy: read_at_runtime
+metadata:
+  knowledge_id: assessments_knowledge
+---
+
 # Assessments — Formative, Summative, and AI-Resistant Design
 
 Source: Poorvu Center for Teaching and Learning, Yale University. *Formative & Summative Assessments*. https://poorvucenter.yale.edu/teaching/teaching-resource-library/formative-summative-assessments ; Hardman, P. (2024). *Redesigning Instruction & Assessment in the Age of AI*. https://drphilippahardman.substack.com/p/redesigning-instruction-and-assessment ; BYUI Architects of Learning instructor (2026, name TBD), 6-slide deck on AI-era assessment design (`pre_knowledge/assessments/`).
