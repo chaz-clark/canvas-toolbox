@@ -10,6 +10,8 @@
 
 Built at BYU-Idaho. Designed for all instructors. Works with any Canvas institution. You don't have to be a developer — the agent handles the technical bits; you answer its questions.
 
+> **Follow your institution's AI policy** — refer to and abide by your university's generative-AI policy when using this tool.
+
 ---
 
 # Getting started
