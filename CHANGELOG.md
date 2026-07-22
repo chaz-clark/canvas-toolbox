@@ -12,6 +12,18 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.22] — 2026-07-22
+
+**Hybrid grader Sprint 1c (#192): LLM-sampled term-banks — build-time scope alignment, the complement to HG-6.** (#192, Sprint 1c)
+
+The deterministic term-bank was one narrow LLM-authored guess; a synonym or paraphrase it didn't name is a false negative that undergrades work the student did. This offsets it at its source.
+
+### Added
+- **`grader_term_banks.py`** — at freeze time, samples the LLM N times (temperature-varied) for the vocabulary a student might actually use to satisfy each `mechanical`/`coverage` criterion, **unions** the samples (benefit of the doubt — a wider net catches paraphrase), and writes it into the RUBRIC.md `Evidence hint` column. `grader_signals.py` (Sprint 1b) then extracts **deterministically** against that richer, frozen bank. The LLM sampling is once, at build time, frozen + auditable — grading stays deterministic and priors still never score (HG-2). Only touches `mechanical`/`coverage` rows with an **empty** hint (never overwrites an instructor's hint; judgment rows skipped — HG-1). Dry-run by default; `--apply` writes (fills empty cells / adds the column). LLM injected as `sample_fn` for testing. 7 unit tests.
+- **`grader_hybrid_architecture.md`** (v1.2) — documents build-time alignment as the complement to HG-6's grade-time audit (widen the net + rescue what slips = belt and suspenders).
+
+---
+
 ## [1.7.21] — 2026-07-22
 
 **Hybrid grader Sprint 2 (#192): `grader_grade.py --with-signals` injects the framed evidence into every pass.** (#192, Sprint 2)
