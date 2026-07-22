@@ -16,7 +16,10 @@ WHAT IT DOES
   fall back to the median.
 
   OWNS THE FULL AGGREGATION (single-sourced as of 2026-06-10):
-    - _consensus.csv     per-grader scores + consensus + spread + needs_review (existing)
+    - _consensus.csv     per-grader scores + consensus + spread + needs_review, plus
+                         conflict_needs_review + conflict_reason (#192: tier audited
+                         against the NLP evidence priors from _signals.json; never
+                         auto-moves a score)
     - _summary.csv       key,score,one_line_reason (new — what reidentify reads)
     - <KEY>.md           copy of the consensus-pass's per-student file (new —
                          what push reads). Source: _pass<winner>/<KEY>.md.
@@ -67,6 +70,7 @@ except ImportError:
     def force_utf8_console() -> None:
         pass  # No-op if _env_loader not available
 import csv
+import json
 import shutil
 import statistics
 import sys
@@ -180,6 +184,61 @@ def write_summary(out_path: Path, rows: list[dict]) -> None:
         w = csv.DictWriter(f, fieldnames=["key", "score", "one_line_reason"])
         w.writeheader()
         w.writerows(rows)
+
+
+# --- Deterministic audit: consensus tier vs evidence priors (issue #192 Sprint 3) ---
+# The consensus is LLM judgment; this audits it against the NLP evidence and routes
+# CONFLICTS to a human (HG-4). It NEVER moves a score. Two directions:
+#   - top-band tier but the evidence is thin (too generous)
+#   - bottom-band tier but every criterion has supporting evidence (possible undergrade;
+#     the HG-6 direction — a wrong/narrow NLP scope must never silently cost points)
+
+def _criterion_is_weak(crit: dict) -> bool:
+    """A checkable (non-judgment) criterion whose every numeric evidence signal is 0
+    (term-bank 0 hits, 0 citations, `0/N` coverage). Judgment rows never count."""
+    if crit.get("checkability") == "judgment":
+        return False
+    has_signal = False
+    all_zero = True
+    for e in crit.get("evidence", []):
+        v = e.get("value")
+        if isinstance(v, bool):
+            continue  # has_references_section etc. — presence, not a strength count
+        if isinstance(v, (int, float)):
+            has_signal = True
+            if v != 0:
+                all_zero = False
+        elif isinstance(v, str) and "/" in v:  # coverage "k/N"
+            has_signal = True
+            if v.split("/")[0].strip() not in ("0", ""):
+                all_zero = False
+    return has_signal and all_zero
+
+
+def conflict_check(consensus: float, lo: float, hi: float,
+                   submission_evidence: dict, weak_floor: int = 2) -> tuple:
+    """Return (conflict_needs_review, reason) for one submission. Never moves a score.
+
+    `lo`/`hi` are the cohort's consensus score range (band anchors). Fires only when
+    the tier and the evidence disagree at the extremes.
+    """
+    if not submission_evidence or hi <= lo:
+        return False, ""
+    crits = submission_evidence.get("criteria", [])
+    checkable = [c for c in crits if c.get("checkability") != "judgment"]
+    if not checkable:
+        return False, ""
+    weak = sum(1 for c in checkable if _criterion_is_weak(c))
+    band = hi - lo
+    top = consensus >= hi - 0.25 * band
+    bottom = consensus <= lo + 0.25 * band
+    if top and weak >= weak_floor:
+        return True, (f"top-band tier ({consensus}) but {weak}/{len(checkable)} checkable "
+                      "criteria show NO supporting evidence — verify against the text")
+    if bottom and weak == 0:
+        return True, (f"bottom-band tier ({consensus}) yet every checkable criterion shows "
+                      "supporting evidence — possible undergrade (HG-6); verify against the text")
+    return False, ""
 
 
 def copy_winner_per_student(
@@ -485,6 +544,22 @@ def main() -> int:
         print(f"{k:14} " + " ".join(f"{x:>5}" for x in sc) +
               f" {consensus:>9} {spread:>7} {'YES' if flag else '':>5}")
 
+    # #192 Sprint 3: audit each consensus tier against the NLP evidence priors.
+    # Loads feedback/_signals.json (written by grader_signals.py --rubric); if absent,
+    # the conflict columns stay False and nothing else changes.
+    signals_path = fb / "_signals.json"
+    signals = (json.loads(signals_path.read_text(encoding="utf-8"))
+               if signals_path.exists() else {})
+    consensus_scores = [r["consensus"] for r in rows]
+    lo, hi = (min(consensus_scores), max(consensus_scores)) if consensus_scores else (0.0, 0.0)
+    conflicts: list[tuple[str, str]] = []
+    for r in rows:
+        cflag, creason = conflict_check(r["consensus"], lo, hi, signals.get(r["key"], {}))
+        r["conflict_needs_review"] = cflag
+        r["conflict_reason"] = creason
+        if cflag:
+            conflicts.append((r["key"], creason))
+
     n = len(keys)
     print(f"\nConsistency over {n} submissions ({len(graders)} graders): "
           f"exact {exact}/{n}, within 0.25 {within25}/{n}, within 0.5 {within50}/{n}; "
@@ -502,11 +577,21 @@ def main() -> int:
         for k, sc, con, sp in flagged:
             print(f"  {k}: graders {sc} -> consensus {con} (spread {sp})")
 
-    # 1. _consensus.csv — per-grader columns + consensus + spread + needs_review
+    if conflicts:
+        print(f"\nCONFLICT queue (#192 — tier vs evidence priors; never auto-moved): "
+              f"{len(conflicts)} case(s) routed to a human:")
+        for k, reason in conflicts:
+            print(f"  {k}: {reason}")
+    elif signals:
+        print("\nNo tier/evidence conflicts (#192): every consensus tier is consistent "
+              "with the NLP evidence priors.")
+
+    # 1. _consensus.csv — per-grader columns + consensus + spread + needs_review + conflict
     out = Path(args.outfile) if args.outfile else fb / "_consensus.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["key", *names, "consensus", "spread", "needs_review"])
+        w = csv.DictWriter(f, fieldnames=["key", *names, "consensus", "spread", "needs_review",
+                                          "conflict_needs_review", "conflict_reason"])
         w.writeheader()
         w.writerows(rows)
     print(f"\n-> {out}  (consensus = majority score ≥2 graders agree on, else median)")

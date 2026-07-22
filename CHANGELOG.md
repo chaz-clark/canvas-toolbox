@@ -12,6 +12,19 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.23] — 2026-07-22
+
+**Hybrid grader Sprint 3 (#192): the consensus tier is now audited against the NLP evidence — conflicts route to a human, both directions.** (#192, Sprint 3)
+
+`grader_consensus.py`'s `needs_review` was spread-only (graders disagree). This adds the deterministic audit the architecture calls for: compare each consensus tier against its own evidence priors and flag the extremes.
+
+### Added
+- **`grader_consensus.py`** — `conflict_check()` reads `feedback/_signals.json` and adds `conflict_needs_review` + `conflict_reason` columns to `_consensus.csv`. Two directions fire: **top-band tier but thin evidence** (≥2 checkable criteria show no supporting hits — too generous) and **bottom-band tier but every criterion has evidence** (possible undergrade — the HG-6 direction). It **never moves a score** (HG-4) — it routes to a human, and prints a CONFLICT queue. No `_signals.json` → columns stay `False`, nothing else changes. 12 unit tests.
+
+The pipeline now closes the audit loop: evidence → injected → consensus → **audited against evidence**. Sprint 4 adds the HG-6 low-band 100%-LLM re-read.
+
+---
+
 ## [1.7.22] — 2026-07-22
 
 **Hybrid grader Sprint 1c (#192): LLM-sampled term-banks — build-time scope alignment, the complement to HG-6.** (#192, Sprint 1c)
