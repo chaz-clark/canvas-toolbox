@@ -12,6 +12,19 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.19] — 2026-07-22
+
+**Hybrid grader Sprint 1a (#192): prose/text evidence signals, tagged and framed as evidence-to-verify.** (#192, Sprint 1a)
+
+`grader_signals.py` was notebook/code-oriented. This adds the prose signal set alongside it — the deterministic, criterion-independent evidence a methodology/essay grader needs.
+
+### Added
+- **`grader_signals.py`** — `prose_evidence(text)` emits, per submission: word / section / paragraph counts (structural), inline-APA `(Author, YEAR)` / DOI / URL / References-section detection (evaluative), and `?`-count / readability proxies (judgment-hint). Each item carries a taxonomy `tag` and a `framing` that presents it as **evidence to verify** — e.g. "0 literal (Author, YEAR) matches — check for DOI/URL/numbered or paraphrased attribution" — never a met/unmet verdict (HG-3). Flows into `feedback/_signals.json` via `analyze()`. 8 unit tests (counts correct, code excluded from word count, `et al.` citations, evidence framing).
+
+Sprint 1b maps these signals to the checkability-tagged rubric rows and adds rubric-derived term-banks + coverage.
+
+---
+
 ## [1.7.18] — 2026-07-22
 
 **Stage 0 of the hybrid grader (#192): rubrics now carry a per-criterion `Checkability` tag — the foundation the NLP+LLM routing derives from.** (#192, Sprint 0)

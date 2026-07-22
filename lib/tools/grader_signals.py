@@ -23,6 +23,10 @@ WHAT IT EMITS PER SUBMISSION
   - data_checks: count of data-interrogation idioms (count/isNull/describe/distinct/etc.)
   - prose_questions: count of `?` in prose/markdown (self-questioning proxy)
   - injection_flags: count of prompt-injection language hits (>0 → human review)
+  - prose_evidence: (#192) a list of prose signals — word/section/paragraph counts,
+    inline-APA / DOI / URL / References-section detection, readability — each tagged
+    structural / evaluative / judgment-hint and framed as EVIDENCE TO VERIFY, never
+    a met/unmet verdict. Sprint 1b maps these to the checkability-tagged rubric rows.
 
 CONFLICT → NEEDS-REVIEW
   When priors disagree with the LLM band, the agent emits a `conflict_needs_review`
@@ -112,6 +116,25 @@ INJECTION_RE = re.compile(
     re.I,
 )
 
+# --- Prose/text evidence patterns (issue #192 Sprint 1a) --------------------
+# Deterministic, criterion-INDEPENDENT signals for prose submissions (methodology,
+# essays). Each is EVIDENCE to verify against the text, never a met/unmet verdict.
+# Inline APA: (Author, 2020) / (Smith & Jones, 2021) / (Smith et al., 2019).
+APA_INLINE_RE = re.compile(
+    r"\([A-Z][A-Za-z'’.-]+"                        # first author surname
+    r"(?:\s+(?:and|&)\s+[A-Z][A-Za-z'’.-]+)?"      # optional "& Lee" / "and Lee"
+    r"(?:\s+et\s+al\.?)?"                          # optional "et al." (terminal, no name after)
+    r"(?:\s*,\s*[A-Z][A-Za-z'’.-]+)*"              # optional extra comma-separated authors
+    r",\s*(?:19|20)\d{2}[a-z]?\)"                  # , YEAR)
+)
+# A word-like token — excludes markdown markup (#, *, -) so a heading's `#` isn't a "word".
+_WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’-]*")
+DOI_RE = re.compile(r"\b10\.\d{4,9}/[-._;()/:A-Za-z0-9]+")
+URL_RE = re.compile(r"https?://[^\s)>\]]+")
+REFERENCES_RE = re.compile(r"^#{1,6}\s*(references|bibliography|works\s+cited|sources)\b",
+                           re.I | re.M)
+_SENTENCE_END_RE = re.compile(r"[.!?]+")
+
 
 def code_blocks(text: str) -> list[str]:
     """Extract code from fenced blocks. The de-id adapters write cells as ```python blocks."""
@@ -142,7 +165,57 @@ def analyze(text: str, languages: list[str]) -> dict:
             # toPandas() alone isn't misuse — small aggregated results are often converted for plotting.
             # The agent judges whether the AGGREGATION was done in the parent or in pandas.
             result[f"uses_topandas"] = bool(topandas.search(code))
+    result["prose_evidence"] = prose_evidence(text)  # #192 Sprint 1a
     return result
+
+
+def _prose_only(text: str) -> str:
+    """Strip fenced code blocks — prose signals must not count code as words/sections."""
+    return re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+
+
+def prose_evidence(text: str) -> list[dict]:
+    """Deterministic prose/text evidence for #192's hybrid grader (Sprint 1a).
+
+    Criterion-INDEPENDENT signals (Sprint 1b maps them to the checkability-tagged
+    rubric rows). Each item is `{signal, value, tag, framing}`:
+      - `tag` is the signal taxonomy — structural / evaluative / judgment-hint.
+      - `framing` presents it as EVIDENCE TO VERIFY against the text, never a
+        met/unmet verdict (HG-3) — e.g. "0 literal matches — check for paraphrase."
+    """
+    prose = _prose_only(text)
+    wc = len(_WORD_RE.findall(prose))
+    sections = len(re.findall(r"^#{1,6}\s", prose, re.M))
+    paragraphs = len([b for b in re.split(r"\n\s*\n", prose.strip()) if b.strip()])
+    apa = len(APA_INLINE_RE.findall(prose))
+    doi = len(DOI_RE.findall(prose))
+    urls = len(URL_RE.findall(prose))
+    has_refs = bool(REFERENCES_RE.search(prose))
+    questions = prose.count("?")
+    sentences = max(1, len(_SENTENCE_END_RE.findall(prose)))
+    avg_sentence_words = round(wc / sentences, 1)
+
+    return [
+        {"signal": "word_count", "value": wc, "tag": "structural",
+         "framing": "prose word count (code excluded) — verify against the rubric's target length, if it sets one"},
+        {"signal": "section_count", "value": sections, "tag": "structural",
+         "framing": "markdown headings — a proxy for whether required sections exist; verify each required section by name, not by count"},
+        {"signal": "paragraph_count", "value": paragraphs, "tag": "structural",
+         "framing": "prose paragraphs (structure only)"},
+        {"signal": "apa_inline_citations", "value": apa, "tag": "evaluative",
+         "framing": f"{apa} literal (Author, YEAR) match(es) — before concluding uncited, check for DOI/URL/numbered or paraphrased attribution"},
+        {"signal": "doi_references", "value": doi, "tag": "evaluative",
+         "framing": f"{doi} DOI(s) present"},
+        {"signal": "urls", "value": urls, "tag": "evaluative",
+         "framing": f"{urls} URL(s) present — may be sources or just links; verify in context"},
+        {"signal": "has_references_section", "value": has_refs, "tag": "evaluative",
+         "framing": ("a References/Bibliography heading is present" if has_refs
+                     else "no References/Bibliography heading — check for inline-only citations before concluding unsourced")},
+        {"signal": "prose_questions", "value": questions, "tag": "judgment-hint",
+         "framing": "count of '?' — a weak self-questioning proxy; NOT evidence of insight on its own"},
+        {"signal": "avg_sentence_words", "value": avg_sentence_words, "tag": "judgment-hint",
+         "framing": "average words per sentence — a readability proxy only, never a quality verdict"},
+    ]
 
 
 def print_table(signals: dict[str, dict], languages: list[str]) -> None:
