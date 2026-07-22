@@ -30,6 +30,8 @@ from grader_push import (  # noqa: E402
     find_deprecated_disclosure_tags,
     DEPRECATED_DISCLOSURE_TAGS,
     push_precheck,
+    comment_for,
+    resolve_feedback_file,
     assignment_posts_manually,
     post_assignment_grades,
 )
@@ -535,6 +537,44 @@ def test_every_deprecated_tag_constant_is_detected(tmp_path):
     for i, dep in enumerate(DEPRECATED_DISCLOSURE_TAGS):
         fb = _write_fb(tmp_path, f"KC1-{i}.md", f"body\n\n{dep}\n")
         assert find_deprecated_disclosure_tags([fb]), f"not detected: {dep!r}"
+
+
+# ---------------------------------------------------------------------------
+# resolve_feedback_file — issue #228 (challenge-relative path resolution)
+# The fix landed inline in 9c0c906; this consolidates + guards it against
+# regression (the original silent bug shipped with no test).
+# ---------------------------------------------------------------------------
+
+def test_bug228_challenge_relative_comment_was_empty_now_found(tmp_path):
+    """Run from repo root, `.review.csv` stores `feedback/KC2-*.md` (challenge-
+    relative). comment_for's bare Path() resolved it against CWD -> empty comment
+    -> grades pushed with NO feedback (silent)."""
+    challenge = tmp_path / "grading" / "kc2"
+    (challenge / "feedback").mkdir(parents=True)
+    fb = challenge / "feedback" / "KC2-TESTXYZ.md"
+    fb.write_text("## Comment to student\n\nGreat work on the joins.", encoding="utf-8")
+
+    # BUG: the raw challenge-relative path is empty from a repo-root CWD
+    assert comment_for("feedback/KC2-TESTXYZ.md") == ""
+    # FIX: resolved against the challenge dir, the comment loads
+    resolved = resolve_feedback_file(challenge, "feedback/KC2-TESTXYZ.md")
+    assert resolved == str(fb)
+    assert "Great work on the joins." in comment_for(resolved)
+
+
+def test_resolve_feedback_file_passthroughs(tmp_path):
+    absfile = tmp_path / "x.md"
+    assert resolve_feedback_file(tmp_path / "grading", str(absfile)) == str(absfile)  # absolute
+    assert resolve_feedback_file(tmp_path, "") == ""                                   # empty
+
+
+def test_resolve_feedback_file_keeps_a_path_that_already_exists(tmp_path, monkeypatch):
+    """Run from inside the challenge dir: `feedback/x.md` already resolves against
+    CWD, so it passes through — no double-prefixing."""
+    (tmp_path / "feedback").mkdir()
+    (tmp_path / "feedback" / "x.md").write_text("## Comment to student\n\nok", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert resolve_feedback_file(tmp_path, "feedback/x.md") == "feedback/x.md"
 
 
 # ---------------------------------------------------------------------------

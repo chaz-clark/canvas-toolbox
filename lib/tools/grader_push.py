@@ -156,6 +156,26 @@ def comment_for(feedback_file: str) -> str:
     return t.split("## Comment to student", 1)[1].strip()
 
 
+def resolve_feedback_file(challenge: Path, feedback_file: str) -> str:
+    """Resolve a `.review.csv` feedback_file path against the challenge dir (#228).
+
+    Paths in `.review.csv` are challenge-relative (e.g. `feedback/KC2-ABC.md`), but
+    `comment_for` / `extract_hold_token` do a bare `Path()` that resolves against CWD.
+    Run from the repo root with `--challenge-dir grading/kc2`, that looked in
+    `<root>/feedback/...`, found nothing, and returned an empty comment — so EVERY
+    comment came back blank and only grades pushed (silent). The fix (9c0c906)
+    prefixes the challenge dir; this consolidates the three call sites into one
+    tested helper and adds passthrough for absolute paths and paths that already
+    exist as-is (run from inside the challenge dir), so it never double-prefixes.
+    """
+    if not feedback_file:
+        return feedback_file
+    p = Path(feedback_file)
+    if p.is_absolute() or p.exists():
+        return feedback_file
+    return str(challenge / feedback_file)
+
+
 # Transparency disclosure (default, no opt-out): every AI-drafted feedback
 # comment carries this tag so a student always knows the words were drafted by
 # AI and reviewed by their instructor — never passed off as solely the
@@ -1423,12 +1443,10 @@ def main() -> int:
     hold_by_key: dict[str, str] = {}
     if not args.no_hold_tokens and not args.grade_only:
         for r in rows:
-            ff = r.get("feedback_file", "") or ""
+            ff = resolve_feedback_file(challenge, r.get("feedback_file", "") or "")  # #228
             if not ff:
                 continue
-            # Resolve feedback_file relative to challenge dir
-            ff_resolved = str(challenge / ff)
-            tok = extract_hold_token(ff_resolved)
+            tok = extract_hold_token(ff)
             if tok:
                 hold_by_key[r.get("key", "")] = tok
 
@@ -1438,9 +1456,7 @@ def main() -> int:
         grade = (r.get("final_grade") or "").strip() or (r.get("recommended_score") or "").strip()
         # Issue: feedback_file paths in .review.csv are relative to challenge dir,
         # but comment_for() uses Path() relative to CWD. Resolve them here.
-        feedback_file = r.get("feedback_file", "")
-        if feedback_file:
-            feedback_file = str(challenge / feedback_file)
+        feedback_file = resolve_feedback_file(challenge, r.get("feedback_file", ""))  # #228
         comment = "" if args.grade_only else (
             append_disclosure_tag(comment_for(feedback_file)) or args.default_comment)
         uid = resolve_user_id(r.get("submission_file", ""), subs)
@@ -1482,10 +1498,7 @@ def main() -> int:
     if not args.no_lock_check and not args.grade_only and lock_state.get("locked_now"):
         for r in rows:
             key = r.get("key", "")
-            # Resolve feedback_file relative to challenge dir
-            feedback_file = r.get("feedback_file", "")
-            if feedback_file:
-                feedback_file = str(challenge / feedback_file)
+            feedback_file = resolve_feedback_file(challenge, r.get("feedback_file", ""))  # #228
             comment = comment_for(feedback_file) or args.default_comment
             if comment and comment_has_resubmit_language(comment):
                 locked_resubmit_keys.append((key, comment))
