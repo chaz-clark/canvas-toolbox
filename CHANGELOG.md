@@ -12,6 +12,22 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.14] — 2026-07-22
+
+**HG-5 enforced in code: an agent can no longer autonomously push AI-drafted grades to a live course.** (#207)
+
+Closes the gap behind the KC3 grading-protocol RCA — 12 students received AI-drafted grades with no instructor review. HG-5 ("the instructor is the top layer — decision support, not autonomy") was a documented principle that nothing enforced past `--mark-reviewed`. Now it's enforced end-to-end, and the protocol is a single-sourced pointer in every course repo instead of prose that drifts.
+
+### Changed
+- **`grader_push.py`** — on the AI-drafted (LLM-comment) push path, `--yes` no longer bypasses the final `--push` confirmation. #97 closed this on `--mark-reviewed`; the same collapse of "grade" and "push" was still possible at the push step. An agent can pass `--yes`, but a human must physically type `push`. **Behavior change:** `grader_push.py --yes --push` on a run with per-student comment files now refuses and exits non-zero. The value-only / human-graded path (no comment files) keeps `--yes` — there the human is the grader.
+
+### Added
+- **`grader_push.py`** — a disclosure-tag validator refuses the push when a per-student comment file carries a deprecated tag format (older emoji/underscore variants), which would otherwise get the canonical `— AI drafted, instructor reviewed` tag stacked on top of it at send-time. Override: `--allow-bad-disclosure-tags`.
+- **`sync_grading_protocol.py`** — new tool that injects the canonical HG-5 grading-protocol pointer into a course repo's `AGENTS.md`, idempotently (sentinel-marked) and dry-run-by-default. Retrofits repos initialized before #207, which `cb-init` never updates in place.
+- **`AGENTS.md`** — a canonical "AI Grading Protocol — HG-5" section (the single source of truth the course-repo pointers link to). `cb-init` now emits that pointer into new course stubs, sharing one block with `sync_grading_protocol.py` so a fresh repo and a retrofitted one never disagree.
+
+---
+
 ## [1.7.13] — 2026-07-22
 
 **`sync --push` now creates a late policy when the course has none, instead of 404-ing on every push.** (#205)

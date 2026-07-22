@@ -120,6 +120,23 @@ try:
 except ImportError:
     __version__ = "0.0.0+unknown"
 
+try:
+    # Single source of truth for the HG-5 grading-protocol pointer (#207), shared
+    # with sync_grading_protocol.py so a freshly-init'd repo and a retrofitted one
+    # carry the identical, sentinel-marked block.
+    from sync_grading_protocol import POINTER_BLOCK as GRADING_POINTER_BLOCK
+except ImportError:
+    # Fallback for pre-sync / partial vendored environments. Keeps the same
+    # sentinel marker so sync_grading_protocol stays idempotent against it.
+    GRADING_POINTER_BLOCK = (
+        "<!-- canvas-toolbox:grading-protocol-pointer -->\n\n"
+        "## ⚠️ Grading — HG-5: the instructor decides\n\n"
+        "AI-assisted grading is decision support, not autonomy. Never push AI-drafted "
+        "grades without human review. Full protocol: canvas-toolbox/AGENTS.md → "
+        '"AI Grading Protocol — HG-5".\n\n'
+        "<!-- /canvas-toolbox:grading-protocol-pointer -->"
+    )
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -760,6 +777,10 @@ When you find a defect:
 1. **Fix it** (Jidoka - stop and correct)
 2. **Verify the fix** (Genchi Gembutsu - test with real data)
 3. **Prevent recurrence** (Poka-yoke - add automated check)
+
+---
+
+{GRADING_POINTER_BLOCK}
 
 ---
 
