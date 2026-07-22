@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.15] — 2026-07-22
+
+**Grades can now only reach Canvas through `grader_push.py` — a harness hook blocks direct API writes an agent can't be talked out of.** (#213)
+
+The #207/#214 gates live *inside* `grader_push.py`, so they share one bypass: not calling the tool. In the KC1/KC2 incident an agent hand-wrote a `/tmp/push_grades.py` that hit the Canvas API directly and every gate was moot. In-tool enforcement can't catch "the tool was never used" — only a seam above the tools can. See [docs/grading-enforcement-a3.md](docs/grading-enforcement-a3.md).
+
+### Added
+- **`grade_guardian.py`** — a Claude Code `PreToolUse` hook (harness-enforced; the model cannot disable it). Denies: a direct Canvas grade write in a Bash command (`requests.put/post` / `curl -X PUT/POST` to a submissions endpoint), the *creation* of a file whose contents carry that signature (the bypass script caught at write-time — a Bash hook can't see inside `python x.py`), and Reads of FERPA Zone-2 files (`.deid_master.csv` et al., #212). Invoking `lib/tools/*.py`, editing the toolkit source, and doc files are exempt; the denial redirects the agent to `grader_push.py`. Fails open on malformed input — a guardrail must never brick the session.
+- **`cb-init`** — step 14 now also wires the guardian hook into the course root `.claude/settings.json` (idempotent, non-clobbering, points at the vendored hook so it stays current on `git pull`). Existing course repos: run `cb-init` to pick it up.
+
+Honest limit: regex over a command/file body is not a semantic firewall — a determined agent can obfuscate past it. This decisively raises the bar against the actual failure mode (pattern-matching a `/tmp` push script); true closure needs the capability layer (read-scoped token + write-proxy), recorded as the north-star in the A3.
+
+---
+
 ## [1.7.14] — 2026-07-22
 
 **HG-5 enforced in code: an agent can no longer autonomously push AI-drafted grades to a live course.** (#207)
