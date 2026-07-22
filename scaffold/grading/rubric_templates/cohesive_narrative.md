@@ -11,13 +11,25 @@ This captures the criteria-set that surfaced from that real run.
 
 ## The five canonical criteria
 
-| # | Criterion | What "Meets" looks like |
-|---|-----------|--------------------------|
-| 1 | **Project task complete** | The narrative addresses every required deliverable of the assignment (no skipped sub-parts, no off-topic substitution). |
-| 2 | **Cohesive analysis** | The narrative reads as ONE story across all sub-tasks. Conclusions link back to the framing question; transitions between sections are explicit. Not a stitched-together set of independent answers. |
-| 3 | **Reproducible work** | The analysis is reproducible from the submission. Data sources, parameter choices, seed values, and any sampling decisions are stated explicitly. A reader could re-run the work from what's in the submission. |
-| 4 | **Correct calculations** | Numerical results are right. Where uncertainty exists (e.g. monte-carlo, fitting), the band of acceptable answers is stated and the result falls in it. Wrong answers don't pass on style alone. |
-| 5 | **Mathematical notation** | Notation is consistent with the course's conventions. Equations, units, and symbols match the assigned style guide. (Drop this row if your course doesn't grade notation.) |
+The **Checkability** column routes each criterion to the layer that's authoritative
+for it (issue #192, HG-1): `mechanical` = binary/countable → NLP authoritative; `coverage`
+= all-of-a-set present → NLP flags, LLM verifies; `judgment` = quality/insight → LLM only.
+Tag every row; the hybrid grader reads this column and derives its per-criterion evidence
+from these rows (never force regex onto a `judgment` row). Adjust the defaults below to
+your assignment.
+
+| # | Criterion | Checkability | What "Meets" looks like |
+|---|-----------|--------------|--------------------------|
+| 1 | **Project task complete** | coverage | The narrative addresses every required deliverable of the assignment (no skipped sub-parts, no off-topic substitution). |
+| 2 | **Cohesive analysis** | judgment | The narrative reads as ONE story across all sub-tasks. Conclusions link back to the framing question; transitions between sections are explicit. Not a stitched-together set of independent answers. |
+| 3 | **Reproducible work** | coverage | The analysis is reproducible from the submission. Data sources, parameter choices, seed values, and any sampling decisions are stated explicitly. A reader could re-run the work from what's in the submission. |
+| 4 | **Correct calculations** | judgment | Numerical results are right. Where uncertainty exists (e.g. monte-carlo, fitting), the band of acceptable answers is stated and the result falls in it. Wrong answers don't pass on style alone. |
+| 5 | **Mathematical notation** | mechanical | Notation is consistent with the course's conventions. Equations, units, and symbols match the assigned style guide. (Drop this row if your course doesn't grade notation.) |
+
+**Validate + freeze after editing:** `uv run python canvas-toolbox/lib/tools/grader_rubric.py
+--rubric ./RUBRIC.md` parses this table, reports any untagged/mis-tagged rows, and prints a
+`checkability fingerprint` — the Stage-0 freeze marker. Record it once the tags are settled;
+a changed fingerprint later means the rubric was edited and the checks need a re-freeze.
 
 ## Holistic banding (not additive)
 

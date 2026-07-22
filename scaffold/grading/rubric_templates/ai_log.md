@@ -24,6 +24,20 @@ becomes the headline; the full mixture is the formative signal.
 | 5 | Critical inquiry        | "Why is it that ___" Questions AI's responses; tests its confidence; cross-checks against own knowledge. |
 | N/A | No AI use stated        | Student submits "I did this myself." |
 
+## Criteria checkability (issue #192, HG-1)
+
+This is a **single-dimension** rubric — the whole submission is classified on one
+axis (the AI-engagement tier), which is a **judgment** call. NLP contributes only
+weak hints (e.g. detecting `"Why is it that"` / question-pattern turns as tier-5
+signals); the tier itself is the LLM's read. Multi-criterion rubrics tag one row
+per criterion; here there is one:
+
+| Criterion | Checkability | Evidence hint |
+|---|---|---|
+| AI-engagement tier | judgment | question-pattern turns, hypothesis language → weak tier-5 hints only |
+
+Validate + freeze: `uv run python canvas-toolbox/lib/tools/grader_rubric.py --rubric ./RUBRIC.md`.
+
 ## Pass criteria (instructor-edited)
 
 - **Pass** = any honest engagement. Every tier mixture passes, including
