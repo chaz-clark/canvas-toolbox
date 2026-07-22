@@ -156,6 +156,24 @@ def comment_for(feedback_file: str) -> str:
     return t.split("## Comment to student", 1)[1].strip()
 
 
+def resolve_feedback_file(challenge: Path, feedback_file: str) -> str:
+    """Resolve a `.review.csv` feedback_file path against the challenge dir (#228).
+
+    Paths in `.review.csv` are challenge-relative (e.g. `feedback/KC2-ABC.md`), but
+    `comment_for` / `extract_hold_token` do a bare `Path()` that resolves against CWD.
+    Run from the repo root with `--challenge-dir grading/kc2`, that looked in
+    `<root>/feedback/...` and found nothing — so EVERY comment came back empty and
+    only grades pushed (silent). Resolve challenge-relative here. Absolute paths and
+    paths that already exist as-is (run from inside the challenge dir) pass through.
+    """
+    if not feedback_file:
+        return feedback_file
+    p = Path(feedback_file)
+    if p.is_absolute() or p.exists():
+        return feedback_file
+    return str(challenge / feedback_file)
+
+
 # Transparency disclosure (default, no opt-out): every AI-drafted feedback
 # comment carries this tag so a student always knows the words were drafted by
 # AI and reviewed by their instructor — never passed off as solely the
@@ -1423,7 +1441,7 @@ def main() -> int:
     hold_by_key: dict[str, str] = {}
     if not args.no_hold_tokens and not args.grade_only:
         for r in rows:
-            ff = r.get("feedback_file", "") or ""
+            ff = resolve_feedback_file(challenge, r.get("feedback_file", "") or "")  # #228
             if not ff:
                 continue
             tok = extract_hold_token(ff)
@@ -1435,7 +1453,8 @@ def main() -> int:
         key = r.get("key", "")
         grade = (r.get("final_grade") or "").strip() or (r.get("recommended_score") or "").strip()
         comment = "" if args.grade_only else (
-            append_disclosure_tag(comment_for(r.get("feedback_file", ""))) or args.default_comment)
+            append_disclosure_tag(comment_for(
+                resolve_feedback_file(challenge, r.get("feedback_file", "")))) or args.default_comment)  # #228
         uid = resolve_user_id(r.get("submission_file", ""), subs)
         done = key in pushed_keys and not args.force
         ok = bool(grade and uid and (comment or args.grade_only)) and not done
@@ -1475,7 +1494,8 @@ def main() -> int:
     if not args.no_lock_check and not args.grade_only and lock_state.get("locked_now"):
         for r in rows:
             key = r.get("key", "")
-            comment = comment_for(r.get("feedback_file", "")) or args.default_comment
+            comment = comment_for(
+                resolve_feedback_file(challenge, r.get("feedback_file", ""))) or args.default_comment  # #228
             if comment and comment_has_resubmit_language(comment):
                 locked_resubmit_keys.append((key, comment))
     # ---- end availability + grading-type metadata -----------------------

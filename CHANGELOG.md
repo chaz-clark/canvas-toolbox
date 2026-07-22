@@ -12,6 +12,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.26] — 2026-07-22
+
+**Fix: `grader_push.py` pushed grades with EMPTY comments — challenge-relative feedback paths resolved against CWD.** (#228)
+
+Silent and high-impact: `.review.csv` stores `feedback_file` challenge-relative (e.g. `feedback/KC2-ABC.md`), but `comment_for` / `extract_hold_token` did a bare `Path()` that resolves against the current working directory. Run from the repo root with `--challenge-dir grading/kc2`, every feedback file was looked for at `<root>/feedback/...`, found nothing, and returned an empty comment — so grades pushed with no qualitative feedback, with no error. (DS 460 KC2, 2026-07-22.)
+
+### Fixed
+- **`grader_push.py`** — a new `resolve_feedback_file(challenge, feedback_file)` resolves the path against the challenge dir; applied at all three read sites (plan-building, HOLD-token extraction, lock/resubmit check). Absolute paths and paths that already exist as-is (run from inside the challenge dir) pass through unchanged. Regression test reproduces the empty-comment bug and confirms the fix.
+
+---
+
 ## [1.7.25] — 2026-07-22
 
 **Post-push workflow-state audit + idempotent repair — grades no longer stick in "needs grading" after a resubmission.** (#226)
