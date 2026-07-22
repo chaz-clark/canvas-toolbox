@@ -22,7 +22,11 @@ WHAT IT DOES
 GUARDRAILS (no override on the first three)
   1. --mark-reviewed REQUIRED before --push. Marker auto-invalidates if any
      comment file mtime > marker mtime (you can't approve a state and then
-     mutate it).
+     mutate it). **Issue #207 (HG-5)** — on the AI-drafted (LLM-comment)
+     push path, --yes does NOT bypass the final "type 'push'" confirmation:
+     an agent can pass --yes, but the instructor is the top layer and must
+     decide the write. A deprecated disclosure tag in any comment file
+     refuses the push (override: --allow-bad-disclosure-tags).
   2. canvas_course_guard refuses live-course writes unless --allow-enrolled
      is passed. The toolkit's standing safety bar.
   3. Per-assignment idempotency. Keys already in the .push_log.md scoped to
@@ -168,6 +172,43 @@ def append_disclosure_tag(comment: str) -> str:
     if comment.rstrip().endswith(DISCLOSURE_TAG):
         return comment
     return f"{comment.rstrip()}\n\n{DISCLOSURE_TAG}"
+
+
+# Deprecated disclosure-tag formats that predate the canonical DISCLOSURE_TAG.
+# A feedback file carrying one of these was drafted/edited under an older
+# convention; because it doesn't end with the canonical tag, append_disclosure_tag
+# would STACK the canonical tag on top of the stale one at send-time — two tags in
+# one comment. So the push is refused until the operator fixes it (issue #207).
+DEPRECATED_DISCLOSURE_TAGS = (
+    "_🤖 AI-drafted feedback, instructor-reviewed_",
+    "🤖 AI-drafted feedback, instructor-reviewed",
+    "_AI drafted, instructor reviewed_",          # underscore-wrapped canonical
+    "🤖 Generated with Claude Code",
+    "AI-generated feedback",
+)
+
+
+def find_deprecated_disclosure_tags(comment_files: list) -> list:
+    """Issue #207: scan per-student comment files for deprecated disclosure-tag
+    formats. Returns [(filename, deprecated_tag), ...] — empty if all are clean.
+
+    The canonical tag is DISCLOSURE_TAG, appended automatically at send-time. A
+    file carrying an older format would get the canonical tag stacked on top of
+    the stale one, so the push refuses (override: --allow-bad-disclosure-tags)
+    until the operator removes it. Files with only the canonical tag pass.
+    """
+    violations: list = []
+    for fb in comment_files:
+        p = Path(fb)
+        try:
+            content = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for dep in DEPRECATED_DISCLOSURE_TAGS:
+            if dep in content:
+                violations.append((p.name, dep))
+                break
+    return violations
 
 
 # Issue #72: HOLD_<DIMENSION> grade-hold pattern (lifted from itm327's
@@ -419,6 +460,13 @@ def is_yes_refused_on_review(comment_files: list, yes_flag: bool) -> bool:
     The value-only / human-graded path keeps `--yes` (the human IS the
     grader; `--yes` there is a script convenience, not an attestation
     bypass).
+
+    Issue #207 (HG-5): the same helper also gates the FINAL push
+    confirmation. #97 closed the bypass on `--mark-reviewed`, but `--yes`
+    still skipped the "type 'push'" prompt afterward — so an agent that
+    re-marks reviewed could chain `--push --yes` and post AI-drafted
+    feedback with no human keystroke. On the LLM-comment path, the
+    instructor (the top layer) must physically confirm the write.
 
     Returns True if the caller should refuse the command and exit.
     """
@@ -1024,6 +1072,13 @@ def main() -> int:
                          "passes, not a stale prior run). Pass this flag for the rare intentional "
                          "case (e.g. a calibration cohort already gated by --mark-calibrated, or "
                          "a one-off where the operator has explicitly accepted single-pass risk).")
+    ap.add_argument("--allow-bad-disclosure-tags", action="store_true",
+                    help="Issue #207: explicit opt-out from the disclosure-tag validator. By "
+                         "default, grader_push refuses to push when a per-student comment file "
+                         "carries a deprecated disclosure tag (an older emoji/underscore format), "
+                         "because the canonical tag would get stacked on top of it at send-time. "
+                         "Pass this flag to push anyway (rare; the stale tag stays in the "
+                         "student-visible comment).")
     ap.add_argument("--allow-lower", action="store_true",
                     help="Issue #96: explicit opt-out from the regression-direction gate. By "
                          "default, grader_push refuses to LOWER an existing non-empty Canvas grade "
@@ -1508,6 +1563,38 @@ def main() -> int:
     if stale:
         print(f"\n⛔ {len(stale)} review-surface file(s) changed since you marked reviewed "
               f"(e.g. {stale[0]}). Re-review, then re-run --mark-reviewed.")
+        return 1
+
+    # --- HG-5 GATE: instructor is the top layer on the AI-drafted push path ---
+    # Issue #207: the presence of per-student comment files marks the LLM-comment
+    # (AI-drafted) path. On that path --yes must not bypass the final push
+    # confirmation — an agent can pass --yes, but a human must decide to write
+    # AI-drafted feedback to a live course (HG-5: decision support, not autonomy).
+    # The value-only / human-graded path (no comment files) keeps --yes.
+    ai_comment_files = list(fbdir.glob(f"{prefix}-*.md"))
+    if is_yes_refused_on_review(ai_comment_files, args.yes):
+        print("\n⛔ --yes is refused on the AI-drafted push path (issue #207, HG-5).",
+              file=sys.stderr)
+        print("   Pushing AI-drafted feedback to a live course requires the instructor",
+              file=sys.stderr)
+        print("   to confirm the write — the instructor is the top layer and decides.",
+              file=sys.stderr)
+        print("   Fix: re-run WITHOUT --yes; type 'push' at the confirmation prompt.",
+              file=sys.stderr)
+        return 1
+
+    # Issue #207: refuse deprecated disclosure-tag formats before writing. A stale
+    # tag would get the canonical DISCLOSURE_TAG stacked on top of it at send-time.
+    tag_violations = find_deprecated_disclosure_tags(ai_comment_files)
+    if tag_violations and not args.allow_bad_disclosure_tags:
+        print(f"\n⛔ {len(tag_violations)} feedback file(s) carry a deprecated disclosure "
+              f"tag (issue #207).", file=sys.stderr)
+        for fname, dep in tag_violations:
+            print(f"     {fname}: {dep[:40]}", file=sys.stderr)
+        print(f"   The canonical tag is {DISCLOSURE_TAG!r} (appended automatically at "
+              f"send-time).", file=sys.stderr)
+        print("   Fix: remove the stale tag from those files, or pass "
+              "--allow-bad-disclosure-tags to override.", file=sys.stderr)
         return 1
 
     if locked_resubmit_keys and not args.allow_locked_resubmit and not args.yes:
