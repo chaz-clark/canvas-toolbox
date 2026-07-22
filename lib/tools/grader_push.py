@@ -110,6 +110,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from _challenge_dir_guard import resolve_challenge_dir  # issue #44 FERPA guard
 
@@ -1134,6 +1135,11 @@ def main() -> int:
                          "because the canonical tag would get stacked on top of it at send-time. "
                          "Pass this flag to push anyway (rare; the stale tag stays in the "
                          "student-visible comment).")
+    ap.add_argument("--auto-fix-workflow", action="store_true",
+                    help="Issue #226: after pushing, if a just-pushed grade is still "
+                         "workflow_state 'submitted' (Canvas didn't transition — common after a "
+                         "resubmission), idempotently re-post the SAME grade to force "
+                         "'submitted' -> 'graded'. Never changes a grade value.")
     ap.add_argument("--allow-lower", action="store_true",
                     help="Issue #96: explicit opt-out from the regression-direction gate. By "
                          "default, grader_push refuses to LOWER an existing non-empty Canvas grade "
@@ -1660,6 +1666,7 @@ def main() -> int:
             return 1
 
     pushed = 0
+    pushed_uids: set = set()  # #226: verify workflow_state transition after push
     held = 0
     regressions_skipped = 0
     grade_type_skipped = 0
@@ -1779,6 +1786,8 @@ def main() -> int:
                     lg.write(f"- {key}: grade {before_repr} → {grade} pushed to assignment "
                              f"{args.assignment_id}\n")
                     pushed += 1
+                    if uid is not None:
+                        pushed_uids.add(int(uid))
                 # Issue #63: capture the new comment_id (if any) so --retract
                 # can DELETE it later. Canvas's PUT response includes
                 # submission_comments[] — pick the LAST entry as the one we
@@ -1826,6 +1835,34 @@ def main() -> int:
             print(f"\n⚠️  MANUAL posting policy: the {pushed} grade(s) are ENTERED but NOT "
                   "posted — students can't see them and the gradebook shows 'needs grading'. "
                   "Release them via the Gradebook 'Post grades' action, or re-run with --post.")
+
+    # Issue #226: a resubmission-after-grading can leave workflow_state stuck at
+    # "submitted" even though the grade posted (Canvas doesn't always transition on
+    # re-apply). Verify the pushed rows and, with --auto-fix-workflow, idempotently
+    # re-post the SAME grade to force "submitted" -> "graded" (never a new grade).
+    if pushed and args.push and pushed_uids:
+        try:
+            from grader_audit_workflow import find_stuck_submissions, repost_grade
+            time.sleep(2)  # let Canvas process the writes
+            fresh = fetch_submissions(base, cid, headers, args.assignment_id)
+            stuck = [s for s in find_stuck_submissions(fresh)
+                     if s.get("user_id") is not None and int(s["user_id"]) in pushed_uids]
+            if stuck:
+                print(f"\n⚠️  #226: {len(stuck)} just-pushed grade(s) are still "
+                      "workflow_state 'submitted' (Canvas didn't transition — common after a "
+                      "resubmission).")
+                if args.auto_fix_workflow:
+                    fixed = sum(1 for s in stuck
+                                if repost_grade(base, cid, headers, args.assignment_id,
+                                                s["user_id"], s.get("grade")))
+                    print(f"   ✓ re-posted the existing grade for {fixed}/{len(stuck)} to force "
+                          "the transition.")
+                else:
+                    print("   Fix: uv run python lib/tools/grader_audit_workflow.py "
+                          f"--assignment-id {args.assignment_id} --fix --allow-enrolled "
+                          "(or re-run this push with --auto-fix-workflow).")
+        except Exception as e:  # verification must never fail the push itself
+            print(f"\n(note: #226 workflow-state verify skipped — {e})")
 
     if failed:
         print(f"Failed: {failed}")

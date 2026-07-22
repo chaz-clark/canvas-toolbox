@@ -524,6 +524,15 @@ Before assigning a score to a key:
 
 **What this is NOT.** This is NOT a "trust the existing grade unconditionally" rule. The instructor's manual regrade or a genuine error correction is a legitimate downward move — the bypass at push is `--allow-lower`. But the DEFAULT is anchor-to-existing; deviation requires explicit reason; lowering is the highest-stakes deviation and gets the loudest surface.
 
+### Post-push workflow-state repair (issue #226, v1.7.25+)
+
+A student who **resubmits after being graded** resets `workflow_state` to `"submitted"`. Re-applying the grade doesn't always transition it back to `"graded"`, so the grade IS posted but the instructor's To-Do still reads "needs grading" (2026-07-22: 31 submissions stuck across 6 assignments). Two surfaces:
+
+- **`grader_push.py`** verifies the just-pushed rows after the push and warns; `--auto-fix-workflow` idempotently re-posts the SAME grade to force the transition.
+- **`grader_audit_workflow.py --check / --fix`** scans an assignment (or `--all-assignments`) for the same stuck state across existing grades and repairs it.
+
+**The guardrail:** the re-post ONLY re-sends the grade Canvas already carries — a state repair, never a new or changed grade. So it stays *outside* the HG-5 review gate (there is nothing new or AI-drafted to review) without being a backdoor around it, and — as a sanctioned `lib/tools/` tool — it is the path the `grade_guardian` hook (#213) expects, instead of the manual API re-post that the incident used. Live-course writes still pass `canvas_course_guard` (`--allow-enrolled`); `pending_review` (moderated) and ungraded submissions are left untouched.
+
 ### Standard Work — the task page is the source of truth, NOT the answer key (issue #102, v0.63.0+)
 
 The DS 250 U4T3 incident (2026-06-25) surfaced a high-stakes failure mode that's distinct from the regression / consensus / review-gate threads. The rubric was built from the **solution code** (which plotted feature importances) and required a chart. The student-facing task page said *"it doesn't say you have to graph the permutation importances, but I would like to"* — the chart was OPTIONAL. The rubric inherited a REQUIREMENT from the answer key that the task page explicitly called OPTIONAL. Result: confident, unanimous (3/3) consensus on the wrong rubric → 4 students wrongly marked incomplete.
