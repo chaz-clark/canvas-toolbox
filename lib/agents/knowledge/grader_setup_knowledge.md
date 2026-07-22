@@ -154,6 +154,20 @@ This is an open-ended conversation. The job is to extract from the instructor's 
 
 Don't promise this is fast. A new rubric for an assignment that's been graded by feel for years is **the work**. Plan 30–60 minutes for Path C. The output is permanent.
 
+#### Step 2.5 — Tag each criterion's checkability, then freeze (all three paths)
+
+Before leaving Step 2 — whichever path produced the rubric — tag **every criterion** in `RUBRIC.md` with a `Checkability` value, so the hybrid grader routes it to the layer that's authoritative for it (issue #192, HG-1). Add a `Checkability` column to the criteria table:
+
+| Tag | The criterion is… | Who's authoritative |
+|---|---|---|
+| `mechanical` | binary / countable — "includes a thesis", "≥3 citations", "code runs" | **NLP** (evidence); LLM confirms |
+| `coverage` | all-of-a-set present — "addresses all 5 prompts", "each regulation discussed" | **shared** — NLP flags, LLM verifies |
+| `judgment` | quality / insight — "critical insight", "synthesis", "clarity" | **LLM** only; NLP gives weak hints |
+
+**Ask, per criterion:** "Could a careful non-expert verify this by looking/counting, or does it take judgment?" Look/count → `mechanical` or `coverage`; takes judgment → `judgment`. When unsure, tag `judgment` (never force regex onto insight — HG-1). A single-dimension holistic rubric (one axis, e.g. an engagement tier) is one `judgment` row.
+
+**Then freeze:** run `grader_rubric.py --rubric RUBRIC.md` — it validates the tags and prints a `checkability fingerprint`. Record that fingerprint (the Stage-0 freeze marker); the extractors derive from the *frozen* rubric. A later fingerprint change means the rubric was edited and the checks need re-freezing (surface it; don't silently grade against a drifted rubric). **The rubric is the source of truth — a rubric edit updates the checks, so the tags live inline in `RUBRIC.md`, never in a companion file.**
+
 ### Step 3 — Critical thinking: scored or formative?
 
 **Ask:** "Is critical thinking (data interrogation, self-questioning, reasoning quality) part of the grade, or is it something you want surfaced as coaching but not scored?"

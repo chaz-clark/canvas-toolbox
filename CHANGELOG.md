@@ -12,6 +12,21 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.18] — 2026-07-22
+
+**Stage 0 of the hybrid grader (#192): rubrics now carry a per-criterion `Checkability` tag — the foundation the NLP+LLM routing derives from.** (#192, Sprint 0)
+
+Every criterion is tagged `mechanical` / `coverage` / `judgment` so the hybrid grader routes it to the authoritative layer (HG-1). Tags live **inline in `RUBRIC.md`** — single source of truth, so a rubric edit updates the checks (no companion file to drift).
+
+### Added
+- **`grader_rubric.py`** — parses the checkability-tagged criteria table from a `RUBRIC.md` (tolerant of the other columns — `#`, tier descriptors — and of an optional `Evidence hint` column), validates the tags, and prints a `checkability_fingerprint` — the Stage-0 **freeze marker** (order-insensitive, changes the instant a criterion's routing changes, so drift from a frozen rubric is detectable). CLI + `parse_checkability()` / `checkability_fingerprint()` with unit coverage.
+- **Scaffold rubric templates** (`cohesive_narrative.md`, `ai_log.md`) — gain the `Checkability` column with sensible default tags + a validate-and-freeze note, so new cohorts start tagged.
+- **`grader_setup_knowledge.md`** — Step 2.5: tag each criterion's checkability (with the "could a careful non-expert verify by looking/counting, or does it take judgment?" test), then freeze. Applies to all three rubric paths.
+
+This is the precondition; the evidence extractor that consumes the tags lands in Sprint 1.
+
+---
+
 ## [1.7.17] — 2026-07-22
 
 **New grading principle HG-6: low grades get a benefit-of-the-doubt audit.** (#192)
