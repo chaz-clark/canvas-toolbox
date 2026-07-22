@@ -1426,7 +1426,9 @@ def main() -> int:
             ff = r.get("feedback_file", "") or ""
             if not ff:
                 continue
-            tok = extract_hold_token(ff)
+            # Resolve feedback_file relative to challenge dir
+            ff_resolved = str(challenge / ff)
+            tok = extract_hold_token(ff_resolved)
             if tok:
                 hold_by_key[r.get("key", "")] = tok
 
@@ -1434,8 +1436,13 @@ def main() -> int:
     for r in rows:
         key = r.get("key", "")
         grade = (r.get("final_grade") or "").strip() or (r.get("recommended_score") or "").strip()
+        # Issue: feedback_file paths in .review.csv are relative to challenge dir,
+        # but comment_for() uses Path() relative to CWD. Resolve them here.
+        feedback_file = r.get("feedback_file", "")
+        if feedback_file:
+            feedback_file = str(challenge / feedback_file)
         comment = "" if args.grade_only else (
-            append_disclosure_tag(comment_for(r.get("feedback_file", ""))) or args.default_comment)
+            append_disclosure_tag(comment_for(feedback_file)) or args.default_comment)
         uid = resolve_user_id(r.get("submission_file", ""), subs)
         done = key in pushed_keys and not args.force
         ok = bool(grade and uid and (comment or args.grade_only)) and not done
@@ -1475,7 +1482,11 @@ def main() -> int:
     if not args.no_lock_check and not args.grade_only and lock_state.get("locked_now"):
         for r in rows:
             key = r.get("key", "")
-            comment = comment_for(r.get("feedback_file", "")) or args.default_comment
+            # Resolve feedback_file relative to challenge dir
+            feedback_file = r.get("feedback_file", "")
+            if feedback_file:
+                feedback_file = str(challenge / feedback_file)
+            comment = comment_for(feedback_file) or args.default_comment
             if comment and comment_has_resubmit_language(comment):
                 locked_resubmit_keys.append((key, comment))
     # ---- end availability + grading-type metadata -----------------------
