@@ -194,6 +194,24 @@ def _course_late_policy_hash(path: Path) -> str:
     return hashlib.sha256(json.dumps(lp, sort_keys=True).encode("utf-8")).hexdigest()[:16]
 
 
+def _push_late_policy(lp: dict) -> tuple:
+    """Create or update the course's Gradebook late policy, picking the verb by
+    whether one already exists.
+
+    Canvas only accepts PATCH /courses/:id/late_policy once a late-policy record
+    exists; a course that never had one configured 404s on PATCH ("The specified
+    resource does not exist."). So GET first, then POST to create when absent
+    (non-200) or PATCH to update when present (200). Returns (response, created)
+    where `created` is True on the POST path. (#205)
+    """
+    base = f"{CANVAS_BASE_URL}/api/v1/courses/{CANVAS_COURSE_ID}/late_policy"
+    existing = requests.get(base, headers=_headers(), timeout=20)
+    created = existing.status_code != 200
+    verb = requests.post if created else requests.patch
+    resp = verb(base, headers=_headers(), json={"late_policy": lp}, timeout=20)
+    return resp, created
+
+
 def _slug(text: str) -> str:
     """Convert a title to a filesystem-safe slug."""
     text = text.lower()
@@ -1501,15 +1519,12 @@ def cmd_push(target: Optional[str] = None):
             data = json.loads(course_path.read_text(encoding="utf-8"))
             lp = data.get("late_policy", {})
             if lp:
-                resp = requests.patch(
-                    f"{CANVAS_BASE_URL}/api/v1/courses/{CANVAS_COURSE_ID}/late_policy",
-                    headers=_headers(),
-                    json={"late_policy": lp}, timeout=20)
-                if resp.status_code in (200, 204):
+                resp, created = _push_late_policy(lp)
+                if resp.status_code < 400:
                     index["course_hash"] = course_hash
                     index["course"] = data
                     pushed_course_level.append("Course")
-                    print(f"    OK (late_policy updated)")
+                    print(f"    OK (late_policy {'created' if created else 'updated'})")
                 else:
                     print(f"    FAILED late_policy: {resp.text[:200]}")
                 _save_index(index)

@@ -12,6 +12,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.13] — 2026-07-22
+
+**`sync --push` now creates a late policy when the course has none, instead of 404-ing on every push.** (#205)
+
+`cmd_push` always sent `PATCH /courses/:id/late_policy` when `_course.json`'s `late_policy` hash differed from the stored index hash. Canvas only accepts `PATCH` once a late-policy record exists; a course that never configured one returns `The specified resource does not exist.` (404). #189 narrowed the `_course.json` hash to `late_policy`, which made an untouched course register as "changed" on the very next `--push` — so any operator who pulled #189 and pushed against a policy-free course hit that 404, and it recurred on every subsequent push because the hash never got to update. Non-blocking (the rest of the push proceeds), but persistent.
+
+### Fixed
+- **`canvas_sync.py`** — a new `_push_late_policy` helper `GET`s the late policy first and picks the verb: `PATCH` to update when one exists (200), `POST` to create when it doesn't (non-200). The success message reads `created` vs `updated` accordingly, and the accept check widened to `< 400` (matching the sibling homepage/syllabus handlers) so a `POST`-create isn't misread as a failure. Two unit tests cover both the update and create paths.
+
+---
+
 ## [1.7.12] — 2026-07-15
 
 **Transparency: every AI-drafted feedback comment is now tagged `— AI drafted, instructor reviewed` — default, no opt-out.**
