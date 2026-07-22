@@ -41,7 +41,9 @@ WHAT IT DOES — 14 idempotent steps
  11. Run canvas-sync --pull to populate course/ (subdirectory mode only)
  12. Generate course-specific AGENTS.md stub (subdirectory mode only)
  13. Create handoffs/ directory (opt-in via --with-handoffs; dev feature)
- 14. Copy slash commands to .claude/commands/ (always; makes tools discoverable)
+ 14. Copy slash commands to .claude/commands/ + wire the grade-guardian
+     PreToolUse hook into .claude/settings.json (blocks direct Canvas grade
+     writes so grades must go through grader_push.py — #213)
 
 Every step is idempotent: re-running cb-init after the first complete
 pass is a fast no-op that prints "✓ already done — skipping" for each
@@ -119,6 +121,13 @@ try:
     from __toolbox_version__ import __version__
 except ImportError:
     __version__ = "0.0.0+unknown"
+
+try:
+    # Idempotent installer for the grade-guardian PreToolUse hook (#213), single-
+    # sourced in grade_guardian.py so the wiring never drifts from the hook.
+    from grade_guardian import ensure_hook as _ensure_guardian_hook
+except ImportError:
+    _ensure_guardian_hook = None
 
 try:
     # Single source of truth for the HG-5 grading-protocol pointer (#207), shared
@@ -867,7 +876,39 @@ def step_14_slash_commands(*, course_root: Path, check_only: bool) -> bool:
         copied_count += 1
 
     print(f"  ✓ Copied {copied_count} slash commands to {target_dir}")
+
+    _install_guardian_hook(course_root=course_root, check_only=check_only)
     return True
+
+
+def _install_guardian_hook(*, course_root: Path, check_only: bool) -> None:
+    """Wire the grade-guardian PreToolUse hook into the course repo's
+    `.claude/settings.json` (issue #213). Idempotent + non-clobbering: merges into
+    an existing settings.json, leaves it alone if the hook is already present, and
+    refuses to overwrite a settings.json it can't parse."""
+    if _ensure_guardian_hook is None:
+        return  # pre-sync / partial vendored env — skip quietly
+
+    settings_path = course_root / ".claude" / "settings.json"
+    try:
+        existing = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else {}
+    except (OSError, json.JSONDecodeError):
+        print(f"  ⚠  {settings_path} exists but isn't valid JSON — not touching it. "
+              "Add the grade_guardian PreToolUse hook manually (see docs/grading_enforcement_A3.md).")
+        return
+
+    new_settings, changed = _ensure_guardian_hook(existing)
+    if not changed:
+        print("  ✓ grade-guardian hook already present in .claude/settings.json")
+        return
+    if check_only:
+        print(f"  would wire the grade-guardian PreToolUse hook into {settings_path}")
+        return
+
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(json.dumps(new_settings, indent=2) + "\n", encoding="utf-8")
+    print(f"  ✓ Wired grade-guardian PreToolUse hook into {settings_path} (blocks direct "
+          "Canvas grade writes; grades must go through grader_push.py — #213)")
 
 
 # ---------------------------------------------------------------------------
