@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.16] — 2026-07-22
+
+**Defense in depth for the grade-push gate: an internal precheck + the "never hand-write a Canvas script" rule in the agent spec.** (#213)
+
+PR B of two (PR A, #216/v1.7.15, added the harness hook). This consolidates the in-tool review gate and closes the spec gap that let an agent pattern-match a `/tmp` push script from the sprint workaround.
+
+### Changed
+- **`grader_push.py`** — the required review gate (`.reviewed` exists + mtime freshness) is now one testable checkpoint, `push_precheck()`, called by `cmd_push` before any Canvas write. Behavior-preserving refactor; adds a visibility warning when AI-drafted work lacks `feedback/_consensus.csv` (already gated at `--mark-reviewed` by #95).
+
+### Added
+- **`AGENTS.md`** — "Never hand-write a Canvas write" rule in the HG-5 protocol: search `lib/tools/` first, use the tool if it exists, propose one if it doesn't — never a custom `requests`/`curl`/`/tmp/*.py`. Clarifies the S1–S4 sprint direct-API push as a one-off workaround, not the pattern. (#213 systemic gaps.)
+
+---
+
 ## [1.7.15] — 2026-07-22
 
 **Grades can now only reach Canvas through `grader_push.py` — a harness hook blocks direct API writes an agent can't be talked out of.** (#213)

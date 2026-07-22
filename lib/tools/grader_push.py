@@ -211,6 +211,61 @@ def find_deprecated_disclosure_tags(comment_files: list) -> list:
     return violations
 
 
+def push_precheck(challenge: Path, fbdir: Path, prefix: str, reviewed: Path,
+                  challenge_dir_arg: str) -> tuple:
+    """Issue #213 (Fix 2): the required review gate as one testable checkpoint.
+
+    cmd_push calls this before any Canvas write — defense in depth. The
+    grade_guardian PreToolUse hook keeps an agent *in* grader_push.py; this keeps
+    grader_push.py from pushing an un-reviewed or stale state. Returns
+    (blockers, warnings), each a ready-to-print message; a non-empty `blockers`
+    means refuse the push.
+    """
+    blockers: list = []
+    warnings: list = []
+    comment_files = list(fbdir.glob(f"{prefix}-*.md"))
+
+    # 1. .reviewed marker must exist — the human attested review (#46).
+    if not reviewed.exists():
+        review_csvs = sorted(challenge.glob(".review*.csv"))
+        if comment_files:
+            surface = (f"   Review {fbdir}/_all_comments.md and the per-student "
+                       f"{prefix}-*.md justifications,")
+        elif review_csvs:
+            surface = (f"   Review the .review*.csv files in {challenge}/ + "
+                       f"{fbdir.name}/_gradebook_actuals.csv (value-only / human-graded path),")
+        else:
+            surface = (f"   Produce a review surface first (per-student {prefix}-*.md OR "
+                       f".review*.csv), then review it,")
+        blockers.append(
+            "\n⛔ Review required before pushing.\n" + surface +
+            "\n   then run:  uv run python lib/tools/grader_push.py --challenge-dir "
+            f"{challenge_dir_arg} --mark-reviewed")
+        return blockers, warnings  # staleness/consensus need .reviewed to exist
+
+    # 2. .reviewed must not be stale — any review-surface edit after it re-locks (#46).
+    rmt = reviewed.stat().st_mtime
+    watch = (
+        list(fbdir.glob(f"{prefix}-*.md"))
+        + [fbdir / "_all_comments.md"]
+        + list(challenge.glob(".review*.csv"))
+        + [fbdir / "_gradebook_actuals.csv"]
+    )
+    stale = [p.name for p in watch if p.exists() and p.stat().st_mtime > rmt]
+    if stale:
+        blockers.append(
+            f"\n⛔ {len(stale)} review-surface file(s) changed since you marked reviewed "
+            f"(e.g. {stale[0]}). Re-review, then re-run --mark-reviewed.")
+
+    # 3. Consensus presence (warning): AI-drafted work should carry _consensus.csv
+    #    (#95 gates this at --mark-reviewed; surfaced here for visibility on
+    #    --allow-single-pass runs).
+    if comment_files and not (fbdir / "_consensus.csv").exists():
+        warnings.append("No feedback/_consensus.csv — was this single-pass graded?")
+
+    return blockers, warnings
+
+
 # Issue #72: HOLD_<DIMENSION> grade-hold pattern (lifted from itm327's
 # build_mid_letter_comments + push_mid_letter). When a per-student
 # feedback file's top-of-file heading carries a trailing `· HOLD_<TOKEN>`
@@ -1529,40 +1584,18 @@ def main() -> int:
         print("Nothing to push.")
         return 1
 
-    # --- REQUIRED REVIEW GATE: --mark-reviewed must exist + not be stale ---
-    # Issue #46: the watch list is the union of EVERYTHING the operator might
-    # have reviewed — comment files (LLM-comment runs), the all-comments
-    # overview, AND the value-only review surface (.review*.csv +
-    # _gradebook_actuals.csv). The mtime auto-invalidation fires if ANY of
-    # these post-dates the .reviewed marker, regardless of which subset
-    # actually exists in this run. So value-only pushes keep a real
-    # "edited-after-review re-locks" guarantee.
-    if not reviewed.exists():
-        comment_files = list(fbdir.glob(f"{prefix}-*.md"))
-        review_csvs = sorted(challenge.glob(".review*.csv"))
-        print("\n⛔ Review required before pushing.")
-        if comment_files:
-            print(f"   Review {fbdir}/_all_comments.md and the per-student {prefix}-*.md justifications,")
-        elif review_csvs:
-            print(f"   Review the .review*.csv files in {challenge}/ + "
-                  f"{fbdir.name}/_gradebook_actuals.csv (value-only / human-graded path),")
-        else:
-            print(f"   Produce a review surface first (per-student {prefix}-*.md OR "
-                  f".review*.csv), then review it,")
-        print("   then run:  uv run python lib/tools/grader_push.py --challenge-dir "
-              f"{args.challenge_dir} --mark-reviewed")
-        return 1
-    rmt = reviewed.stat().st_mtime
-    watch = (
-        list(fbdir.glob(f"{prefix}-*.md"))
-        + [fbdir / "_all_comments.md"]
-        + list(challenge.glob(".review*.csv"))
-        + [fbdir / "_gradebook_actuals.csv"]
-    )
-    stale = [p.name for p in watch if p.exists() and p.stat().st_mtime > rmt]
-    if stale:
-        print(f"\n⛔ {len(stale)} review-surface file(s) changed since you marked reviewed "
-              f"(e.g. {stale[0]}). Re-review, then re-run --mark-reviewed.")
+    # --- REQUIRED REVIEW GATE (issue #213 Fix 2: push_precheck) ---
+    # Issue #46: .reviewed must exist AND be fresh — the watch list is the union
+    # of every review surface (comment files, _all_comments.md, .review*.csv,
+    # _gradebook_actuals.csv); any of them post-dating the marker re-locks. Now
+    # consolidated into one testable checkpoint (push_precheck) that cmd_push runs
+    # before any Canvas write.
+    pc_blockers, pc_warnings = push_precheck(challenge, fbdir, prefix, reviewed, args.challenge_dir)
+    for w in pc_warnings:
+        print(f"  ⚠  {w}")
+    if pc_blockers:
+        for b in pc_blockers:
+            print(b)
         return 1
 
     # --- HG-5 GATE: instructor is the top layer on the AI-drafted push path ---

@@ -29,6 +29,7 @@ from grader_push import (  # noqa: E402
     DISCLOSURE_TAG,
     find_deprecated_disclosure_tags,
     DEPRECATED_DISCLOSURE_TAGS,
+    push_precheck,
     assignment_posts_manually,
     post_assignment_grades,
 )
@@ -534,6 +535,69 @@ def test_every_deprecated_tag_constant_is_detected(tmp_path):
     for i, dep in enumerate(DEPRECATED_DISCLOSURE_TAGS):
         fb = _write_fb(tmp_path, f"KC1-{i}.md", f"body\n\n{dep}\n")
         assert find_deprecated_disclosure_tags([fb]), f"not detected: {dep!r}"
+
+
+# ---------------------------------------------------------------------------
+# push_precheck — issue #213 Fix 2 (the review gate as one testable checkpoint)
+# ---------------------------------------------------------------------------
+
+def _setup_challenge(tmp_path, *, reviewed_mtime=None, files=None):
+    """Build a challenge dir. `files` maps relative path -> mtime (int)."""
+    import os
+    challenge = tmp_path / "kc3"
+    fbdir = challenge / "feedback"
+    fbdir.mkdir(parents=True)
+    for rel, mtime in (files or {}).items():
+        p = challenge / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x", encoding="utf-8")
+        if mtime is not None:
+            os.utime(p, (mtime, mtime))
+    reviewed = challenge / ".reviewed"
+    if reviewed_mtime is not None:
+        reviewed.write_text("reviewed\n", encoding="utf-8")
+        os.utime(reviewed, (reviewed_mtime, reviewed_mtime))
+    return challenge, fbdir, reviewed
+
+
+def test_precheck_blocks_without_reviewed_marker():
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        challenge, fbdir, reviewed = _setup_challenge(
+            Path(d), files={"feedback/KC3-A.md": 100})
+        blockers, warnings = push_precheck(challenge, fbdir, "KC3", reviewed, "grading/kc3")
+        assert blockers and "Review required" in blockers[0]
+
+
+def test_precheck_passes_when_reviewed_and_fresh():
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        challenge, fbdir, reviewed = _setup_challenge(
+            Path(d), reviewed_mtime=2000,
+            files={"feedback/KC3-A.md": 1000, "feedback/_consensus.csv": 1000})
+        blockers, warnings = push_precheck(challenge, fbdir, "KC3", reviewed, "grading/kc3")
+        assert blockers == [] and warnings == []
+
+
+def test_precheck_blocks_when_review_surface_edited_after_marker():
+    """The mtime re-lock: a comment file touched after .reviewed refuses the push."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        challenge, fbdir, reviewed = _setup_challenge(
+            Path(d), reviewed_mtime=1000,
+            files={"feedback/KC3-A.md": 5000, "feedback/_consensus.csv": 500})
+        blockers, warnings = push_precheck(challenge, fbdir, "KC3", reviewed, "grading/kc3")
+        assert blockers and "changed since you marked reviewed" in blockers[0]
+
+
+def test_precheck_warns_on_missing_consensus_but_does_not_block():
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        challenge, fbdir, reviewed = _setup_challenge(
+            Path(d), reviewed_mtime=2000, files={"feedback/KC3-A.md": 1000})
+        blockers, warnings = push_precheck(challenge, fbdir, "KC3", reviewed, "grading/kc3")
+        assert blockers == []
+        assert warnings and "_consensus.csv" in warnings[0]
 
 
 # ---------------------------------------------------------------------------
