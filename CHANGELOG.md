@@ -12,6 +12,22 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.21] — 2026-07-22
+
+**Hybrid grader Sprint 2 (#192): `grader_grade.py --with-signals` injects the framed evidence into every pass.** (#192, Sprint 2)
+
+The evidence layer (Sprints 1a/1b) now reaches the LLM. `grader_grade.py` already injected `_signals.json` as "CONTEXT only; never enter the score" — this renders the new prose + per-criterion evidence *with its framing* instead of dumping raw dicts.
+
+### Added
+- **`grader_grade.py`** — `--with-signals` injects the rich evidence block per submission: prose signals and per-criterion term-banks / coverage / citations, each as a framed bullet (`term_bank_hits=0 — check for paraphrase before concluding uncovered`) so the pass reads it as evidence, not a verdict (HG-3). This is the **enrichment** lever — it grounds the passes and reduces variance, and it spends tokens; run `grader_signals.py --rubric` first to populate the evidence.
+
+### Changed
+- **`grader_grade.py`** — `_format_priors()` renders compact scalar signals by default (unchanged, cheap) and excludes the nested `prose_evidence` / `criteria` structures from that line so they never dump as raw dicts; the rich rendering is gated behind `--with-signals`.
+
+With Sprint 2, the evidence *reaches* the passes. Sprint 3 audits the consensus against it (`conflict_needs_review`); Sprint 4 adds the HG-6 low-band audit.
+
+---
+
 ## [1.7.20] — 2026-07-22
 
 **Hybrid grader Sprint 1b (#192): per-criterion evidence — rubric-derived term-banks + coverage, routed by checkability.** (#192, Sprint 1b)
