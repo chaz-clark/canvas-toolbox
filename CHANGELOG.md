@@ -12,6 +12,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.17] — 2026-07-22
+
+**New grading principle HG-6: low grades get a benefit-of-the-doubt audit.** (#192)
+
+Deterministic layers *under-detect* — a narrow term-bank, a citation regex that doesn't know the format, a tag that misses a renamed section is a **false negative** that undergrades work a student actually did. The `.py` extractors are LLM-authored to be deterministic; if their scope is off, they under-detect silently. HG-6 makes the mirror of the existing conflict check first-class: any consensus in the **low band** is re-audited at 100% LLM, priors excluded, reading the raw text — and disagreements resolve *toward the student* (flag `undergrade_suspected`, route to the instructor, never auto-lower on a prior).
+
+### Added
+- **`grader_hybrid_architecture.md`** (v1.1) — HG-6 principle + guardrail, the low-band audit in "The audit loop" (the mirror of the too-generous conflict check), the tool-mapping and anti-pattern. This is the design lock-in; the audit itself lands in the #192 build (Sprint 4).
+
+---
+
 ## [1.7.16] — 2026-07-22
 
 **Defense in depth for the grade-push gate: an internal precheck + the "never hand-write a Canvas script" rule in the agent spec.** (#213)

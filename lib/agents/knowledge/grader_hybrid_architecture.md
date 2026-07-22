@@ -1,7 +1,7 @@
 ---
 name: grader_hybrid_architecture
-version: "1.0"
-last_updated: 2026-07-16
+version: "1.1"
+last_updated: 2026-07-22
 description: How to think about AI-assisted grading as a layer-routed NLP + LLM hybrid.
 skill_type: knowledge
 shape: identity
@@ -12,6 +12,7 @@ companion_json_deprecated: "2026-07-16 - authored as YAML frontmatter (JSON purg
 provenance:
   sources:
     - "issue #192 design thread"
+    - "HG-6 (low-band benefit-of-the-doubt audit): operator field use across courses, 2026-07-22"
     - "prior art: hybrid AES, feature-augmented LLM grading, LLM-as-judge, RAG-for-grading"
 runtime_strategy: read_at_runtime
 principles:
@@ -20,6 +21,7 @@ principles:
   - { id: HG-3, name: Evidence not verdict, compact_statement: "Every NLP feature is evidence to verify against the text, never met/unmet — defeats keyword-stuffing." }
   - { id: HG-4, name: Audit stays semi-independent, compact_statement: "NLP audits the consensus and routes conflicts to a human; a signal fed into the passes is a weaker auditor." }
   - { id: HG-5, name: Instructor is the top layer, compact_statement: "Decision support, not autonomy — the human decides." }
+  - { id: HG-6, name: Low grades get the benefit of the doubt, compact_statement: "Deterministic layers under-detect (false negatives undergrade); audit the low band at 100% LLM, priors excluded, and resolve toward the student." }
 metadata: { knowledge_id: grader_hybrid_architecture }
 ---
 
@@ -86,6 +88,13 @@ regex onto "critical insight" is the fastest way to build an extractor that *fig
    so decide per signal whether it **grounds**, **audits**, or **both**.
 5. **The instructor is the top layer.** The stack surfaces evidence + judgment + conflicts;
    the human decides.
+6. **Low grades get the benefit of the doubt.** Deterministic layers *under-detect* — a narrow
+   term-bank, a citation regex that doesn't know the format, a tag that misses a renamed section
+   is a **false negative** that drags the grade down on work the student actually did. So any
+   consensus in the low band is re-audited at **100% LLM, priors excluded, reading the raw text**
+   ("does the required thing actually exist, however it's worded?"). Disagreements resolve *toward
+   the student* — surfaced to the instructor, never auto-lowered on a prior. Benefit of the doubt
+   is the default, not the exception.
 
 ## Signal taxonomy — tag every signal in `grader_signals.py`
 
@@ -160,6 +169,19 @@ but prior-below-floor, and vice-versa) → `conflict_needs_review` routed to a h
 tames single-pass drift (one pass defaults conservatively to the middle tier); the audit catches
 where the holistic read diverged from the mechanical evidence. **Never auto-moves a score.**
 
+**The mirror check — the low band (HG-6).** The conflict check above catches the *too-generous*
+direction (tier high, evidence thin). Its inverse is the more insidious one: a low grade produced
+because the deterministic scope was *wrong* — the term-bank looked for the wrong words, the citation
+regex didn't know the format, a tag missed a renamed section — so a student who **did** the work is
+undergraded on a false negative. The `.py` extractors were themselves LLM-authored to be
+deterministic; if their scope is off, they under-detect silently. So any consensus landing in the
+low band gets a dedicated **benefit-of-the-doubt audit**: one LLM pass with **priors excluded**,
+reading the raw submission, asked only *"does the required item actually exist here, however it's
+worded?"* If that unweighted read grades higher than the prior-influenced consensus, flag
+`undergrade_suspected` and route to the instructor — resolving toward the student. Never auto-lower
+on a prior; the entire point is that a possibly-wrong deterministic scope must not silently cost a
+student points.
+
 ## How it maps to cb tools
 
 - **`grader_signals.py`** — the NLP layer: `structural` + `evaluative` + `judgment-hint`
@@ -168,7 +190,9 @@ where the holistic read diverged from the mechanical evidence. **Never auto-move
 - **`grader_grade.py --with-signals`** — inject the evidence block into each pass prompt,
   labeled "priors, NOT the score."
 - **`grader_consensus.py`** — emit `conflict_needs_review` from the prior-vs-tier rule table;
-  respect each signal's inject/audit/both tag.
+  respect each signal's inject/audit/both tag. **(HG-6)** route any low-band consensus to a
+  priors-excluded 100%-LLM re-read; flag `undergrade_suspected` on an upward disagreement and
+  resolve toward the student.
 
 ## The ceiling (build at the right altitude)
 
@@ -187,3 +211,5 @@ better and more auditable; it does not replace it.
 - **Hardcoded rubric knowledge** — drifts from the rubric silently.
 - **Trimming the corpus to save tokens** — cuts signal, lowers quality. Densify instead.
 - **Letting a prior set the score** — the entire architecture exists so it never does.
+- **Trusting a low grade the deterministic layer produced** — its scope may be wrong; audit the
+  low band at 100% LLM before it costs a student points (HG-6).
