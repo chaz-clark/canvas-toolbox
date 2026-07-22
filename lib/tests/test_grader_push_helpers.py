@@ -27,6 +27,8 @@ from grader_push import (  # noqa: E402
     filter_group_mirror_rows,
     append_disclosure_tag,
     DISCLOSURE_TAG,
+    find_deprecated_disclosure_tags,
+    DEPRECATED_DISCLOSURE_TAGS,
     assignment_posts_manually,
     post_assignment_grades,
 )
@@ -477,6 +479,61 @@ def test_yes_refused_does_not_depend_on_file_count():
     assert is_yes_refused_on_review(one_file, yes_flag=True) is True
     many_files = [Path(f"/tmp/KC1-XXX{i}.md") for i in range(10)]
     assert is_yes_refused_on_review(many_files, yes_flag=True) is True
+
+
+# ---------------------------------------------------------------------------
+# find_deprecated_disclosure_tags — issue #207 (HG-5 disclosure validation)
+# ---------------------------------------------------------------------------
+
+def _write_fb(tmp_path, name, body):
+    p = tmp_path / name
+    p.write_text(body, encoding="utf-8")
+    return p
+
+
+def test_canonical_tag_is_not_flagged(tmp_path):
+    """The false-positive guard: a comment carrying ONLY the canonical
+    DISCLOSURE_TAG must pass — otherwise every legitimate push is blocked."""
+    fb = _write_fb(tmp_path, "KC1-A1B2C3.md", f"Nice work.\n\n{DISCLOSURE_TAG}\n")
+    assert find_deprecated_disclosure_tags([fb]) == []
+
+
+def test_emoji_tag_is_flagged(tmp_path):
+    """The exact format from the RCA (emoji, underscore-wrapped) is caught."""
+    fb = _write_fb(tmp_path, "KC3-D4E5F6.md",
+                   "Feedback body.\n\n_🤖 AI-drafted feedback, instructor-reviewed_\n")
+    violations = find_deprecated_disclosure_tags([fb])
+    assert len(violations) == 1
+    assert violations[0][0] == "KC3-D4E5F6.md"
+
+
+def test_generated_with_claude_code_is_flagged(tmp_path):
+    fb = _write_fb(tmp_path, "KC1-XYZ.md", "text\n\n🤖 Generated with Claude Code\n")
+    assert [v[0] for v in find_deprecated_disclosure_tags([fb])] == ["KC1-XYZ.md"]
+
+
+def test_only_offending_files_are_reported(tmp_path):
+    """Mixed batch: clean files pass, stale-tagged files are named."""
+    good = _write_fb(tmp_path, "KC1-GOOD.md", f"ok\n\n{DISCLOSURE_TAG}\n")
+    bad = _write_fb(tmp_path, "KC1-BAD.md", "ok\n\nAI-generated feedback\n")
+    reported = [v[0] for v in find_deprecated_disclosure_tags([good, bad])]
+    assert reported == ["KC1-BAD.md"]
+
+
+def test_untagged_file_is_not_flagged(tmp_path):
+    """A file with no disclosure tag at all isn't a deprecated-tag violation —
+    append_disclosure_tag adds the canonical one at send-time. This validator
+    only catches WRONG tags, not MISSING ones."""
+    fb = _write_fb(tmp_path, "KC1-PLAIN.md", "Just feedback, no tag.\n")
+    assert find_deprecated_disclosure_tags([fb]) == []
+
+
+def test_every_deprecated_tag_constant_is_detected(tmp_path):
+    """Guard the constant list itself: each entry in DEPRECATED_DISCLOSURE_TAGS
+    must actually trigger a violation when present (no dead/typo entries)."""
+    for i, dep in enumerate(DEPRECATED_DISCLOSURE_TAGS):
+        fb = _write_fb(tmp_path, f"KC1-{i}.md", f"body\n\n{dep}\n")
+        assert find_deprecated_disclosure_tags([fb]), f"not detected: {dep!r}"
 
 
 # ---------------------------------------------------------------------------

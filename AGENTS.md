@@ -94,6 +94,26 @@ Accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extensi
 
 ---
 
+## ⚠️ AI Grading Protocol — HG-5: the instructor is the top layer
+
+**Grading with AI is decision support, not autonomy. A human decides every grade that reaches a student.** This is principle **HG-5** of the [hybrid grading architecture](lib/agents/knowledge/grader_hybrid_architecture.md) (`HG-1..HG-5`). The agent drafts; the instructor reviews and confirms; only then does anything post to Canvas.
+
+**The push protocol (never skip a step):**
+
+1. **Grade** — `grader_fetch.py` → 3-pass consensus (`grader_grade.py --bulk` → `grader_consensus.py`). Single-pass LLM grading drifts; consensus is the default.
+2. **Review** — a human reads `feedback/_all_comments.md` + each per-student `<KEY>.md`. This is the gate, not a formality.
+3. **Attest** — `grader_push.py --challenge-dir grading/<name> --mark-reviewed`. The human types `reviewed`. The marker auto-invalidates if any feedback file changes afterward.
+4. **Push** — `grader_push.py --challenge-dir grading/<name> --push`. The human types `push` at the confirmation.
+
+**What the code enforces (so the protocol isn't docs-only):**
+
+- **`--yes` cannot bypass human review on the AI-drafted path.** On any run with per-student comment files (the LLM-comment path), `--yes` is refused at *both* `--mark-reviewed` (#97) *and* the final `--push` confirmation (#207, HG-5). An agent can pass `--yes`; a human must physically type `reviewed` then `push`. The value-only / human-graded path (no comment files) keeps `--yes` — there the human *is* the grader.
+- **Disclosure is mandatory and canonical.** Every AI-drafted comment ships with `— AI drafted, instructor reviewed`, appended automatically at send-time. Deprecated tag formats (older emoji/underscore variants) refuse the push (#207); override with `--allow-bad-disclosure-tags` only if you truly mean to.
+
+**Do not** run `grader_push.py --yes --push` to "just get the grades in." That is the exact HG-5 breach an [RCA](https://github.com/chaz-clark/canvas-toolbox/issues/207) was written about — 12 students received AI-drafted grades with no instructor review. If a gate blocks you, the fix is to *do the review*, not to reach for an override flag.
+
+---
+
 ## Common Tasks Quick Reference
 
 **When the instructor asks you to:**
