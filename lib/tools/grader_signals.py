@@ -63,6 +63,12 @@ try:
 except ImportError:
     __version__ = "0.0.0+unknown"
 
+try:
+    # #192 Sprint 1b — map evidence to the checkability-tagged rubric rows.
+    from grader_rubric import parse_checkability
+except ImportError:
+    parse_checkability = None
+
 # Language idiom catalogs — extend per course by passing --language or by adding entries here.
 # Each entry maps a language label to (primary_regex, optional_topandas_regex) where the primary
 # regex counts idioms broadly (covers both DataFrame-API and SQL forms where both exist).
@@ -218,6 +224,141 @@ def prose_evidence(text: str) -> list[dict]:
     ]
 
 
+# --- Rubric-derived evidence (issue #192 Sprint 1b) -------------------------
+# Option C: for each checkability-tagged criterion, DERIVE a term-bank from the
+# criterion text by default; OVERRIDE with the Evidence hint column when present.
+# Everything is EVIDENCE to verify (HG-3); a term-bank miss (paraphrase) is caught
+# downstream by the LLM reading the corpus and the HG-6 low-band audit — never a
+# score here.
+
+# Function words + grading boilerplate that make poor search terms.
+_STOP = {
+    "a", "an", "the", "and", "or", "of", "to", "in", "on", "for", "with", "at", "by",
+    "from", "as", "is", "are", "be", "that", "this", "these", "those", "it", "its",
+    "their", "them", "they", "which", "who", "whose", "what", "when", "where", "how",
+    "not", "no", "any", "all", "each", "every", "some", "one", "two", "three", "four",
+    "five", "least", "more", "than", "must", "should", "students", "student",
+    "submission", "assignment", "rubric", "criterion", "criteria", "points", "point",
+    "includes", "include", "including", "demonstrates", "demonstrate", "shows", "show",
+    "uses", "use", "using", "provides", "provide", "contains", "contain", "states",
+    "state", "addresses", "address", "present", "presents", "has", "have",
+}
+
+
+def derive_term_bank(criterion_text: str) -> list:
+    """Content words of a criterion, as a search term-bank (Option C default).
+
+    Lowercased, stopworded, deduped (order-preserving), length ≥3 — e.g.
+    '≥3 scholarly citations (APA)' -> ['scholarly', 'citations', 'apa'].
+    """
+    seen = []
+    for w in _WORD_RE.findall(criterion_text.lower()):
+        if len(w) >= 3 and w not in _STOP and not w.isdigit() and w not in seen:
+            seen.append(w)
+    return seen
+
+
+def parse_evidence_hint(hint: str | None) -> dict:
+    """Extract structure from the optional Evidence hint cell.
+
+    Returns {target, citation_types, coverage_items, terms}. Recognizes a numeric
+    target (`≥3` / `target 3` / `at least 3`), citation types (APA/MLA/DOI/URL), an
+    explicit coverage list (`prompts: a, b, c`), or otherwise comma/semicolon-
+    separated override terms. All fields are optional.
+    """
+    out: dict = {"target": None, "citation_types": [], "coverage_items": [], "terms": []}
+    if not hint:
+        return out
+    m = re.search(r"(?:≥|>=|target\s+|at\s+least\s+)\s*(\d+)", hint, re.I)
+    if m:
+        out["target"] = int(m.group(1))
+    for ct in ("APA", "MLA", "DOI", "URL"):
+        if re.search(rf"\b{ct}\b", hint, re.I):
+            out["citation_types"].append(ct)
+    m2 = re.search(r"(?:prompts?|items?|covers?|sections?|questions?|regulations?)\s*[:=]\s*(.+)",
+                   hint, re.I)
+    if m2:
+        out["coverage_items"] = [s.strip() for s in re.split(r"[;,]", m2.group(1)) if s.strip()]
+    else:
+        parts = [s.strip() for s in re.split(r"[;,]", hint) if s.strip()]
+        out["terms"] = [p for p in parts
+                        if not re.fullmatch(r"(?:≥|>=|target|at least)?\s*\d+|apa|mla|doi|url",
+                                            p, re.I)]
+    return out
+
+
+def _count_terms(prose: str, terms: list) -> int:
+    return sum(len(re.findall(rf"\b{re.escape(t)}\b", prose, re.I)) for t in terms)
+
+
+def criterion_evidence(row: dict, text: str) -> dict:
+    """Per-criterion evidence for one checkability-tagged rubric row (#192 1b).
+
+    Routes by checkability (HG-1): judgment → weak context only; mechanical/coverage
+    → citation routing + term-bank hits + (coverage) per-item presence. Every item
+    is framed as evidence to verify, never met/unmet.
+    """
+    crit, check = row["criterion"], row["checkability"]
+    parsed = parse_evidence_hint(row.get("evidence_hint"))
+    prose = _prose_only(text)
+    ev: list = []
+
+    if check == "judgment":
+        ev.append({"signal": "judgment_row", "value": None, "tag": "judgment-hint",
+                   "framing": f"'{crit}' is a judgment criterion — score it from the text itself. "
+                              "NLP contributes no evidence here; readability/structure are context only."})
+        return {"criterion": crit, "checkability": check, "evidence": ev}
+
+    if parsed["citation_types"]:
+        apa, doi, urls = (len(APA_INLINE_RE.findall(prose)),
+                          len(DOI_RE.findall(prose)), len(URL_RE.findall(prose)))
+        found = apa + doi + urls
+        frame = f"citations found: {apa} APA + {doi} DOI + {urls} URL = {found}"
+        if parsed["target"] is not None:
+            frame += f"; target ≥{parsed['target']}"
+        frame += " — verify format acceptability and paraphrased attribution before concluding uncited"
+        ev.append({"signal": "citations", "value": found, "tag": "evaluative", "framing": frame})
+
+    terms = parsed["terms"] or derive_term_bank(crit)
+    if terms:
+        hits = _count_terms(prose, terms)
+        src = "hint" if parsed["terms"] else "derived from criterion"
+        frame = (f"term-bank ({src}) {terms}: {hits} literal hit(s) — evidence the topic is "
+                 "addressed; if low, check for paraphrase/synonyms before concluding absent")
+        if parsed["target"] is not None and not parsed["citation_types"]:
+            frame += f" (rubric target ≥{parsed['target']})"
+        ev.append({"signal": "term_bank_hits", "value": hits, "tag": "evaluative", "framing": frame})
+
+    if check == "coverage":
+        items = parsed["coverage_items"]
+        if items:
+            missing = [it for it in items if _count_terms(prose, derive_term_bank(it) or [it]) == 0]
+            found_n = len(items) - len(missing)
+            frame = f"{found_n}/{len(items)} required items show literal evidence"
+            if missing:
+                frame += f"; NO literal hit for: {missing} — check for paraphrase before marking uncovered"
+            ev.append({"signal": "coverage", "value": f"{found_n}/{len(items)}", "tag": "evaluative",
+                       "framing": frame})
+        else:
+            ev.append({"signal": "coverage", "value": None, "tag": "evaluative",
+                       "framing": "coverage criterion with no item list in the Evidence hint — the "
+                                  "term-bank above is the only presence signal; list the required "
+                                  "items in the hint for per-item coverage"})
+    return {"criterion": crit, "checkability": check, "evidence": ev}
+
+
+def rubric_evidence(rubric_text: str, submission_text: str) -> tuple:
+    """Map every checkability-tagged criterion to its per-criterion evidence.
+
+    Returns (criteria_evidence, issues). issues surfaces a missing/invalid rubric
+    (the caller decides whether to proceed without per-criterion routing).
+    """
+    if parse_checkability is None:
+        return [], ["grader_rubric not importable — per-criterion evidence skipped."]
+    rows, issues = parse_checkability(rubric_text)
+    return [criterion_evidence(r, submission_text) for r in rows], issues
+
+
 def print_table(signals: dict[str, dict], languages: list[str]) -> None:
     # Header
     header = f"{'key':14} {'cells':>5} {'out':>4}"
@@ -252,6 +393,10 @@ def main() -> int:
     ap.add_argument("--language", action="append", default=None,
                     help=f"Language idiom catalog(s) to count. May repeat. "
                          f"Available: {list(LANGUAGES.keys())}. Default: {DEFAULT_LANGUAGES}")
+    ap.add_argument("--rubric", default=None,
+                    help="Path to a checkability-tagged RUBRIC.md (#192). When given, each "
+                         "submission also gets per-criterion evidence (term-banks / coverage / "
+                         "citations, routed by checkability) under a `criteria` key.")
     args = ap.parse_args()
 
     if args.challenge_dir:
@@ -277,10 +422,25 @@ def main() -> int:
         print(f"No de-id outputs in {deid} — run a grader_deidentify_* tool first.")
         return 1
 
+    rubric_text = None
+    if args.rubric:
+        rp = Path(args.rubric)
+        if not rp.is_file():
+            print(f"--rubric {rp} not found.", file=sys.stderr)
+            return 1
+        rubric_text = rp.read_text(encoding="utf-8")
+
     signals: dict[str, dict] = {}
     flagged: list[str] = []
     for f in files:
-        s = analyze(f.read_text(encoding="utf-8", errors="replace"), languages)
+        text = f.read_text(encoding="utf-8", errors="replace")
+        s = analyze(text, languages)
+        if rubric_text is not None:
+            criteria, r_issues = rubric_evidence(rubric_text, text)
+            s["criteria"] = criteria
+            if r_issues and f is files[0]:  # report rubric problems once
+                for it in r_issues:
+                    print(f"⚠️  rubric: {it}", file=sys.stderr)
         signals[f.stem] = s
         if s["injection_flags"]:
             flagged.append(f.stem)
