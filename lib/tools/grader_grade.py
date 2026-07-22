@@ -393,13 +393,31 @@ def _parse_response(text: str) -> dict | None:
 # Per-pass + cross-pass orchestration
 # ---------------------------------------------------------------------------
 
-def _format_priors(priors: dict | None) -> str:
+def _format_priors(priors: dict | None, rich: bool = False) -> str:
+    """Render one submission's signals as CONTEXT (evidence to verify, never a score).
+
+    Flat scalar signals always render compactly. With `rich=True` (--with-signals,
+    #192 enrichment), the prose evidence (#192 1a) and per-criterion evidence
+    (#192 1b) render as framed bullets so each pass reads them as evidence — not
+    verdicts (HG-3). The nested structures are excluded from the scalar line so they
+    never dump as raw dicts.
+    """
     if not priors:
         return ""
     lines = []
     for key in sorted(priors):
-        s = priors[key]
-        lines.append(f"- {key}: " + ", ".join(f"{k}={v}" for k, v in s.items()))
+        s = priors[key] or {}
+        scalars = {k: v for k, v in s.items() if k not in ("prose_evidence", "criteria")}
+        if scalars:
+            lines.append("- signals: " + ", ".join(f"{k}={v}" for k, v in scalars.items()))
+        if not rich:
+            continue
+        for e in s.get("prose_evidence", []):
+            lines.append(f"- [{e['tag']}] {e['signal']}={e['value']} — {e['framing']}")
+        for c in s.get("criteria", []):
+            lines.append(f'- criterion "{c["criterion"]}" ({c["checkability"]}):')
+            for e in c.get("evidence", []):
+                lines.append(f"    · {e['signal']}={e['value']} — {e['framing']}")
     return "\n".join(lines)
 
 
@@ -471,6 +489,12 @@ def main() -> int:
                     help="Optional scrubbed answer key (treated as reference, never as gate).")
     ap.add_argument("--signals", default=None,
                     help="Optional priors JSON (default: <challenge-dir>/feedback/_signals.json).")
+    ap.add_argument("--with-signals", action="store_true",
+                    help="#192 enrichment: inject the RICH evidence block (prose_evidence + "
+                         "per-criterion term-banks/coverage/citations, each framed as evidence "
+                         "to verify, NOT a score) into every pass. Grounds the passes + reduces "
+                         "variance; spends tokens. Without it, only the compact scalar signals "
+                         "are injected. Run grader_signals.py --rubric first to populate them.")
     # MODE flags (adjustment 3: calibration-gated)
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--single", action="store_true",
@@ -642,7 +666,8 @@ def main() -> int:
                     continue
                 deid_text = sub.read_text(encoding="utf-8")
                 priors_block = _format_priors(
-                    {key: priors.get(key)} if priors.get(key) else None)
+                    {key: priors.get(key)} if priors.get(key) else None,
+                    rich=args.with_signals)
                 user_prompt = _build_user_prompt(
                     pass_number=n,
                     total_passes=n_passes,
