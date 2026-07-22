@@ -112,6 +112,14 @@ Accommodation tools (`student_late_accommodation.py`, `student_quiz_time_extensi
 
 **Do not** run `grader_push.py --yes --push` to "just get the grades in." That is the exact HG-5 breach an [RCA](https://github.com/chaz-clark/canvas-toolbox/issues/207) was written about — 12 students received AI-drafted grades with no instructor review. If a gate blocks you, the fix is to *do the review*, not to reach for an override flag.
 
+**Never hand-write a Canvas write (issue #213).** Grades and comments reach Canvas **only** through `grader_push.py` — never a custom `requests`/`curl` script, an inline `python -c`, or a `/tmp/*.py`. Before implementing *any* Canvas operation:
+
+1. **Search `lib/tools/` first** for an existing tool; read its docstring for prerequisites. "Push grades" → `grader_push.py`, not a fresh API script.
+2. **If a tool exists, use it.** A direct API call skips every safety gate (`.reviewed`, consensus, `canvas_course_guard`, idempotency, disclosure) — that's how 46 grades once shipped un-reviewed.
+3. **If none exists, propose one and ask** — don't improvise a direct write.
+
+The `grade_guardian` PreToolUse hook enforces this deterministically; if it blocks you, use the tool or surface the blocker to the instructor — do **not** route around it. (The S1–S4 sprint direct-API push was a one-off workaround for a `submission_file` mapping bug — **not** the pattern for KCs / quizzes / reviews.)
+
 ---
 
 ## Common Tasks Quick Reference

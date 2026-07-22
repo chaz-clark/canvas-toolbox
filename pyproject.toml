@@ -1,6 +1,6 @@
 [project]
 name = "canvas-toolbox"
-version = "1.7.15"
+version = "1.7.16"
 description = "Canvas LMS course-design audits + safe sync paths + AoL course-map generation. Read-only audits cover rubric coverage/quality, syllabus completeness (BYU-I 25-item rubric), CLO quality, content representation, and workload distribution. Sync paths cover master→Blueprint, Page-level orphan cleanup, and per-resource pulls. Agent-facing knowledge surfaces in `lib/agents/`."
 readme = "README.md"
 license = { file = "LICENSE" }
