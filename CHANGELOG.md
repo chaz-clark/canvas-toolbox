@@ -12,6 +12,19 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.24] — 2026-07-22
+
+**Hybrid grader Sprint 4 (#192): the HG-6 low-band benefit-of-the-doubt audit — the last piece.** (#192, Sprint 4)
+
+Deterministic layers under-detect, so a low consensus may be an artifact of a wrong/narrow NLP scope. Every low-band tier now gets one more look, priors removed.
+
+### Added
+- **`grader_lowband_audit.py`** — for each consensus in the bottom `--frac` (default 0.25) of the cohort's range, re-reads the raw submission with **priors excluded** ("does the required thing actually exist here, however worded?"). If that read grades **higher** than the low consensus, flags `undergrade_suspected` and routes to the instructor (writes `feedback/_lowband_audit.csv`, prints the queue). It **never lowers a grade and never auto-raises one** — disagreements resolve toward the student, by a human (HG-5/HG-6). Reuses `grader_grade`'s prompt/parse/provider; LLM injected as `grade_fn` for testing. 8 unit tests.
+
+**#192 is complete.** The layer-routed hybrid grader now runs end to end: checkability-tagged rubric (Stage 0) → NLP evidence, term-banks & coverage (1a/1b) with LLM-sampled scope alignment (1c) → injected into N consensus passes (2) → deterministic tier-vs-evidence audit (3) → HG-6 low-band rescue (4). Deterministic where it can, probabilistic where it must, human on top — benefit of the doubt throughout.
+
+---
+
 ## [1.7.23] — 2026-07-22
 
 **Hybrid grader Sprint 3 (#192): the consensus tier is now audited against the NLP evidence — conflicts route to a human, both directions.** (#192, Sprint 3)
