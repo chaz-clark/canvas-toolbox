@@ -31,6 +31,30 @@ MISSING = [k for k, v in {
 }.items() if not v]
 
 
+def pytest_configure(config):
+    """Poka-yoke: fail the session fast + loud when the tests run under an
+    interpreter that lacks the repo's dependencies.
+
+    The recurring foot-gun: `python -m pytest` uses the SYSTEM interpreter, which
+    has none of canvas-toolbox's deps. The failure surfaces as a confusing
+    `ModuleNotFoundError: markdownify` deep inside a `canvas_sync --pull`
+    subprocess (three separate incidents), with no hint that the real fix is to
+    run through uv. Catch it here, at session start, with the recovery hint.
+    `markdownify` is the canary — a declared dependency unlikely to be installed
+    system-wide, so its absence means "wrong environment."
+    """
+    import importlib.util
+    if importlib.util.find_spec("markdownify") is None:
+        raise pytest.UsageError(
+            f"canvas-toolbox test dependencies are not importable under this "
+            f"interpreter:\n    {sys.executable}\n\n"
+            f"You're almost certainly running bare `python -m pytest`. Run the "
+            f"tests through uv so the project venv (with all deps) is used:\n\n"
+            f"    uv run pytest\n\n"
+            f"If the venv is stale, run `uv sync` first."
+        )
+
+
 def _skip_if_sandbox_unset():
     """Skip the calling test if Canvas sandbox env vars aren't set.
 
