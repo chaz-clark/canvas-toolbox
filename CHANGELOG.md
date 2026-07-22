@@ -12,6 +12,23 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.20] — 2026-07-22
+
+**Hybrid grader Sprint 1b (#192): per-criterion evidence — rubric-derived term-banks + coverage, routed by checkability.** (#192, Sprint 1b)
+
+Completes the evidence extractor. With a checkability-tagged `RUBRIC.md`, each submission gets per-criterion evidence routed by tag (HG-1).
+
+### Added
+- **`grader_signals.py`** — `--rubric RUBRIC.md` adds a `criteria` block per submission:
+  - `judgment` rows get **no** term matching (NLP contributes no evidence — score from the text).
+  - `mechanical` / `coverage` rows get a **term-bank** — derived from the criterion's own words by default (`derive_term_bank`), overridden by the `Evidence hint` column (`parse_evidence_hint`: numeric target, citation type, `prompts: a, b, c` coverage list, or plain override terms). Citation criteria route to the APA/DOI/URL counts; `coverage` rows report `k/N` items present + which are missing.
+  - Every item stays **evidence to verify** (HG-3): a 0-hit term-bank reads "check for paraphrase," never "criterion unmet" — the paraphrase false-negative the HG-6 low-band audit is designed to catch.
+- 12 unit tests (term-bank derivation, hint parsing, per-checkability routing, coverage-missing, end-to-end `rubric_evidence`).
+
+With Sprint 1 complete, the evidence layer is done; Sprint 2 injects it into the grading passes (`--with-signals`).
+
+---
+
 ## [1.7.19] — 2026-07-22
 
 **Hybrid grader Sprint 1a (#192): prose/text evidence signals, tagged and framed as evidence-to-verify.** (#192, Sprint 1a)
