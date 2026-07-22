@@ -12,6 +12,21 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.25] — 2026-07-22
+
+**Post-push workflow-state audit + idempotent repair — grades no longer stick in "needs grading" after a resubmission.** (#226)
+
+A student resubmitting after being graded resets `workflow_state` to `"submitted"`; re-applying the grade doesn't always transition it back, so the grade posts but Canvas still shows "needs grading" (2026-07-22: 31 submissions stuck). Fixes it on two surfaces, both idempotent state-repairs that never change a grade.
+
+### Added
+- **`grader_audit_workflow.py`** — `--check` scans an assignment (or `--all-assignments`) for submissions that have a grade but are still `workflow_state "submitted"` (FERPA-safe: user_id + assignment); `--fix` idempotently re-posts the grade Canvas already carries to force `submitted → graded`. Leaves `pending_review` (moderated) and ungraded submissions untouched. Live-course writes pass `canvas_course_guard` (`--allow-enrolled`).
+- **`grader_push.py`** — `--auto-fix-workflow`: after a push, verifies the just-pushed rows and, if any are still `"submitted"`, re-posts the same grade to force the transition (without it, warns and points at `grader_audit_workflow.py`). Verification never fails the push itself.
+- **`grader_knowledge.md`** — documents the stuck-state issue + the repair path.
+
+**HG-5 alignment (#213):** the repair only ever re-posts the grade Canvas already has — a state fix, never a new/AI-drafted grade — so it stays outside the `--mark-reviewed` review gate without being a backdoor around it, and as a sanctioned `lib/tools/` tool it's the path the `grade_guardian` hook expects instead of a manual API re-post.
+
+---
+
 ## [1.7.24] — 2026-07-22
 
 **Hybrid grader Sprint 4 (#192): the HG-6 low-band benefit-of-the-doubt audit — the last piece.** (#192, Sprint 4)
