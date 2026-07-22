@@ -1,6 +1,6 @@
 ---
 name: grader_hybrid_architecture
-version: "1.1"
+version: "1.2"
 last_updated: 2026-07-22
 description: How to think about AI-assisted grading as a layer-routed NLP + LLM hybrid.
 skill_type: knowledge
@@ -187,6 +187,14 @@ student points.
 - **`grader_signals.py`** — the NLP layer: `structural` + `evaluative` + `judgment-hint`
   signals, rubric-derived, each tagged. Prose set (length, citations, per-criterion term-banks,
   coverage) alongside the existing code/notebook set.
+- **`grader_term_banks.py`** — **build-time scope alignment (the complement to HG-6).** The
+  deterministic term-bank is one narrow LLM-authored guess; a synonym or paraphrase it didn't
+  name is a false negative that undergrades. So at *freeze time* sample the LLM N times for the
+  vocabulary a student might actually use, UNION the samples (benefit of the doubt — a wider net),
+  and write it into the `Evidence hint` column. Grading then extracts DETERMINISTICALLY against
+  that richer, frozen bank — the LLM sampling is once, at build time, frozen + auditable, so the
+  grade-time layer stays deterministic and priors still never score (HG-2). Build-time alignment
+  (widen the net) + HG-6's grade-time audit (rescue what still slips) = belt and suspenders.
 - **`grader_grade.py --with-signals`** — inject the evidence block into each pass prompt,
   labeled "priors, NOT the score."
 - **`grader_consensus.py`** — emit `conflict_needs_review` from the prior-vs-tier rule table;
