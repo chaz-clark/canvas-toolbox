@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.26] — 2026-07-22
+
+**Harden + test the `grader_push.py` empty-comment fix.** (#228)
+
+The path-resolution fix landed inline in `9c0c906` (direct to main). This consolidates it and closes the two release-hygiene gaps that commit left: no test and no version signal.
+
+### Changed
+- **`grader_push.py`** — the three inline `str(challenge / feedback_file)` fixes (HOLD extraction, plan-building, lock/resubmit check) are consolidated into one `resolve_feedback_file(challenge, feedback_file)` helper, which also passes through absolute paths and paths that already exist as-is (run from inside the challenge dir), so it never double-prefixes. Behavior is unchanged from `9c0c906`.
+
+### Added
+- Regression test reproducing the original silent bug (`comment_for("feedback/KC2-*.md")` empty from a repo-root CWD) and confirming the resolved path loads the comment — the guard the original fix shipped without. Plus a version bump so vendored copies can detect via `--version` that they need to `git pull` to get the fix.
+
+---
+
 ## [1.7.25] — 2026-07-22
 
 **Post-push workflow-state audit + idempotent repair — grades no longer stick in "needs grading" after a resubmission.** (#226)
