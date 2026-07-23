@@ -187,19 +187,48 @@ def is_already_graded(submission: dict) -> bool:
     return bool(submission) and submission.get("graded_at") is not None
 
 
-def regrade_gate(already_graded: bool, regrade: bool) -> tuple:
-    """The duplicate-comment Andon: default REFUSES to touch an already-graded
-    submission. Returns (allowed, reason).
+def classify_submission_state(submission: dict) -> str:
+    """`ungraded` | `graded_current` | `resubmitted` — from Canvas's own timestamps.
 
-    - not graded -> allowed (first-time grade, the normal path).
-    - graded + --regrade -> allowed (explicit, deliberate re-grade of a
-      resubmission/correction; the resubmission-aware light-comment + supersede
-      behavior is the follow-up PR).
-    - graded, no flag -> REFUSED, so a re-run can never stack another comment.
+    `resubmitted` = graded, then a NEWER submission (`submitted_at > graded_at`):
+    the ONLY state `--regrade` acts on ("never re-grade unless a late resubmission").
+    ISO-8601 UTC strings compare lexicographically == chronologically.
     """
-    if not already_graded or regrade:
+    if not is_already_graded(submission):
+        return "ungraded"
+    ga = submission.get("graded_at")
+    sa = submission.get("submitted_at")
+    if sa and ga and sa > ga:
+        return "resubmitted"
+    return "graded_current"
+
+
+def regrade_gate(state: str, regrade: bool) -> tuple:
+    """Duplicate-comment Andon + resubmission-only re-grade. Returns (allowed, reason).
+
+    - `ungraded` -> allowed (first-time grade, the normal path).
+    - graded, no `--regrade` -> REFUSED, so a re-run can never stack a 2nd comment.
+    - `--regrade` + `resubmitted` -> allowed (the only re-grade path).
+    - `--regrade` + `graded_current` -> REFUSED: already graded, no new submission —
+      nothing to re-grade. Keeps re-grading tied to an actual resubmission.
+    """
+    if state == "ungraded":
         return True, ""
-    return False, "already graded — pass --regrade for resubmissions (default won't re-comment)"
+    if not regrade:
+        return False, "already graded — pass --regrade for resubmissions (default won't re-comment)"
+    if state == "resubmitted":
+        return True, ""
+    return False, "already graded, no new submission — nothing to re-grade (--regrade is resubmission-only)"
+
+
+def comments_to_supersede(ledger: list, pushable_keys) -> list:
+    """Prior grader comments to delete before re-posting (--regrade supersede-not-
+    stack). `ledger` = [(key, comment_id)] from `_read_comment_ledger`; return only
+    entries whose key is being re-pushed now, so each resubmission ends with ONE
+    fresh comment instead of a stacked pile.
+    """
+    keys = set(pushable_keys)
+    return [(k, c) for (k, c) in ledger if k in keys]
 
 
 # Transparency disclosure (default, no opt-out): every AI-drafted feedback
@@ -1188,12 +1217,13 @@ def main() -> int:
                          "Pass this flag to push anyway (rare; the stale tag stays in the "
                          "student-visible comment).")
     ap.add_argument("--regrade", action="store_true",
-                    help="Allow pushing to submissions Canvas has ALREADY graded "
-                         "(resubmissions / corrections). DEFAULT REFUSES them so a re-run "
-                         "never stacks a second grader comment — Canvas appends comments and "
-                         "never replaces them (the 4-comments-per-student bug). The "
-                         "resubmission-aware behavior (one light comment, supersede-not-stack) "
-                         "lands in the follow-up; this flag is the explicit opt-in gate.")
+                    help="Re-grade RESUBMISSIONS only (submitted_at > graded_at). Default "
+                         "REFUSES any already-graded submission so a re-run never stacks a "
+                         "second grader comment (Canvas appends, never replaces — the "
+                         "4-comments-per-student bug). --regrade admits ONLY genuine "
+                         "resubmissions (not unchanged already-graded work), and supersedes "
+                         "the prior grader comment (deletes it, then re-posts ONE) instead of "
+                         "stacking. Grade value updates as normal.")
     ap.add_argument("--auto-fix-workflow", action="store_true",
                     help="Issue #226: after pushing, if a just-pushed grade is still "
                          "workflow_state 'submitted' (Canvas didn't transition — common after a "
@@ -1504,11 +1534,12 @@ def main() -> int:
             append_disclosure_tag(comment_for(feedback_file)) or args.default_comment)
         uid = resolve_user_id(r.get("submission_file", ""), subs)
         done = key in pushed_keys and not args.force
-        # Duplicate-comment Andon: never re-comment/re-grade an already-graded
-        # submission unless --regrade (Canvas appends comments; re-runs stack them).
-        gate_ok, gate_reason = regrade_gate(
-            is_already_graded(existing_by_uid.get(uid, {}) if uid is not None else {}),
-            args.regrade)
+        # Duplicate-comment Andon + resubmission-only re-grade: default refuses any
+        # already-graded submission; --regrade admits ONLY resubmissions (not
+        # unchanged already-graded work). Canvas appends comments; re-runs stack them.
+        _sub_state = classify_submission_state(
+            existing_by_uid.get(uid, {}) if uid is not None else {})
+        gate_ok, gate_reason = regrade_gate(_sub_state, args.regrade)
         ok = bool(grade and uid and (comment or args.grade_only)) and not done and gate_ok
         plan.append((key, uid, grade, comment, ok))
         hold = hold_by_key.get(key)
@@ -1744,6 +1775,34 @@ def main() -> int:
         if input("Type 'push' to confirm: ").strip().lower() != "push":
             print("Aborted.")
             return 1
+
+    # --regrade supersede-not-stack: delete our prior grader comment(s) for the rows
+    # we're about to re-push, so each resubmission ends with ONE fresh comment, not a
+    # stacked pile. Best-effort + logged; a missing prior (fresh clone / no ledger) is
+    # a no-op. Only our own logged comment_ids are touched — never student/TA comments.
+    if args.regrade and not args.grade_only:
+        supersede = comments_to_supersede(
+            _read_comment_ledger(log, str(args.assignment_id)), {p[0] for p in pushable})
+        if supersede:
+            uid_by_key = {p[0]: p[1] for p in pushable}
+            print(f"\n♻️  --regrade: superseding {len(supersede)} prior grader comment(s) "
+                  "so each resubmission gets ONE fresh comment (not stacked):")
+            with log.open("a", encoding="utf-8") as lg:
+                for s_key, s_comment_id in supersede:
+                    s_uid = uid_by_key.get(s_key)
+                    if s_uid is None:
+                        continue
+                    resp = requests.delete(
+                        f"{base}/api/v1/courses/{cid}/assignments/{args.assignment_id}"
+                        f"/submissions/{s_uid}/comments/{s_comment_id}",
+                        headers=headers, timeout=_TIMEOUT)
+                    if resp.status_code < 400 or resp.status_code == 404:
+                        print(f"  superseded {s_key}: deleted prior comment {s_comment_id}")
+                        lg.write(f"- {s_key}: comment {s_comment_id} superseded (regrade) on "
+                                 f"assignment {args.assignment_id}\n")
+                    else:
+                        print(f"  (supersede note: {s_key} comment {s_comment_id} not deleted "
+                              f"— {resp.status_code}; the re-post will still land)")
 
     pushed = 0
     pushed_uids: set = set()  # #226: verify workflow_state transition after push

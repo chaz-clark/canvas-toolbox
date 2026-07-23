@@ -33,7 +33,9 @@ from grader_push import (  # noqa: E402
     comment_for,
     resolve_feedback_file,
     is_already_graded,
+    classify_submission_state,
     regrade_gate,
+    comments_to_supersede,
     assignment_posts_manually,
     post_assignment_grades,
 )
@@ -553,22 +555,58 @@ def test_is_already_graded_by_graded_at():
     assert is_already_graded({"grade": "A"}) is False  # a display grade alone isn't the signal
 
 
+# --- classify_submission_state (resubmission classifier) -------------------
+
+def test_classify_ungraded():
+    assert classify_submission_state({"graded_at": None}) == "ungraded"
+    assert classify_submission_state({}) == "ungraded"
+
+
+def test_classify_graded_current_when_no_newer_submission():
+    assert classify_submission_state(
+        {"graded_at": "2026-07-22T12:00:00Z", "submitted_at": "2026-07-20T09:00:00Z"}
+    ) == "graded_current"
+
+
+def test_classify_resubmitted_when_submitted_after_graded():
+    assert classify_submission_state(
+        {"graded_at": "2026-07-20T09:00:00Z", "submitted_at": "2026-07-22T12:00:00Z"}
+    ) == "resubmitted"
+
+
+# --- regrade_gate: Andon + resubmission-only -------------------------------
+
 def test_regrade_gate_allows_first_time_grade():
-    allowed, reason = regrade_gate(already_graded=False, regrade=False)
-    assert allowed is True and reason == ""
+    assert regrade_gate("ungraded", regrade=False) == (True, "")
 
 
-def test_regrade_gate_refuses_already_graded_by_default():
-    """The Andon: an already-graded submission is refused unless --regrade — this
-    is what stops the 4-comments-per-student stacking."""
-    allowed, reason = regrade_gate(already_graded=True, regrade=False)
-    assert allowed is False
-    assert "--regrade" in reason
+def test_regrade_gate_refuses_graded_by_default():
+    """The Andon: any already-graded submission is refused unless --regrade —
+    what stops the 4-comments-per-student stacking."""
+    for state in ("graded_current", "resubmitted"):
+        allowed, reason = regrade_gate(state, regrade=False)
+        assert allowed is False and "--regrade" in reason
 
 
-def test_regrade_gate_allows_already_graded_with_flag():
-    allowed, reason = regrade_gate(already_graded=True, regrade=True)
-    assert allowed is True and reason == ""
+def test_regrade_only_admits_resubmissions():
+    """--regrade is resubmission-only: a resubmission passes, but unchanged
+    already-graded work is still refused ('never re-grade unless a resubmission')."""
+    assert regrade_gate("resubmitted", regrade=True) == (True, "")
+    allowed, reason = regrade_gate("graded_current", regrade=True)
+    assert allowed is False and "resubmission-only" in reason
+
+
+# --- comments_to_supersede (supersede-not-stack selection) ------------------
+
+def test_supersede_selects_only_pushable_prior_comments():
+    ledger = [("KC2-A", 111), ("KC2-B", 222), ("KC2-C", 333)]
+    # only A and C are being re-pushed now
+    out = comments_to_supersede(ledger, {"KC2-A", "KC2-C"})
+    assert out == [("KC2-A", 111), ("KC2-C", 333)]
+
+
+def test_supersede_empty_when_no_prior_comments():
+    assert comments_to_supersede([], {"KC2-A"}) == []
 
 
 # ---------------------------------------------------------------------------
