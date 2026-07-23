@@ -32,6 +32,8 @@ from grader_push import (  # noqa: E402
     push_precheck,
     comment_for,
     resolve_feedback_file,
+    is_already_graded,
+    regrade_gate,
     assignment_posts_manually,
     post_assignment_grades,
 )
@@ -537,6 +539,36 @@ def test_every_deprecated_tag_constant_is_detected(tmp_path):
     for i, dep in enumerate(DEPRECATED_DISCLOSURE_TAGS):
         fb = _write_fb(tmp_path, f"KC1-{i}.md", f"body\n\n{dep}\n")
         assert find_deprecated_disclosure_tags([fb]), f"not detected: {dep!r}"
+
+
+# ---------------------------------------------------------------------------
+# is_already_graded + regrade_gate — the duplicate-comment Andon
+# Default REFUSES already-graded submissions so re-runs never stack a 2nd comment.
+# ---------------------------------------------------------------------------
+
+def test_is_already_graded_by_graded_at():
+    assert is_already_graded({"graded_at": "2026-07-22T10:00:00Z"}) is True
+    assert is_already_graded({"graded_at": None}) is False
+    assert is_already_graded({}) is False           # unknown -> not graded (don't over-gate)
+    assert is_already_graded({"grade": "A"}) is False  # a display grade alone isn't the signal
+
+
+def test_regrade_gate_allows_first_time_grade():
+    allowed, reason = regrade_gate(already_graded=False, regrade=False)
+    assert allowed is True and reason == ""
+
+
+def test_regrade_gate_refuses_already_graded_by_default():
+    """The Andon: an already-graded submission is refused unless --regrade — this
+    is what stops the 4-comments-per-student stacking."""
+    allowed, reason = regrade_gate(already_graded=True, regrade=False)
+    assert allowed is False
+    assert "--regrade" in reason
+
+
+def test_regrade_gate_allows_already_graded_with_flag():
+    allowed, reason = regrade_gate(already_graded=True, regrade=True)
+    assert allowed is True and reason == ""
 
 
 # ---------------------------------------------------------------------------

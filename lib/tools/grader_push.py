@@ -176,6 +176,32 @@ def resolve_feedback_file(challenge: Path, feedback_file: str) -> str:
     return str(challenge / feedback_file)
 
 
+def is_already_graded(submission: dict) -> bool:
+    """True if Canvas has ALREADY graded this submission (`graded_at` is set).
+
+    The Andon trigger: Canvas APPENDS comments (never replaces), so pushing to an
+    already-graded submission on a re-run stacks a second grader comment — 4
+    comments/student were observed in the field. `graded_at` is the honest signal
+    that this is not a first-time grade.
+    """
+    return bool(submission) and submission.get("graded_at") is not None
+
+
+def regrade_gate(already_graded: bool, regrade: bool) -> tuple:
+    """The duplicate-comment Andon: default REFUSES to touch an already-graded
+    submission. Returns (allowed, reason).
+
+    - not graded -> allowed (first-time grade, the normal path).
+    - graded + --regrade -> allowed (explicit, deliberate re-grade of a
+      resubmission/correction; the resubmission-aware light-comment + supersede
+      behavior is the follow-up PR).
+    - graded, no flag -> REFUSED, so a re-run can never stack another comment.
+    """
+    if not already_graded or regrade:
+        return True, ""
+    return False, "already graded — pass --regrade for resubmissions (default won't re-comment)"
+
+
 # Transparency disclosure (default, no opt-out): every AI-drafted feedback
 # comment carries this tag so a student always knows the words were drafted by
 # AI and reviewed by their instructor — never passed off as solely the
@@ -621,11 +647,12 @@ def fetch_submissions(base: str, cid: str, headers: dict, aid: str,
                       include_comments: bool = False) -> list[dict]:
     """All submissions for the assignment.
 
-    Default: returns lean {user_id, id, grade, score} per submission.
-    `grade` is the displayed string ("3.5" / "B+" / "complete" / None);
-    `score` is the numeric value (float or None). Both are needed for
-    the issue #96 regression check (numeric vs letter vs pass/fail
-    direction comparison).
+    Default: returns lean {user_id, id, grade, score, graded_at, submitted_at,
+    workflow_state} per submission. `grade` is the displayed string ("3.5" /
+    "B+" / "complete" / None); `score` is the numeric value (float or None) —
+    both needed for the issue #96 regression check. `graded_at` / `submitted_at`
+    / `workflow_state` drive the duplicate-comment Andon (already-graded gate)
+    and the resubmission classifier.
 
     If `include_comments`, paginates with include[]=submission_comments
     and returns the full Canvas submission payloads (each dict has a
@@ -655,6 +682,11 @@ def fetch_submissions(base: str, cid: str, headers: dict, aid: str,
                     "id": s["id"],
                     "grade": s.get("grade"),
                     "score": s.get("score"),
+                    # Duplicate-comment Andon + resubmission classifier: graded_at set
+                    # = Canvas already graded this; submitted_at > graded_at = resubmission.
+                    "graded_at": s.get("graded_at"),
+                    "submitted_at": s.get("submitted_at"),
+                    "workflow_state": s.get("workflow_state"),
                 }
                 for s in batch
             ]
@@ -1155,6 +1187,13 @@ def main() -> int:
                          "because the canonical tag would get stacked on top of it at send-time. "
                          "Pass this flag to push anyway (rare; the stale tag stays in the "
                          "student-visible comment).")
+    ap.add_argument("--regrade", action="store_true",
+                    help="Allow pushing to submissions Canvas has ALREADY graded "
+                         "(resubmissions / corrections). DEFAULT REFUSES them so a re-run "
+                         "never stacks a second grader comment — Canvas appends comments and "
+                         "never replaces them (the 4-comments-per-student bug). The "
+                         "resubmission-aware behavior (one light comment, supersede-not-stack) "
+                         "lands in the follow-up; this flag is the explicit opt-in gate.")
     ap.add_argument("--auto-fix-workflow", action="store_true",
                     help="Issue #226: after pushing, if a just-pushed grade is still "
                          "workflow_state 'submitted' (Canvas didn't transition — common after a "
@@ -1417,7 +1456,10 @@ def main() -> int:
     # per row. The push loop looks up by uid to print before → after and refuse
     # silent regressions (lower-direction grade writes).
     existing_by_uid: dict[int, dict] = {
-        int(s["user_id"]): {"grade": s.get("grade"), "score": s.get("score")}
+        int(s["user_id"]): {"grade": s.get("grade"), "score": s.get("score"),
+                            "graded_at": s.get("graded_at"),
+                            "submitted_at": s.get("submitted_at"),
+                            "workflow_state": s.get("workflow_state")}
         for s in subs if s.get("user_id") is not None
     }
 
@@ -1451,6 +1493,7 @@ def main() -> int:
                 hold_by_key[r.get("key", "")] = tok
 
     plan = []
+    regrade_skipped = 0
     for r in rows:
         key = r.get("key", "")
         grade = (r.get("final_grade") or "").strip() or (r.get("recommended_score") or "").strip()
@@ -1461,11 +1504,19 @@ def main() -> int:
             append_disclosure_tag(comment_for(feedback_file)) or args.default_comment)
         uid = resolve_user_id(r.get("submission_file", ""), subs)
         done = key in pushed_keys and not args.force
-        ok = bool(grade and uid and (comment or args.grade_only)) and not done
+        # Duplicate-comment Andon: never re-comment/re-grade an already-graded
+        # submission unless --regrade (Canvas appends comments; re-runs stack them).
+        gate_ok, gate_reason = regrade_gate(
+            is_already_graded(existing_by_uid.get(uid, {}) if uid is not None else {}),
+            args.regrade)
+        ok = bool(grade and uid and (comment or args.grade_only)) and not done and gate_ok
         plan.append((key, uid, grade, comment, ok))
         hold = hold_by_key.get(key)
         if done:
             mark, why = "done", "  (already pushed)"
+        elif not gate_ok:
+            regrade_skipped += 1
+            mark, why = "SKIP", f"  ({gate_reason})"
         elif hold:
             mark, why = "HOLD", f"  ({hold} — comment will post; grade withheld)"
         elif ok:
@@ -1475,6 +1526,11 @@ def main() -> int:
         # FERPA-safe console: key, grade, matched?, comment preview — NO names
         print(f"  [{mark}] {key}: grade={grade or '—'}  matched={'yes' if uid else 'NO'}  "
               f"comment=\"{comment[:50].replace(chr(10), ' ')}…\"{why}")
+
+    if regrade_skipped:
+        print(f"\n⛔ {regrade_skipped} row(s) SKIPPED — already graded in Canvas. Default mode "
+              "never re-comments/re-grades (Canvas APPENDS comments; re-runs stack them — the "
+              "4-comments-per-student bug). Pass --regrade to push to resubmissions/corrections.")
 
     # ---- Issue #63 part 1: availability awareness ------------------------
     # ---- Issue #99: grading_type capture for posted_grade validation -----
