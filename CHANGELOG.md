@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.27] — 2026-07-23
+
+**Andon: `grader_push.py` now refuses to re-comment/re-grade an already-graded submission by default — stops the "4 comments per student" bug.**
+
+Canvas **appends** comments (never replaces), and the collision guard only *warned* (bypassable), while `.push_log` idempotency is per-repo and `--force`-defeatable. So re-runs stacked grader comments — some students got 4 — and stale mirrors graded old attempts. This is the stop-the-bleeding half; the resubmission-aware `--regrade` behavior (light comment, supersede-not-stack) is the follow-up.
+
+### Changed
+- **`grader_push.py`** — the push plan now **hard-skips any submission Canvas has already graded** (`graded_at` set) unless `--regrade` is passed. Default mode therefore cannot stack a second comment. `fetch_submissions` now also returns `graded_at` / `submitted_at` / `workflow_state` (needed for the gate and the coming resubmission classifier). Independent of `--force` (which only overrides the local `.push_log`), so it also closes the `--force`-stacks-comments hole.
+
+### Added
+- **`grader_push.py`** — `--regrade` flag: explicit opt-in to touch already-graded submissions (resubmissions/corrections). Pure `is_already_graded()` + `regrade_gate()` helpers with unit tests.
+
+---
+
 ## [1.7.26] — 2026-07-22
 
 **Harden + test the `grader_push.py` empty-comment fix.** (#228)
