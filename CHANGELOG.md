@@ -12,6 +12,22 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.28] — 2026-07-23
+
+**`--regrade` is now resubmission-only and supersede-not-stack — the poka-yoke completing the Andon.**
+
+PR 2 of 2 (PR 1, v1.7.27, added the default hard gate). `--regrade` no longer just relaxes the gate; it enforces "never re-grade unless a late resubmission" and replaces the prior comment instead of adding another.
+
+### Changed
+- **`grader_push.py`** — `--regrade` now admits **only resubmissions** (`submitted_at > graded_at`), via a `classify_submission_state()` step (`ungraded` / `graded_current` / `resubmitted`). Unchanged already-graded work is refused *even with* `--regrade` ("already graded, no new submission — nothing to re-grade"). And on the resubmissions it does push, it **supersedes**: deletes the prior grader comment(s) recorded in `.push_log.md` for those rows, then re-posts one — so a resubmission ends with a single fresh comment, not a stacked pile. Only our own logged comment_ids are touched (never student/TA comments); best-effort + logged, and a missing prior (fresh clone) is a no-op.
+
+### Added
+- Pure `classify_submission_state()` + `comments_to_supersede()` helpers; `regrade_gate()` now takes the classified state. Unit tests for the classifier, the resubmission-only gate, and the supersede selection.
+
+Together with the Andon (v1.7.27): default never re-comments; `--regrade` touches only genuine resubmissions and replaces rather than stacks. That's the full "never comment/re-grade unless a late resubmission" behavior.
+
+---
+
 ## [1.7.27] — 2026-07-23
 
 **Andon: `grader_push.py` now refuses to re-comment/re-grade an already-graded submission by default — stops the "4 comments per student" bug.**
