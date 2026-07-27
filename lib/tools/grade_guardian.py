@@ -13,8 +13,11 @@ WHY THIS EXISTS
 WHAT IT DENIES
   - Bash: a direct Canvas grade/comment write in the command string (a write verb
     — requests.put/post, curl/wget -X PUT/POST — aimed at a Canvas submissions
-    endpoint or grade payload). Invocations of the sanctioned tools under
-    lib/tools/ are exempt.
+    endpoint or grade payload). ALSO the RUN of an existing bypass script: for a
+    `python x.py` / `uv run … x.py` command it reads x.py and blocks if the file
+    body carries that write signature (the create/edit hooks can't catch a script
+    that already exists, and the write is hidden inside the file). Invocations of
+    the sanctioned tools under lib/tools/ are exempt.
   - Write/Edit: creating/editing a file (outside lib/tools/) whose contents carry
     that same Canvas-write signature — this catches the bypass SCRIPT at creation,
     which is the only reliable catch (a Bash hook can't see inside `python x.py`).
@@ -79,6 +82,37 @@ _FERPA_PATH = re.compile(
 )
 
 
+# A `*.py` token in a shell command — `python push.py`, `uv run … x.py`. The `\b`
+# after `.py` avoids matching `.python`. Quotes/pipes/parens bound the token.
+_SCRIPT_TOKEN = re.compile(r"[^\s;|&'\"()]+\.py\b")
+_MAX_SCRIPT_BYTES = 200_000
+
+
+def _extract_script_paths(cmd: str) -> list:
+    """Every `*.py` path token a shell command runs (deduped, order-preserved)."""
+    return list(dict.fromkeys(_SCRIPT_TOKEN.findall(cmd)))
+
+
+def _read_script(path: str) -> str:
+    """Best-effort read of a script the command executes, so the run-catch can see a
+    Canvas write hidden INSIDE the file. Resolves a relative path against
+    CLAUDE_PROJECT_DIR and CWD. Returns "" on any failure — fail OPEN, never brick a
+    session because a path didn't resolve."""
+    import os
+    tried = []
+    for base in ("", os.environ.get("CLAUDE_PROJECT_DIR") or "", os.getcwd()):
+        c = path if (not base or os.path.isabs(path)) else os.path.join(base, path)
+        if c in tried:
+            continue
+        tried.append(c)
+        try:
+            with open(c, "r", encoding="utf-8", errors="ignore") as fh:
+                return fh.read(_MAX_SCRIPT_BYTES)
+        except (OSError, ValueError):
+            continue
+    return ""
+
+
 def _redirect(what: str) -> str:
     return (
         f"⛔ Blocked {what}. Grades reach Canvas ONLY through grader_push.py, which "
@@ -104,6 +138,20 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
             return None  # invoking the sanctioned tools is the safe path
         if _WRITE_VERB.search(cmd) and _CANVAS_CTX.search(cmd):
             return _redirect("a direct Canvas grade write in a shell command")
+        # Run-catch: executing an EXISTING script whose BODY writes to Canvas. The
+        # create (Write) / edit (Edit) hooks can't catch a script that already
+        # exists, and the command string alone hides the write inside the file —
+        # `python push.py` has no write verb. Read each *.py the command runs (skip
+        # the sanctioned lib/tools/, which legitimately contains Canvas writes) and
+        # block if its body carries the grade-write signature. This is the same
+        # regex-not-a-firewall limit noted above; it decisively stops a plain
+        # `python push.py` bypass, the actual field failure mode.
+        for script in _extract_script_paths(cmd):
+            if "/lib/tools/" in ("/" + script.replace("\\", "/")):
+                continue  # the reviewed tooling — running it is the safe path
+            body = _read_script(script)
+            if body and _WRITE_VERB.search(body) and _CANVAS_CTX.search(body):
+                return _redirect(f"running {script} — it writes grades to Canvas directly")
         return None
 
     if tool_name in ("Write", "Edit"):
