@@ -112,8 +112,13 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
             return None  # editing the reviewed tooling is allowed
         if _DOC_PATH.search(path):
             return None  # prose/docs — a code example is not an executable bypass
-        # Write carries file_contents; Edit carries new_string.
-        body = tool_input.get("file_contents") or tool_input.get("new_string") or ""
+        # Write sends the body as `content` (Claude Code's actual tool param); Edit
+        # sends `new_string`. `file_contents` is a legacy/alt key kept for safety.
+        # Reading the WRONG key silently blinds this catch — the bug that let a
+        # hand-written push script sail through (the guard read `file_contents`
+        # while the real payload used `content`). Check every plausible key.
+        body = (tool_input.get("content") or tool_input.get("file_contents")
+                or tool_input.get("new_string") or "")
         if _WRITE_VERB.search(body) and _CANVAS_CTX.search(body):
             target = path or "a new file"
             return _redirect(f"Canvas grade-write code being written into {target}")
