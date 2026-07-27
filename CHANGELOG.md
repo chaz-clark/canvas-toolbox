@@ -12,6 +12,22 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.29] — 2026-07-27
+
+**Resubmission detection and re-grade now share one definition — the report flags exactly what `--regrade` acts on.**
+
+Brings the `grader_fetch_resubmissions.py` detector onto `main` (from the `feature/grader-resubmissions` branch) and wires it to the same `classify_submission_state()` the `--regrade` gate uses, so the two can't drift.
+
+### Added
+- **`grader_fetch_resubmissions.py`** — detects submissions resubmitted after grading (`submitted_at > graded_at`) or never graded, and writes a FERPA-safe report (user_id + SpeedGrader links; `--all` scans a whole course). ITM 327 Spring 2026 had 21 resubmissions across 10 assignments go unnoticed for weeks — this surfaces them.
+
+### Changed
+- **`grader_push.py`** — `classify_submission_state()` now parses timestamps as datetimes instead of comparing ISO strings, so a resubmission with sub-second precision (`…:00.500Z` vs `…:00Z`, which string order mis-ranks) is classified correctly. It's the **single source of truth**: the detector imports it (not its own copy), and drops the old `workflow_state == "submitted"` pre-filter — so it also catches resubmissions whose workflow_state is stuck (issue #226), consistent with the re-grade gate.
+
+Net: detection and the `--regrade` action agree by construction — what the report shows is what gets re-graded.
+
+---
+
 ## [1.7.28] — 2026-07-23
 
 **`--regrade` is now resubmission-only and supersede-not-stack — the poka-yoke completing the Andon.**

@@ -187,17 +187,31 @@ def is_already_graded(submission: dict) -> bool:
     return bool(submission) and submission.get("graded_at") is not None
 
 
+def _parse_canvas_ts(ts):
+    """Parse a Canvas ISO-8601 timestamp to a datetime, or None. Handles the `Z`
+    suffix and mixed precision (fractional seconds), so comparisons are robust
+    rather than relying on lexicographic string order."""
+    if not ts:
+        return None
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
 def classify_submission_state(submission: dict) -> str:
     """`ungraded` | `graded_current` | `resubmitted` — from Canvas's own timestamps.
 
     `resubmitted` = graded, then a NEWER submission (`submitted_at > graded_at`):
     the ONLY state `--regrade` acts on ("never re-grade unless a late resubmission").
-    ISO-8601 UTC strings compare lexicographically == chronologically.
+    This is the SINGLE definition of "resubmission" — grader_fetch_resubmissions.py's
+    detector imports it too, so what the report flags is exactly what --regrade acts on.
     """
     if not is_already_graded(submission):
         return "ungraded"
-    ga = submission.get("graded_at")
-    sa = submission.get("submitted_at")
+    ga = _parse_canvas_ts(submission.get("graded_at"))
+    sa = _parse_canvas_ts(submission.get("submitted_at"))
     if sa and ga and sa > ga:
         return "resubmitted"
     return "graded_current"

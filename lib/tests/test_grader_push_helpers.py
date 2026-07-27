@@ -574,6 +574,17 @@ def test_classify_resubmitted_when_submitted_after_graded():
     ) == "resubmitted"
 
 
+def test_classify_uses_datetime_not_string_comparison():
+    """A resubmission 500ms after grading: string comparison mis-orders it
+    ('.500Z' < 'Z' lexically) and would MISS the resubmission; datetime parsing
+    gets it right. Guards the shared classifier both the gate and the detector use."""
+    graded = "2026-07-22T12:00:00Z"
+    resubmit = "2026-07-22T12:00:00.500Z"   # 500ms later
+    assert resubmit < graded                 # string order is WRONG here...
+    assert classify_submission_state(
+        {"graded_at": graded, "submitted_at": resubmit}) == "resubmitted"  # ...datetime is right
+
+
 # --- regrade_gate: Andon + resubmission-only -------------------------------
 
 def test_regrade_gate_allows_first_time_grade():
