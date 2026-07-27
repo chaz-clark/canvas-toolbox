@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.38] — 2026-07-27
+
+**A disclosure-tag menu — say honestly what graded the work vs what wrote the comment.**
+
+The comment tag was always `— AI drafted, instructor reviewed`. But with the hybrid grader a deterministic **script** computes the grade and the AI only drafts the comment, so a flat "AI drafted" overstates the AI's role in the grade. `grader_push` now picks the tag with `--disclosure`:
+
+- `ai` (default) — `— AI drafted, instructor reviewed` (AI suggested the grade + drafted the comment)
+- `hybrid` — `— script graded, AI-drafted comment, instructor approved`
+- `script` — `— script graded, instructor reviewed` (no AI in the comment)
+
+A course that grades one way every time can set `$CANVAS_DISCLOSURE_DEFAULT=hybrid` in its `.env` and skip the flag; an explicit `--disclosure` still wins. The chosen tag prints in the pre-push banner. `append_disclosure_tag` is now non-stacking across the **whole** menu — switching graders between runs never doubles the tag. The tag strings live in one editable dict (`DISCLOSURE_TAGS`); `DISCLOSURE_TAG` remains as the `ai` alias for back-compat.
+
+---
+
 ## [1.7.37] — 2026-07-27
 
 **`course_engagement_audit`: fixed an enrollment-fetch crash and stopped silently skipping inactive students.**

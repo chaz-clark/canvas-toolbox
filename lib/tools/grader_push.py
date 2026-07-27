@@ -279,18 +279,48 @@ def comments_to_supersede(ledger: list, pushable_keys) -> list:
 # AI and reviewed by their instructor — never passed off as solely the
 # instructor's own. Applied at send-time to the AI-drafted comment only; a
 # manual default_comment (not AI-drafted) is left alone by callers.
-DISCLOSURE_TAG = "— AI drafted, instructor reviewed"
+# Vetted provenance tags, chosen per push by --disclosure (or $CANVAS_DISCLOSURE_
+# DEFAULT). The tag should be HONEST about what actually produced the grade vs the
+# comment: with the hybrid grader a deterministic script computes the grade and the
+# AI only drafts the comment, so a flat "AI drafted" overstates the AI's role in the
+# grade. Edit these strings in one place; they're student-facing.
+DISCLOSURE_TAGS = {
+    # AI suggested the grade AND drafted the comment; the instructor reviewed both.
+    "ai":     "— AI drafted, instructor reviewed",
+    # A script computed the grade deterministically; the AI drafted the comment.
+    # (The instructor's confirmation at the push gate is the "approved".)
+    "hybrid": "— script graded, AI-drafted comment, instructor approved",
+    # A script computed the grade; no AI in the comment (template/instructor prose).
+    "script": "— script graded, instructor reviewed",
+}
+DEFAULT_DISCLOSURE = "ai"
+# Back-compat: modules/tests that import the single canonical tag still work.
+DISCLOSURE_TAG = DISCLOSURE_TAGS[DEFAULT_DISCLOSURE]
+_ALL_DISCLOSURE_TAGS = tuple(DISCLOSURE_TAGS.values())
 
 
-def append_disclosure_tag(comment: str) -> str:
-    """Append DISCLOSURE_TAG to an AI-drafted comment. Empty -> unchanged (never
-    invents a tag-only comment); already-tagged -> unchanged (idempotent on
-    re-push)."""
+def resolve_disclosure_kind(arg: str | None) -> str:
+    """Pick the disclosure tag: explicit --disclosure wins, else
+    $CANVAS_DISCLOSURE_DEFAULT (so a hybrid-heavy course sets it once in .env),
+    else the built-in default. An unknown name falls back to the default rather
+    than crashing a push — the printed banner shows what was actually used."""
+    kind = (arg or os.environ.get("CANVAS_DISCLOSURE_DEFAULT") or DEFAULT_DISCLOSURE)
+    kind = kind.strip().lower()
+    return kind if kind in DISCLOSURE_TAGS else DEFAULT_DISCLOSURE
+
+
+def append_disclosure_tag(comment: str, kind: str = DEFAULT_DISCLOSURE) -> str:
+    """Append the disclosure tag named `kind` to an AI/script-drafted comment.
+    Empty -> unchanged (never invents a tag-only comment). Idempotent AND
+    non-stacking: if the comment already ends with ANY vetted tag it's left as-is,
+    so a re-push — or switching graders between runs — never doubles the tag."""
     if not comment or not comment.strip():
         return comment
-    if comment.rstrip().endswith(DISCLOSURE_TAG):
+    tag = DISCLOSURE_TAGS.get(kind, DISCLOSURE_TAGS[DEFAULT_DISCLOSURE])
+    stripped = comment.rstrip()
+    if any(stripped.endswith(t) for t in _ALL_DISCLOSURE_TAGS):
         return comment
-    return f"{comment.rstrip()}\n\n{DISCLOSURE_TAG}"
+    return f"{stripped}\n\n{tag}"
 
 
 # Deprecated disclosure-tag formats that predate the canonical DISCLOSURE_TAG.
@@ -1200,6 +1230,12 @@ def main() -> int:
                          "(e.g. a short line for a completion-only output).")
     ap.add_argument("--grade-only", action="store_true",
                     help="Push the grade with NO comment (e.g. the consequential layer in a multi-output flow).")
+    ap.add_argument("--disclosure", default=None, choices=sorted(DISCLOSURE_TAGS),
+                    help="Which provenance tag to append to drafted comments: "
+                         "'ai' (AI drafted the grade + comment), 'hybrid' (a script "
+                         "computed the grade, AI drafted the comment), 'script' "
+                         "(script graded, no AI in the comment). Default: 'ai', or "
+                         "$CANVAS_DISCLOSURE_DEFAULT if set.")
     ap.add_argument("--include-inactive", action="store_true",
                     help="Issue #61: by default the push surface excludes Canvas's Test Student + "
                          "inactive/withdrawn/completed/rejected enrollments. Pass this flag for the "
@@ -1282,6 +1318,7 @@ def main() -> int:
                          "needs to lower (e.g. an academic-integrity reversal). The bypass is "
                          "logged per row so the audit trail shows the intentional regrade.")
     args = ap.parse_args()
+    disclosure_kind = resolve_disclosure_kind(args.disclosure)
 
     challenge = resolve_challenge_dir(args.challenge_dir, verb="pushing from")
     if not challenge.is_dir():
@@ -1576,7 +1613,8 @@ def main() -> int:
         # but comment_for() uses Path() relative to CWD. Resolve them here.
         feedback_file = resolve_feedback_file(challenge, r.get("feedback_file", ""))  # #228
         comment = "" if args.grade_only else (
-            append_disclosure_tag(comment_for(feedback_file)) or args.default_comment)
+            append_disclosure_tag(comment_for(feedback_file), disclosure_kind)
+            or args.default_comment)
         uid = resolve_user_id(r.get("submission_file", ""), subs)
         done = key in pushed_keys and not args.force
         # Duplicate-comment Andon + resubmission-only re-grade: default refuses any
@@ -1786,8 +1824,9 @@ def main() -> int:
               f"tag (issue #207).", file=sys.stderr)
         for fname, dep in tag_violations:
             print(f"     {fname}: {dep[:40]}", file=sys.stderr)
-        print(f"   The canonical tag is {DISCLOSURE_TAG!r} (appended automatically at "
-              f"send-time).", file=sys.stderr)
+        print(f"   The selected tag is {DISCLOSURE_TAGS[disclosure_kind]!r} "
+              f"(--disclosure {disclosure_kind}; appended automatically at send-time).",
+              file=sys.stderr)
         print("   Fix: remove the stale tag from those files, or pass "
               "--allow-bad-disclosure-tags to override.", file=sys.stderr)
         return 1
@@ -1817,6 +1856,9 @@ def main() -> int:
                         f"{held_count} held (comment-only)" if held_count else
                         f"{len(pushable)} grades + comments")
         print(f"\nThis writes {body_summary} to the LIVE course {cid}.")
+        if not args.grade_only:
+            print(f"Disclosure tag on comments: {DISCLOSURE_TAGS[disclosure_kind]!r} "
+                  f"(--disclosure {disclosure_kind}).")
         if not require_typed_confirmation("Type 'push' to confirm: ", "push"):
             print("Aborted.")
             return 1

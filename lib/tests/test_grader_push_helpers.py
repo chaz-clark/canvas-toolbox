@@ -27,6 +27,9 @@ from grader_push import (  # noqa: E402
     filter_group_mirror_rows,
     append_disclosure_tag,
     DISCLOSURE_TAG,
+    DISCLOSURE_TAGS,
+    DEFAULT_DISCLOSURE,
+    resolve_disclosure_kind,
     find_deprecated_disclosure_tags,
     DEPRECATED_DISCLOSURE_TAGS,
     push_precheck,
@@ -1034,6 +1037,46 @@ def test_disclosure_tag_not_added_to_empty_or_whitespace():
 def test_disclosure_tag_wording_is_honest():
     """It must say AI *drafted* (not 'assisted') + instructor *reviewed*."""
     assert DISCLOSURE_TAG == "— AI drafted, instructor reviewed"
+
+
+# --- the disclosure MENU: pick the tag that matches the grader ----------------
+
+def test_disclosure_menu_hybrid_tag_credits_the_script_for_the_grade():
+    """The point of the menu: with the hybrid grader the SCRIPT grades and the AI
+    only comments, so a flat 'AI drafted' overstates the AI. The hybrid tag says so."""
+    out = append_disclosure_tag("Solid work.", "hybrid")
+    assert out.endswith(DISCLOSURE_TAGS["hybrid"])
+    assert "script graded" in out and "AI-drafted comment" in out
+
+
+def test_disclosure_menu_script_tag_has_no_ai_claim():
+    out = append_disclosure_tag("See rubric.", "script")
+    assert out.endswith("— script graded, instructor reviewed")
+    assert "AI" not in DISCLOSURE_TAGS["script"]
+
+
+def test_disclosure_default_kind_is_ai_backcompat():
+    assert DEFAULT_DISCLOSURE == "ai"
+    assert append_disclosure_tag("x").endswith(DISCLOSURE_TAGS["ai"])
+
+
+def test_disclosure_non_stacking_across_the_whole_menu():
+    """Switching graders between runs must not stack a second tag: a comment already
+    ending with ANY vetted tag is left alone, whatever kind is requested now."""
+    tagged_ai = append_disclosure_tag("Nice.", "ai")
+    assert append_disclosure_tag(tagged_ai, "hybrid") == tagged_ai  # no 2nd tag
+    assert sum(tagged_ai.count(t) for t in DISCLOSURE_TAGS.values()) == 1
+
+
+def test_resolve_disclosure_kind_precedence(monkeypatch):
+    monkeypatch.delenv("CANVAS_DISCLOSURE_DEFAULT", raising=False)
+    assert resolve_disclosure_kind(None) == "ai"                 # built-in default
+    assert resolve_disclosure_kind("hybrid") == "hybrid"         # explicit
+    assert resolve_disclosure_kind("HyBrId") == "hybrid"         # case-tolerant
+    assert resolve_disclosure_kind("bogus") == "ai"              # unknown -> default
+    monkeypatch.setenv("CANVAS_DISCLOSURE_DEFAULT", "script")
+    assert resolve_disclosure_kind(None) == "script"            # env fallback
+    assert resolve_disclosure_kind("hybrid") == "hybrid"        # explicit still wins
 
 
 # ---------------------------------------------------------------------------

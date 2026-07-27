@@ -66,7 +66,7 @@ then retire the local copy and repoint your AGENTS.md at the vendored path.
 | `grading/check_name_leak.py` | `grader_name_leak_check.py` |
 | `grading/reconcile_gradebook.py` | `grader_reconcile.py` |
 | `…/fix_canvas_grade_state.py` | `grader_audit_workflow.py` (#226: stuck-`workflow_state` `--check`/`--fix`) |
-| `…/add_ai_tag.py` | *(delete)* — `grader_push.py` appends `— AI drafted, instructor reviewed` automatically |
+| `…/add_ai_tag.py` | *(delete)* — `grader_push.py` appends a provenance tag automatically; pick the honest one with `--disclosure {ai,hybrid,script}` (or `$CANVAS_DISCLOSURE_DEFAULT`): `ai` = AI drafted grade+comment, `hybrid` = script graded / AI drafted the comment, `script` = script graded / no AI |
 | `tools/canvas_sync.py` | `canvas_sync.py` |
 | `tools/blueprint_sync.py` | `blueprint_sync.py` |
 | `tools/course_mirror.py` | `course_mirror.py` |
