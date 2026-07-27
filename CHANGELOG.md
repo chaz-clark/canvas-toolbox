@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.31] — 2026-07-27
+
+**The `grade_guardian` hook can no longer brick a session — it fails open if it can't find its own script.**
+
+A guardrail that hard-blocks when misconfigured is worse than no guardrail. If the hook's script path was ever wrong (a rename, a non-standard layout, or standalone canvas-toolbox where the `canvas-toolbox/` subdir prefix doubles), a bare `python3 <missing>` exited 2 — Python's can't-open-file code, which is *also* the hook "deny" code — so **every** `Bash`/`Read`/`Edit`/`Write` was blocked, including the tools needed to fix it. Found by hitting it in the toolkit repo itself.
+
+### Fixed
+- **`grade_guardian.py`** — `hook_command()` now wraps the invocation so a **missing script fails open** (`sh -c 'f=…; [ -f "$f" ] || exit 0; exec python3 "$f"'`): absent → allow (exit 0); present → `exec` hands off so the guardian's own exit code (2 = deny) still propagates. A wrong path can no longer lock anyone out.
+- **`cb-init`** — `_install_guardian_hook` now verifies the vendored `canvas-toolbox/lib/tools/grade_guardian.py` actually exists under the root **before** wiring the hook, so it's skipped in standalone / non-course layouts (where the path would be wrong) instead of installing a known-broken hook.
+
+Course repos on the standard `<root>/canvas-toolbox/` layout were never affected (their path resolves correctly); this removes the whole class of "bad path bricks the session" regardless.
+
+---
+
 ## [1.7.30] — 2026-07-27
 
 **New knowledge: "use the vendored tools, don't reimplement them" — the custom→vendored migration map, baked in so every course repo benefits.**

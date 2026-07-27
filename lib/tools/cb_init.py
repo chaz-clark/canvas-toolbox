@@ -901,6 +901,19 @@ def _install_guardian_hook(*, course_root: Path, check_only: bool) -> None:
     if _ensure_guardian_hook is None:
         return  # pre-sync / partial vendored env — skip quietly
 
+    # Only wire the hook if the vendored guardian actually exists at the path the
+    # hook will use. In standalone canvas-toolbox (the toolkit IS the root, not a
+    # `<root>/canvas-toolbox/` subdir) that path doesn't exist — installing there
+    # gave a hook that pointed at `<root>/canvas-toolbox/canvas-toolbox/…` and
+    # bricked the session. The hook command also fails open now, but not installing
+    # a known-broken hook is the cleaner fix.
+    guardian = course_root / "canvas-toolbox" / "lib" / "tools" / "grade_guardian.py"
+    if not guardian.is_file():
+        print("  ⏭  grade-guardian hook skipped — no vendored "
+              "canvas-toolbox/lib/tools/grade_guardian.py under this root "
+              "(standalone or non-course layout).")
+        return
+
     settings_path = course_root / ".claude" / "settings.json"
     try:
         existing = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else {}

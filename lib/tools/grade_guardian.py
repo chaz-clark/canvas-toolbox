@@ -142,8 +142,18 @@ HOOK_MATCHER = "Bash|Write|Edit|Read"
 
 def hook_command(toolkit_subdir: str = "canvas-toolbox") -> str:
     """The PreToolUse `command` for a course repo. ${CLAUDE_PROJECT_DIR} is the
-    course root; the toolkit is vendored under it at <toolkit_subdir>/."""
-    return f'python3 "${{CLAUDE_PROJECT_DIR}}/{toolkit_subdir}/lib/tools/grade_guardian.py"'
+    course root; the toolkit is vendored under it at <toolkit_subdir>/.
+
+    FAILS OPEN if the guardian script is missing (a wrong path, a rename, an
+    uninstalled toolkit): a guardrail must NEVER brick a session because it can't
+    find itself. A bare `python3 <missing>` exits non-zero (Python's can't-open is
+    exit 2 = the "deny" code), which would block EVERY tool call — including the
+    Read/Edit you'd need to fix it. So: if the file is absent, `exit 0` (allow);
+    if present, `exec` hands off so the guardian's own exit code (2 = deny)
+    propagates unchanged.
+    """
+    path = f'$CLAUDE_PROJECT_DIR/{toolkit_subdir}/lib/tools/grade_guardian.py'
+    return f'sh -c \'f="{path}"; [ -f "$f" ] || exit 0; exec python3 "$f"\''
 
 
 def ensure_hook(settings: dict) -> tuple:

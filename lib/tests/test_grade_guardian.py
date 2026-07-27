@@ -14,7 +14,7 @@ _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
-from grade_guardian import evaluate, ensure_hook  # noqa: E402
+from grade_guardian import evaluate, ensure_hook, hook_command  # noqa: E402
 
 HOOK = _TOOLS_DIR / "grade_guardian.py"
 
@@ -51,6 +51,31 @@ def test_ensure_hook_does_not_mutate_input():
     original = {}
     ensure_hook(original)
     assert original == {}  # deepcopy, not in-place
+
+
+# --- hook_command: FAIL OPEN on a missing script (never brick a session) ----
+
+def test_hook_command_fails_open_when_script_missing(tmp_path):
+    """A wrong path / uninstalled toolkit must ALLOW the tool (exit 0), not block
+    it. Regression for the standalone doubled-path brick: a bare `python3 <missing>`
+    exits 2 (= deny) and locks out every tool, including the Read/Edit to fix it."""
+    import os
+    cmd = hook_command()  # $CLAUDE_PROJECT_DIR/canvas-toolbox/lib/tools/grade_guardian.py
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)}  # no canvas-toolbox/ here
+    r = subprocess.run(cmd, shell=True, env=env, input="{}", capture_output=True, text=True)
+    assert r.returncode == 0  # missing script -> fail OPEN
+
+
+def test_hook_command_propagates_deny_when_script_present(tmp_path):
+    """When the guardian IS present, its exit code must propagate unchanged — a
+    deny (exit 2) must not be swallowed by the fail-open wrapper."""
+    import os
+    d = tmp_path / "canvas-toolbox" / "lib" / "tools"
+    d.mkdir(parents=True)
+    (d / "grade_guardian.py").write_text("import sys\nsys.exit(2)\n", encoding="utf-8")
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)}
+    r = subprocess.run(hook_command(), shell=True, env=env, input="{}", capture_output=True, text=True)
+    assert r.returncode == 2  # present + denies -> deny propagates
 
 
 # --- DENY: the paths the #213 incident used --------------------------------

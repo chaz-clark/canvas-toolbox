@@ -28,7 +28,32 @@ from cb_init import (  # noqa: E402
     env_stub_content,
     parse_canvas_self_name,
     stub_is_filled,
+    _install_guardian_hook,
 )
+
+
+# ---------------------------------------------------------------------------
+# _install_guardian_hook — must NOT install a hook whose script isn't there
+# ---------------------------------------------------------------------------
+
+def test_guardian_hook_skipped_when_no_vendored_toolkit(tmp_path, capsys):
+    """Standalone / non-course layout: no `canvas-toolbox/lib/tools/grade_guardian.py`
+    under the root, so the hook must be SKIPPED — installing it there is what bricked
+    the session (path pointed at a missing script)."""
+    _install_guardian_hook(course_root=tmp_path, check_only=False)
+    assert not (tmp_path / ".claude" / "settings.json").exists()  # nothing written
+    assert "skipped" in capsys.readouterr().out.lower()
+
+
+def test_guardian_hook_installed_when_vendored_toolkit_present(tmp_path):
+    """Course layout: the vendored guardian exists → the hook IS wired in."""
+    g = tmp_path / "canvas-toolbox" / "lib" / "tools" / "grade_guardian.py"
+    g.parent.mkdir(parents=True)
+    g.write_text("# vendored guardian\n", encoding="utf-8")
+    _install_guardian_hook(course_root=tmp_path, check_only=False)
+    settings = tmp_path / ".claude" / "settings.json"
+    assert settings.exists()
+    assert "grade_guardian" in settings.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
