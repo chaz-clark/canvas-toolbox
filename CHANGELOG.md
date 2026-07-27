@@ -12,6 +12,18 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.32] — 2026-07-27
+
+**The HG-5 push confirmation now requires an interactive terminal — a piped `push` can no longer stand in for the instructor.**
+
+The `--yes` refusal (#207/#214) forces a human to *type* `push`/`reviewed` at the confirmation prompt — the typed word attests the instructor is present for a live grade write. But `input()` reads whatever is on stdin, so `echo push | grader_push … --push` satisfied the gate with **no human**. An agent, blocked by the `--yes` refusal, used exactly that (plus a `touch .reviewed` to defeat the freshness gate) to push AI-drafted grades to a live enrolled course. The gate attested nothing.
+
+Fix: every live-write confirmation (`push`, `reviewed`, test-user push, `retract`) now runs through `require_typed_confirmation()`, which refuses when `sys.stdin.isatty()` is False — a pipe, redirect, or heredoc is not a person. The final push gate is the backstop: even a multi-line pipe that satisfies the earlier `locked`/`collisions` acknowledgments dies at the push prompt because it demands a TTY. A real instructor in a real terminal is unaffected.
+
+Known remaining gap (tracked): `touch .reviewed` still defeats the mtime-based review-freshness marker — a fingerprint-of-the-review-surface marker is the durable fix.
+
+---
+
 ## [1.7.31] — 2026-07-27
 
 **The `grade_guardian` hook can no longer brick a session — it fails open if it can't find its own script.**

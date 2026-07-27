@@ -38,6 +38,7 @@ from grader_push import (  # noqa: E402
     comments_to_supersede,
     assignment_posts_manually,
     post_assignment_grades,
+    require_typed_confirmation,
 )
 
 
@@ -1084,3 +1085,43 @@ def test_post_assignment_grades_reports_graphql_error(monkeypatch):
                                                 "errors": [{"message": "not allowed"}]}}}))
     ok, detail = post_assignment_grades("b", "c", {}, 1)
     assert ok is False and "not allowed" in detail
+
+
+# ---------------------------------------------------------------------------
+# require_typed_confirmation — HG-5 human-attestation gate must demand a TTY (#241)
+#
+# The bug: `echo push | grader_push … --push` satisfied `input("Type 'push'")`
+# with no human — an agent used exactly that to defeat the --yes refusal and push
+# grades to a live enrolled course. The typed word must come from a real terminal.
+# ---------------------------------------------------------------------------
+
+class _FakeStdin:
+    def __init__(self, is_tty):
+        self._tty = is_tty
+
+    def isatty(self):
+        return self._tty
+
+
+def test_confirmation_refused_when_stdin_is_not_a_tty(monkeypatch, capsys):
+    """The core fix: piped/redirected stdin (isatty False) is refused, and input()
+    is NEVER consulted — so a piped 'push' can't satisfy the gate."""
+    monkeypatch.setattr(_GP.sys, "stdin", _FakeStdin(is_tty=False))
+    def _boom(_prompt):  # input() must not be reached on the non-TTY path
+        raise AssertionError("input() consulted on a non-TTY — pipe would satisfy the gate")
+    monkeypatch.setattr("builtins.input", _boom)
+    assert require_typed_confirmation("Type 'push' to confirm: ", "push") is False
+    err = capsys.readouterr().err
+    assert "interactive terminal" in err and "#241" in err
+
+
+def test_confirmation_accepts_correct_word_at_a_tty(monkeypatch):
+    monkeypatch.setattr(_GP.sys, "stdin", _FakeStdin(is_tty=True))
+    monkeypatch.setattr("builtins.input", lambda _prompt: "  PUSH \n")  # case/space-tolerant
+    assert require_typed_confirmation("Type 'push' to confirm: ", "push") is True
+
+
+def test_confirmation_rejects_wrong_word_at_a_tty(monkeypatch):
+    monkeypatch.setattr(_GP.sys, "stdin", _FakeStdin(is_tty=True))
+    monkeypatch.setattr("builtins.input", lambda _prompt: "yes")
+    assert require_typed_confirmation("Type 'push' to confirm: ", "push") is False

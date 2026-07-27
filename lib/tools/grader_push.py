@@ -136,6 +136,35 @@ NUM_RE = re.compile(r"\d+")
 _TIMEOUT = 30
 
 
+def require_typed_confirmation(prompt: str, expected: str) -> bool:
+    """Human-attestation gate for a LIVE Canvas write. Returns True only when a
+    human, at an interactive terminal, types `expected`.
+
+    Refuses piped/redirected stdin. The HG-5 gate (#207) already refuses --yes so a
+    human must type the word — but `input()` reads whatever is on stdin, so
+    `echo push | grader_push … --push` satisfied it with NO human, defeating the
+    whole point: the typed word attests the instructor is present, and a pipe is not
+    a person (#241). `sys.stdin.isatty()` is False for a pipe/redirect/heredoc → the
+    confirmation is being fed by a script (or an agent) → refuse. A real terminal →
+    accept the typed word.
+
+    This is the backstop for every confirmation below it in the flow: even a
+    multi-line pipe (`printf 'locked\\ncollisions\\npush\\n' | …`) that satisfies the
+    earlier acknowledgments dies here, because the final push gate demands a TTY.
+    """
+    if not sys.stdin.isatty():
+        print(
+            f"\n⛔ '{expected}' confirmation must be typed at an interactive terminal — "
+            f"piped/redirected input (e.g. `echo {expected} | …`) is refused (HG-5, #241).\n"
+            "   The typed word attests the instructor is present for the write; a pipe "
+            "is not a person. Run the command yourself in a terminal and type it at the "
+            "prompt — do not feed it on stdin.",
+            file=sys.stderr,
+        )
+        return False
+    return input(prompt).strip().lower() == expected
+
+
 def _env_canvas() -> tuple[str, str, str]:
     tok = os.environ.get("CANVAS_API_TOKEN", "")
     cid = os.environ.get("CANVAS_COURSE_ID", "")
@@ -1055,8 +1084,9 @@ def _retract_main(base: str, cid: str, headers: dict, args,
         print("\nNothing to delete after resolution.")
         return 1
     if not args.yes:
-        if input(f"\nType 'retract' to delete {len(rows_to_delete)} comment(s) "
-                 f"on LIVE course {cid}: ").strip().lower() != "retract":
+        if not require_typed_confirmation(
+                f"\nType 'retract' to delete {len(rows_to_delete)} comment(s) on LIVE course {cid}: ",
+                "retract"):
             print("Aborted.")
             return 1
 
@@ -1361,7 +1391,7 @@ def main() -> int:
             print(f"   Fix: re-run WITHOUT --yes; eyeball the comments; type "
                   f"'reviewed' at the prompt.", file=sys.stderr)
             return 1
-        if not args.yes and input("\nType 'reviewed' to confirm: ").strip().lower() != "reviewed":
+        if not args.yes and not require_typed_confirmation("\nType 'reviewed' to confirm: ", "reviewed"):
             print("Not marked.")
             return 1
         reviewed.write_text("reviewed\n", encoding="utf-8")
@@ -1396,8 +1426,9 @@ def main() -> int:
             print("\nDry run — nothing written. Add --push to actually send.")
             return 0
         if not args.yes:
-            if input(f"\nType 'push' to write to user {args.test_user} on LIVE course {cid}: "
-                     ).strip().lower() != "push":
+            if not require_typed_confirmation(
+                    f"\nType 'push' to write to user {args.test_user} on LIVE course {cid}: ",
+                    "push"):
                 print("Aborted.")
                 return 1
         data = {"submission[posted_grade]": grade}
@@ -1786,7 +1817,7 @@ def main() -> int:
                         f"{held_count} held (comment-only)" if held_count else
                         f"{len(pushable)} grades + comments")
         print(f"\nThis writes {body_summary} to the LIVE course {cid}.")
-        if input("Type 'push' to confirm: ").strip().lower() != "push":
+        if not require_typed_confirmation("Type 'push' to confirm: ", "push"):
             print("Aborted.")
             return 1
 
