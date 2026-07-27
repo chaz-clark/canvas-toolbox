@@ -21,6 +21,7 @@ if str(_TOOLS_DIR) not in sys.path:
 
 from course_engagement_audit import (  # noqa: E402
     parse_uf_date,
+    resolve_uf_cutoff,
     parse_iso_utc,
     compute_last_engagement,
     classify_student,
@@ -52,6 +53,57 @@ def test_parse_uf_date_invalid_returns_none():
     """Garbage → None (caller refuses)."""
     for bad in ("", None, "garbage", "2026", "2026/04/15", "04-15-2026"):
         assert parse_uf_date(bad) is None
+
+
+# ---------------------------------------------------------------------------
+# resolve_uf_cutoff — derive the cutoff from Canvas course/term settings so the
+# operator doesn't hand-look-up a date ("check the end date in Canvas settings")
+# ---------------------------------------------------------------------------
+
+def test_resolve_uf_cutoff_defaults_to_course_end_date():
+    """No arg -> the course's Canvas end_at (date part), labeled as such."""
+    course = {"end_at": "2026-07-25T05:59:59Z", "term": {"end_at": "2026-08-01T00:00:00Z"}}
+    d, src = resolve_uf_cutoff(None, course)
+    assert d is not None and d.strftime("%Y-%m-%d") == "2026-07-25"
+    assert src == "Canvas course end date"
+
+
+def test_resolve_uf_cutoff_end_keyword_matches_default():
+    course = {"end_at": "2026-07-25T05:59:59Z"}
+    assert resolve_uf_cutoff("end", course)[0].day == 25
+
+
+def test_resolve_uf_cutoff_falls_back_to_term_end_when_no_course_end():
+    """A course with no end_at (the common case — dates come from the term)."""
+    course = {"end_at": None, "term": {"end_at": "2026-08-01T12:00:00Z"}}
+    d, src = resolve_uf_cutoff(None, course)
+    assert d is not None and d.strftime("%Y-%m-%d") == "2026-08-01"
+    assert src == "Canvas term end date"
+
+
+def test_resolve_uf_cutoff_term_end_keyword_forces_term():
+    course = {"end_at": "2026-07-25T00:00:00Z", "term": {"end_at": "2026-08-01T00:00:00Z"}}
+    d, src = resolve_uf_cutoff("term-end", course)
+    assert d.strftime("%Y-%m-%d") == "2026-08-01" and src == "Canvas term end date"
+
+
+def test_resolve_uf_cutoff_explicit_date_wins():
+    course = {"end_at": "2026-07-25T00:00:00Z"}
+    d, src = resolve_uf_cutoff("2026-06-01", course)
+    assert d.strftime("%Y-%m-%d") == "2026-06-01" and src == "explicit --uf-date"
+
+
+def test_resolve_uf_cutoff_none_when_no_dates_available():
+    """No arg + Canvas has neither course nor term end -> caller must ask for one."""
+    d, src = resolve_uf_cutoff(None, {"end_at": None, "term": {}})
+    assert d is None and src == "Canvas term end date"
+
+
+def test_resolve_uf_cutoff_invalid_explicit_reports_explicit_source():
+    """A bad explicit date returns None but labels the source so the caller can
+    print the right 'invalid --uf-date' message rather than 'no end date'."""
+    d, src = resolve_uf_cutoff("not-a-date", {"end_at": "2026-07-25T00:00:00Z"})
+    assert d is None and src == "explicit --uf-date"
 
 
 def test_parse_uf_date_invalid_day_returns_none():

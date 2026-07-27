@@ -12,6 +12,14 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.35] — 2026-07-27
+
+**`course_engagement_audit` derives the UF cutoff from the Canvas course end date — no more hand-supplied date.**
+
+The Title IV audit required `--uf-date YYYY-MM-DD`, so a grader either interrupted to ask the instructor for a date or guessed one. But the tool already fetches the course object — the end date was sitting right there, thrown away. Now `--uf-date` is optional: with no value (or `end`), it uses the course's Canvas `end_at`, falling back to the term end date; `term-end` forces the term date; an explicit `YYYY-MM-DD` still wins. The resolved cutoff and its source print in the header (`UF cutoff: 2026-07-25 (source: Canvas course end date)`) so the classification date stays auditable. If Canvas has no course or term end set, it asks for an explicit date rather than guessing.
+
+---
+
 ## [1.7.34] — 2026-07-27
 
 **Critical: the `grade_guardian` hook was blind to hand-written push scripts — it read the wrong field.**

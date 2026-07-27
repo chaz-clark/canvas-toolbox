@@ -134,6 +134,31 @@ def parse_uf_date(s: str | None) -> datetime | None:
         return None
 
 
+def resolve_uf_cutoff(arg: str | None, course: dict) -> tuple:
+    """Resolve the UF cutoff from an operator arg OR the Canvas course settings.
+
+    So the operator doesn't have to hand-look-up a date: with no --uf-date (or
+    'end'/'auto'), use the course's Canvas end date (`end_at`), falling back to the
+    enclosing term's end date. 'term-end' forces the term end date. An explicit
+    YYYY-MM-DD is used as-is. Canvas end dates are full ISO timestamps; we take the
+    date part so the cutoff matches parse_uf_date's start-of-day-UTC semantics
+    ("last engagement ON the cutoff day is still ACTIVE").
+
+    Returns (datetime_or_None, source_label). None means nothing resolved — the
+    caller should ask for an explicit date.
+    """
+    key = (arg or "end").strip().lower()
+    term_end = ((course.get("term") or {}).get("end_at") or "")
+    if key in ("end", "auto"):
+        course_end = course.get("end_at") or ""
+        if course_end:
+            return parse_uf_date(course_end[:10]), "Canvas course end date"
+        return parse_uf_date(term_end[:10]), "Canvas term end date"
+    if key in ("term-end", "term"):
+        return parse_uf_date(term_end[:10]), "Canvas term end date"
+    return parse_uf_date(arg), "explicit --uf-date"
+
+
 def parse_iso_utc(s: str | None) -> datetime | None:
     """Parse a Canvas ISO timestamp to a UTC-aware datetime.
 
@@ -490,11 +515,13 @@ def main() -> int:
                     "for the course's enrolled students. Outputs PDF + MD "
                     "to ~/Downloads/ (NEVER the repo) for FERPA reasons.")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
-    ap.add_argument("--uf-date", required=True,
-                    help="UF cutoff date (YYYY-MM-DD). Students whose last "
-                         "engagement is BEFORE this date get classified as "
-                         "UW or UF (depending on passing-score); students "
-                         "with engagement >= this date are ACTIVE.")
+    ap.add_argument("--uf-date", default=None,
+                    help="UF cutoff. YYYY-MM-DD for an explicit date; or 'end' "
+                         "(the default) to use the course's Canvas end date, "
+                         "falling back to the term end date; or 'term-end' to "
+                         "force the term end date. Students whose last engagement "
+                         "is BEFORE the cutoff get UW/UF (depending on "
+                         "passing-score); engagement >= the cutoff is ACTIVE.")
     ap.add_argument("--course-id", default=None,
                     help="Override CANVAS_COURSE_ID from .env.")
     ap.add_argument("--passing-score", type=float, default=60.0,
@@ -508,12 +535,6 @@ def main() -> int:
                     help="Print classification counts only; no file written.")
     args = ap.parse_args()
 
-    uf_date = parse_uf_date(args.uf_date)
-    if uf_date is None:
-        print(f"ERROR: invalid --uf-date {args.uf_date!r}. Use YYYY-MM-DD.",
-              file=sys.stderr)
-        return 1
-
     tok, base, cid = _env_canvas(args.course_id)
     missing = [k for k, v in (("CANVAS_API_TOKEN", tok),
                               ("CANVAS_BASE_URL", base),
@@ -525,21 +546,36 @@ def main() -> int:
 
     headers = {"Authorization": f"Bearer {tok}"}
 
-    # Course metadata for the report title
+    # Course metadata — title, and the end date we may derive the UF cutoff from.
     try:
         r = requests.get(f"{base}/api/v1/courses/{cid}",
-                         headers=headers, timeout=_TIMEOUT)
+                         headers=headers, params={"include[]": "term"}, timeout=_TIMEOUT)
         r.raise_for_status()
-        course_title = (r.json() or {}).get("name", f"Course {cid}")
+        course = r.json() or {}
+        course_title = course.get("name", f"Course {cid}")
     except (requests.HTTPError, requests.RequestException) as e:
         print(f"ERROR: course metadata fetch failed ({type(e).__name__}: {e}).",
               file=sys.stderr)
         return 1
 
+    # Resolve the UF cutoff — from Canvas course/term settings by default, or an
+    # explicit --uf-date. Prints the source so the classification date is auditable.
+    uf_date, uf_source = resolve_uf_cutoff(args.uf_date, course)
+    if uf_date is None:
+        if uf_source == "explicit --uf-date":
+            print(f"ERROR: invalid --uf-date {args.uf_date!r}. Use YYYY-MM-DD, "
+                  "'end', or 'term-end'.", file=sys.stderr)
+        else:
+            print("ERROR: Canvas has no course or term end date set for this course, "
+                  "so the UF cutoff can't be derived. Pass --uf-date YYYY-MM-DD.",
+                  file=sys.stderr)
+        return 1
+    uf_date_str = uf_date.strftime("%Y-%m-%d")
+
     print(f"Course Engagement Audit (Title IV verified {_TITLE_IV_VERIFIED_DATE})")
     print(f"  Course: {course_title}")
     print(f"  Course ID: {cid}")
-    print(f"  UF cutoff: {args.uf_date}")
+    print(f"  UF cutoff: {uf_date_str}  (source: {uf_source})")
     print(f"  Passing score: {args.passing_score}")
     print()
 
@@ -697,7 +733,7 @@ def main() -> int:
     # Step 5: Render report
     generated_at = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     md_content = render_report_md(
-        named_rows, course_title, cid, args.uf_date, generated_at, args.passing_score,
+        named_rows, course_title, cid, uf_date_str, generated_at, args.passing_score,
     )
 
     # Step 6: Write to ~/Downloads/ — NEVER the repo
