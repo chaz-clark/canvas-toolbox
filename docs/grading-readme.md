@@ -287,6 +287,13 @@ fresh `grader_fetch.py --challenge-dir grading/kc1 --assignment-id 12345`
 call lands at a fully-de-identified, leak-verified `submissions_deid/` ready
 for grading.
 
+**Finding resubmissions** — `grader_fetch_resubmissions.py` detects submissions a student
+resubmitted after being graded (`submitted_at > graded_at`). These are easy to overlook
+(they already have a grade), and Canvas's `needs_grading_count` doesn't explain why. It
+generates a FERPA-safe report (user_id only + SpeedGrader links); `--all` scans every
+assignment. It shares its "is this a resubmission" definition with `grader_push.py --regrade`
+(one `classify_submission_state`), so what the report flags is exactly what `--regrade` re-grades.
+
 ---
 
 ## The value-only / human-graded push path
