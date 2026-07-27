@@ -24,7 +24,11 @@ any script that talks to Canvas from a course repo.
 
 > **Before implementing ANY Canvas operation, search `canvas-toolbox/lib/tools/` first.
 > If a tool exists, use it. If one doesn't, propose it — never hand-write a Canvas API
-> script.** Grades and comments reach Canvas ONLY through `grader_push.py`.
+> script.** Grades reach Canvas ONLY through a sanctioned writer under `lib/tools/`:
+> `grader_push.py` for submission feedback (comments + grades), and
+> `grader_standing.py` for a roster-keyed **standing** column — an instructor-computed,
+> value-only "your grade" No-Submission assignment you refresh weekly (#242). Both share
+> one auth/course-guard/post-policy core, so they can't drift on what matters.
 
 ## Why this file exists (the drift trap)
 
@@ -54,6 +58,7 @@ then retire the local copy and repoint your AGENTS.md at the vendored path.
 | Custom script (in a course repo) | → vendored `canvas-toolbox/lib/tools/…` |
 |---|---|
 | `grading/push_grades.py` | `grader_push.py` |
+| `grading/push_your_grade.py`, `grading/update_standing.py` (writes a "your grade" column) | `grader_standing.py` — computes nothing; pushes your script's values, dry-run by default |
 | `grading/checks.py` | `grader_signals.py` |
 | `grading/consensus.py` | `grader_consensus.py` |
 | `grading/reidentify.py` | `grader_reidentify.py` |
