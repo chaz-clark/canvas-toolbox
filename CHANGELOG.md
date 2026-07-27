@@ -12,6 +12,24 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.33] — 2026-07-27
+
+**New `grader_standing.py` — push an instructor-computed "your grade" standing column, weekly and automatable.**
+
+Canvas's automatic-zero policy makes the running total misleading, and `grader_push`'s `regrade_gate` deliberately refuses to overwrite an already-graded submission with no resubmission (it guards against stacked comments). Both are correct, but together they block a real workflow instructors already run by hand: a single No-Submission "your grade" column, computed from a syllabus table, refreshed a couple times a semester. This tool automates that refresh.
+
+Standing is a different shape from feedback — roster-keyed (by Canvas `user_id`, resolved from SIS/login/email against the course roster), value-only (no comments, no de-identification; the instructor owns the number), and intentionally overwritten every run — so it's a **sanctioned sibling** of `grader_push` rather than a mode bolted onto it. It reuses grader_push's env/auth, `canvas_course_guard`, submission fetch, manual-post release, and the TTY-safe confirmation, so the two writers can't drift on what matters.
+
+The column is often weighted 100%, so the guards are strict: roster resolution **hard-fails** on any unmatched or ambiguous key (never grade the wrong student); dry-run by default with a FERPA-safe `user_id: old → new` diff; out-of-bounds grades abort; a score drop past `--swing-threshold` (the shifted-CSV symptom) aborts unless `--allow-swings`. `--yes` is allowed (deterministic, value-only) so weekly runs can be automated — the safe side of the HG-5 line.
+
+```
+grader_standing.py --csv standing.csv --assignment-id <id>            # dry-run diff
+grader_standing.py --csv standing.csv --assignment-id <id> --push     # write (confirm)
+grader_standing.py --csv standing.csv --assignment-id <id> --push --yes --allow-enrolled  # weekly/automated
+```
+
+---
+
 ## [1.7.32] — 2026-07-27
 
 **The HG-5 push confirmation now requires an interactive terminal — a piped `push` can no longer stand in for the instructor.**
