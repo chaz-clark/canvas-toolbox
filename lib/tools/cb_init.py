@@ -793,6 +793,18 @@ When you find a defect:
 
 ---
 
+## ⚠️ Use the vendored tools — don't reimplement them
+
+Before implementing **any** Canvas operation, search `canvas-toolbox/lib/tools/` first —
+use the tool if it exists, propose one if it doesn't, and **never hand-write a Canvas API
+script**. The toolkit was generalized *from* course scripts, so a local copy silently
+misses every safety fix the vendored tool has gained (the duplicate-comment, empty-comment,
+and stuck-workflow-state bugs all came from custom scripts). Full rationale + the
+custom→vendored **migration map**: `canvas-toolbox/lib/agents/knowledge/toolkit_reuse_knowledge.md`.
+The `grade_guardian` hook (installed by `cb-init`) enforces this at the harness.
+
+---
+
 ## Course Context
 
 [Add course-specific context here as you work]

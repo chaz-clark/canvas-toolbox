@@ -32,6 +32,7 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 | Coaching a new faculty on feedback style — research-grounded WHAT/HOW split + first-time voice articulation | [`voice_coaching_knowledge.md`](voice_coaching_knowledge.md) |
 | Onboarding a new instructor / assignment to the grader (6-step interview) | [`grader_setup_knowledge.md`](grader_setup_knowledge.md) |
 | The layer-routed NLP + LLM hybrid grading architecture (which layer owns which rubric row; priors never score) | [`grader_hybrid_architecture.md`](grader_hybrid_architecture.md) |
+| Whether a course repo should reuse a vendored tool vs. hand-roll one — the custom→vendored migration map + tool-discovery rule | [`toolkit_reuse_knowledge.md`](toolkit_reuse_knowledge.md) |
 | Title IV course-engagement audit — classifying students into UW/UF/Never-Participated/Active by last engagement date for R2T4 reporting (NEW FERPA tier 3 — Downloads-folder named report) | [`course_engagement_audit_knowledge.md`](course_engagement_audit_knowledge.md) |
 
 ---

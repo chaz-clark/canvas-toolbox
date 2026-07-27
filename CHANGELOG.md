@@ -12,6 +12,18 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.30] — 2026-07-27
+
+**New knowledge: "use the vendored tools, don't reimplement them" — the custom→vendored migration map, baked in so every course repo benefits.**
+
+A usage scan of the mature course repos (itm327, ds460) found the predictable drift trap: the toolkit was generalized *from* course scripts, so courses keep running old local copies that miss every safety fix (the duplicate-comment, empty-comment, and stuck-workflow-state bugs all came from custom scripts). This makes the guidance canonical instead of tribal.
+
+### Added
+- **`lib/agents/knowledge/toolkit_reuse_knowledge.md`** — the tool-discovery rule ("search `lib/tools/` first; never hand-write a Canvas script"), the known custom→vendored **migration map** (`push_grades.py→grader_push.py`, `checks.py→grader_signals.py`, `fix_canvas_grade_state.py→grader_audit_workflow.py`, the `tools/` course-build twins, …), the migration procedure, and how the `grade_guardian` hook makes it enforceable. Cataloged in `knowledge/README.md`.
+- **`cb-init`** — the generated course AGENTS.md stub now carries a pointer to it, so new course repos start with the reuse rule instead of growing a parallel toolchain.
+
+---
+
 ## [1.7.29] — 2026-07-27
 
 **Resubmission detection and re-grade now share one definition — the report flags exactly what `--regrade` acts on.**
