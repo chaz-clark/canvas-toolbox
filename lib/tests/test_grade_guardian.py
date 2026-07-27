@@ -14,7 +14,12 @@ _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
-from grade_guardian import evaluate, ensure_hook, hook_command  # noqa: E402
+from grade_guardian import (evaluate, ensure_hook, hook_command,  # noqa: E402
+                            _extract_script_paths)
+
+_BYPASS_BODY = ('import requests\n'
+                'requests.put("https://x.instructure.com/api/v1/courses/1/assignments/2/'
+                'submissions/3", data={"submission[posted_grade]": "90"})\n')
 
 HOOK = _TOOLS_DIR / "grade_guardian.py"
 
@@ -118,6 +123,56 @@ def test_denies_bypass_script_regardless_of_body_key():
 def test_denies_edit_that_introduces_a_canvas_write():
     body = 'requests.post("https://x.instructure.com/api/v1/courses/1/assignments/2/submissions/3")'
     assert evaluate("Edit", {"file_path": "grading/kc3/hack.py", "new_string": body}) is not None
+
+
+# --- DENY: RUNNING an existing bypass script (the run-catch, third leg) --------
+
+def test_extract_script_paths_finds_py_tokens_not_dot_python():
+    paths = _extract_script_paths("uv run python ./g/fix_push.py --course S1")
+    assert "./g/fix_push.py" in paths
+    # `python` / `.python` must NOT be captured as a script path
+    assert not any(p.endswith("python") for p in _extract_script_paths("python3 foo"))
+
+
+def test_denies_running_existing_bypass_script(tmp_path):
+    """The gap that stacked comments + graded Test Student in the field: an already-
+    existing hand-written push script, RUN via `python x.py`. The command string has
+    no write verb; the write is inside the file. The guard reads it and blocks."""
+    script = tmp_path / "fix_push.py"
+    script.write_text(_BYPASS_BODY, encoding="utf-8")
+    reason = evaluate("Bash", {"command": f"uv run python {script} --course S1"})
+    assert reason is not None
+    assert "grader_push.py" in reason
+
+
+def test_denies_running_bypass_script_via_relative_path(tmp_path, monkeypatch):
+    """Relative script paths resolve against CLAUDE_PROJECT_DIR (how Claude Code
+    runs commands from the repo root)."""
+    (tmp_path / "grading").mkdir()
+    (tmp_path / "grading" / "push.py").write_text(_BYPASS_BODY, encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    assert evaluate("Bash", {"command": "python grading/push.py"}) is not None
+
+
+def test_allows_running_ordinary_python_script(tmp_path):
+    """A non-Canvas script (no write signature) runs freely — no over-blocking."""
+    script = tmp_path / "analyze.py"
+    script.write_text("import pandas as pd\nprint('hello')\n", encoding="utf-8")
+    assert evaluate("Bash", {"command": f"python {script}"}) is None
+
+
+def test_run_catch_fails_open_on_unreadable_script():
+    """A path that doesn't resolve → can't read the body → ALLOW (fail open); the
+    guard must never brick a session because a path didn't exist."""
+    assert evaluate("Bash", {"command": "python /nope/does_not_exist.py"}) is None
+
+
+def test_run_catch_does_not_reread_grader_push(tmp_path, monkeypatch):
+    """grader_push.py under lib/tools/ legitimately contains Canvas writes — running
+    it must stay exempt (the run-catch skips lib/tools/ before reading)."""
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    assert evaluate("Bash", {"command":
+        "uv run python canvas-toolbox/lib/tools/grader_push.py --push"}) is None
 
 
 def test_denies_reading_ferpa_zone2_files():

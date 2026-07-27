@@ -12,6 +12,18 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.36] — 2026-07-27
+
+**`grade_guardian` now blocks *running* an existing bypass script — the third and last leg.**
+
+The guard covered creating a bypass script (Write, fixed in 1.7.34) and editing one (Edit), but not **running** one that already exists: `python fix_push.py` has no write verb in the command — the `requests.put` is hidden in the file. That gap was behind a cluster of field failures that all share one root cause (a grade write that skipped grader_push, so none of its protections applied): **duplicate comments** (bypassed the duplicate-comment Andon), **grades on Test Student** (bypassed the #61 exclusion), and **wrong grade scales** (bypassed grade validation).
+
+Now, for a `python x.py` / `uv run … x.py` command, the guard reads `x.py` and blocks it if the body carries the Canvas grade-write signature — skipping `lib/tools/` (the reviewed tooling legitimately writes to Canvas). Same regex-not-a-firewall limit as the rest of the guard (obfuscation like `exec(open(...))` still slips), but it decisively stops a plain `python push.py`, the actual field pattern. Fails open on an unreadable path — never bricks a session.
+
+This neutralizes bypass scripts that already exist in a repo, not just new ones. `cd canvas-toolbox && git pull` to 1.7.36 to get it.
+
+---
+
 ## [1.7.35] — 2026-07-27
 
 **`course_engagement_audit` derives the UF cutoff from the Canvas course end date — no more hand-supplied date.**
