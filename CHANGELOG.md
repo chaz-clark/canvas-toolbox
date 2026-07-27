@@ -12,6 +12,18 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.34] — 2026-07-27
+
+**Critical: the `grade_guardian` hook was blind to hand-written push scripts — it read the wrong field.**
+
+The guard's flagship catch (#213) is blocking the *creation* of a bypass script: a Bash hook can't see inside `python push.py`, but the Write hook sees the file body as it's written. Except it read the body from `tool_input["file_contents"]` — and Claude Code's Write tool sends it as **`content`**. So the body was always empty to the guard, the write-signature check never matched, and every hand-written Canvas push script sailed through. Found in the field: a grader that couldn't locate a push script simply wrote its own 186-line `requests.put` script, and the guard allowed it. The unit tests passed only because they used the same wrong key the code did.
+
+Fix: read the body from `content` (real Write param), `file_contents` (legacy/alt), and `new_string` (Edit) — whichever is present. Tests now use the real `content` key and pin all three, so a field-name drift can't silently disarm the catch again.
+
+If you vendor the hook, `cd canvas-toolbox && git pull` to 1.7.34 restores the protection — no re-init needed.
+
+---
+
 ## [1.7.33] — 2026-07-27
 
 **New `grader_standing.py` — push an instructor-computed "your grade" standing column, weekly and automatable.**

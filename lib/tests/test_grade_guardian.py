@@ -95,13 +95,24 @@ def test_denies_inline_python_requests_put():
 
 def test_denies_writing_the_bypass_script_at_creation():
     """The core catch: a Bash hook can't see inside `python /tmp/push.py`, but the
-    Write hook sees the file contents as the script is created."""
+    Write hook sees the file contents as the script is created. Claude Code's Write
+    tool sends the body as `content` — reading the wrong key silently blinded this
+    catch and let a hand-written push script through (the guardian field-name bug)."""
     body = ('import requests\n'
             'requests.put("https://x.instructure.com/api/v1/courses/1/assignments/2/'
             'submissions/3", data={"submission[posted_grade]": "90"})\n')
-    reason = evaluate("Write", {"file_path": "/tmp/push_kc_grades.py", "file_contents": body})
+    reason = evaluate("Write", {"file_path": "/tmp/push_kc_grades.py", "content": body})
     assert reason is not None
     assert "grader_push.py" in reason  # the denial redirects to the safe path
+
+
+def test_denies_bypass_script_regardless_of_body_key():
+    """Regression: the guard must read the body from whatever key the client uses —
+    `content` (Claude Code Write), `file_contents` (legacy/alt), `new_string` (Edit)."""
+    body = ('requests.put("https://x.instructure.com/api/v1/courses/1/assignments/2/'
+            'submissions/3", data={"submission[posted_grade]": "90"})')
+    for key in ("content", "file_contents", "new_string"):
+        assert evaluate("Write", {"file_path": "/tmp/p.py", key: body}) is not None, key
 
 
 def test_denies_edit_that_introduces_a_canvas_write():
@@ -136,14 +147,14 @@ def test_allows_editing_the_toolkit_source():
     reviewed path, not a bypass."""
     body = 'requests.put(f"{base}/api/v1/courses/{cid}/assignments/{aid}/submissions/{uid}")'
     assert evaluate("Write", {"file_path": "/repo/lib/tools/grader_push.py",
-                              "file_contents": body}) is None
+                              "content": body}) is None
 
 
 def test_allows_docs_with_example_code():
     """A design doc that shows the bad pattern as an EXAMPLE is prose, not a script."""
     body = "Bad: `requests.put('.../submissions/3', data={'submission[posted_grade]':'90'})`"
     assert evaluate("Write", {"file_path": "docs/grading_enforcement_A3.md",
-                              "file_contents": body}) is None
+                              "content": body}) is None
 
 
 def test_allows_feedback_and_non_ferpa_reads():
@@ -167,7 +178,7 @@ def _run_hook(payload: dict) -> subprocess.CompletedProcess:
 def test_hook_exits_2_and_redirects_on_a_bypass_write():
     r = _run_hook({"tool_name": "Write",
                    "tool_input": {"file_path": "/tmp/push.py",
-                                  "file_contents": 'requests.put("https://x.instructure.com/'
+                                  "content": 'requests.put("https://x.instructure.com/'
                                   'api/v1/courses/1/assignments/2/submissions/3")'}})
     assert r.returncode == 2
     assert "grader_push.py" in r.stderr
