@@ -373,3 +373,81 @@ def test_render_report_md_sorts_within_bucket():
     zoo_pos = md.find("Zoo, Z")
     assert aaa_pos > 0 and zoo_pos > 0
     assert aaa_pos < zoo_pos
+
+
+# ---------------------------------------------------------------------------
+# fetch_enrollments — Link-header pagination (crash fix) + inactive inclusion
+# ---------------------------------------------------------------------------
+
+import course_engagement_audit as _CEA  # noqa: E402
+
+
+class _EnrollResp:
+    def __init__(self, payload, link=""):
+        self._payload = payload
+        self.headers = {"Link": link}
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._payload
+
+
+def test_fetch_enrollments_single_page_does_not_crash(monkeypatch):
+    """The bug: blind page+=1 hit page 2, which /enrollments answers with HTTP 400,
+    crashing the audit for any course <=100 students. Link-header pagination stops
+    after one page when there's no rel=next — no second request."""
+    calls = []
+
+    def fake_get(url, **kw):
+        calls.append(url)
+        return _EnrollResp([{"user_id": 1, "enrollment_state": "active"}])  # no Link
+    monkeypatch.setattr(_CEA.requests, "get", fake_get)
+    out = _CEA.fetch_enrollments("https://x", "1", {})
+    assert len(out) == 1
+    assert len(calls) == 1  # exactly one page — never asked for the crashing page 2
+
+
+def test_fetch_enrollments_follows_link_next(monkeypatch):
+    pages = [
+        _EnrollResp([{"user_id": 1, "enrollment_state": "active"}],
+                    link='<https://x/enrollments?page=2>; rel="next"'),
+        _EnrollResp([{"user_id": 2, "enrollment_state": "inactive"}]),  # no next
+    ]
+    seq = iter(pages)
+    monkeypatch.setattr(_CEA.requests, "get", lambda url, **kw: next(seq))
+    out = _CEA.fetch_enrollments("https://x", "1", {})
+    assert [e["user_id"] for e in out] == [1, 2]
+
+
+def test_fetch_enrollments_include_inactive_requests_inactive_states(monkeypatch):
+    captured = {}
+
+    def fake_get(url, **kw):
+        captured["params"] = kw.get("params")
+        return _EnrollResp([])
+    monkeypatch.setattr(_CEA.requests, "get", fake_get)
+
+    _CEA.fetch_enrollments("https://x", "1", {}, include_inactive=True)
+    states = [v for (k, v) in captured["params"] if k == "state[]"]
+    assert "inactive" in states and "active" in states
+
+    _CEA.fetch_enrollments("https://x", "1", {}, include_inactive=False)
+    states = [v for (k, v) in captured["params"] if k == "state[]"]
+    assert "inactive" not in states and "active" in states
+
+
+def test_render_report_surfaces_inactive_bucket_without_labeling_uw():
+    """An inactive-enrollment student appears in its own review section and is NOT
+    counted as UW/UF — asserting that would claim a withdrawal determination this
+    tool can't make."""
+    rows = [
+        {"user_id": 9, "name": "Gone, G", "last_engagement_str": "2026-02-01",
+         "current_score": 30.0, "classification": "INACTIVE_ENROLLMENT"},
+    ]
+    md = render_report_md(rows, "Test", "1", "2026-04-15", "2026-06-26 12:00 UTC", 60.0)
+    assert "INACTIVE ENROLLMENT" in md
+    assert "review" in md.lower()
+    assert "**0** classified as **UW**" in md
+    assert "Gone, G" in md

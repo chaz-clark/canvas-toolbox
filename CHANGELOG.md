@@ -12,6 +12,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.37] — 2026-07-27
+
+**`course_engagement_audit`: fixed an enrollment-fetch crash and stopped silently skipping inactive students.**
+
+Two bugs, both found running a real Title IV audit:
+
+- **Crash on single-page courses.** The enrollment fetch incremented `page` blindly and looped until an empty page — but `/enrollments` returns HTTP 400 (not an empty list) when asked for a page past the last, so any course with ≤100 students crashed at page 2. Its docstring even *claimed* it reused grader_push's Link-header pagination; it didn't. Now it follows `Link: rel="next"` like grader_push (issue #67).
+- **Inactive students were dropped entirely.** The audit fetched only `state=active`, so inactive/concluded enrollments — exactly the population a Title IV last-date-of-engagement audit exists to review — never appeared. Now inactive/completed students are included by default in their **own** `INACTIVE ENROLLMENT — review required` section: their last engagement date is computed and shown, but they are **not** auto-classified as UW/UF (an inactive enrollment may be an already-processed *official* withdrawal — that determination is the registrar/FA office's, not the tool's). `--active-only` restores the old active-only scope.
+
+---
+
 ## [1.7.36] — 2026-07-27
 
 **`grade_guardian` now blocks *running* an existing bypass script — the third and last leg.**

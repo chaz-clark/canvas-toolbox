@@ -89,6 +89,7 @@ except ImportError:
     def force_utf8_console() -> None:
         pass  # No-op if _env_loader not available
 import os
+import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -286,6 +287,7 @@ def render_report_md(
     """
     by_class: dict[str, list[dict]] = {
         "UF": [], "UW": [], "NEVER_PARTICIPATED": [], "ACTIVE": [],
+        "INACTIVE_ENROLLMENT": [],
     }
     for r in rows:
         by_class.setdefault(r["classification"], []).append(r)
@@ -295,6 +297,7 @@ def render_report_md(
     n_uw = len(by_class["UW"])
     n_never = len(by_class["NEVER_PARTICIPATED"])
     n_active = len(by_class["ACTIVE"])
+    n_inactive = len(by_class["INACTIVE_ENROLLMENT"])
 
     out: list[str] = [
         f"# Course Engagement Audit — {course_title}",
@@ -314,6 +317,7 @@ def render_report_md(
         f"- **{n_uw}** classified as **UW** (Unofficial Withdrawal — last engagement < UF date)",
         f"- **{n_never}** **NEVER PARTICIPATED** (no engagement on record)",
         f"- **{n_active}** **ACTIVE** (engagement on or after UF date)",
+        f"- **{n_inactive}** **INACTIVE ENROLLMENT** (dropped/concluded in Canvas — review each for official vs unofficial withdrawal)",
         "",
         "Federal Title IV reference: 34 CFR 668.22 + 2025-2026 FSA Handbook, Vol 5 Ch 1. Distance-education R2T4 final rules went into effect 2026-07-01. Re-verify this tool's classification rules against the then-current FSA Handbook if reading after ~2027.",
         "",
@@ -330,6 +334,14 @@ def render_report_md(
          "These students are enrolled but have no submissions, quiz attempts, or discussion entries on record. Per Title IV, logging in is not sufficient to demonstrate engagement; these students never had a date of academically related activity. If they received Title IV aid, the institution must return 100% per the no-show / no-attendance rules."),
         ("ACTIVE", "## ACTIVE",
          "These students have engagement on or after the UF date. No Title IV concern."),
+        ("INACTIVE_ENROLLMENT", "## INACTIVE ENROLLMENT — review required",
+         "These students are inactive/concluded in Canvas (dropped, deactivated, or "
+         "the enrollment concluded). Some are **official** withdrawals already "
+         "processed; others may be **unofficial** withdrawals not yet caught. This "
+         "tool does NOT auto-classify them — the last-engagement column is their "
+         "last date of academically related activity; the registrar/financial-aid "
+         "office reconciles each against the official withdrawal record and runs "
+         "R2T4 where required. Pass --active-only to exclude this section."),
     ]
 
     for key, header, blurb in section_titles:
@@ -376,35 +388,45 @@ def _env_canvas(course_id_override: str | None = None) -> tuple[str, str, str]:
     return tok, base, cid
 
 
-def fetch_active_enrollments(
-    base: str, cid: str, headers: dict
+def fetch_enrollments(
+    base: str, cid: str, headers: dict, include_inactive: bool = True,
 ) -> list[dict]:
-    """Issue #(course-engagement-audit): all active StudentEnrollment records
-    for the course. Returns a list of {user_id, current_score, current_grade,
-    sortable_name, name, ...}. Excludes Test Student + inactive/withdrawn
-    states by default. Reuses the per-page-100 pagination pattern from
-    grader_push.fetch_active_filter."""
+    """All StudentEnrollment records for the course. Each carries
+    `enrollment_state` so the caller can tell active from inactive.
+
+    Follows the `Link: rel="next"` header instead of blindly incrementing `page`.
+    The /enrollments endpoint returns HTTP 400 (not an empty page) when asked for a
+    page past the last — so a single-page course (<=100 students) hit page 2, got a
+    400, and `raise_for_status()` crashed the whole audit. Same fix already in
+    grader_push (issue #67).
+
+    With include_inactive (default), inactive/completed students are returned too:
+    for Title IV these are exactly the population to review — a Canvas-inactive
+    student may be an unofficial withdrawal (or an already-processed official one),
+    and either way the last-date-of-engagement must be documented. The caller
+    surfaces them separately rather than auto-classifying them as UW/UF.
+    """
+    states = ["active", "invited"]
+    if include_inactive:
+        states += ["inactive", "completed"]
+    params: list | None = [
+        ("type[]", "StudentEnrollment"),
+        ("include[]", "user"),
+        ("per_page", 100),
+    ] + [("state[]", s) for s in states]
     out: list[dict] = []
-    page = 1
-    while True:
+    url: str | None = f"{base}/api/v1/courses/{cid}/enrollments"
+    while url:
         r = requests.get(
-            f"{base}/api/v1/courses/{cid}/enrollments",
-            headers=headers,
-            params={
-                "type[]": "StudentEnrollment",
-                "state[]": "active",
-                "include[]": "user",
-                "per_page": 100,
-                "page": page,
-            },
+            url, headers=headers,
+            params=params if "?" not in url else None,
             timeout=_TIMEOUT,
         )
         r.raise_for_status()
-        batch = r.json() or []
-        if not batch:
-            break
-        out += batch
-        page += 1
+        out += r.json() or []
+        m = re.search(r'<([^>]+)>;\s*rel="next"', r.headers.get("Link", ""))
+        url = m.group(1) if m else None
+        params = None  # subsequent pages are pre-parameterized in the next URL
     return out
 
 
@@ -531,6 +553,11 @@ def main() -> int:
     ap.add_argument("--out", default=None,
                     help="Override output path. Default: "
                          "~/Downloads/engagement-audit-<course-id>-<YYYY-MM-DD>.md")
+    ap.add_argument("--active-only", action="store_true",
+                    help="Audit only active enrollments. Default includes inactive/"
+                         "completed students (surfaced separately) — for Title IV "
+                         "you generally want them, as they may be unofficial "
+                         "withdrawals whose last engagement must be documented.")
     ap.add_argument("--dry-run", action="store_true",
                     help="Print classification counts only; no file written.")
     args = ap.parse_args()
@@ -583,14 +610,15 @@ def main() -> int:
     # IMMEDIATELY split them — names go into a local keymap dict that
     # we'll use ONLY at the re-id step before writing the named report.
     try:
-        enrollments = fetch_active_enrollments(base, cid, headers)
+        enrollments = fetch_enrollments(base, cid, headers,
+                                        include_inactive=not args.active_only)
     except (requests.HTTPError, requests.RequestException) as e:
         print(f"ERROR: enrollment fetch failed ({type(e).__name__}: {e}).",
               file=sys.stderr)
         return 1
 
     if not enrollments:
-        print("No active enrollments. Nothing to audit.")
+        print("No enrollments. Nothing to audit.")
         return 0
 
     # Build the keymap (user_id → name) IN MEMORY; never written to disk
@@ -619,9 +647,14 @@ def main() -> int:
             score_f = float(score) if score is not None else None
         except (TypeError, ValueError):
             score_f = None
-        keyed_rows.append({"user_id": uid, "current_score": score_f})
+        keyed_rows.append({"user_id": uid, "current_score": score_f,
+                           "enrollment_state": (e.get("enrollment_state") or "").lower()})
 
-    print(f"  {len(keyed_rows)} active enrollment(s) found. Fetching engagement events...")
+    n_inactive = sum(1 for r in keyed_rows
+                     if r["enrollment_state"] not in ("active", "invited"))
+    print(f"  {len(keyed_rows)} enrollment(s) found "
+          f"({len(keyed_rows) - n_inactive} active, {n_inactive} inactive). "
+          "Fetching engagement events...")
 
     # Step 2: Per-student engagement events (KEYED — operates on user_id)
     # Dispatcher: Use Rust binary if available, otherwise Python fallback
@@ -701,9 +734,16 @@ def main() -> int:
         last = compute_last_engagement(sub_timestamps, disc_timestamps, [])
         row["last_engagement"] = last
         row["last_engagement_str"] = last.strftime("%Y-%m-%d") if last else "(never)"
-        row["classification"] = classify_student(
-            last, uf_date, row["current_score"], args.passing_score,
-        )
+        # An inactive/completed enrollment is surfaced in its OWN bucket — it may be
+        # an unofficial withdrawal OR an already-processed official one; the FA
+        # office decides. We still compute last_engagement (the date they need), but
+        # never auto-label it UW/UF, which would assert a determination we can't make.
+        if row["enrollment_state"] not in ("active", "invited"):
+            row["classification"] = "INACTIVE_ENROLLMENT"
+        else:
+            row["classification"] = classify_student(
+                last, uf_date, row["current_score"], args.passing_score,
+            )
     print()
 
     # Step 3: classification summary (KEYED — no names in console)
@@ -711,7 +751,7 @@ def main() -> int:
     for r in keyed_rows:
         counts[r["classification"]] = counts.get(r["classification"], 0) + 1
     print("Classification:")
-    for k in ("UF", "UW", "NEVER_PARTICIPATED", "ACTIVE"):
+    for k in ("UF", "UW", "NEVER_PARTICIPATED", "ACTIVE", "INACTIVE_ENROLLMENT"):
         print(f"  {k:20} {counts.get(k, 0):3d}")
     print()
 
