@@ -435,27 +435,21 @@ def fetch_student_submissions(
 ) -> list[dict]:
     """All assignment + quiz submissions for one student. Submissions
     include `submitted_at` (None for not-yet-submitted) which is the
-    Title IV engagement timestamp.
+    Title IV engagement timestamp. Follows `Link: rel="next"` — blind `page += 1`
+    hit page 2 on a single-page result, which `/students/submissions?student_ids[]`
+    answers with HTTP 400, so every student looked 'never participated' (issue #67).
     """
     out: list[dict] = []
-    page = 1
-    while True:
-        r = requests.get(
-            f"{base}/api/v1/courses/{cid}/students/submissions",
-            headers=headers,
-            params={
-                "student_ids[]": str(user_id),
-                "per_page": 100,
-                "page": page,
-            },
-            timeout=_TIMEOUT,
-        )
+    url: str | None = f"{base}/api/v1/courses/{cid}/students/submissions"
+    params: list | None = [("student_ids[]", str(user_id)), ("per_page", 100)]
+    while url:
+        r = requests.get(url, headers=headers,
+                         params=params if "?" not in url else None, timeout=_TIMEOUT)
         r.raise_for_status()
-        batch = r.json() or []
-        if not batch:
-            break
-        out += batch
-        page += 1
+        out += r.json() or []
+        m = re.search(r'<([^>]+)>;\s*rel="next"', r.headers.get("Link", ""))
+        url = m.group(1) if m else None
+        params = None
     return out
 
 

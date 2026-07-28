@@ -12,6 +12,16 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.6] — 2026-07-28
+
+**Fix: the engagement audit's per-student submission fetch made every student look "never participated."**
+
+`course_engagement_audit`'s submission + discussion fetches (in the Python fallback and the main file) still incremented `page` blindly — the same `Link: rel="next"` bug fixed for the *enrollment* fetch in 1.7.37, but missed here. `/students/submissions?student_ids[]` answers a page past the last with **HTTP 400**, so on a single-page result (any student with <100 submissions — i.e. essentially all of them) page 1 succeeded, page 2 400'd, the fetch crashed, and the student was recorded with **no engagement** → the whole report showed everyone as "never participated" despite having grades. Found in the field (and correctly diagnosed as *not* an API-key problem — page 1 and enrollments worked; only the blind page 2 failed).
+
+All three fetches now follow the `Link` header (discussion-topic 404s still skip gracefully). The Rust engagement binary should be checked for the same pattern if it's in use.
+
+---
+
 ## [1.8.5] — 2026-07-28
 
 **Shift-left: catch an illegal grade at `.review.csv` creation, not at push (field-proposed).**
