@@ -122,6 +122,22 @@ grader_standing.py --csv standing.csv --assignment-id <id> --push --yes --allow-
   `.review.csv`, `submissions_raw/`, `feedback/_grader*.csv`) are **never** read or
   displayed. Verify with `wc -l` / `ls`, never `cat`/`head`/`grep`.
 
+## Final-letter grading — split the write, two sanctioned tools
+
+A "final letter" workflow has two Canvas writes; do NOT hand-write a `fix_push.py`
+(the `grade_guardian` hook blocks it, correctly). Keep your course-specific
+computation (the tier/stretch logic in `calc_final_grades.py`), and route both writes:
+
+1. **The grade** (Course Grade column, value-only) → `grader_standing.py` — emit a
+   `user_id,final_grade` CSV, then `--push --yes` (instructor-computed, value-only).
+2. **The comment** (End Letter, comment-only, preserves the existing grade) →
+   `grader_letter_comments.py` — a `user_id,comment` CSV → comment-only writes, no
+   grade change. `--yes` allowed because these are the **instructor's own** notes.
+
+**AI-drafted per-student feedback is NOT a final-letter comment** — that goes through
+`grader_push` (the HG-5 review gate). `grader_letter_comments` is for instructor-
+authored notes only.
+
 ## Known case: an auto-scored quiz stuck in "To Do"
 
 A classic quiz with an essay/file-upload question auto-scores on submission

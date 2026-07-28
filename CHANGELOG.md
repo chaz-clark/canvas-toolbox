@@ -12,6 +12,16 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.4] — 2026-07-28
+
+**New `grader_letter_comments.py` — the sanctioned End-Letter comment push, so final-letter grading no longer needs a hand-written `fix_push.py`.**
+
+When `grade_guardian` (correctly) blocked a course's `fix_push.py`, the missing piece was exposed: final-letter grading has two writes — the grade (Course Grade, value-only → already covered by `grader_standing`) and a **comment-only** note (End Letter, preserving the existing grade) — and the toolkit had no sanctioned tool for the second. This is it: a roster CSV (`user_id,comment`) → `comment[text_comment]` writes, **never** a `posted_grade`, so a grade is never touched.
+
+The HG-5 line is drawn explicitly: this tool is for **instructor-authored** comments (a final-grade note from the course's script/template), which is why `--yes` is allowed like `grader_standing` — the instructor reviews the previews and consents, no terminal for non-technical faculty. **AI-drafted per-student feedback does not belong here** — it goes through `grader_push` and its review gate. Guards: Test-Student exclusion (#61), hard-fail on unmatched/ambiguous key (never comment on the wrong student), blank-comment skip, dry-run by default. The `grading` skill and reuse doctrine now document the two-tool split so agents retire `fix_push.py` instead of trying to whitelist it.
+
+---
+
 ## [1.8.3] — 2026-07-28
 
 **Windows fix: `cb_update`'s copy-fallback skills now refresh on re-run instead of freezing stale.**
