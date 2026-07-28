@@ -16,6 +16,7 @@ from sync_grading_protocol import (  # noqa: E402
     inject_grading_pointer,
     process_agents_file,
     POINTER_MARKER,
+    POINTER_END,
     POINTER_BLOCK,
 )
 
@@ -39,6 +40,20 @@ def test_idempotent_when_marker_present():
     assert changed is False
     assert twice == once
     assert twice.count(POINTER_MARKER) == 1  # not doubled
+
+
+def test_refreshes_a_stale_marker_block_in_place():
+    """A repo carrying an OLD marker block (pre-constitution wording) must be
+    healed in place — the 6-of-9 dangling-pointer case from the field audit."""
+    stale = ("# ITM327\n\n"
+             f"{POINTER_MARKER}\n\n## Grading — HG-5\n\nold pointer to a renamed "
+             f"heading\n\n{POINTER_END}\n\n## Course stuff\n")
+    new, changed = inject_grading_pointer(stale)
+    assert changed is True
+    assert new.count(POINTER_MARKER) == 1              # not doubled
+    assert "renamed heading" not in new                # stale content gone
+    assert ".claude/skills" in new                     # current content in
+    assert "## Course stuff" in new                    # course content untouched
 
 
 def test_prepends_when_no_title():

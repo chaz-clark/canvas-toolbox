@@ -40,17 +40,21 @@ POINTER_END = "<!-- /canvas-toolbox:grading-protocol-pointer -->"
 # block (the marker is how this tool detects "already present").
 POINTER_BLOCK = f"""{POINTER_MARKER}
 
-## ⚠️ Grading — HG-5: the instructor decides
+## ⚠️ Using canvas-toolbox — constitution + skills
 
-AI-assisted grading here is **decision support, not autonomy**. Never push AI-drafted
-grades to Canvas without human review: grade → review the feedback →
-`grader_push.py --mark-reviewed` (type `reviewed`) → `--push` (type `push`). `--yes` does
-**not** bypass review on the AI-drafted path — that's enforced in code, not just
-documented (issue #207).
+This course uses **canvas-toolbox**. Its always-on rules — FERPA discipline, the
+Canvas-write safety doctrine + the `grade_guardian` hook, and behavioral principles —
+live in **`canvas-toolbox/AGENTS.md`** (the constitution). Read it. Mode-specific
+procedure lives in **operating-mode skills** under `.claude/skills/`: `grading`,
+`course-build`, `audit`, `accommodations`, `ferpa-deid`, `title-iv`. Load the skill
+that matches your task.
 
-Full protocol + rationale (principle HG-5): see
-**canvas-toolbox/AGENTS.md → "AI Grading Protocol — HG-5"**. When a gate blocks you, the
-fix is to do the review, not to reach for an override flag.
+**Grading is HG-5 — the instructor decides.** AI grading is decision support, not
+autonomy: grade → review the feedback → `grader_push.py --mark-reviewed` (type
+`reviewed`) → `--push` (type `push`). `--yes` does **not** bypass review on the
+AI-drafted path — enforced in code (#207). When a gate blocks you, do the review —
+never stack `--force`/`--regrade`/`--yes` to route around it, and never hand-write a
+Canvas write (the `grade_guardian` hook blocks that at create/edit/run).
 
 {POINTER_END}"""
 
@@ -58,15 +62,22 @@ fix is to do the review, not to reach for an override flag.
 def inject_grading_pointer(text: str) -> tuple[str, bool]:
     """Return (new_text, changed).
 
-    Idempotent: if POINTER_MARKER is already present, returns text unchanged.
-    Otherwise inserts POINTER_BLOCK just after the file's first top-level `# `
-    heading (so it's discoverable near the top), or prepends it if the file has
-    no such heading. Course-specific content around it is left untouched.
+    Idempotent AND self-healing: if the marker block is already present and CURRENT,
+    returns unchanged; if present but STALE (older wording — e.g. a pre-constitution
+    pointer to a heading that has since been renamed), it REFRESHES the block in
+    place. If absent, inserts POINTER_BLOCK just after the file's first top-level
+    `# ` heading (or prepends it if there's none). Course-specific content around the
+    block is never touched.
     """
-    if POINTER_MARKER in text:
-        return text, False
-
     block = POINTER_BLOCK.strip("\n")
+
+    if POINTER_MARKER in text and POINTER_END in text:
+        start = text.index(POINTER_MARKER)
+        end = text.index(POINTER_END) + len(POINTER_END)
+        if text[start:end] == block:
+            return text, False              # already current — no-op
+        return text[:start] + block + text[end:], True   # stale → refresh in place
+
     lines = text.splitlines(keepends=True)
     idx = next((i for i, ln in enumerate(lines) if ln.startswith("# ")), None)
 
