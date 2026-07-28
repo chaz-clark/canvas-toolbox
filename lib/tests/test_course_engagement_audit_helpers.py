@@ -25,9 +25,46 @@ from course_engagement_audit import (  # noqa: E402
     parse_iso_utc,
     compute_last_engagement,
     classify_student,
+    title_iv_class,
     downloads_dir,
     render_report_md,
 )
+from datetime import datetime as _dt, timezone as _tz  # noqa: E402
+
+
+def _eng(day):
+    """A UTC engagement datetime on 2026-04-<day> (for title_iv_class tests)."""
+    return _dt(2026, 4, day, tzinfo=_tz.utc)
+
+
+_CUTOFF = _dt(2026, 4, 15, tzinfo=_tz.utc)
+
+
+# ---------------------------------------------------------------------------
+# title_iv_class — the focused report classifier (failing/never; passing excluded)
+# ---------------------------------------------------------------------------
+
+def test_title_iv_never_participated():
+    assert title_iv_class(None, _CUTOFF, None, 60.0) == "UW-never"
+    assert title_iv_class(None, _CUTOFF, 95.0, 60.0) == "UW-never"  # never engaged wins
+
+
+def test_title_iv_passing_engaged_is_excluded():
+    assert title_iv_class(_eng(20), _CUTOFF, 85.0, 60.0) is None
+
+
+def test_title_iv_uw_before_when_failing_and_stopped_early():
+    assert title_iv_class(_eng(10), _CUTOFF, 40.0, 60.0) == "UW-before"
+
+
+def test_title_iv_f_after_when_failing_and_engaged_after_cutoff():
+    assert title_iv_class(_eng(20), _CUTOFF, 40.0, 60.0) == "F-After"
+
+
+def test_title_iv_no_grade_counts_as_failing():
+    # engaged, no recorded score → not passing → flagged by timing
+    assert title_iv_class(_eng(10), _CUTOFF, None, 60.0) == "UW-before"
+    assert title_iv_class(_eng(20), _CUTOFF, None, 60.0) == "F-After"
 
 
 # ---------------------------------------------------------------------------
@@ -286,16 +323,15 @@ def test_downloads_dir_xdg_override(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def _named_rows():
-    """Test fixture: a small set of named rows post-reidentification."""
+    """Named, FLAGGED rows post-reidentification (only what the focused report shows —
+    passing-and-engaged students are excluded upstream)."""
     return [
         {"user_id": 1, "name": "Smith, A", "last_engagement_str": "2026-03-15",
-         "current_score": 50.0, "classification": "UF"},
-        {"user_id": 2, "name": "Jones, B", "last_engagement_str": "2026-03-20",
-         "current_score": 70.0, "classification": "UW"},
+         "current_score": 50.0, "title_iv_class": "UW-before", "enrollment_state": "active"},
         {"user_id": 3, "name": "Lee, C", "last_engagement_str": "(never)",
-         "current_score": None, "classification": "NEVER_PARTICIPATED"},
-        {"user_id": 4, "name": "Park, D", "last_engagement_str": "2026-05-01",
-         "current_score": 85.0, "classification": "ACTIVE"},
+         "current_score": None, "title_iv_class": "UW-never", "enrollment_state": "active"},
+        {"user_id": 5, "name": "Kim, E", "last_engagement_str": "2026-05-01",
+         "current_score": 40.0, "title_iv_class": "F-After", "enrollment_state": "inactive"},
     ]
 
 
@@ -307,26 +343,32 @@ def test_render_report_md_includes_title_iv_verification_date():
     assert "2026-06-26" in md  # the verification date stamp
 
 
-def test_render_report_md_has_all_four_sections():
-    """Every classification bucket gets its own section in the report,
-    even when empty (so faculty can see the audit completed)."""
+def test_render_report_md_has_the_three_class_sections():
+    """The focused report has a section per flag class (UW-never/UW-before/F-After)."""
     md = render_report_md(_named_rows(), "Test Course", "12345",
                           "2026-04-15", "2026-06-26 12:00 UTC", 60.0)
-    assert "## UF" in md
-    assert "## UW" in md
-    assert "## NEVER PARTICIPATED" in md
-    assert "## ACTIVE" in md
+    assert "## UW-never" in md
+    assert "## UW-before" in md
+    assert "## F-After" in md
 
 
 def test_render_report_md_counts_match_input():
-    """The summary counts at the top must match the named rows."""
+    """The summary counts must match the flagged rows (1 each, 3 total)."""
     md = render_report_md(_named_rows(), "Test Course", "12345",
                           "2026-04-15", "2026-06-26 12:00 UTC", 60.0)
-    assert "**4** total enrolled students" in md
-    assert "**1** classified as **UF**" in md
-    assert "**1** classified as **UW**" in md
-    assert "**1** **NEVER PARTICIPATED**" in md
-    assert "**1** **ACTIVE**" in md
+    assert "**1** UW-never" in md
+    assert "**1** UW-before" in md
+    assert "**1** F-After" in md
+    assert "**3** flagged total" in md
+
+
+def test_render_report_md_excludes_passing_students():
+    """A passing-engaged row would never be in `rows` (filtered upstream) — the
+    report shows only flagged students. Sanity: 'passing' never appears as a class."""
+    md = render_report_md(_named_rows(), "Test Course", "12345",
+                          "2026-04-15", "2026-06-26 12:00 UTC", 60.0)
+    assert "Park, D" not in md  # the old passing student isn't in the fixture anymore
+    assert "enrollment" in md.lower()  # the Enrollment column is present
 
 
 def test_render_report_md_warning_about_PII():
@@ -348,31 +390,26 @@ def test_render_report_md_cites_title_iv_regulation():
 
 
 def test_render_report_md_empty_rows_renders_cleanly():
-    """No enrolled students → still produces a valid report (with all
-    sections showing _(none)_). The audit completes; counts are zero."""
+    """No flagged students → still a valid report: each class section shows _(none)_,
+    0 flagged total. (Every student passing-and-engaged is the good case.)"""
     md = render_report_md([], "Empty Course", "99999",
                           "2026-04-15", "2026-06-26 12:00 UTC", 60.0)
-    assert "## UF" in md
+    assert "## UW-never" in md
     assert "_(none)_" in md
-    assert "**0** total enrolled students" in md
+    assert "**0** flagged total" in md
 
 
-def test_render_report_md_sorts_within_bucket():
-    """Within each classification bucket, students are sorted by name
-    so the report is deterministic + scan-friendly."""
+def test_render_report_md_sorts_within_section():
+    """Within a class section, students are sorted by name (deterministic report)."""
     rows = [
         {"user_id": 1, "name": "Zoo, Z", "last_engagement_str": "2026-03-15",
-         "current_score": 50.0, "classification": "UF"},
+         "current_score": 50.0, "title_iv_class": "UW-before", "enrollment_state": "active"},
         {"user_id": 2, "name": "Aaa, A", "last_engagement_str": "2026-03-16",
-         "current_score": 40.0, "classification": "UF"},
+         "current_score": 40.0, "title_iv_class": "UW-before", "enrollment_state": "active"},
     ]
     md = render_report_md(rows, "Test", "1", "2026-04-15",
                           "2026-06-26 12:00 UTC", 60.0)
-    # Aaa, A should appear before Zoo, Z
-    aaa_pos = md.find("Aaa, A")
-    zoo_pos = md.find("Zoo, Z")
-    assert aaa_pos > 0 and zoo_pos > 0
-    assert aaa_pos < zoo_pos
+    assert 0 < md.find("Aaa, A") < md.find("Zoo, Z")
 
 
 # ---------------------------------------------------------------------------
@@ -438,16 +475,15 @@ def test_fetch_enrollments_include_inactive_requests_inactive_states(monkeypatch
     assert "inactive" not in states and "active" in states
 
 
-def test_render_report_surfaces_inactive_bucket_without_labeling_uw():
-    """An inactive-enrollment student appears in its own review section and is NOT
-    counted as UW/UF — asserting that would claim a withdrawal determination this
-    tool can't make."""
+def test_render_report_shows_inactive_students_with_their_enrollment_state():
+    """Inactive/completed enrollments ARE included (potential unofficial withdrawals),
+    classified like anyone else, with their enrollment state shown in the Enrollment
+    column so the reviewer knows they're not currently active."""
     rows = [
         {"user_id": 9, "name": "Gone, G", "last_engagement_str": "2026-02-01",
-         "current_score": 30.0, "classification": "INACTIVE_ENROLLMENT"},
+         "current_score": 30.0, "title_iv_class": "UW-before", "enrollment_state": "inactive"},
     ]
     md = render_report_md(rows, "Test", "1", "2026-04-15", "2026-06-26 12:00 UTC", 60.0)
-    assert "INACTIVE ENROLLMENT" in md
-    assert "review" in md.lower()
-    assert "**0** classified as **UW**" in md
     assert "Gone, G" in md
+    assert "inactive" in md          # enrollment state surfaced in the row
+    assert "## UW-before" in md      # classified, not shunted to a separate bucket

@@ -269,6 +269,37 @@ def downloads_dir() -> Path:
     return home
 
 
+_CLASS_ORDER = ["UW-never", "UW-before", "F-After"]
+_CLASS_MEANING = {
+    "UW-never": "never participated — no engagement on record (Title IV: return 100%; there is no last date of academically related activity)",
+    "UW-before": "stopped engaging BEFORE the cutoff — an unofficial withdrawal (document the last-engagement date and run R2T4)",
+    "F-After": "engaged ON/AFTER the cutoff but FAILING — attended through, a completer-F, not a withdrawal (no R2T4)",
+}
+
+
+def title_iv_class(last_engagement, uf_date, current_score: float | None,
+                   passing_score: float) -> str | None:
+    """The Title IV flag for a student, or None if they need no flag. The report is
+    failing-students-only: a **passing** student (current_score >= passing_score) is
+    excluded regardless of engagement. Flagged students are grouped by engagement:
+
+      'UW-never'  — no engagement on record (never participated)
+      'UW-before' — failing AND last engagement BEFORE the cutoff (stopped early)
+      'F-After'   — failing AND engaged ON/AFTER the cutoff (attended through, failing)
+      None        — passing-and-engaged → excluded
+
+    A 'no grade' student counts as failing (they have no earned score); a
+    never-participated student is UW-never regardless of grade.
+    """
+    if last_engagement is None:
+        return "UW-never"
+    if current_score is not None and current_score >= passing_score:
+        return None                                # passing + engaged → excluded
+    if uf_date is not None and last_engagement < uf_date:
+        return "UW-before"                         # failing, stopped before cutoff
+    return "F-After"                               # failing, engaged on/after cutoff
+
+
 def render_report_md(
     rows: list[dict],
     course_title: str,
@@ -277,30 +308,25 @@ def render_report_md(
     generated_at: str,
     passing_score: float,
 ) -> str:
-    """Issue #(course-engagement-audit): render the named, FERPA-out-of-
-    scope report as Markdown. Input rows must already be re-identified
-    (contain 'name' field). Caller writes the output to ~/Downloads/
-    — NEVER to a file inside the repo.
-
-    Pure function for testability: takes pre-built row data + course
-    metadata, returns the full Markdown string.
+    """Render the FOCUSED Title IV report — ONLY flagged students (UW-never /
+    UW-before / F-After). Passing-and-engaged students, and anyone formally dropped
+    (deleted/rejected enrollment), are excluded upstream. Input rows are re-identified
+    (contain 'name' + 'title_iv_class'). Caller writes to ~/Downloads/ — NEVER the repo.
     """
-    by_class: dict[str, list[dict]] = {
-        "UF": [], "UW": [], "NEVER_PARTICIPATED": [], "ACTIVE": [],
-        "INACTIVE_ENROLLMENT": [],
-    }
+    by_class: dict[str, list[dict]] = {k: [] for k in _CLASS_ORDER}
     for r in rows:
-        by_class.setdefault(r["classification"], []).append(r)
+        by_class.setdefault(r.get("title_iv_class"), []).append(r)
+    counts = {k: len(by_class.get(k, [])) for k in _CLASS_ORDER}
+    total = sum(counts.values())
 
-    n = len(rows)
-    n_uf = len(by_class["UF"])
-    n_uw = len(by_class["UW"])
-    n_never = len(by_class["NEVER_PARTICIPATED"])
-    n_active = len(by_class["ACTIVE"])
-    n_inactive = len(by_class["INACTIVE_ENROLLMENT"])
+    _SECTION_NAME = {
+        "UW-never": "Never Participated",
+        "UW-before": f"Failing, Last Engagement Before {uf_date_str}",
+        "F-After": f"Failing, Last Engagement After {uf_date_str}",
+    }
 
     out: list[str] = [
-        f"# Course Engagement Audit — {course_title}",
+        f"# Title IV Engagement Report — {course_title}",
         "",
         f"**Course ID:** {course_id}  ",
         f"**UF cutoff date:** {uf_date_str}  ",
@@ -308,61 +334,34 @@ def render_report_md(
         f"**Report generated:** {generated_at}  ",
         f"**Title IV definitions verified against:** {_TITLE_IV_VERIFIED_DATE}",
         "",
-        "> ⚠️ **This report contains student names. It was generated outside the canvas-toolbox repo for FERPA reasons (see below). Do NOT copy it into a repo folder, share it via cloud sync, or email it unencrypted.**",
+        "> ⚠️ **Contains student names — generated OUTSIDE the repo for FERPA. Do NOT copy it into a repo folder, cloud-sync it, or email it unencrypted.**",
+        "",
+        "> Only **flagged** students appear (failing or never-participated). **Passing** students are excluded, as is anyone **formally dropped** (deleted/rejected enrollment). **Inactive/concluded** enrollments ARE included — they may be unofficial withdrawals not yet processed (see the Enrollment column).",
         "",
         "## Summary",
         "",
-        f"- **{n}** total enrolled students",
-        f"- **{n_uf}** classified as **UF** (Unofficial Fail — last engagement < UF date AND failing grade; R2T4 candidate)",
-        f"- **{n_uw}** classified as **UW** (Unofficial Withdrawal — last engagement < UF date)",
-        f"- **{n_never}** **NEVER PARTICIPATED** (no engagement on record)",
-        f"- **{n_active}** **ACTIVE** (engagement on or after UF date)",
-        f"- **{n_inactive}** **INACTIVE ENROLLMENT** (dropped/concluded in Canvas — review each for official vs unofficial withdrawal)",
+        f"- **{counts['UW-never']}** UW-never · **{counts['UW-before']}** UW-before · "
+        f"**{counts['F-After']}** F-After · **{total}** flagged total",
         "",
-        "Federal Title IV reference: 34 CFR 668.22 + 2025-2026 FSA Handbook, Vol 5 Ch 1. Distance-education R2T4 final rules went into effect 2026-07-01. Re-verify this tool's classification rules against the then-current FSA Handbook if reading after ~2027.",
-        "",
-        "---",
+        "Federal reference: 34 CFR 668.22 + 2025-2026 FSA Handbook, Vol 5 Ch 1. Re-verify against the then-current FSA Handbook if reading after ~2027.",
         "",
     ]
-
-    section_titles = [
-        ("UF", "## UF — Unofficial Fail (R2T4 candidates)",
-         "These students stopped engaging before the UF date AND have a failing current grade. The institution's financial aid office must run R2T4 if they received Title IV aid. The professor of record documents the **last date of academically related activity** (the `last_engagement` column below)."),
-        ("UW", "## UW — Unofficial Withdrawal",
-         "These students stopped engaging before the UF date but have a passing-or-unknown grade. Per 34 CFR 668.22, if they do not earn a passing grade by term end, the institution must treat them as unofficial withdrawals — re-classify and R2T4 then."),
-        ("NEVER_PARTICIPATED", "## NEVER PARTICIPATED",
-         "These students are enrolled but have no submissions, quiz attempts, or discussion entries on record. Per Title IV, logging in is not sufficient to demonstrate engagement; these students never had a date of academically related activity. If they received Title IV aid, the institution must return 100% per the no-show / no-attendance rules."),
-        ("ACTIVE", "## ACTIVE",
-         "These students have engagement on or after the UF date. No Title IV concern."),
-        ("INACTIVE_ENROLLMENT", "## INACTIVE ENROLLMENT — review required",
-         "These students are inactive/concluded in Canvas (dropped, deactivated, or "
-         "the enrollment concluded). Some are **official** withdrawals already "
-         "processed; others may be **unofficial** withdrawals not yet caught. This "
-         "tool does NOT auto-classify them — the last-engagement column is their "
-         "last date of academically related activity; the registrar/financial-aid "
-         "office reconciles each against the official withdrawal record and runs "
-         "R2T4 where required. Pass --active-only to exclude this section."),
-    ]
-
-    for key, header, blurb in section_titles:
-        bucket = by_class.get(key, [])
-        out.append(header)
-        out.append("")
-        out.append(blurb)
-        out.append("")
+    for cls in _CLASS_ORDER:
+        bucket = by_class[cls]
+        out += [f"## {cls} — {_SECTION_NAME[cls]} ({len(bucket)})", "",
+                _CLASS_MEANING[cls], ""]
         if not bucket:
-            out.append("_(none)_")
-            out.append("")
+            out += ["_(none)_", ""]
             continue
-        out.append("| Student | User ID | Last engagement | Current score |")
-        out.append("|---|---|---|---|")
+        out += ["| Student | User ID | Last engagement | Current score | Enrollment |",
+                "|---|---|---|---|---|"]
         for r in sorted(bucket, key=lambda x: x.get("name", "")):
-            name = r.get("name", "(unknown)")
-            uid = r.get("user_id", "")
-            last = r.get("last_engagement_str", "(none)")
             score = r.get("current_score")
-            score_s = f"{score}" if score is not None else "(no grade)"
-            out.append(f"| {name} | {uid} | {last} | {score_s} |")
+            out.append(
+                f"| {r.get('name', '(unknown)')} | {r.get('user_id', '')} | "
+                f"{r.get('last_engagement_str', '(none)')} | "
+                f"{score if score is not None else '(no grade)'} | "
+                f"{r.get('enrollment_state', '')} |")
         out.append("")
 
     out.extend([
@@ -728,41 +727,36 @@ def main() -> int:
         last = compute_last_engagement(sub_timestamps, disc_timestamps, [])
         row["last_engagement"] = last
         row["last_engagement_str"] = last.strftime("%Y-%m-%d") if last else "(never)"
-        # An inactive/completed enrollment is surfaced in its OWN bucket — it may be
-        # an unofficial withdrawal OR an already-processed official one; the FA
-        # office decides. We still compute last_engagement (the date they need), but
-        # never auto-label it UW/UF, which would assert a determination we can't make.
-        if row["enrollment_state"] not in ("active", "invited"):
-            row["classification"] = "INACTIVE_ENROLLMENT"
-        else:
-            row["classification"] = classify_student(
-                last, uf_date, row["current_score"], args.passing_score,
-            )
+        # Flag failing/never-participated students, grouped by engagement timing.
+        # Passing-and-engaged → None (excluded). Inactive/completed enrollments ARE
+        # classified (they may be unofficial withdrawals); the fetch already excludes
+        # formally-dropped (deleted/rejected).
+        row["title_iv_class"] = title_iv_class(
+            last, uf_date, row["current_score"], args.passing_score)
     print()
 
-    # Step 3: classification summary (KEYED — no names in console)
+    # Report only FLAGGED students — passing-and-engaged are excluded.
+    flagged = [r for r in keyed_rows if r.get("title_iv_class")]
     counts: dict[str, int] = {}
-    for r in keyed_rows:
-        counts[r["classification"]] = counts.get(r["classification"], 0) + 1
-    print("Classification:")
-    for k in ("UF", "UW", "NEVER_PARTICIPATED", "ACTIVE", "INACTIVE_ENROLLMENT"):
-        print(f"  {k:20} {counts.get(k, 0):3d}")
+    for r in flagged:
+        counts[r["title_iv_class"]] = counts.get(r["title_iv_class"], 0) + 1
+    print(f"Flagged {len(flagged)} of {len(keyed_rows)} students "
+          "(passing-and-engaged excluded):")
+    for k in ("UW-never", "UW-before", "F-After"):
+        print(f"  {k:12} {counts.get(k, 0):3d}")
     print()
 
     if args.dry_run:
         print("Dry run — no file written.")
         return 0
 
-    # Step 4: RE-IDENTIFICATION — swap user_id → name for the named report
-    # This is the FIRST place names enter the named-output flow. Before
-    # this point, console output was keyed-only. The re-id'd report lives
-    # ONLY in ~/Downloads/, never in the repo.
-    named_rows: list[dict] = []
-    for r in keyed_rows:
-        named_rows.append({
-            **r,
-            "name": keymap.get(r["user_id"], f"(user_id={r['user_id']})"),
-        })
+    # Step 4: RE-IDENTIFICATION — swap user_id → name for the named report, for the
+    # FLAGGED rows only. This is the FIRST place names enter the named-output flow;
+    # the re-id'd report lives ONLY in ~/Downloads/, never in the repo.
+    named_rows: list[dict] = [
+        {**r, "name": keymap.get(r["user_id"], f"(user_id={r['user_id']})")}
+        for r in flagged
+    ]
 
     # Step 5: Render report
     generated_at = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
