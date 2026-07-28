@@ -12,6 +12,21 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.40] — 2026-07-28
+
+**Architecture: AGENTS.md is now a constitution + 6 operating-mode skills.**
+
+A single 509-line AGENTS.md loaded *every* session — grading, course-build, CI, all of it — and the grading discipline that matters most got diluted in a 5,200-word file. Following Anthropic's Agent Skills model (metadata always-loaded ≈100 tokens; instructions load only when triggered), the toolkit now splits along that seam:
+
+- **AGENTS.md is the constitution** — the always-on law: FERPA discipline, the Canvas-write safety doctrine + `grade_guardian`, behavioral principles, git/handoff conventions, and the skills index. Slimmed to **253 lines / 1,674 words (−68% words)**.
+- **`.claude/skills/` holds six operating-mode skills**, each loaded on demand: `grading`, `course-build`, `audit`, `accommodations`, `ferpa-deid`, `title-iv`.
+
+The six were derived by clustering all 98 tools by cohesion, not intuition. Two evidence-based calls: **Title IV is its own skill** (a federal-compliance domain distinct from course-design auditing), and **offline/`.imscc` folds into `course-build`** (same "build the course" role, different transport). Safety-critical rules stay constitutional and always-on; only mode-specific *procedure* moved to skills.
+
+Follow-up (not in this PR): `cb_init` should surface the skills at a consumer course-repo's root so they activate in course sessions too.
+
+---
+
 ## [1.7.39] — 2026-07-28
 
 **`build_deid_master` now dedups by user_id — a multi-section student no longer produces duplicate rows in `.deid_master.csv`.**
