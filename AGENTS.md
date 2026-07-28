@@ -141,10 +141,14 @@ name)`); deterministic-first grader design (Python over LLM when deterministic).
 
 Trunk-based: branch off `main`, PR, squash-merge, delete branch, sync local `main`.
 `main` always works. **Bump `pyproject.toml` version IN THE PR** — patch by default,
-minor for a medium shift, major for a breaking change; docs-only may leave it. On
-merge, `.github/workflows/version-bump.yml` auto-tags `vX.Y.Z`. Consumers track
-`main` via `git pull`, so the version is a milestone + drift marker, not a per-merge
-gate.
+minor for a medium shift, major for a breaking change; docs-only may leave it. A
+change to the toolkit's **shape** — a new architecture (like the operating-mode
+skills split), a new subsystem, a consumer-facing reorganization — is a **minor**
+even if it's "just docs / just files": bump the 2nd digit when the toolkit
+*reorganizes*, not only when behavior changes. (The skills split shipped as a patch
+by oversight; 1.8.0 is its milestone.) On merge,
+`.github/workflows/version-bump.yml` auto-tags `vX.Y.Z`. Consumers track `main` via
+`git pull`, so the version is a milestone + drift marker, not a per-merge gate.
 
 ---
 

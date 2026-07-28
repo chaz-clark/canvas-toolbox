@@ -12,6 +12,23 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.0] — 2026-07-28
+
+**Milestone: the operating-mode skills architecture.**
+
+canvas-toolbox is now organized as a **constitution + skills**. The always-on safety law (FERPA discipline, the Canvas-write doctrine + `grade_guardian`, behavioral principles) lives in `AGENTS.md`; each operating mode is a **skill** that loads on demand: `grading`, `course-build`, `audit`, `accommodations`, `ferpa-deid`, `title-iv`. This is a structural shift on the scale of the v1.7 offline suite, so it earns the minor rev. The pieces are complete and stable as of 1.8.0 — the constitution split + six skills (shipped 1.7.40) and the `cb_update` propagation tool (1.7.43).
+
+**Consumers must re-init — a plain `git pull` is no longer enough.** Skills only activate once they're symlinked at the course root:
+
+```
+cd canvas-toolbox && git pull && cd ..
+uv run python canvas-toolbox/lib/tools/cb_update.py --apply
+```
+
+That installs the skills and heals the grading-protocol pointer. No breaking API changes — tools are unchanged; this is a documentation/architecture reorganization plus the propagation tooling.
+
+---
+
 ## [1.7.43] — 2026-07-28
 
 **New `cb_update.py` (the "cb re-init") — bring an old course-repo init current, and heal the stale pointer the constitution rewrite left behind.**
