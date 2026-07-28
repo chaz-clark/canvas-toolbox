@@ -86,7 +86,9 @@ tag prints in the pre-push banner. It won't stack if you switch graders mid-stre
 For a No-Submission column (often weighted 100%) that you compute from a syllabus
 table and refresh weekly — instructor-computed, value-only, roster-keyed. It
 sidesteps Canvas's auto-zero and the regrade gate. It **computes nothing** — your
-script produces the values; the tool pushes them, dry-run by default, with strict
+script produces the values (from the gradebook — `grader_fetch_gradebook.py` mirrors
+it locally, de-identified and cached, as that upstream input); the tool pushes them,
+dry-run by default, with strict
 guards (unmatched/ambiguous key → hard fail; out-of-bounds → abort; big drop →
 abort unless `--allow-swings`). `--yes` is allowed (deterministic, value-only) so
 the weekly run can automate.
@@ -121,6 +123,7 @@ grader_standing.py --csv standing.csv --assignment-id <id> --push --yes --allow-
 | Re-grade a resubmission | add `--regrade` |
 | Update the "your grade" column | `grader_standing.py --csv <f> --assignment-id <id> --push` |
 | Rebuild the de-id master | `build_deid_master.py --force` |
+| Mirror the live gradebook locally (feeds standing/reconcile) | `grader_fetch_gradebook.py` |
 
 Full grading knowledge: [`lib/agents/knowledge/grader_hybrid_architecture.md`](../../../lib/agents/knowledge/grader_hybrid_architecture.md)
 and [`lib/agents/knowledge/toolkit_reuse_knowledge.md`](../../../lib/agents/knowledge/toolkit_reuse_knowledge.md).

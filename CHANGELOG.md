@@ -12,6 +12,16 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.41] — 2026-07-28
+
+**New `grader_fetch_gradebook.py` — mirror the live Canvas gradebook locally, de-identified and cached.**
+
+The shared gradebook primitive that was missing: one API sweep builds a `user_id`-keyed score matrix (rows = students, columns = assignments, cells = scores) cached under `.canvas/gradebook/`, stamped with `fetched_at`. Any skill can reuse a fresh copy instead of re-hitting Canvas one assignment at a time — it's the upstream input `grader_standing` (the "your grade" column) and `grader_reconcile` need.
+
+**De-identified by default** — no names, so the cache is FERPA Zone-1 (LLM-safe) and every skill can read it; `grader_reidentify_gradebook.py` turns it into a named report when a human needs one. Online mirror (distinct from offline `.imscc` mode). Follows `Link: rel="next"` pagination (issue #67), excludes the Test Student (#61), and skips the fetch when the cache is younger than `--max-age-hours` (default 6; `--force` overrides).
+
+---
+
 ## [1.7.40] — 2026-07-28
 
 **Architecture: AGENTS.md is now a constitution + 6 operating-mode skills.**
