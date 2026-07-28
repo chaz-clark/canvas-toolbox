@@ -21,13 +21,16 @@ cb_update closes that gap idempotently and NON-destructively:
      behind.
 
 Dry-run by default; --apply writes. Run from the course root (or its
-canvas-toolbox/ subdir).
+canvas-toolbox/ subdir). `--pull` first `git pull`s the vendored toolkit (in the
+right repo) then updates — the one-command "update canvas-toolbox" so agents stop
+hand-typing `cd` + `git pull` into the wrong repo.
 """
 from __future__ import annotations
 
 import argparse
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -137,6 +140,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description="Bring an old canvas-toolbox course init current (skills + pointer).")
     ap.add_argument("--apply", action="store_true", help="write changes (else dry-run)")
+    ap.add_argument("--pull", action="store_true",
+                    help="first `git pull` the VENDORED toolkit (the right repo), then "
+                         "update — the one-command 'update canvas-toolbox'.")
     args = ap.parse_args()
 
     course_root, is_subdir = detect_course_context()
@@ -145,6 +151,20 @@ def main() -> int:
               "nothing to re-init. cb_update is for consumer course repos.")
         return 0
     toolkit_subdir = REPO_ROOT.name  # e.g. 'canvas-toolbox'
+
+    if args.pull:
+        # Pull the VENDORED toolkit in its own dir — never the course repo, never a
+        # hand-typed `cd`. Then re-exec the freshly-pulled tool (no --pull) so its
+        # updated logic + pointer text apply this run, not next.
+        toolkit_dir = course_root / toolkit_subdir
+        print(f"Pulling {toolkit_subdir}/ (the vendored toolkit) …")
+        r = subprocess.run(["git", "-C", str(toolkit_dir), "pull", "--ff-only"],
+                           capture_output=True, text=True)
+        out = (r.stdout + r.stderr).strip()
+        print("  " + (out.splitlines()[-1] if out else "pulled"))
+        os.execv(sys.executable,
+                 [sys.executable, str(Path(__file__).resolve()),
+                  *[a for a in sys.argv[1:] if a != "--pull"]])
 
     print(f"cb_update (re-init) for course repo: {course_root}")
     print(f"  vendored toolkit: {toolkit_subdir}/ @ v{__version__}")

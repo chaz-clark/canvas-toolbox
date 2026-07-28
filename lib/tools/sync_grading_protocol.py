@@ -56,6 +56,16 @@ AI-drafted path — enforced in code (#207). When a gate blocks you, do the revi
 never stack `--force`/`--regrade`/`--yes` to route around it, and never hand-write a
 Canvas write (the `grade_guardian` hook blocks that at create/edit/run).
 
+**Updating the toolkit — run ONE command, don't improvise git.** When the instructor
+says any of these (all mean the same thing):
+"update cb", "git pull cb", "pull cb", "update canvas-toolbox", "pull canvas-toolbox",
+"update the toolkit", "refresh cb", "upgrade canvas-toolbox", "sync the toolkit",
+"get the latest cb" — run exactly:
+`uv run python canvas-toolbox/lib/tools/cb_update.py --pull --apply`. That pulls the
+**vendored** toolkit in the right place and activates skills + heals this pointer. Do
+**NOT** `cd` into a repo and `git pull` by hand — that pulls the wrong repo (the
+course repo, or the toolkit dev clone) instead of *this* course's vendored copy.
+
 {POINTER_END}"""
 
 

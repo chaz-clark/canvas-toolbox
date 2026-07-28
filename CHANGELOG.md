@@ -12,6 +12,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.1] — 2026-07-28
+
+**`cb_update --pull` and phrase-routing — "update cb" now maps to one command, not an improvised `git pull` in the wrong repo.**
+
+Agents told to "git pull cb" kept `cd`-ing into the toolkit dev clone (or the course repo) and pulling *there*, instead of the course's own vendored copy. Two fixes:
+
+- **`cb_update.py --pull`** does the `git pull` itself, in the correct vendored dir (`<course-root>/canvas-toolbox`), then re-execs to apply the freshly-pulled skills + pointer. One command is the whole update.
+- **Phrase-routing in the consumer AGENTS.md pointer block** (injected by `cb_update`): ten common phrasings — "update cb", "git pull cb", "pull cb", "update canvas-toolbox", "pull canvas-toolbox", "update the toolkit", "refresh cb", "upgrade canvas-toolbox", "sync the toolkit", "get the latest cb" — all route to `cb_update.py --pull --apply`, with an explicit "do NOT `cd` + git pull by hand" warning. A test pins the phrases so a line-wrap can't silently split one.
+
+---
+
 ## [1.8.0] — 2026-07-28
 
 **Milestone: the operating-mode skills architecture.**
