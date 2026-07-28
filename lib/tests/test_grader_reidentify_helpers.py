@@ -20,7 +20,39 @@ from grader_reidentify import (  # noqa: E402
     build_user_to_keys,
     pick_group_representatives_from_context,
     mirror_group_rows,
+    validate_summary_scores,
 )
+
+
+# ---------------------------------------------------------------------------
+# validate_summary_scores — shift-left grading_type validation (catch 'incomplete'
+# on a points assignment at .review.csv creation, not at push)
+# ---------------------------------------------------------------------------
+
+def test_flags_incomplete_on_a_points_assignment():
+    scores = {"KC1-A": {"score": "incomplete"}, "KC1-B": {"score": "4"}}
+    bad = validate_summary_scores(scores, "points")
+    assert [b[0] for b in bad] == ["KC1-A"]          # only the illegal one
+    assert bad[0][1] == "incomplete"
+
+
+def test_complete_incomplete_ok_on_pass_fail():
+    scores = {"A": {"score": "complete"}, "B": {"score": "incomplete"}}
+    assert validate_summary_scores(scores, "pass_fail") == []
+
+
+def test_numeric_ok_on_points():
+    assert validate_summary_scores({"A": {"score": "3.5"}}, "points") == []
+
+
+def test_empty_and_absent_scores_are_skipped():
+    scores = {"A": {"score": ""}, "B": {"score": "   "}, "C": {}}
+    assert validate_summary_scores(scores, "points") == []
+
+
+def test_no_grading_type_means_no_validation():
+    # grader_fetch didn't cache the rules → don't guess, let push be the backstop
+    assert validate_summary_scores({"A": {"score": "incomplete"}}, None) == []
 
 
 # ---------------------------------------------------------------------------

@@ -1287,6 +1287,20 @@ def main() -> int:
               "token scope.", file=sys.stderr)
         return 2
 
+    # Cache the assignment's grading rules (grading_type, points_possible, name) —
+    # NO student data, so Zone-1. Lets offline tools (grader_reidentify) validate
+    # scores against grading_type without a Canvas call: catch 'incomplete' on a
+    # `points` assignment at .review.csv creation, not at push (issue #99, shift-left).
+    try:
+        (cd / ".assignment_meta.json").write_text(json.dumps({
+            "assignment_id": str(args.assignment_id),
+            "grading_type": asg_meta.get("grading_type"),
+            "points_possible": asg_meta.get("points_possible"),
+            "name": asg_meta.get("name"),
+        }, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
     # Issue #102: capture the student-facing task definition as the
     # rubric-authoritative spec. The Canvas description is often just a
     # pointer to a course-site page where the real spec lives — follow the
