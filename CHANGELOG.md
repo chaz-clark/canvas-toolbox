@@ -12,6 +12,14 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.8] — 2026-07-28
+
+**The engagement report filename now includes the course name — identifiable across sections.**
+
+Reports were named `engagement-audit-<course-id>-<date>.md`; with 5 sections across 4 courses the opaque course-id made them hard to tell apart in `~/Downloads/`. Now: `engagement-<course-name>-<course-id>-<date>.md` (e.g. `engagement-big-data-programming-407908-2026-07-28.md`). The course *name* is a title, not student PII (Zone-1), so it's safe in the filename; the course-id stays for disambiguation.
+
+---
+
 ## [1.8.7] — 2026-07-28
 
 **`course_engagement_audit`: the report is now a focused, failing-students-only Title IV list with clear UW-never / UW-before / F-After classes.**

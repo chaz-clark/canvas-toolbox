@@ -269,6 +269,14 @@ def downloads_dir() -> Path:
     return home
 
 
+def slugify_course(name: str, maxlen: int = 40) -> str:
+    """A filename-safe slug of a COURSE name (a title, not student PII) so a report
+    is identifiable across sections: 'Big Data Programming' -> 'big-data-programming'.
+    Empty/odd input -> 'course'."""
+    s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    return s[:maxlen].strip("-") or "course"
+
+
 _CLASS_ORDER = ["UW-never", "UW-before", "F-After"]
 _CLASS_MEANING = {
     "UW-never": "never participated — no engagement on record (Title IV: return 100%; there is no last date of academically related activity)",
@@ -545,7 +553,7 @@ def main() -> int:
                          "60%% passing bar).")
     ap.add_argument("--out", default=None,
                     help="Override output path. Default: "
-                         "~/Downloads/engagement-audit-<course-id>-<YYYY-MM-DD>.md")
+                         "~/Downloads/engagement-<course-name>-<course-id>-<YYYY-MM-DD>.md")
     ap.add_argument("--active-only", action="store_true",
                     help="Audit only active enrollments. Default includes inactive/"
                          "completed students (surfaced separately) — for Title IV "
@@ -770,7 +778,7 @@ def main() -> int:
     else:
         dl = downloads_dir()
         today = datetime.now().strftime("%Y-%m-%d")
-        out_path = dl / f"engagement-audit-{cid}-{today}.md"
+        out_path = dl / f"engagement-{slugify_course(course_title)}-{cid}-{today}.md"
 
     # Defense in depth: refuse to write inside the canvas-toolbox repo dir.
     # The repo lives at whatever the cwd is when this runs; we check by

@@ -26,9 +26,31 @@ from course_engagement_audit import (  # noqa: E402
     compute_last_engagement,
     classify_student,
     title_iv_class,
+    slugify_course,
     downloads_dir,
     render_report_md,
 )
+
+
+# ---------------------------------------------------------------------------
+# slugify_course — course name in the report filename (identify across sections)
+# ---------------------------------------------------------------------------
+
+def test_slugify_course_basic():
+    assert slugify_course("Big Data Programming") == "big-data-programming"
+
+
+def test_slugify_course_strips_punctuation_and_edges():
+    assert slugify_course("ITM 327: Web Apps (S2)!") == "itm-327-web-apps-s2"
+
+
+def test_slugify_course_empty_falls_back():
+    assert slugify_course("") == "course"
+    assert slugify_course(None) == "course"
+
+
+def test_slugify_course_truncates_long_names():
+    assert len(slugify_course("word " * 40)) <= 40
 from datetime import datetime as _dt, timezone as _tz  # noqa: E402
 
 
