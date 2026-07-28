@@ -12,6 +12,18 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.2] — 2026-07-28
+
+**`grader_standing` no longer dead-ends non-technical faculty at a terminal — it guides the agent to `--yes`.**
+
+Field report: an agent computed a "your grade" standing push (17 students, previewed and correct), the instructor said "push" in chat three times, and the agent kept telling them to *open a terminal and type push* — a total dead end for non-technical faculty. The cause: grader_standing borrowed grader_push's TTY-only confirmation message, even though **`--yes` is allowed for grader_standing** (it's value-only, instructor-computed — not AI-drafted feedback, so it's on the safe side of HG-5).
+
+Fix: on a non-interactive run without `--yes`, grader_standing now tells the agent to **re-run with `--yes` once the instructor confirms the preview** — explicitly "do NOT send them to a terminal." The instructor reviewing the `old → new` preview in chat *is* the attestation; `--yes` captures it. The `grading` skill and the constitution now carry the rule: **audience = non-technical faculty; complete actions for them, never hand them a terminal command** — the one exception being the genuine human-review gate on AI-drafted grades (grader_push HG-5).
+
+To post the field case immediately: add `--yes` to the command.
+
+---
+
 ## [1.8.1] — 2026-07-28
 
 **`cb_update --pull` and phrase-routing — "update cb" now maps to one command, not an improvised `git pull` in the wrong repo.**

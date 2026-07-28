@@ -81,8 +81,25 @@ from grader_push import (
     fetch_submissions,
     assignment_posts_manually,
     post_assignment_grades,
-    require_typed_confirmation,
 )
+
+
+def standing_push_decision(yes: bool, is_tty: bool) -> str:
+    """How to gate a value-only standing push:
+      'skip'      — --yes given. ALLOWED here: standing is instructor-computed,
+                    value-only (the 'your grade' column), NOT AI-drafted feedback,
+                    so there's no AI judgment for a human to review — the safe side
+                    of HG-5. --yes captures the instructor's consent to the preview.
+      'prompt'    — interactive terminal: ask the human to type 'push'.
+      'needs-yes' — non-interactive AND no --yes: an agent can't type at a prompt,
+                    and our audience (non-technical faculty) won't open a terminal.
+                    Guide the agent to re-run with --yes once the instructor has
+                    reviewed the preview and consents — do NOT send anyone to a
+                    terminal to copy-paste.
+    """
+    if yes:
+        return "skip"
+    return "prompt" if is_tty else "needs-yes"
 
 _TIMEOUT = 30
 _KEY_COLS = ("user_id", "canvas_user_id", "id", "sis_user_id", "sis_id",
@@ -233,7 +250,10 @@ def main() -> int:
                     help="proceed despite big-drop warnings (out-of-bounds still aborts)")
     ap.add_argument("--push", action="store_true", help="actually write (else dry-run)")
     ap.add_argument("--yes", action="store_true",
-                    help="skip the typed confirmation — for automated weekly runs")
+                    help="post without the interactive prompt. Allowed here (standing "
+                         "is value-only, instructor-computed — not AI-drafted): use for "
+                         "automated runs OR once the instructor has reviewed the "
+                         "preview and consents. NO terminal needed.")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="bypass canvas_course_guard for your own enrolled course")
     ap.add_argument("--post", action="store_true",
@@ -308,9 +328,23 @@ def main() -> int:
     if guard_enforce:
         guard_enforce(base, headers, cid, mode="write", allow_override=args.allow_enrolled)
 
-    if not args.yes:
+    decision = standing_push_decision(args.yes, sys.stdin.isatty())
+    if decision == "needs-yes":
+        print(f"\nThis would write {len(writes)} standing grade(s) to the LIVE course {cid}.")
+        print(
+            "\nⓘ Non-interactive run. grader_standing posts INSTRUCTOR-computed, "
+            "value-only grades (the 'your grade' column) — not AI-drafted feedback — "
+            "so --yes IS allowed here (unlike grader_push). If the instructor has "
+            "reviewed the preview above and consents, re-run with --yes to post. Do "
+            "NOT send them to a terminal to type 'push' — our audience is non-technical "
+            "faculty; complete the post for them once they confirm.",
+            file=sys.stderr,
+        )
+        print("Aborted — re-run with --yes once the instructor confirms the preview.")
+        return 1
+    if decision == "prompt":
         print(f"\nThis writes {len(writes)} standing grade(s) to the LIVE course {cid}.")
-        if not require_typed_confirmation("Type 'push' to confirm: ", "push"):
+        if input("Type 'push' to confirm: ").strip().lower() != "push":
             print("Aborted.")
             return 1
 

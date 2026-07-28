@@ -129,6 +129,15 @@ Verify; on a defect, fix it, verify with real data, then add an automated guard.
 Dependencies (`markdownify`, etc.) live in the uv venv; system `python3`/`pytest`
 reports false failures from missing modules.
 
+**Audience = non-technical faculty.** Complete actions *for* them; never hand an
+instructor a terminal command to copy-paste, `cd` into, or type a confirmation at.
+If a tool refuses non-interactive input, that's a signal to find the sanctioned
+non-interactive path (e.g. grader_standing's `--yes` for value-only pushes) or to
+surface a plain-language choice — not to send a non-technical user to a terminal.
+The exception is a genuine human-review gate on **AI-drafted** grades (grader_push
+HG-5), where the instructor's terminal confirmation is the point; there, do the
+review together in chat and hand off only that final confirmation.
+
 Project-specific rules (detail: [`lib/agents/knowledge/working_style_canvas_toolbox.md`](lib/agents/knowledge/working_style_canvas_toolbox.md)):
 local files are the source of truth (Canvas is the sync target); ground pedagogical
 work in the knowledge base; match Canvas objects by title, not ID; keep institutional
