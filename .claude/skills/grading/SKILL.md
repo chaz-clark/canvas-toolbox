@@ -90,8 +90,17 @@ script produces the values (from the gradebook — `grader_fetch_gradebook.py` m
 it locally, de-identified and cached, as that upstream input); the tool pushes them,
 dry-run by default, with strict
 guards (unmatched/ambiguous key → hard fail; out-of-bounds → abort; big drop →
-abort unless `--allow-swings`). `--yes` is allowed (deterministic, value-only) so
-the weekly run can automate.
+abort unless `--allow-swings`).
+
+**Confirming a standing push — use `--yes`, NOT a terminal.** Because standing is
+value-only and instructor-computed (no AI-drafted feedback to review), `--yes` is
+**allowed** here — the safe side of HG-5, unlike grader_push. The right flow: run the
+dry-run, **show the instructor the `old → new` preview**, and when they confirm
+(e.g. they say "push"), **re-run with `--yes` yourself**. Do **not** tell the
+instructor to open a terminal and type `push` — our audience is non-technical
+faculty; that's a dead end. Their confirmation of the preview *is* the attestation;
+`--yes` captures it. (You still never generate the grades yourself and `--yes` them —
+the values come from the instructor's script/CSV.)
 
 ```
 grader_standing.py --csv standing.csv --assignment-id <id>                    # dry-run diff

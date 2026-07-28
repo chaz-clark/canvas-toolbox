@@ -16,7 +16,26 @@ from grader_standing import (  # noqa: E402
     _pick_column,
     load_standing_rows,
     plan_writes,
+    standing_push_decision,
 )
+
+
+# --- standing_push_decision: --yes is the sanctioned path (value-only), and a
+# non-interactive agent run must be guided to it, NOT dead-ended at a terminal ----
+
+def test_standing_push_decision_yes_always_skips():
+    assert standing_push_decision(yes=True, is_tty=False) == "skip"
+    assert standing_push_decision(yes=True, is_tty=True) == "skip"
+
+
+def test_standing_push_decision_interactive_prompts():
+    assert standing_push_decision(yes=False, is_tty=True) == "prompt"
+
+
+def test_standing_push_decision_agent_run_guided_to_yes_not_terminal():
+    """The bug: an agent hit the non-TTY prompt and told non-technical faculty to
+    open a terminal. It must instead be guided to --yes (allowed for value-only)."""
+    assert standing_push_decision(yes=False, is_tty=False) == "needs-yes"
 
 
 # --- _pick_column: auto-detect, override, case-insensitivity ---------------
