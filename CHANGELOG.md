@@ -12,6 +12,14 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.3] — 2026-07-28
+
+**Windows fix: `cb_update`'s copy-fallback skills now refresh on re-run instead of freezing stale.**
+
+On Windows without symlink permission, `cb_update` copies the skills into the course root (fallback). But a copy is a real directory, so the *next* run mistook it for a course-owned skill and skipped it — meaning Windows consumers' skills would freeze at first-copy and go stale after every `git pull`. Now a copy is marked (`.cb_managed`), so re-runs refresh it while still never touching a genuinely course-owned skill. Its tests were also made OS-agnostic (relpath separator; symlink-or-copy outcome) so they hold on Windows, not just posix — which is how the bug was found.
+
+---
+
 ## [1.8.2] — 2026-07-28
 
 **`grader_standing` no longer dead-ends non-technical faculty at a terminal — it guides the agent to `--yes`.**

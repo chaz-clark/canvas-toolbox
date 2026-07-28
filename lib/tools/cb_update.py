@@ -63,36 +63,48 @@ def plan_skill_symlinks(course_root: Path, toolkit_subdir: str,
     return out
 
 
+_MARKER = ".cb_managed"  # dropped in a Windows copy so re-runs know it's ours to refresh
+
+
+def _managed_copy(link: Path) -> bool:
+    """True if `link` is a real dir we previously copied (Windows symlink fallback) —
+    so a re-run REFRESHES it instead of mistaking it for a course-owned skill."""
+    return link.is_dir() and not link.is_symlink() and (link / _MARKER).is_file()
+
+
 def install_skill_symlinks(plan: list[tuple[Path, str]], apply: bool) -> list[tuple[str, str]]:
-    """Create/refresh each skill symlink. Never clobbers a course-owned real dir.
-    Returns [(skill, status)] where status ∈ present/would-link/linked/copied/
-    skip-course-owns."""
+    """Create/refresh each skill link. Never clobbers a course-OWNED real dir (one
+    without our marker). Returns [(skill, status)] where status ∈ present/
+    would-install/linked/copied/skip-course-owns/missing-target."""
     results = []
     for link, rel in plan:
         name = link.name
-        if link.is_symlink():
-            if os.readlink(link) == rel:
-                results.append((name, "present"))
-                continue          # already correct
-        elif link.exists():
-            results.append((name, "skip-course-owns"))  # a real dir/file — don't touch
+        if link.is_symlink() and os.readlink(link) == rel:
+            results.append((name, "present"))
+            continue                                   # correct symlink — done
+        if link.exists() and not link.is_symlink() and not _managed_copy(link):
+            results.append((name, "skip-course-owns"))  # real dir, no marker — theirs
             continue
+        # absent, a stale/wrong symlink, or OUR prior copy → (re)install
         if not apply:
-            results.append((name, "would-link"))
+            results.append((name, "would-install"))
             continue
         link.parent.mkdir(parents=True, exist_ok=True)
+        if link.is_symlink() or (link.exists() and not link.is_dir()):
+            link.unlink()
+        elif link.is_dir():
+            shutil.rmtree(link, ignore_errors=True)   # our stale copy
         try:
-            if link.is_symlink() or link.exists():
-                link.unlink()
             link.symlink_to(rel)
             results.append((name, "linked"))
         except OSError:
-            # Windows / no-symlink-permission fallback: copy the skill dir.
+            # Windows / no-symlink-permission fallback: copy + mark it ours.
             target = (link.parent / rel).resolve()
-            if link.exists():
-                shutil.rmtree(link, ignore_errors=True)
             if target.is_dir():
                 shutil.copytree(target, link)
+                (link / _MARKER).write_text(
+                    "Managed by cb_update (Windows copy fallback); refreshed on re-run.\n",
+                    encoding="utf-8")
                 results.append((name, "copied"))
             else:
                 results.append((name, "missing-target"))

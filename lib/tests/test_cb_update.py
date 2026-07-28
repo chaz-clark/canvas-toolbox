@@ -4,6 +4,7 @@ The field audit found the 6 operating-mode skills active in 0/9 consumer repos a
 stale pointer in 6/9. These pin the two fixes: install skills at the course root
 (non-clobbering) and refresh the pointer in place.
 """
+import os
 import sys
 from pathlib import Path
 
@@ -32,28 +33,61 @@ def test_plan_targets_are_relative_and_point_into_the_toolkit():
     plan = plan_skill_symlinks(Path("/course"), "canvas-toolbox", ["grading"])
     link, rel = plan[0]
     assert link == Path("/course/.claude/skills/grading")
-    # from <course>/.claude/skills/ up to <course>/ then into the toolkit
-    assert rel == "../../canvas-toolbox/.claude/skills/grading"
+    # from <course>/.claude/skills/ up to <course>/ then into the toolkit.
+    # Normalize the separator so this holds on Windows (relpath yields '\\').
+    assert rel.replace(os.sep, "/") == "../../canvas-toolbox/.claude/skills/grading"
 
 
 def test_install_dry_run_writes_nothing(tmp_path):
     course = _fake_course(tmp_path)
     plan = plan_skill_symlinks(course, "canvas-toolbox", ["grading"])
     res = install_skill_symlinks(plan, apply=False)
-    assert res == [("grading", "would-link")]
+    assert res == [("grading", "would-install")]
     assert not (course / ".claude" / "skills" / "grading").exists()
 
 
-def test_install_creates_symlink_that_resolves_to_the_toolkit_skill(tmp_path):
+def test_windows_copy_fallback_is_marked_and_refreshed(tmp_path, monkeypatch):
+    """No-symlink environment (Windows w/o dev mode): fall back to a COPY, mark it
+    ours, and REFRESH it on re-run — the bug was a re-run mistaking the copy for a
+    course-owned skill and freezing it stale after every git pull."""
     course = _fake_course(tmp_path)
     plan = plan_skill_symlinks(course, "canvas-toolbox", ["grading"])
-    res = install_skill_symlinks(plan, apply=True)
-    assert res == [("grading", "linked")]
+    monkeypatch.setattr(Path, "symlink_to",
+                        lambda self, target: (_ for _ in ()).throw(OSError("no symlink")))
+    assert install_skill_symlinks(plan, apply=True) == [("grading", "copied")]
     link = course / ".claude" / "skills" / "grading"
-    assert link.is_symlink()
+    assert link.is_dir() and not link.is_symlink()
+    assert (link / "SKILL.md").exists()          # copied content present
+    assert (link / ".cb_managed").is_file()       # marked as ours
+    # re-run REFRESHES the copy (does NOT skip it as course-owned)
+    assert install_skill_symlinks(plan, apply=True) == [("grading", "copied")]
+
+
+def test_course_owned_dir_without_marker_is_never_touched(tmp_path, monkeypatch):
+    """A real skill dir the course made (no marker) is left alone even in the
+    no-symlink path — we only refresh copies WE made."""
+    course = _fake_course(tmp_path)
+    owned = course / ".claude" / "skills" / "grading"
+    owned.mkdir(parents=True)
+    (owned / "SKILL.md").write_text("course's own\n", encoding="utf-8")  # no .cb_managed
+    monkeypatch.setattr(Path, "symlink_to",
+                        lambda self, target: (_ for _ in ()).throw(OSError("no symlink")))
+    plan = plan_skill_symlinks(course, "canvas-toolbox", ["grading"])
+    assert install_skill_symlinks(plan, apply=True) == [("grading", "skip-course-owns")]
+    assert (owned / "SKILL.md").read_text(encoding="utf-8") == "course's own\n"
+
+
+def test_install_makes_the_skill_resolvable_and_stable(tmp_path):
+    """OS-agnostic guarantee: after install the skill is readable at the course root
+    (symlink where supported, copy on Windows), and a re-run is stable."""
+    course = _fake_course(tmp_path)
+    plan = plan_skill_symlinks(course, "canvas-toolbox", ["grading"])
+    status = install_skill_symlinks(plan, apply=True)[0][1]
+    assert status in ("linked", "copied")     # symlink on posix, copy fallback on Windows
+    link = course / ".claude" / "skills" / "grading"
     assert (link / "SKILL.md").read_text(encoding="utf-8").startswith("---")  # resolves
-    # re-run is idempotent
-    assert install_skill_symlinks(plan, apply=True) == [("grading", "present")]
+    # re-run is stable: a correct symlink → 'present'; a copy → refreshed
+    assert install_skill_symlinks(plan, apply=True)[0][1] in ("present", "copied")
 
 
 def test_install_never_clobbers_a_course_owned_skill(tmp_path):
