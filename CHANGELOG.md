@@ -12,6 +12,16 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.5] — 2026-07-28
+
+**Shift-left: catch an illegal grade at `.review.csv` creation, not at push (field-proposed).**
+
+`grader_push` validates a score against the assignment's `grading_type` (#99) — so `incomplete` on a `points` assignment is correctly refused. But that check only fired at *push* time; the bad value sailed all the way into `.review.csv` first, making it unclear where it came from. A course agent proposed catching it earlier, in `grader_reidentify`. The instinct was right; the placement needed care, because `grader_reidentify` is a pure *offline* join and can't call Canvas for the grading_type.
+
+The fix respects that: `grader_fetch` now caches the assignment's grading rules to `.assignment_meta.json` (grading_type, points_possible, name — **no student data, so Zone-1**), and `grader_reidentify` validates each summary score against it **offline**, erroring early with a clear per-key message (`KC1-A: 'incomplete' — not a legal grade for grading_type=points`) before writing `.review.csv`. It reuses grader_push's `validate_grade_for_grading_type` so the two tools never disagree, and it no-ops safely when the cache is absent (push stays the backstop).
+
+---
+
 ## [1.8.4] — 2026-07-28
 
 **New `grader_letter_comments.py` — the sanctioned End-Letter comment push, so final-letter grading no longer needs a hand-written `fix_push.py`.**

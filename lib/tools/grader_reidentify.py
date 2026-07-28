@@ -55,6 +55,30 @@ try:
 except ImportError:
     __version__ = "0.0.0+unknown"
 
+try:
+    # Reuse grader_push's validator so the two tools never disagree on what's legal.
+    from grader_push import validate_grade_for_grading_type
+except ImportError:
+    validate_grade_for_grading_type = None
+
+
+def validate_summary_scores(scores: dict, grading_type) -> list:
+    """Return [(key, score, reason)] for summary scores that are INVALID for the
+    assignment's grading_type — the shift-left catch. Sentinels (held/blank/
+    parenthesized note) and an unknown/absent grading_type pass; this only flags a
+    genuinely-illegal value, e.g. 'incomplete' on a `points` assignment."""
+    if not validate_grade_for_grading_type or not grading_type:
+        return []
+    bad = []
+    for key, row in scores.items():
+        score = (row.get("score") or "").strip()
+        if not score:
+            continue
+        status, text = validate_grade_for_grading_type(score, grading_type)
+        if status == "invalid":
+            bad.append((key, score, text))
+    return bad
+
 
 # Issue #100: filename → user_id parser. Matches the same shape that
 # grader_fetch writes to submissions_raw/: <prefix>_<uid>(_<suffix>)?.<ext>.
@@ -209,6 +233,24 @@ def main() -> int:
     with summary.open(encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
             scores[row.get("key", "")] = row
+
+    # Shift-left validation: a score illegal for the grading_type (e.g. 'incomplete'
+    # on a `points` assignment) used to sail into .review.csv and only fail at push.
+    # If grader_fetch cached the grading rules (.assignment_meta.json — Zone-1, no
+    # names), catch it HERE — before the review sheet is written.
+    meta_path = base / ".assignment_meta.json"
+    if meta_path.exists():
+        try:
+            gt = json.loads(meta_path.read_text(encoding="utf-8")).get("grading_type")
+        except (OSError, ValueError):
+            gt = None
+        bad = validate_summary_scores(scores, gt)
+        if bad:
+            print(f"⛔ {len(bad)} score(s) invalid for grading_type={gt!r} — fix "
+                  f"{args.summary} before re-running (nothing written):", file=sys.stderr)
+            for key, score, reason in bad:
+                print(f"     {key}: {score!r} — {reason}", file=sys.stderr)
+            return 1
 
     fbdir = base / "feedback"
     rows = []
