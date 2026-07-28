@@ -113,6 +113,17 @@ grader_standing.py --csv standing.csv --assignment-id <id> --push --yes --allow-
   `.review.csv`, `submissions_raw/`, `feedback/_grader*.csv`) are **never** read or
   displayed. Verify with `wc -l` / `ls`, never `cat`/`head`/`grep`.
 
+## Known case: an auto-scored quiz stuck in "To Do"
+
+A classic quiz with an essay/file-upload question auto-scores on submission
+(`workflow_state: graded`) but stays in the instructor's To-Do because the manual
+question is `pending_review`. **Do NOT reach for grader_push** — `regrade_gate`
+correctly refuses (it's already graded; this isn't a grade push), and stacking
+`--force`/`--regrade` is the wrong move. If that manual question is worth **0 points**,
+use `grader_quiz_clear_pending.py`: it posts a 0 to the 0-point manual question to
+clear the flag — and it *can't change a grade* because it only ever touches 0-point
+questions. If the pending question is worth points, that's real grading → SpeedGrader.
+
 ## Quick command map
 
 | Ask | Command |
@@ -124,6 +135,7 @@ grader_standing.py --csv standing.csv --assignment-id <id> --push --yes --allow-
 | Update the "your grade" column | `grader_standing.py --csv <f> --assignment-id <id> --push` |
 | Rebuild the de-id master | `build_deid_master.py --force` |
 | Mirror the live gradebook locally (feeds standing/reconcile) | `grader_fetch_gradebook.py` |
+| Clear an auto-scored quiz stuck on a 0-point manual question | `grader_quiz_clear_pending.py --assignment-id <id> --apply` |
 
 Full grading knowledge: [`lib/agents/knowledge/grader_hybrid_architecture.md`](../../../lib/agents/knowledge/grader_hybrid_architecture.md)
 and [`lib/agents/knowledge/toolkit_reuse_knowledge.md`](../../../lib/agents/knowledge/toolkit_reuse_knowledge.md).

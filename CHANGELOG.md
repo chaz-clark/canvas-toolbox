@@ -12,6 +12,16 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.42] — 2026-07-28
+
+**New `grader_quiz_clear_pending.py` — clear an auto-scored quiz stuck in "To Do" on a 0-point manual question.**
+
+A classic quiz with an essay/file-upload question auto-scores on submission (`workflow_state: graded`) but lingers in the instructor's To-Do because the manual question is `pending_review`. `grader_push` can't help (regrade_gate correctly refuses an already-graded submission), and `grader_audit_workflow` deliberately won't touch a moderation queue. When that question is worth **0 points**, this tool posts a 0 to it — marking it graded and clearing the flag.
+
+**It can never change a grade:** the hard invariant is that it only ever posts to a *manual* question worth *0 points*. Anything worth points is real grading and is refused (→ SpeedGrader). Dry-run by default; `--apply` writes; `canvas_course_guard` gates the live-course write. Classic quizzes only (New Quizzes can't be graded via this API). The `grading` skill now documents the case so agents stop stacking `--force`/`--regrade` at grader_push for it.
+
+---
+
 ## [1.7.41] — 2026-07-28
 
 **New `grader_fetch_gradebook.py` — mirror the live Canvas gradebook locally, de-identified and cached.**
