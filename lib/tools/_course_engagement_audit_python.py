@@ -18,6 +18,7 @@ See docs/proposals/rust-high-priority-roadmap.md for details.
 """
 from __future__ import annotations
 
+import re
 import sys
 from typing import Any
 
@@ -32,75 +33,56 @@ except ImportError:
 _TIMEOUT = 30
 
 
+def _paged_get(base: str, headers: dict, path: str, params: dict,
+               tolerate_errors: bool = False) -> list:
+    """GET a Canvas collection, following the `Link: rel="next"` header instead of
+    blindly incrementing `page`. Several endpoints — including
+    `/students/submissions?student_ids[]` — return HTTP 400 (NOT an empty page) when
+    asked for a page past the last. Blind `page += 1` therefore hit page 2 on a
+    single-page result, got a 400, and crashed the fetch — so EVERY student looked
+    'never participated' even with grades (issue #67). `tolerate_errors` lets a
+    first-request 4xx return [] (some discussion topics 404)."""
+    out: list = []
+    url: str | None = f"{base}{path}"
+    p: dict | None = {**params, "per_page": 100}
+    while url:
+        r = requests.get(url, headers=headers,
+                         params=p if "?" not in url else None, timeout=_TIMEOUT)
+        if tolerate_errors and r.status_code >= 400:
+            break
+        r.raise_for_status()
+        out += r.json() or []
+        m = re.search(r'<([^>]+)>;\s*rel="next"', r.headers.get("Link", ""))
+        url = m.group(1) if m else None
+        p = None
+    return out
+
+
 def fetch_student_submissions(
     base: str, cid: str, headers: dict, user_id: int | str,
 ) -> list[dict]:
-    """All assignment + quiz submissions for one student."""
-    out: list[dict] = []
-    page = 1
-    while True:
-        r = requests.get(
-            f"{base}/api/v1/courses/{cid}/students/submissions",
-            headers=headers,
-            params={
-                "student_ids[]": str(user_id),
-                "per_page": 100,
-                "page": page,
-            },
-            timeout=_TIMEOUT,
-        )
-        r.raise_for_status()
-        batch = r.json() or []
-        if not batch:
-            break
-        out += batch
-        page += 1
-    return out
+    """All assignment + quiz submissions for one student (Link-paginated, #67)."""
+    return _paged_get(base, headers, f"/api/v1/courses/{cid}/students/submissions",
+                      {"student_ids[]": str(user_id)})
 
 
 def fetch_discussion_entries(
     base: str, cid: str, headers: dict, user_id: int | str,
 ) -> list[str]:
-    """ISO timestamps of all discussion entries by one student."""
-    timestamps: list[str] = []
-    # Get topic IDs
-    page = 1
-    topic_ids: list[str] = []
-    while True:
-        r = requests.get(
-            f"{base}/api/v1/courses/{cid}/discussion_topics",
-            headers=headers,
-            params={"per_page": 100, "page": page},
-            timeout=_TIMEOUT,
-        )
-        r.raise_for_status()
-        batch = r.json() or []
-        if not batch:
-            break
-        topic_ids += [str(t.get("id")) for t in batch if t.get("id")]
-        page += 1
+    """ISO timestamps of all discussion entries by one student (Link-paginated)."""
+    topics = _paged_get(base, headers, f"/api/v1/courses/{cid}/discussion_topics", {})
     uid_str = str(user_id)
-    for tid in topic_ids:
-        entry_page = 1
-        while True:
-            r = requests.get(
-                f"{base}/api/v1/courses/{cid}/discussion_topics/{tid}/entries",
-                headers=headers,
-                params={"per_page": 100, "page": entry_page},
-                timeout=_TIMEOUT,
-            )
-            if r.status_code >= 400:
-                break  # some topics return 404; skip silently
-            batch = r.json() or []
-            if not batch:
-                break
-            for entry in batch:
-                if str(entry.get("user_id")) == uid_str:
-                    for k in ("updated_at", "created_at"):
-                        v = entry.get(k)
-                        if v:
-                            timestamps.append(v)
-            entry_page += 1
+    timestamps: list[str] = []
+    for tid in (str(t.get("id")) for t in topics if t.get("id")):
+        entries = _paged_get(
+            base, headers, f"/api/v1/courses/{cid}/discussion_topics/{tid}/entries",
+            {}, tolerate_errors=True)  # some topics 404 — skip
+        for entry in entries:
+            if str(entry.get("user_id")) == uid_str:
+                for k in ("updated_at", "created_at"):
+                    v = entry.get(k)
+                    if v:
+                        timestamps.append(v)
     return timestamps
 
 
