@@ -12,6 +12,19 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.7] — 2026-07-28
+
+**`course_engagement_audit`: the report is now a focused, failing-students-only Title IV list with clear UW-never / UW-before / F-After classes.**
+
+Reworked to match how the report is actually used (guided by a real field example):
+
+- **Only flagged students appear.** A **passing**, engaged student is excluded; so is anyone **formally dropped** (deleted/rejected enrollment — the fetch already omits them). **Inactive/concluded** enrollments ARE included (they may be unofficial withdrawals not yet processed) and now carry an **Enrollment** column so the reviewer sees who isn't currently active — this replaces the separate INACTIVE_ENROLLMENT section from 1.7.37.
+- **Three clear classes** (`title_iv_class`), grouped into their own report sections: **UW-never** (never participated → return 100%), **UW-before** (failing, stopped before the cutoff → R2T4 by last date), **F-After** (failing, engaged past the cutoff → completer-F, no R2T4). Each section is a name/user-id/last-engagement/score/enrollment table.
+
+Note this reverses two earlier calls at the maintainer's direction: passing students are now excluded (they weren't before), and inactive students are classified inline rather than parked in a review-only bucket.
+
+---
+
 ## [1.8.6] — 2026-07-28
 
 **Fix: the engagement audit's per-student submission fetch made every student look "never participated."**
