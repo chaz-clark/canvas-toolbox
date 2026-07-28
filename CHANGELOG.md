@@ -12,6 +12,21 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.43] — 2026-07-28
+
+**New `cb_update.py` (the "cb re-init") — bring an old course-repo init current, and heal the stale pointer the constitution rewrite left behind.**
+
+A field audit of 9 consumer repos found the six operating-mode skills active in **0 of 9** (Claude Code only discovers skills at the *course* root, not the vendored subdir) and a stale grading-protocol pointer — to a heading the 1.7.40 constitution rewrite renamed — in **6 of 9**. A `git pull` can't fix either: it refreshes the vendored toolkit, not the consumer's own files. (The audit's good news: **0 of 9** had any tracked FERPA/toolkit leak — the two-zone gitignore discipline holds in the field.)
+
+`cb_update` closes the gap idempotently and non-destructively, run from a course root:
+- **Skills:** symlinks `<course-root>/.claude/skills/<skill>` → the vendored `canvas-toolbox/.claude/skills/<skill>`, so Claude Code activates them *and* they auto-track future `git pull`s (a symlink, not a drifting copy). A course's own same-named skill is never clobbered; Windows falls back to a copy.
+- **Pointer:** `sync_grading_protocol`'s injected block now points at the constitution + skills index (not the renamed heading), and injection is **self-healing** — a stale marker block is refreshed in place, surrounding course content untouched.
+- **Version:** reports the vendored version and nudges `git pull`.
+
+Dry-run by default; `--apply` writes.
+
+---
+
 ## [1.7.42] — 2026-07-28
 
 **New `grader_quiz_clear_pending.py` — clear an auto-scored quiz stuck in "To Do" on a 0-point manual question.**
