@@ -56,6 +56,16 @@ def test_refreshes_a_stale_marker_block_in_place():
     assert "## Course stuff" in new                    # course content untouched
 
 
+def test_pointer_routes_update_phrases_to_the_one_command():
+    """Agents kept improvising `cd` + git pull into the wrong repo. The pointer must
+    route the common phrasings to the single cb_update --pull command."""
+    for phrase in ("update cb", "git pull cb", "update canvas-toolbox",
+                   "refresh cb", "upgrade canvas-toolbox", "get the latest cb"):
+        assert phrase in POINTER_BLOCK, phrase
+    assert "cb_update.py --pull --apply" in POINTER_BLOCK
+    assert "do" in POINTER_BLOCK.lower() and "git pull" in POINTER_BLOCK  # the anti-pattern warning
+
+
 def test_prepends_when_no_title():
     text = "just some notes, no heading\n"
     new, changed = inject_grading_pointer(text)
