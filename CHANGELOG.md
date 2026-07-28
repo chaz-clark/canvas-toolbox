@@ -12,6 +12,18 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.7.39] — 2026-07-28
+
+**`build_deid_master` now dedups by user_id — a multi-section student no longer produces duplicate rows in `.deid_master.csv`.**
+
+The de-id master's contract is *one row per student*, but it built one row per record from Canvas `/courses/:id/users`, which returns a student **once per section**. So a student in two sections (S1 + S2 — a common shape) got **duplicate user_id rows**, which silently breaks downstream identity joins. `detect_collisions` couldn't catch it — it flags *different* user_ids sharing a code, the opposite case.
+
+Now `dedupe_users` collapses duplicates to one entry per user_id, **merging their enrollments** so `withdrawn` stays correct (active in any section wins), and logs how many were collapsed.
+
+Not a bug in re-identification: `grader_reidentify.py` was already keyed and duplicate-aware (`user_id → [keys]`), so mapping identities by *key* — never by sort order — remains the correct path for per-submission data where one student legitimately has many keys.
+
+---
+
 ## [1.7.38] — 2026-07-27
 
 **A disclosure-tag menu — say honestly what graded the work vs what wrote the comment.**

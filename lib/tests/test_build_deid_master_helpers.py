@@ -19,12 +19,56 @@ if str(_TOOLS_DIR) not in sys.path:
 from build_deid_master import (  # noqa: E402
     StudentRow,
     deid_code_for,
+    dedupe_users,
     detect_collisions,
     is_withdrawn,
     render_csv_rows,
     render_known_names_lines,
     student_to_row,
 )
+
+
+# ---------------------------------------------------------------------------
+# dedupe_users — one row per student even when Canvas returns a multi-section
+# student more than once (the .deid_master duplicate-user_id bug)
+# ---------------------------------------------------------------------------
+
+def test_dedupe_users_collapses_multi_section_student():
+    """A student in two sections is returned twice by /users → must become ONE
+    entry, else .deid_master.csv gets duplicate user_id rows."""
+    users = [
+        {"id": 1, "sortable_name": "A, A", "enrollments": [{"enrollment_state": "active"}]},
+        {"id": 1, "sortable_name": "A, A", "enrollments": [{"enrollment_state": "active"}]},
+        {"id": 2, "sortable_name": "B, B", "enrollments": [{"enrollment_state": "active"}]},
+    ]
+    unique, collapsed = dedupe_users(users)
+    assert collapsed == 1
+    assert sorted(int(u["id"]) for u in unique) == [1, 2]
+
+
+def test_dedupe_users_merges_enrollments_so_active_wins():
+    """Merged enrollments must let is_withdrawn see BOTH states — active in one
+    section overrides inactive in another (student is NOT withdrawn)."""
+    users = [
+        {"id": 5, "sortable_name": "C, C", "enrollments": [{"enrollment_state": "inactive"}]},
+        {"id": 5, "sortable_name": "C, C", "enrollments": [{"enrollment_state": "active"}]},
+    ]
+    unique, _ = dedupe_users(users)
+    assert len(unique) == 1
+    row = student_to_row(unique[0], "S-", 6)
+    assert row.withdrawn == 0  # active section wins → not withdrawn
+
+
+def test_dedupe_users_no_duplicates_is_a_noop():
+    users = [{"id": 1, "enrollments": []}, {"id": 2, "enrollments": []}]
+    unique, collapsed = dedupe_users(users)
+    assert collapsed == 0 and len(unique) == 2
+
+
+def test_dedupe_users_skips_record_with_bad_id():
+    users = [{"id": 1, "enrollments": []}, {"sortable_name": "no id"}, {"id": "x"}]
+    unique, _ = dedupe_users(users)
+    assert [int(u["id"]) for u in unique] == [1]
 
 
 # ---------------------------------------------------------------------------

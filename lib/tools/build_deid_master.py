@@ -149,6 +149,33 @@ def student_to_row(user: dict, prefix: str, hash_bits: int) -> StudentRow:
     )
 
 
+def dedupe_users(users: list[dict]) -> tuple[list[dict], int]:
+    """Collapse users Canvas returns more than once. `/courses/:id/users` yields a
+    student once PER SECTION, so a multi-section student (e.g. S1 + S2) comes back
+    twice. Keep one entry per user_id and MERGE their enrollments so is_withdrawn
+    sees every state (active in any section wins). Returns (unique, n_collapsed).
+
+    Without this, a multi-section student gets DUPLICATE rows in .deid_master.csv —
+    duplicate user_ids that silently break downstream identity joins, since the
+    master's contract is ONE row per student. detect_collisions can't catch it: it
+    flags DIFFERENT user_ids sharing a code, not the same user_id appearing twice.
+    """
+    by_uid: dict[int, dict] = {}
+    collapsed = 0
+    for u in users:
+        try:
+            uid = int(u["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if uid in by_uid:
+            by_uid[uid]["enrollments"] = (
+                (by_uid[uid].get("enrollments") or []) + (u.get("enrollments") or []))
+            collapsed += 1
+        else:
+            by_uid[uid] = {**u, "enrollments": list(u.get("enrollments") or [])}
+    return list(by_uid.values()), collapsed
+
+
 def detect_collisions(rows: list[StudentRow]) -> list[tuple[str, list[int]]]:
     """Return [(deid_code, [user_id, user_id, ...])] for every code that
     appears more than once. Empty list = no collisions.
@@ -302,6 +329,10 @@ def main() -> int:
     print(f"Fetching all students (active + invited + inactive + completed)...")
     users = fetch_all_students(base_url, course_id, token)
     print(f"  {len(users)} student records returned")
+    users, collapsed = dedupe_users(users)
+    if collapsed:
+        print(f"  collapsed {collapsed} duplicate record(s) from multi-section "
+              f"enrollments → {len(users)} unique students (one row per student)")
 
     rows = [student_to_row(u, args.prefix, args.hash_bits) for u in users]
     collisions = detect_collisions(rows)
