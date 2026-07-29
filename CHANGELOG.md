@@ -12,6 +12,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.12.0] — 2026-07-29
+
+**Route the grading path at the right tool: grader_push refuses No-Submission columns and points to grader_standing; the pointer block drops the stale terminal-confirmation wording (#268).**
+
+Two "wrong guidance sends the agent off a cliff" fixes from the field.
+
+- **Submission-type boundary in `grader_push`.** A field agent ran `grader_push --grade-only` on a No-Submission "Your Grade" column, hit the regrade gate, and thrashed toward `--force` and the raw API. grader_push already fetches the assignment; it now reads `submission_types` and, on a No-Submission / on-paper / not-graded column, **refuses up front and points at `grader_standing`** (roster-keyed, no regrade gate) — the right tool for value grades on a standing column. `--comments-only` is still allowed there (comments attach to any submission object). The `grading` skill gains a front-loaded "which push tool?" discriminator so agents route correctly *before* hitting the wall.
+- **Pointer-block grading text updated to the chat-approval model.** The sentinel block injected into course `AGENTS.md` still described the pre-1.9.0 flow — *"`--mark-reviewed` (type `reviewed`) → `--push` (type `push`); `--yes` does not bypass review."* That's wrong since 1.9.0/1.9.1. It now says: `--yes` is honored (no terminal), and `grade_guardian` fires an in-chat pop-up at **both** the review and the push (#264/#265). Existing course repos self-heal the wording on the next `cb_update --apply`.
+
+---
+
 ## [1.11.0] — 2026-07-29
 
 **New `improve` skill: a local continuous-improvement kanban (`IMPROVEMENTS.md`) so course findings are tracked to done, not lost in one-off letters.**
