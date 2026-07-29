@@ -79,6 +79,11 @@ cannot click either for them, and you cannot self-attest.
   grade (`--allow-lower`), and inactive/Test students (#61 — `--include-inactive`). The
   fix is always a flag *on the tool*; a hand-written `requests`/`python -c` write skips
   every safeguard and the guardian blocks it anyway.
+- **Add or FIX comments after grading → `--comments-only`.** To attach feedback to
+  ALREADY-GRADED work (grade now, comment later) or replace a wrong comment, use
+  `--comments-only`: it posts the comment, leaves the grade untouched, bypasses the
+  regrade gate, and *supersedes* the prior grader comment so nothing stacks. Never clear
+  grades to "get past" the gate — that's destructive and re-opens the sync-mismatch bugs.
 - **Disclosure is mandatory** (see the menu below), appended automatically.
 
 **The in-chat review is the gate, not a rubber-stamp.** The failure an

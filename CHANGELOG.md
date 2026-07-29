@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.10.0] — 2026-07-28
+
+**`grader_push --comments-only`: add or fix feedback on already-graded work without touching the grade (#266).**
+
+The `regrade_gate` refuses an already-graded submission (Canvas *appends* comments, so re-runs stack). Correct — but it also blocked a legitimate workflow: **grade now, comment later**, or **replace a wrong comment**. A field session hit this after grading a standing column, and the only "fixes" on offer were destructive (clear the grades and re-push) or manual (Canvas UI).
+
+- **New `--comments-only` mode** (mirror image of `--grade-only`). Posts the comment, **leaves the grade untouched**, bypasses the regrade gate (no re-grade is happening), and reuses the `--regrade` **supersede** machinery — a prior grader comment for the same key is deleted before the fresh one posts, so re-runs never stack. Mutually exclusive with `--grade-only`.
+- **Still fully gated.** `--comments-only --push` posts AI-drafted comments, so it trips the `grade_guardian` review + push pop-ups (#264/#265) exactly like a normal comment push — it is *not* the frictionless value-only path.
+- **Routes at the wall.** The "already graded — SKIPPED" message now names `--comments-only` as the way to add/fix comments without changing grades, so an agent that hits the gate is pointed at the tool instead of hunting override flags or the raw API.
+
+Value-only / `grader_standing` pushes unchanged. *Non-submitters* (students with no submission file) still need a roster-keyed path — that's a fast-follow.
+
+---
+
 ## [1.9.1] — 2026-07-28
 
 **Fix: the chat-approval loosening let an agent skip the review — force the pop-up at the review checkpoint too (#265).**
