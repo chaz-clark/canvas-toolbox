@@ -37,33 +37,38 @@ fresh fetch each run — never read a cached custom CSV whose age you can't see.
 Principle **HG-5** of the [hybrid grading architecture](../../../lib/agents/knowledge/grader_hybrid_architecture.md):
 the agent drafts; the instructor reviews and confirms; only then does anything post.
 
-### The push protocol — you run all of it; the human approves in chat
+### The push protocol — you run all of it; the human clicks to approve, twice
 
-**You are not blocked from pushing.** Run the whole flow yourself — never send the
-instructor to a terminal (that dead-ended non-technical faculty). The human gate is an
-in-chat permission prompt, not a shell keystroke.
+**You are not blocked from pushing** — but you may **not** skip the review. Run the whole
+flow yourself (never send the instructor to a terminal), and the instructor clicks an
+in-chat pop-up at TWO points: to attest the review, and to authorize the push. You
+cannot click either for them, and you cannot self-attest.
 
 1. **Grade** — `grader_fetch.py --challenge-dir grading/<name>` → 3-pass consensus
    (`grader_grade.py --bulk` → `grader_consensus.py`). Single-pass LLM grading
    drifts; consensus is the default.
-2. **Show the review surface in the conversation** — present `feedback/_all_comments.md`
-   + the per-student `<KEY>.md` and the **old→new grade preview** (dry-run) right here in
-   chat. This IS the review. Wait for the instructor to approve in a reply.
-3. **Attest** — after they approve, run
-   `grader_push.py --challenge-dir grading/<name> --mark-reviewed --yes`. The `.reviewed`
-   marker records the attested state (auto-invalidates if a feedback file changes after).
+2. **Show the review surface in the conversation — mandatory, never skip it.** Present
+   `feedback/_all_comments.md` + the per-student `<KEY>.md` and the **old→new grade
+   preview** (dry-run) right here in chat. This IS the review. Do not run
+   `--mark-reviewed` until you have actually shown the comments.
+3. **Attest** — run `grader_push.py --challenge-dir grading/<name> --mark-reviewed --yes`.
+   The `grade_guardian` hook fires a permission **pop-up** — the instructor clicks Allow
+   to attest they reviewed `_all_comments.md` (Deny if you skipped showing it, #265). The
+   `.reviewed` marker records the attested state (auto-invalidates if a file changes).
 4. **Push** — run `grader_push.py --challenge-dir grading/<name> --push --yes`. The
-   `grade_guardian` hook forces a permission **prompt** in the chat; the instructor
-   **clicks allow** — that click is the human gate (#264). No terminal, ever.
+   `grade_guardian` hook fires a **second** pop-up; the instructor **clicks Allow** — that
+   click authorizes the write (#264). No terminal, ever.
 
 ## What the code enforces (so the protocol isn't docs-only)
 
 - **`--yes` is honored on every path — including AI-drafted comments (#264).** You run
   `--mark-reviewed --yes` then `--push --yes`. Do not tell the instructor to open a
   terminal or type `reviewed`/`push` at a shell; do not pipe answers on stdin.
-- **The human gate is the in-chat permission prompt.** On the AI-drafted `--push`,
-  `grade_guardian` returns an `ask` decision, so Claude Code prompts the instructor to
-  approve the write; their click is the attestation that replaced the terminal keystroke.
+- **The human gate is TWO in-chat pop-ups you cannot skip (#264, #265).** On the
+  AI-drafted path, `grade_guardian` returns an `ask` at BOTH `--mark-reviewed` and
+  `--push`, so Claude Code prompts the instructor to click at each. `--yes` does not
+  bypass these — the hook fires above the tool. This is what stops an agent from running
+  `--mark-reviewed --yes` and self-attesting a review the human never saw.
   (Value-only / `grader_standing` pushes don't prompt — the human is the grader there.)
 - **Duplicate-comment Andon.** Canvas *appends* comments, so re-runs stack them.
   Default mode refuses an already-graded submission; `--regrade` admits ONLY

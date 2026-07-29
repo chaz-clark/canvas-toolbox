@@ -15,7 +15,7 @@ if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
 from grade_guardian import (evaluate, ensure_hook, hook_command,  # noqa: E402
-                            _extract_script_paths, ask_reason, _is_ai_drafted_push)
+                            _extract_script_paths, ask_reason, _grader_push_checkpoint)
 
 _BYPASS_BODY = ('import requests\n'
                 'requests.put("https://x.instructure.com/api/v1/courses/1/assignments/2/'
@@ -251,28 +251,39 @@ def test_hook_fails_open_on_garbage_stdin():
     assert r.returncode == 0
 
 
-# --- ASK layer (#264): force an in-chat prompt on the AI-drafted grade push ---
+# --- ASK layer (#264, #265): force an in-chat prompt at BOTH AI-drafted checkpoints ---
 
 def test_asks_on_ai_drafted_push():
     """grader_push --push writing AI-drafted comments → the guardian asks (the human
     review gate moved here now that --yes is honored, so no terminal keystroke)."""
     cmd = "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --push"
-    assert _is_ai_drafted_push(cmd) is True
+    assert _grader_push_checkpoint(cmd) == "push"
+    assert ask_reason("Bash", {"command": cmd}) is not None
+
+
+def test_asks_on_mark_reviewed():
+    """#265: --mark-reviewed must ALSO prompt — else an agent runs `--mark-reviewed
+    --yes` and self-attests review without ever showing the human _all_comments.md."""
+    cmd = "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --mark-reviewed --yes"
+    assert _grader_push_checkpoint(cmd) == "review"
     assert ask_reason("Bash", {"command": cmd}) is not None
 
 
 def test_no_ask_on_dry_run():
-    """No --push (dry-run) is not a write — no prompt."""
+    """No --push / --mark-reviewed (dry-run) is not a checkpoint — no prompt."""
     cmd = "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --assignment-id 5"
+    assert _grader_push_checkpoint(cmd) is None
     assert ask_reason("Bash", {"command": cmd}) is None
 
 
 def test_no_ask_on_value_only_and_test_and_retract():
     """Value-only (--grade-only), test-student (--test-user), and retract (--retract)
-    are not AI-drafted-comment writes — they keep the frictionless --yes path."""
-    base = "python lib/tools/grader_push.py --challenge-dir grading/kc3 --push"
-    for extra in ("--grade-only", "--test-user 1234", "--retract"):
-        assert ask_reason("Bash", {"command": f"{base} {extra}"}) is None, extra
+    are not AI-drafted-comment checkpoints — they keep the frictionless --yes path,
+    at both --push and --mark-reviewed."""
+    for verb in ("--push", "--mark-reviewed"):
+        base = f"python lib/tools/grader_push.py --challenge-dir grading/kc3 {verb}"
+        for extra in ("--grade-only", "--test-user 1234", "--retract"):
+            assert ask_reason("Bash", {"command": f"{base} {extra}"}) is None, f"{verb} {extra}"
 
 
 def test_no_ask_on_non_grader_push_or_other_tools():
@@ -283,10 +294,13 @@ def test_no_ask_on_non_grader_push_or_other_tools():
 def test_hook_emits_ask_json_on_ai_drafted_push():
     """End-to-end: the real hook prints permissionDecision 'ask' (exit 0) so Claude
     Code prompts the instructor — the in-chat attestation that replaced the terminal."""
-    r = _run_hook({"tool_name": "Bash", "tool_input": {"command":
-        "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --push"}})
-    assert r.returncode == 0
-    out = json.loads(r.stdout)
-    assert out["hookSpecificOutput"]["permissionDecision"] == "ask"
-    assert out["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
-    assert out["hookSpecificOutput"]["permissionDecisionReason"]
+    for cmd in (
+        "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --push",
+        "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --mark-reviewed --yes",
+    ):
+        r = _run_hook({"tool_name": "Bash", "tool_input": {"command": cmd}})
+        assert r.returncode == 0, cmd
+        out = json.loads(r.stdout)
+        assert out["hookSpecificOutput"]["permissionDecision"] == "ask", cmd
+        assert out["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
+        assert out["hookSpecificOutput"]["permissionDecisionReason"]
