@@ -12,6 +12,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.13.0] — 2026-07-29
+
+**`grader_push --roster-csv`: comment on non-submitters (a 0 / no-submission student) by user_id (#269).**
+
+The file-keyed push builds its set from submission files, so a student who never submitted has no `.review.csv` row and is unreachable — but instructors still need to leave them feedback. In Canvas, a non-submitter's submission object exists (empty, `unsubmitted`) and *does* accept a comment; you just have to address them by user_id instead of a file.
+
+- **New `--roster-csv <path>`** — a CSV with a `user_id` column plus a `comment` (inline) or `comment_file` (path) column. Posts **comment-only** straight to `/submissions/<user_id>`, reaching non-submitters. Grade untouched; disclosure tag applied (pass `--disclosure script` for an instructor-written note); **still gated by the `grade_guardian` pop-up** (it's a comment push with `--push`). Idempotent — a user already in the push log is skipped unless `--force`, so re-runs don't stack a second comment.
+- Pure loader `load_roster_comments` (unit-tested); the `grading` skill documents the non-submitter path.
+
+---
+
 ## [1.12.0] — 2026-07-29
 
 **Route the grading path at the right tool: grader_push refuses No-Submission columns and points to grader_standing; the pointer block drops the stale terminal-confirmation wording (#268).**

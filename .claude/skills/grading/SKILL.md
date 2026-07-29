@@ -84,6 +84,11 @@ cannot click either for them, and you cannot self-attest.
   `--comments-only`: it posts the comment, leaves the grade untouched, bypasses the
   regrade gate, and *supersedes* the prior grader comment so nothing stacks. Never clear
   grades to "get past" the gate — that's destructive and re-opens the sync-mismatch bugs.
+- **Comment on a NON-SUBMITTER (0 / no submission) → `--roster-csv`.** The file-keyed
+  push can't see a student with no submission file. `--roster-csv <user_id,comment>`
+  posts comment-only straight to `/submissions/<user_id>` — their empty submission
+  object still accepts it. Grade untouched, guardian pop-up still gates it. For an
+  instructor-written note there, pass `--disclosure script` (it's not AI-drafted).
 - **Disclosure is mandatory** (see the menu below), appended automatically.
 
 **The in-chat review is the gate, not a rubber-stamp.** The failure an
