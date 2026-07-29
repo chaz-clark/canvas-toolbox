@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.9] — 2026-07-28
+
+**Critical: the Rust engagement engine had the SAME pagination bug — every student read "never participated" on Rust-enabled repos. Python is now the trusted default.**
+
+1.8.6 fixed the pagination in the Python engine but not the compiled **Rust** binary, which is the *default when present* — so a repo with the Rust binary (e.g. DS460) produced a report flagging **all 35 students as UW-never** while Python-only repos classified correctly. The Rust `get_paginated` blind-incremented `page` and `bail!`ed on the page-2 `400`, zeroing every student's engagement.
+
+Two changes:
+- **Python is now the trusted default engine**; Rust is opt-in via `--rust`. A wrong Title IV report is worse than a slow one, and the field binaries are stale, so the tool no longer uses a compiled Rust binary unless explicitly asked. This makes every repo correct on the next pull — no recompile needed.
+- **The Rust source is fixed too** (Link-header pagination, matching the Python fix; compiles clean) — so `--rust` is correct *after rebuilding the binary from current source*. An older binary still mis-reports, hence the opt-in + the warning the flag prints.
+
+If you use `--rust`, rebuild first (`cd canvas-toolbox/lib/tools/engagement_audit_rs && cargo build --release`).
+
+---
+
 ## [1.8.8] — 2026-07-28
 
 **The engagement report filename now includes the course name — identifiable across sections.**
