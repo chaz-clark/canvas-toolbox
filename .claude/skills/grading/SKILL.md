@@ -8,6 +8,26 @@ description: Use for ANY grading work in a Canvas course — fetching submission
 Grading with AI is **decision support, not autonomy.** A human decides every grade
 that reaches a student. This skill is the operating manual for that discipline.
 
+## Fresh data before any grading decision
+
+A grading decision is only as good as the data under it. A stale cache — a
+`_computed_grades.csv` from an earlier sync, a day-old export — has produced
+confidently-wrong conclusions ("KC3 blocker" when 19/31 had actually completed it).
+So: **pull fresh Canvas data before you reason about grades**, and never trust a
+cache without checking its age.
+
+The toolkit already builds this in — do NOT hand-roll a `verify_data_freshness.sh` or
+a timestamped CSV:
+- **`grader_fetch_gradebook.py`** mirrors the whole gradebook, stamps it with
+  `fetched_at`, and **skips the fetch only if the cache is younger than
+  `--max-age-hours` (default 6)** — `--force` always refreshes. Use it (or its cache)
+  as the source of truth for gradebook-wide reasoning.
+- **`grader_fetch.py`** re-fetches a challenge's submissions; when in doubt, re-run it
+  rather than reusing an old fetch.
+
+If a course keeps a *computed* file (final grades, standings), regenerate it from a
+fresh fetch each run — never read a cached custom CSV whose age you can't see.
+
 > The **constitution** (AGENTS.md) already binds you at all times: never read FERPA
 > Zone-2 files, and grades reach Canvas ONLY through a sanctioned `lib/tools/`
 > writer. This skill is the *how*; those are the *never*.

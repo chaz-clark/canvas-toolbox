@@ -12,6 +12,14 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.11] — 2026-07-28
+
+**Grading skill: a "fresh data before any grading decision" discipline (field-driven).**
+
+A course session reasoned off a stale `_computed_grades.csv` and reached a confidently-wrong conclusion (a "KC3 blocker" when 19/31 students had actually completed it), then hand-rolled a `verify_data_freshness.sh` + a poka-yoke doc to prevent it. But the toolkit already builds freshness in — `grader_fetch_gradebook.py` stamps `fetched_at` and skips only if the cache is younger than `--max-age-hours` (default 6). The `grading` skill now states the rule — pull fresh Canvas data before reasoning about grades; use the tool's cache (with its visible age), never a custom CSV whose age you can't see — so agents reach for the built-in guarantee instead of re-inventing it locally.
+
+---
+
 ## [1.8.10] — 2026-07-28
 
 **Engagement report now excludes withdrawn students by default.**
