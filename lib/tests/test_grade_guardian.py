@@ -269,11 +269,23 @@ def test_asks_on_mark_reviewed():
     assert ask_reason("Bash", {"command": cmd}) is not None
 
 
+def test_asks_on_comments_only_push():
+    """--comments-only --push posts AI-drafted comments to students → it MUST trip the
+    guardian pop-up like any other AI-drafted push (it is NOT the value-only path)."""
+    cmd = "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --comments-only --push"
+    assert _grader_push_checkpoint(cmd) == "push"
+    assert ask_reason("Bash", {"command": cmd}) is not None
+
+
 def test_no_ask_on_dry_run():
-    """No --push / --mark-reviewed (dry-run) is not a checkpoint — no prompt."""
-    cmd = "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --assignment-id 5"
-    assert _grader_push_checkpoint(cmd) is None
-    assert ask_reason("Bash", {"command": cmd}) is None
+    """No --push / --mark-reviewed (dry-run) is not a checkpoint — no prompt. A
+    --comments-only dry-run (no --push) likewise doesn't write, so no prompt."""
+    for cmd in (
+        "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --assignment-id 5",
+        "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --comments-only",
+    ):
+        assert _grader_push_checkpoint(cmd) is None, cmd
+        assert ask_reason("Bash", {"command": cmd}) is None, cmd
 
 
 def test_no_ask_on_value_only_and_test_and_retract():

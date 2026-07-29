@@ -1140,3 +1140,15 @@ def test_confirmation_rejects_wrong_word_at_a_tty(monkeypatch):
     monkeypatch.setattr(_GP.sys, "stdin", _FakeStdin(is_tty=True))
     monkeypatch.setattr("builtins.input", lambda _prompt: "yes")
     assert require_typed_confirmation("Type 'push' to confirm: ", "push") is False
+
+
+def test_comments_only_and_grade_only_are_mutually_exclusive():
+    """--comments-only (comment, no grade) and --grade-only (grade, no comment) are
+    opposites — passing both must fail fast, before any Canvas call."""
+    import subprocess
+    r = subprocess.run(
+        [sys.executable, str(_TOOLS_DIR / "grader_push.py"),
+         "--comments-only", "--grade-only", "--challenge-dir", "/tmp/x", "--assignment-id", "1"],
+        capture_output=True, text=True)
+    assert r.returncode == 1
+    assert "opposites" in r.stderr

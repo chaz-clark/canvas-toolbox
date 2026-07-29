@@ -74,6 +74,10 @@ RETRACT MODE (issue #63)
 MULTI-OUTPUT SUPPORT
   --grade-only suppresses the comment (e.g. the consequential grade in a two-
   output flow where the completion grade carries the comment).
+  --comments-only is the mirror image: post comments with NO grade change — add
+  or FIX feedback on ALREADY-GRADED work (grade now, comment later; or replace a
+  wrong comment). It bypasses the regrade gate (no re-grade is happening) and
+  supersedes a prior grader comment for the same key, so re-runs never stack.
   --default-comment <text> posts a fixed comment when a feedback file lacks a
   `## Comment to student` block (e.g. "See Mid Review for detailed feedback").
 
@@ -1206,6 +1210,12 @@ def main() -> int:
                          "(e.g. a short line for a completion-only output).")
     ap.add_argument("--grade-only", action="store_true",
                     help="Push the grade with NO comment (e.g. the consequential layer in a multi-output flow).")
+    ap.add_argument("--comments-only", action="store_true",
+                    help="Push comments with NO grade change — add or FIX feedback on ALREADY-GRADED "
+                         "work without touching the grade. Bypasses the regrade gate (you're not "
+                         "re-grading) and SUPERSEDES a prior grader comment for the same key (deletes "
+                         "the old, posts fresh) so re-runs never stack. Still requires the grade_guardian "
+                         "pop-up. Mutually exclusive with --grade-only.")
     ap.add_argument("--disclosure", default=None, choices=sorted(DISCLOSURE_TAGS),
                     help="Which provenance tag to append to drafted comments: "
                          "'ai' (AI drafted the grade + comment), 'hybrid' (a script "
@@ -1294,6 +1304,9 @@ def main() -> int:
                          "needs to lower (e.g. an academic-integrity reversal). The bypass is "
                          "logged per row so the audit trail shows the intentional regrade.")
     args = ap.parse_args()
+    if args.comments_only and args.grade_only:
+        print("⛔ --comments-only and --grade-only are opposites — pick one.", file=sys.stderr)
+        return 1
     disclosure_kind = resolve_disclosure_kind(args.disclosure)
 
     challenge = resolve_challenge_dir(args.challenge_dir, verb="pushing from")
@@ -1587,12 +1600,18 @@ def main() -> int:
         _sub_state = classify_submission_state(
             existing_by_uid.get(uid, {}) if uid is not None else {})
         gate_ok, gate_reason = regrade_gate(_sub_state, args.regrade)
-        ok = bool(grade and uid and (comment or args.grade_only)) and not done and gate_ok
+        if args.comments_only:
+            # Comments-only: no grade needed, and the regrade gate (already-graded)
+            # does not apply — we're adding/fixing feedback, not re-grading. Supersede
+            # (below) deletes any prior grader comment so re-runs never stack.
+            ok = bool(comment and uid) and not done
+        else:
+            ok = bool(grade and uid and (comment or args.grade_only)) and not done and gate_ok
         plan.append((key, uid, grade, comment, ok))
         hold = hold_by_key.get(key)
         if done:
             mark, why = "done", "  (already pushed)"
-        elif not gate_ok:
+        elif not gate_ok and not args.comments_only:
             regrade_skipped += 1
             mark, why = "SKIP", f"  ({gate_reason})"
         elif hold:
@@ -1600,7 +1619,11 @@ def main() -> int:
         elif ok:
             mark, why = "OK ", ""
         else:
-            mark, why = "SKIP", f"  ({'no match' if not uid else 'no grade' if not grade else 'no comment'})"
+            if args.comments_only:
+                reason = "no match" if not uid else "no comment"
+            else:
+                reason = "no match" if not uid else "no grade" if not grade else "no comment"
+            mark, why = "SKIP", f"  ({reason})"
         # FERPA-safe console: key, grade, matched?, comment preview — NO names
         print(f"  [{mark}] {key}: grade={grade or '—'}  matched={'yes' if uid else 'NO'}  "
               f"comment=\"{comment[:50].replace(chr(10), ' ')}…\"{why}")
@@ -1609,6 +1632,8 @@ def main() -> int:
         print(f"\n⛔ {regrade_skipped} row(s) SKIPPED — already graded in Canvas. Default mode "
               "never re-comments/re-grades (Canvas APPENDS comments; re-runs stack them — the "
               "4-comments-per-student bug). Pass --regrade to push to resubmissions/corrections.")
+        print("   To ADD or FIX comments on already-graded work WITHOUT changing the grade, "
+              "use --comments-only (supersede-safe; grades untouched).")
 
     # ---- Issue #63 part 1: availability awareness ------------------------
     # ---- Issue #99: grading_type capture for posted_grade validation -----
@@ -1808,9 +1833,13 @@ def main() -> int:
 
     if not args.yes:
         held_count = sum(1 for p in pushable if hold_by_key.get(p[0]))
-        body_summary = (f"{len(pushable) - held_count} grades + comments + "
-                        f"{held_count} held (comment-only)" if held_count else
-                        f"{len(pushable)} grades + comments")
+        if args.comments_only:
+            body_summary = f"{len(pushable)} comments (grades untouched)"
+        elif held_count:
+            body_summary = (f"{len(pushable) - held_count} grades + comments + "
+                            f"{held_count} held (comment-only)")
+        else:
+            body_summary = f"{len(pushable)} grades + comments"
         print(f"\nThis writes {body_summary} to the LIVE course {cid}.")
         if not args.grade_only:
             print(f"Disclosure tag on comments: {DISCLOSURE_TAGS[disclosure_kind]!r} "
@@ -1823,7 +1852,7 @@ def main() -> int:
     # we're about to re-push, so each resubmission ends with ONE fresh comment, not a
     # stacked pile. Best-effort + logged; a missing prior (fresh clone / no ledger) is
     # a no-op. Only our own logged comment_ids are touched — never student/TA comments.
-    if args.regrade and not args.grade_only:
+    if (args.regrade or args.comments_only) and not args.grade_only:
         supersede = comments_to_supersede(
             _read_comment_ledger(log, str(args.assignment_id)), {p[0] for p in pushable})
         if supersede:
@@ -1850,14 +1879,18 @@ def main() -> int:
     pushed = 0
     pushed_uids: set = set()  # #226: verify workflow_state transition after push
     held = 0
+    commented = 0            # --comments-only: comment posted, grade untouched
     regressions_skipped = 0
     grade_type_skipped = 0
     failed: list[str] = []
     with log.open("a", encoding="utf-8") as lg:
         for key, uid, grade, comment, _ in pushable:
             # Issue #72: held rows post the qualitative comment but
-            # WITHHOLD the grade write.
+            # WITHHOLD the grade write. --comments-only makes EVERY row behave that
+            # way (comment posts, grade untouched) — reusing the hold path so the
+            # grade-type + regression checks are skipped and only the comment is sent.
             hold_token = hold_by_key.get(key)
+            comment_only_row = bool(hold_token) or args.comments_only
 
             # Issue #99: grading_type validator. Pre-PUT check that the grade
             # is legal for the assignment's grading_type — refuses sentinels
@@ -1866,7 +1899,7 @@ def main() -> int:
             # string becomes incomplete + score 0.0). Skipped for held rows
             # (those withhold the grade write anyway) and for --grade-only=False
             # rows with no grade (legitimate comment-only / hold-token rows).
-            if not hold_token:
+            if not comment_only_row:
                 gv_status, gv_reason = validate_grade_for_grading_type(grade, grading_type)
                 if gv_status == "sentinel":
                     print(f"  [HOLD] {key}: {gv_reason} — treating as held (no grade pushed)")
@@ -1904,7 +1937,7 @@ def main() -> int:
             before_repr = (str(existing_grade)
                            if existing_grade is not None and str(existing_grade) != ""
                            else "—")
-            if not hold_token:
+            if not comment_only_row:
                 rc = regression_check(existing_grade, grade)
                 if rc == "regression" and not args.allow_lower:
                     print(f"  ⛔ [REGRESSION] {key}: uid={uid}: {before_repr} → {grade}  "
@@ -1932,12 +1965,13 @@ def main() -> int:
                           f"(intentional regression)")
 
             data: dict[str, object] = {}
-            if hold_token:
+            if comment_only_row:
                 if not comment:
-                    # Held with no comment is nonsensical — the whole
-                    # point is the qualitative ask. Skip rather than
+                    # Comment-only with no comment is nonsensical — the whole
+                    # point is the qualitative note. Skip rather than
                     # silently posting nothing.
-                    print(f"  SKIP {key}: HOLD {hold_token} but no comment to post")
+                    label = f"HOLD {hold_token}" if hold_token else "comments-only"
+                    print(f"  SKIP {key}: {label} but no comment to post")
                     continue
                 data["comment[text_comment]"] = comment
             else:
@@ -1963,6 +1997,11 @@ def main() -> int:
                     lg.write(f"- {key}: HELD {hold_token} for assignment "
                              f"{args.assignment_id} (grade {grade} withheld)\n")
                     held += 1
+                elif args.comments_only:
+                    print(f"  commented {key}: comment posted (grade untouched)")
+                    lg.write(f"- {key}: comment-only posted to assignment "
+                             f"{args.assignment_id} (grade untouched)\n")
+                    commented += 1
                 else:
                     print(f"  pushed {key}: {before_repr} → {grade}")
                     lg.write(f"- {key}: grade {before_repr} → {grade} pushed to assignment "
@@ -1992,7 +2031,8 @@ def main() -> int:
                     print(f"\n⛔ 4xx on {key}. STOP (P-003). Don't retry blindly. "
                           f"Investigate, then re-run; idempotency skips successes.")
                     break
-    summary_line = f"Pushed {pushed}/{len(pushable)}"
+    summary_line = (f"Posted {commented}/{len(pushable)} comments (grades untouched)"
+                    if args.comments_only else f"Pushed {pushed}/{len(pushable)}")
     if held:
         summary_line += f"; held {held} (comment posted; grade withheld — clear the HOLD_<DIM> token + re-push)"
     if regressions_skipped:
