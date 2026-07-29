@@ -12,6 +12,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.12] — 2026-07-28
+
+**Two fixes for the "reinvent instead of reuse" pattern: `cb_update` now installs the guardian hook, and a new `voicing` skill.**
+
+Diagnosing why one course repo "always did things differently" surfaced two gaps of the same shape — an agent reinventing what already exists because nothing pointed it at the real thing:
+
+- **`cb_update` now ensures the `grade_guardian` hook.** An audit found one repo (init'd before the hook feature, later `cb_update`d only for skills) was the *only* one without the guardian — so its agents could hand-write Canvas writes and route around gates freely. `cb_update` installed skills + pointer but never the hook. It now does (idempotent, non-clobbering, guarded on the vendored script), so any repo brought current gets the enforcement. Run `cb_update --apply` to backfill it.
+- **New `voicing` skill.** Agents kept inventing a fresh feedback voice per session instead of using the instructor's established one. The skill carries the discipline — load the course's voicing profile (`VOICING.md` / `grading/voicing.md`, Zone-1) and write in that voice for *every* comment; never invent one; if none exists, elicit it and save it for reuse. Loads alongside `grading`. Seventh operating-mode skill.
+
+---
+
 ## [1.8.11] — 2026-07-28
 
 **Grading skill: a "fresh data before any grading decision" discipline (field-driven).**
