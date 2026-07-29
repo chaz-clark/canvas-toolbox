@@ -12,6 +12,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.14.0] — 2026-07-29
+
+**Close the shell FERPA hole (`cat .keymap.json`) and codify "letters are read, not parsed" (#270).**
+
+Two hardenings against the two failure modes a field session exposed — an agent trying to *reconstruct* the de-id map after being blocked, and a script that *fabricated* student claims by regexing prose.
+
+- **`grade_guardian` now blocks a raw READ of a Zone-2 file in the shell.** The Read-tool block never covered `cat`/`head`/`tail`/`less`/python `open()`, so an agent denied `Read .keymap.json` reached for `cat .keymap.json` to rebuild the code↔user_id map. The Bash branch now denies a raw-display verb applied to a Zone-2 file, and points to `grader_reidentify` (which reads the keymap internally). Deliberately **still allows** the sanctioned verification the constitution permits — `wc -l`/`ls`/`stat` and the filtered `grep <code> … | cut -d',' -f1,2` — and exempts `lib/tools/` readers. Case-sensitive so git `HEAD` isn't mistaken for `head`.
+- **"Final letters are READ, not parsed" is now a rule, not a lesson.** A field script regex-"extracted" a requested grade from students' prose and emitted *"you requested an A"* to students who asked for a C. The constitution gains a grounding principle (any claim you repeat to a student comes from reading their letter in full; structured data may be parsed, prose may not — read it or abstain), and the `grading` skill carries the detailed rule.
+
+---
+
 ## [1.13.0] — 2026-07-29
 
 **`grader_push --roster-csv`: comment on non-submitters (a 0 / no-submission student) by user_id (#269).**

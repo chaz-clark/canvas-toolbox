@@ -17,7 +17,12 @@ WHAT IT DENIES
     `python x.py` / `uv run … x.py` command it reads x.py and blocks if the file
     body carries that write signature (the create/edit hooks can't catch a script
     that already exists, and the write is hidden inside the file). Invocations of
-    the sanctioned tools under lib/tools/ are exempt.
+    the sanctioned tools under lib/tools/ are exempt. ALSO a raw READ of a FERPA
+    Zone-2 file in the shell (`cat`/`head`/`tail`/`less`/python `open()` on
+    .keymap.json et al.) — the Read-tool block below doesn't cover `cat`, so an agent
+    denied Read reached for the shell to reconstruct the code↔user_id map (#270).
+    Metadata (`wc`/`ls`/`stat`) and the sanctioned `grep <code> … | cut -f1,2`
+    verification are not raw-display verbs and still pass; lib/tools/ readers exempt.
   - Write/Edit: creating/editing a file (outside lib/tools/) whose contents carry
     that same Canvas-write signature — this catches the bypass SCRIPT at creation,
     which is the only reliable catch (a Bash hook can't see inside `python x.py`).
@@ -92,6 +97,29 @@ _FERPA_PATH = re.compile(
     r"|feedback/_grader.*\.csv$"
 )
 
+# The same Zone-2 files, matched anywhere in a SHELL command (no end-anchor), so the
+# Bash branch can catch `cat .keymap.json` — the Read-tool block above doesn't cover a
+# shell read (#270). Kept in sync with _FERPA_PATH by hand.
+_FERPA_FILE = re.compile(
+    r"\.deid_master\.csv"
+    r"|\.known_names\.txt"
+    r"|\.keymap\.json"
+    r"|\.fetch_log\.json"
+    r"|\.review\.csv"
+    r"|/submissions_raw/"
+    r"|feedback/_grader[^/\\]*\.csv",
+    re.IGNORECASE,
+)
+
+# Raw display / read of a file's contents. The constitution forbids these on Zone-2
+# files ("not with Read, cat, head, tail, or bare grep"). Deliberately EXCLUDES the
+# sanctioned filtered verification (`grep <code> .deid_master.csv | cut -d',' -f1,2`,
+# and `wc -l`/`ls`/`stat`) — those don't dump raw rows, so they still pass.
+_RAW_READ = re.compile(  # case-sensitive: match the `head` command, not git `HEAD`
+    r"\b(cat|bat|head|tail|less|more|nl|xxd|od|strings)\b"
+    r"|\bopen\s*\(|\.read(?:_text|lines)?\s*\(|\bjson\.load\b"
+)
+
 
 # A `*.py` token in a shell command — `python push.py`, `uv run … x.py`. The `\b`
 # after `.py` avoids matching `.python`. Quotes/pipes/parens bound the token.
@@ -149,6 +177,23 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
             return None  # invoking the sanctioned tools is the safe path
         if _WRITE_VERB.search(cmd) and _CANVAS_CTX.search(cmd):
             return _redirect("a direct Canvas grade write in a shell command")
+        # FERPA Zone-2 (#270): block a RAW read/display of a name-bearing file in a
+        # shell (`cat .keymap.json`, `head .deid_master.csv`, python open()) — the
+        # AGENTS.md rule enforced for Bash, not just the Read tool. An agent blocked
+        # from Read otherwise reaches for `cat`; reading the code↔user_id map into
+        # context IS the re-identification the two-zone model prevents. Sanctioned tools
+        # that legitimately read these (grader_reidentify) run via lib/tools/ → exempt.
+        # Metadata (`wc`/`ls`/`stat`) and the sanctioned `grep <code> … | cut -f1,2`
+        # verification aren't raw-display verbs, so they still pass.
+        if ("/lib/tools/" not in cmd.replace("\\", "/")
+                and _RAW_READ.search(cmd) and _FERPA_FILE.search(cmd)):
+            return (
+                "⛔ FERPA Zone-2 file — never cat/head/read it in a shell (AGENTS.md → FERPA "
+                "discipline). It maps de-id codes ↔ names/user_ids; reading it into context "
+                "IS the re-identification the two-zone model prevents. Verify with `wc -l` / "
+                "`ls` only. To re-identify, run grader_reidentify.py (it reads the keymap "
+                "internally, never surfacing it) — do NOT reconstruct the map by hand."
+            )
         # Run-catch: executing an EXISTING script whose BODY writes to Canvas. The
         # create (Write) / edit (Edit) hooks can't catch a script that already
         # exists, and the command string alone hides the write inside the file —

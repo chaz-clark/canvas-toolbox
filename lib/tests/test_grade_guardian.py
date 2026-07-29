@@ -324,3 +324,37 @@ def test_hook_emits_ask_json_on_ai_drafted_push():
         assert out["hookSpecificOutput"]["permissionDecision"] == "ask", cmd
         assert out["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
         assert out["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+# --- FERPA Zone-2 reads in the SHELL (#270): close the `cat .keymap.json` hole ---
+
+def test_bash_blocks_raw_read_of_zone2():
+    """Reading a Zone-2 file in the shell (cat/head/tail/open) is blocked — the Read-tool
+    block doesn't cover `cat`, and reading the keymap reconstructs identity."""
+    for cmd in (
+        "cat grading/kc3/.keymap.json",
+        "head -5 grading/.deid_master.csv",
+        "tail grading/kc3/.review.csv",
+        "python3 -c \"import json; print(json.load(open('grading/kc3/.keymap.json')))\"",
+    ):
+        assert evaluate("Bash", {"command": cmd}) is not None, cmd
+
+
+def test_bash_allows_metadata_and_filtered_zone2_access():
+    """The constitution PERMITS wc/ls/stat and the filtered `grep <code> … | cut -f1,2`
+    verification — none dump raw rows, so they must still pass. And git HEAD is not `head`."""
+    for cmd in (
+        "wc -l grading/.deid_master.csv",
+        "ls -la grading/kc3/submissions_raw/",
+        "grep S-95DBB6 grading/.deid_master.csv | cut -d',' -f1,2",
+        "git log HEAD..main -- grading/.deid_master.csv",   # HEAD != head; metadata verb
+    ):
+        assert evaluate("Bash", {"command": cmd}) is None, cmd
+
+
+def test_bash_exempts_sanctioned_reidentify_reading_keymap():
+    """grader_reidentify legitimately reads the keymap internally — invoking it (a
+    lib/tools/ script) with a Zone-2 path as an arg must not be blocked."""
+    cmd = ("uv run python canvas-toolbox/lib/tools/grader_reidentify.py "
+           "--challenge-dir grading/kc3 --map grading/kc3/.keymap.json")
+    assert evaluate("Bash", {"command": cmd}) is None

@@ -32,6 +32,21 @@ fresh fetch each run — never read a cached custom CSV whose age you can't see.
 > Zone-2 files, and grades reach Canvas ONLY through a sanctioned `lib/tools/`
 > writer. This skill is the *how*; those are the *never*.
 
+## Final letters are READ, not parsed
+
+A student's grade-request **letter** (or self-assessment, reflection — any prose where
+they make a case) is **comprehension** data, not structured data. **Never regex/NLP-extract
+the requested grade, the evidence, or any claim you'll repeat back to them.** A parser on
+prose *fabricates*: a field script "extracted" *"you requested an A"* for students who
+asked for a **C**, and it reached them before anyone caught it.
+
+- **Read each letter in full** — every one, no sampling — before you write feedback that
+  references what it says.
+- **Ground or abstain.** If you can't tie a claim like "you requested X" to the actual
+  words of *that* student's letter, do **not** write it — leave it out. Never default.
+- **Files may be parsed; letters may not.** Code, notebooks, CSVs, the gradebook →
+  programmatic extraction is fine. Prose where a human makes a claim → read it.
+
 ## HG-5 — the instructor is the top layer
 
 Principle **HG-5** of the [hybrid grading architecture](../../../lib/agents/knowledge/grader_hybrid_architecture.md):
