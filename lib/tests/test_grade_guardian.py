@@ -277,6 +277,14 @@ def test_asks_on_comments_only_push():
     assert ask_reason("Bash", {"command": cmd}) is not None
 
 
+def test_asks_on_roster_csv_push():
+    """--roster-csv --push posts comments to students (incl. non-submitters) → it MUST
+    trip the guardian pop-up (it's a comment write on the AI-drafted path)."""
+    cmd = "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/fpr --roster-csv ns.csv --assignment-id 5 --push"
+    assert _grader_push_checkpoint(cmd) == "push"
+    assert ask_reason("Bash", {"command": cmd}) is not None
+
+
 def test_no_ask_on_dry_run():
     """No --push / --mark-reviewed (dry-run) is not a checkpoint — no prompt. A
     --comments-only dry-run (no --push) likewise doesn't write, so no prompt."""

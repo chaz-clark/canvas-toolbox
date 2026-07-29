@@ -78,6 +78,9 @@ MULTI-OUTPUT SUPPORT
   or FIX feedback on ALREADY-GRADED work (grade now, comment later; or replace a
   wrong comment). It bypasses the regrade gate (no re-grade is happening) and
   supersedes a prior grader comment for the same key, so re-runs never stack.
+  --roster-csv <user_id,comment> posts comment-only BY user_id — the way to reach
+  a NON-SUBMITTER (0 / no submission), whose empty submission object still takes a
+  comment even though the file-keyed push can't see them.
   --default-comment <text> posts a fixed comment when a feedback file lacks a
   `## Comment to student` block (e.g. "See Mid Review for detailed feedback").
 
@@ -1016,6 +1019,95 @@ def resolve_user_id(filename: str, subs: list[dict]) -> int | None:
     return cand2[0]["user_id"] if len(cand2) == 1 else None
 
 
+def load_roster_comments(path: Path, challenge: Path) -> list[tuple[str, str]]:
+    """Read (user_id, comment) pairs from a --roster-csv. Columns: `user_id` (or `id`)
+    plus either `comment` (inline text) or `comment_file` (a challenge-relative path to
+    a .md with a `## Comment to student` block). Rows missing a user_id or any comment
+    text are dropped. Pure — no network — so it's unit-testable."""
+    import csv as _csv
+    out: list[tuple[str, str]] = []
+    with path.open(encoding="utf-8") as fh:
+        for row in _csv.DictReader(fh):
+            uid = (row.get("user_id") or row.get("id") or "").strip()
+            comment = (row.get("comment") or "").strip()
+            cfile = (row.get("comment_file") or "").strip()
+            if cfile and not comment:
+                comment = comment_for(resolve_feedback_file(challenge, cfile)).strip()
+            if uid and comment:
+                out.append((uid, comment))
+    return out
+
+
+def push_roster_comments(args, base, cid, headers, challenge, disclosure_kind) -> int:
+    """--roster-csv: post comment-only to students BY user_id — reaches non-submitters
+    (a 0 / no-submission student whose empty submission object still accepts a comment).
+    The file-keyed push can't see them (no submission file → no .review.csv row). Grade
+    untouched; disclosure tag applied; the grade_guardian pop-up gates the write (it's a
+    comment push with --push). Idempotent: a user already in the log is skipped unless
+    --force, so re-runs don't stack a second comment."""
+    path = Path(args.roster_csv)
+    if not path.is_file():
+        print(f"⛔ --roster-csv not found: {path}", file=sys.stderr)
+        return 1
+    pairs = load_roster_comments(path, challenge)
+    if not pairs:
+        print(f"⛔ no (user_id, comment) rows in {path} — need a `user_id` column and a "
+              "`comment` or `comment_file` column.", file=sys.stderr)
+        return 1
+    log = challenge / ".push_log.md"
+    already: set[str] = set()
+    if log.is_file() and not args.force:
+        for ln in log.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"- roster-(\S+): comment ", ln)
+            if m:
+                already.add(m.group(1))
+    todo = [(u, c) for u, c in pairs if u not in already]
+    skipped = len(pairs) - len(todo)
+    tail = f", {skipped} already logged (--force to re-post)" if skipped else ""
+    print(f"Roster comment-only push → assignment {args.assignment_id}: "
+          f"{len(todo)} to post{tail}.")
+    for uid, comment in todo:
+        print(f"  [OK] user_id={uid}  comment=\"{truncate_comment_preview(comment)}\"")
+    if not todo:
+        print("Nothing to post.")
+        return 0
+    print(f"Disclosure tag on comments: {DISCLOSURE_TAGS[disclosure_kind]!r} "
+          f"(--disclosure {disclosure_kind}). For an instructor-written note to a "
+          "non-submitter, pass --disclosure script.")
+    if not args.push:
+        print("\nDry run — nothing written. Add --push to post.")
+        return 0
+    if not args.yes and not require_typed_confirmation(
+            f"\nType 'push' to post {len(todo)} comment(s) to LIVE course {cid}: ", "push"):
+        print("Aborted.")
+        return 1
+    posted, failed = 0, []
+    with log.open("a", encoding="utf-8") as lg:
+        for uid, comment in todo:
+            body = {"comment[text_comment]": append_disclosure_tag(comment, disclosure_kind)}
+            resp = requests.put(
+                f"{base}/api/v1/courses/{cid}/assignments/{args.assignment_id}/submissions/{uid}",
+                headers=headers, data=body, timeout=_TIMEOUT)
+            if resp.status_code < 400:
+                try:
+                    sc = (resp.json() or {}).get("submission_comments") or []
+                    new_id = (sc[-1] if sc else {}).get("id")
+                except (ValueError, TypeError):
+                    new_id = None
+                print(f"  commented user_id={uid} (grade untouched)")
+                lg.write(f"- roster-{uid}: comment {new_id} pushed to assignment "
+                         f"{args.assignment_id} (grade untouched)\n")
+                posted += 1
+            else:
+                print(f"  ERROR user_id={uid}: {resp.status_code} {resp.text[:120]}")
+                failed.append(uid)
+                if 400 <= resp.status_code < 500:
+                    print("\n⛔ 4xx — STOP (P-003). Investigate before re-running.")
+                    break
+    print(f"\nPosted {posted}/{len(todo)} roster comment(s). Logged to {log}.")
+    return 0 if not failed else 1
+
+
 # Issue #63 part 2: retract previously-pushed comments. Comment ids are
 # captured in .push_log.md on every comment push (one line per push:
 # `- <KEY>: comment <ID> pushed to assignment <AID>`). --retract reads
@@ -1230,6 +1322,12 @@ def main() -> int:
                          "re-grading) and SUPERSEDES a prior grader comment for the same key (deletes "
                          "the old, posts fresh) so re-runs never stack. Still requires the grade_guardian "
                          "pop-up. Mutually exclusive with --grade-only.")
+    ap.add_argument("--roster-csv",
+                    help="Post comment-only to students BY user_id — a CSV with a `user_id` column "
+                         "plus a `comment` (inline) or `comment_file` (path) column. Reaches "
+                         "NON-SUBMITTERS (a 0 / no-submission student the file-keyed push can't see, "
+                         "since they have no submission file). Grade untouched; still gated by the "
+                         "guardian pop-up; idempotent (a logged user is skipped unless --force).")
     ap.add_argument("--disclosure", default=None, choices=sorted(DISCLOSURE_TAGS),
                     help="Which provenance tag to append to drafted comments: "
                          "'ai' (AI drafted the grade + comment), 'hybrid' (a script "
@@ -1440,6 +1538,12 @@ def main() -> int:
     # canvas_course_guard: refuse enrolled-course writes unless --allow-enrolled
     if guard_enforce and (args.push or args.test_user is not None):
         guard_enforce(base, headers, cid, mode="write", allow_override=args.allow_enrolled)
+
+    # --- roster-keyed comments (#269): reach students BY user_id, incl. non-submitters ---
+    # The file-keyed .review.csv path can't see a student with no submission; this posts
+    # comment-only straight to /submissions/<user_id>. Grade untouched; guardian pop-up gates it.
+    if args.roster_csv:
+        return push_roster_comments(args, base, cid, headers, challenge, disclosure_kind)
 
     # --- one-shot Test Student validation ---
     if args.test_user:

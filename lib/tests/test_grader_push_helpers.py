@@ -1164,3 +1164,23 @@ def test_is_no_submission_assignment():
     assert _GP.is_no_submission_assignment(["online_text_entry", "online_upload"]) is False
     assert _GP.is_no_submission_assignment([]) is False
     assert _GP.is_no_submission_assignment(None) is False
+
+
+def test_load_roster_comments(tmp_path):
+    """--roster-csv reads (user_id, comment) pairs; supports inline `comment` and a
+    `comment_file` path; drops rows missing a user_id or any comment text."""
+    fb = tmp_path / "feedback"; fb.mkdir()
+    (fb / "note.md").write_text(
+        "# x\n\n## Comment to student\n\nSee you next term.\n", encoding="utf-8")
+    csvp = tmp_path / "roster.csv"
+    csvp.write_text(
+        "user_id,comment,comment_file\n"
+        "111,Great work,\n"
+        "222,,feedback/note.md\n"
+        "333,,\n"
+        ",orphan,\n",
+        encoding="utf-8")
+    pairs = _GP.load_roster_comments(csvp, tmp_path)
+    assert ("111", "Great work") in pairs
+    assert ("222", "See you next term.") in pairs
+    assert len(pairs) == 2                     # the no-comment and no-user_id rows dropped
