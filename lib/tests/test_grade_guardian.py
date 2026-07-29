@@ -15,7 +15,7 @@ if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
 from grade_guardian import (evaluate, ensure_hook, hook_command,  # noqa: E402
-                            _extract_script_paths)
+                            _extract_script_paths, ask_reason, _is_ai_drafted_push)
 
 _BYPASS_BODY = ('import requests\n'
                 'requests.put("https://x.instructure.com/api/v1/courses/1/assignments/2/'
@@ -249,3 +249,44 @@ def test_hook_fails_open_on_garbage_stdin():
     r = subprocess.run([sys.executable, str(HOOK)], input="not json",
                        capture_output=True, text=True)
     assert r.returncode == 0
+
+
+# --- ASK layer (#264): force an in-chat prompt on the AI-drafted grade push ---
+
+def test_asks_on_ai_drafted_push():
+    """grader_push --push writing AI-drafted comments → the guardian asks (the human
+    review gate moved here now that --yes is honored, so no terminal keystroke)."""
+    cmd = "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --push"
+    assert _is_ai_drafted_push(cmd) is True
+    assert ask_reason("Bash", {"command": cmd}) is not None
+
+
+def test_no_ask_on_dry_run():
+    """No --push (dry-run) is not a write — no prompt."""
+    cmd = "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --assignment-id 5"
+    assert ask_reason("Bash", {"command": cmd}) is None
+
+
+def test_no_ask_on_value_only_and_test_and_retract():
+    """Value-only (--grade-only), test-student (--test-user), and retract (--retract)
+    are not AI-drafted-comment writes — they keep the frictionless --yes path."""
+    base = "python lib/tools/grader_push.py --challenge-dir grading/kc3 --push"
+    for extra in ("--grade-only", "--test-user 1234", "--retract"):
+        assert ask_reason("Bash", {"command": f"{base} {extra}"}) is None, extra
+
+
+def test_no_ask_on_non_grader_push_or_other_tools():
+    assert ask_reason("Bash", {"command": "git push origin main"}) is None  # --push, not grader
+    assert ask_reason("Write", {"file_path": "x.py", "content": "grader_push --push"}) is None
+
+
+def test_hook_emits_ask_json_on_ai_drafted_push():
+    """End-to-end: the real hook prints permissionDecision 'ask' (exit 0) so Claude
+    Code prompts the instructor — the in-chat attestation that replaced the terminal."""
+    r = _run_hook({"tool_name": "Bash", "tool_input": {"command":
+        "uv run python canvas-toolbox/lib/tools/grader_push.py --challenge-dir grading/kc3 --push"}})
+    assert r.returncode == 0
+    out = json.loads(r.stdout)
+    assert out["hookSpecificOutput"]["permissionDecision"] == "ask"
+    assert out["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
+    assert out["hookSpecificOutput"]["permissionDecisionReason"]

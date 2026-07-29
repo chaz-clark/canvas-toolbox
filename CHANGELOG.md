@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.9.0] — 2026-07-28
+
+**Grade push moves off the terminal: `--yes` is honored on the AI-drafted path, and the human gate becomes an in-chat permission prompt (#264).**
+
+Field use kept hitting the same wall: on the AI-drafted-comment path `grader_push` refused `--yes` (#97/#207) and demanded a keystroke at a real terminal (#241), so agents dead-ended non-technical faculty with "run this in your terminal and type 'reviewed'/'push'" — or thrashed and reached for a direct Canvas API write. That terminal gate was aimed at the wrong threat (a headless `echo push | …` bypass), not the interactive instructor sitting in the Claude Code chat.
+
+- **`grader_push` honors `--yes` on every path.** The `is_yes_refused_on_review` refusal is removed; `--mark-reviewed --yes` and `--push --yes` now work for AI-drafted comments too. The agent runs the whole flow — no terminal keystroke, ever. The `.reviewed` marker reverts to its staleness-guard role (#46), not a human attestation.
+- **`grade_guardian` forces an in-chat `ask` on the AI-drafted push.** The human gate moved UP to the PreToolUse hook: on a `grader_push … --push` that writes per-student comments (not `--grade-only`/`--test-user`/`--retract`), the guardian returns `permissionDecision: "ask"`, so Claude Code prompts the instructor to approve the write. Their click is the attestation that replaced the keystroke — un-fakeable by the agent, never a separate terminal. (In full bypass-permissions mode nothing prompts — an explicit opt-out.)
+- **`grading` skill rewritten to the chat-approval flow.** "You are not blocked from pushing": show the comments + old→new preview in chat, get the instructor's reply, `--mark-reviewed --yes`, `--push --yes` → the guardian prompt is the gate. Adds a "when rows are skipped, read why (`--regrade`/`--allow-lower`/`--include-inactive`) — never reach for the API" note, straight from a field session that thrashed through override flags after a push skipped most rows.
+
+Value-only / `grader_standing` pushes are unchanged (the human is the grader there; `--yes` was always allowed).
+
+---
+
 ## [1.8.13] — 2026-07-28
 
 **`voicing` skill: real convention + a template derived from the actual course profiles.**

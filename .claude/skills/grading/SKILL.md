@@ -37,40 +37,52 @@ fresh fetch each run — never read a cached custom CSV whose age you can't see.
 Principle **HG-5** of the [hybrid grading architecture](../../../lib/agents/knowledge/grader_hybrid_architecture.md):
 the agent drafts; the instructor reviews and confirms; only then does anything post.
 
-### The push protocol — never skip a step
+### The push protocol — you run all of it; the human approves in chat
+
+**You are not blocked from pushing.** Run the whole flow yourself — never send the
+instructor to a terminal (that dead-ended non-technical faculty). The human gate is an
+in-chat permission prompt, not a shell keystroke.
 
 1. **Grade** — `grader_fetch.py --challenge-dir grading/<name>` → 3-pass consensus
    (`grader_grade.py --bulk` → `grader_consensus.py`). Single-pass LLM grading
    drifts; consensus is the default.
-2. **Review** — a **human** reads `feedback/_all_comments.md` + each per-student
-   `<KEY>.md`. This is the gate, not a formality.
-3. **Attest** — `grader_push.py --challenge-dir grading/<name> --mark-reviewed`.
-   The human types `reviewed`. The marker auto-invalidates if any feedback file
-   changes afterward.
-4. **Push** — `grader_push.py --challenge-dir grading/<name> --push`. The human
-   types `push` at the confirmation.
+2. **Show the review surface in the conversation** — present `feedback/_all_comments.md`
+   + the per-student `<KEY>.md` and the **old→new grade preview** (dry-run) right here in
+   chat. This IS the review. Wait for the instructor to approve in a reply.
+3. **Attest** — after they approve, run
+   `grader_push.py --challenge-dir grading/<name> --mark-reviewed --yes`. The `.reviewed`
+   marker records the attested state (auto-invalidates if a feedback file changes after).
+4. **Push** — run `grader_push.py --challenge-dir grading/<name> --push --yes`. The
+   `grade_guardian` hook forces a permission **prompt** in the chat; the instructor
+   **clicks allow** — that click is the human gate (#264). No terminal, ever.
 
 ## What the code enforces (so the protocol isn't docs-only)
 
-- **`--yes` cannot bypass human review on the AI-drafted path.** With per-student
-  comment files, `--yes` is refused at *both* `--mark-reviewed` (#97) and the final
-  `--push` (#207, HG-5). The value-only / human-graded path (no comment files) keeps
-  `--yes` — there the human *is* the grader.
-- **Confirmation requires a real terminal (#241).** The `reviewed`/`push` prompts
-  refuse piped/redirected stdin — `echo push | grader_push …` no longer satisfies
-  the gate. If you are an assistant and hit this prompt, **hand the command to the
-  instructor to run in their terminal**; do not pipe an answer and do not stack
-  `--yes`/`--regrade`/`--grade-only`/`--allow-enrolled` to force it.
+- **`--yes` is honored on every path — including AI-drafted comments (#264).** You run
+  `--mark-reviewed --yes` then `--push --yes`. Do not tell the instructor to open a
+  terminal or type `reviewed`/`push` at a shell; do not pipe answers on stdin.
+- **The human gate is the in-chat permission prompt.** On the AI-drafted `--push`,
+  `grade_guardian` returns an `ask` decision, so Claude Code prompts the instructor to
+  approve the write; their click is the attestation that replaced the terminal keystroke.
+  (Value-only / `grader_standing` pushes don't prompt — the human is the grader there.)
 - **Duplicate-comment Andon.** Canvas *appends* comments, so re-runs stack them.
   Default mode refuses an already-graded submission; `--regrade` admits ONLY
   genuine resubmissions and *supersedes* (deletes old grader comments) rather than
   appending.
+- **When rows are SKIPPED, read why — never reach for the API.** grader_push skips
+  already-pushed rows (re-push with `--regrade`), rows that would LOWER an existing
+  grade (`--allow-lower`), and inactive/Test students (#61 — `--include-inactive`). The
+  fix is always a flag *on the tool*; a hand-written `requests`/`python -c` write skips
+  every safeguard and the guardian blocks it anyway.
 - **Disclosure is mandatory** (see the menu below), appended automatically.
 
-**Do not** run `grader_push.py --yes --push` to "just get the grades in." That is
-the exact HG-5 breach an [RCA](https://github.com/chaz-clark/canvas-toolbox/issues/207)
-was written about — students received AI-drafted grades with no review. If a gate
-blocks you, the fix is to *do the review*, not to reach for an override.
+**The in-chat review is the gate, not a rubber-stamp.** The failure an
+[RCA](https://github.com/chaz-clark/canvas-toolbox/issues/207) was written about was
+students getting AI-drafted grades with *no* review. `--yes --push` is the sanctioned
+path now — but only because the review moved into the conversation and the guardian
+prompt makes the instructor consciously approve the write. So actually show the comments
+and the old→new grades and get a real "yes" before you push; never stack overrides to
+skip a gate you hit.
 
 ## Never hand-write a Canvas write (the field failure mode)
 
