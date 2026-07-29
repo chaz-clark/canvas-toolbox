@@ -12,6 +12,19 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.9.1] — 2026-07-28
+
+**Fix: the chat-approval loosening let an agent skip the review — force the pop-up at the review checkpoint too (#265).**
+
+1.9.0 honored `--yes` on the AI-drafted path and put the human gate on the guardian's `--push` prompt. But it left a hole: the agent could run `grader_push --mark-reviewed --yes` and **self-attest review** — marking the comments reviewed without ever showing the instructor `_all_comments.md` — then push. A field session did exactly that.
+
+- **`grade_guardian` now fires the `ask` prompt at BOTH checkpoints** — `--mark-reviewed` *and* `--push` — on the AI-drafted path (still silent on `--grade-only`/`--test-user`/`--retract`). `--yes` cannot bypass it: the hook runs above the tool. So the instructor clicks an in-chat pop-up to **attest the review** (Deny if the agent skipped showing the comments) and again to **authorize the push** — two clicks the agent can neither skip nor forge.
+- **`grading` skill tightened.** The push protocol now says the review is mandatory and never skippable, and documents the two pop-ups (attest, then push). Removed the "just run the flow" phrasing that read as license to skip step 2.
+
+Still no terminal, ever. Value-only / `grader_standing` pushes are unchanged.
+
+---
+
 ## [1.9.0] — 2026-07-28
 
 **Grade push moves off the terminal: `--yes` is honored on the AI-drafted path, and the human gate becomes an in-chat permission prompt (#264).**

@@ -24,13 +24,16 @@ WHAT IT DENIES
   - Read: FERPA Zone-2 files (.deid_master.csv et al.) — the AGENTS.md discipline,
     enforced deterministically instead of by instruction (#212).
 
-WHAT IT ASKS (does not deny — forces a human prompt) (#264)
-  - Bash: a grader_push.py --push that writes AI-drafted comments (not --grade-only /
-    --test-user / --retract). grader_push now honors --yes on that path (no terminal
-    keystroke — that dead-ended non-technical faculty at a shell), so the human review
-    gate lives HERE: the hook returns permissionDecision "ask", forcing Claude Code to
-    prompt the instructor. Their in-chat click is the attestation. (In full
-    bypass-permissions mode nothing prompts — an explicit opt-out, honestly out of scope.)
+WHAT IT ASKS (does not deny — forces a human prompt) (#264, #265)
+  - Bash: a grader_push.py AI-drafted checkpoint (not --grade-only / --test-user /
+    --retract) — at BOTH --mark-reviewed (the review attestation) and --push (the
+    write). grader_push honors --yes on that path (no terminal keystroke — that
+    dead-ended non-technical faculty at a shell), so an agent could `--mark-reviewed
+    --yes` and self-attest review without ever showing the human _all_comments.md,
+    then push (#265). The hook returns permissionDecision "ask" at each checkpoint,
+    forcing Claude Code to prompt the instructor; their in-chat click is the
+    attestation the agent cannot skip or forge. (In full bypass-permissions mode
+    nothing prompts — an explicit opt-out, honestly out of scope.)
 
 WHAT IT DOES NOT DO (honest limits)
   Regex on a command / file body is not a semantic firewall. A determined agent
@@ -194,35 +197,57 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# ASK layer (#264): force a human permission prompt on the AI-drafted grade push.
-# grader_push now honors --yes there (no terminal keystroke), so the human review
-# gate is this hook forcing Claude Code to ask — the instructor's click attests.
+# ASK layer (#264, #265): force a human permission prompt at BOTH AI-drafted
+# checkpoints — the review attestation (--mark-reviewed) AND the push (--push).
+# grader_push honors --yes there (no terminal keystroke), so an agent could run
+# `--mark-reviewed --yes` and self-attest review without ever showing the human
+# _all_comments.md, then push (#265). Firing the prompt at --mark-reviewed too
+# means the instructor must click to attest review — the agent cannot skip it.
 # ---------------------------------------------------------------------------
 
-def _is_ai_drafted_push(cmd: str) -> bool:
-    """True for a grader_push invocation that writes AI-drafted comments to a live
-    course — the write the instructor must approve in-chat. Excludes the value-only
-    (--grade-only), test-student (--test-user), and retract (--retract) paths."""
-    if "grader_push" not in cmd or not re.search(r"--push\b", cmd):
-        return False
-    return not any(re.search(re.escape(f) + r"\b", cmd)
-                   for f in ("--grade-only", "--test-user", "--retract"))
+# What kind of AI-drafted checkpoint a grader_push command is — the moments a human
+# must consciously click. The value-only (--grade-only), test (--test-user), and
+# retract (--retract) paths are NOT AI-drafted-comment checkpoints.
+_CHECKPOINT_REASONS = {
+    "review": (
+        "Review gate (HG-5, #265): the agent is attesting it reviewed the AI-drafted "
+        "comments. Approve ONLY if it has shown you the actual comments "
+        "(feedback/_all_comments.md) in this chat. If it hasn't, Deny and make it show "
+        "you first — do not attest a review you didn't do."
+    ),
+    "push": (
+        "Push gate (HG-5, #264): this sends AI-drafted feedback + grades to students on "
+        "a LIVE course. Approve only after reviewing the comments and the old→new grade "
+        "preview the agent showed you. Allow = send; Deny = hold."
+    ),
+}
+
+
+def _grader_push_checkpoint(cmd: str) -> str | None:
+    """Return 'push' or 'review' if this grader_push command is an AI-drafted
+    human-checkpoint moment, else None. --push wins if both flags are present."""
+    if "grader_push" not in cmd:
+        return None
+    if any(re.search(re.escape(f) + r"\b", cmd)
+           for f in ("--grade-only", "--test-user", "--retract")):
+        return None                                   # not the AI-drafted-comment path
+    if re.search(r"--push\b", cmd):
+        return "push"
+    if re.search(r"--mark-reviewed\b", cmd):
+        return "review"
+    return None
 
 
 def ask_reason(tool_name: str, tool_input: dict) -> str | None:
-    """Return a permission-prompt reason if this call is an AI-drafted grade push the
-    instructor should confirm, else None. Pure function — unit-testable without Claude
-    Code. main() turns a non-None reason into a permissionDecision 'ask'."""
+    """Return a permission-prompt reason if this call is an AI-drafted grade checkpoint
+    (review attestation or push) the instructor must click, else None. Pure function —
+    unit-testable without Claude Code. main() turns a non-None reason into a
+    permissionDecision 'ask'."""
     tool_input = tool_input or {}
     if tool_name != "Bash":
         return None
-    if not _is_ai_drafted_push(tool_input.get("command", "") or ""):
-        return None
-    return (
-        "Human review gate (HG-5, #264): this pushes AI-drafted feedback + grades to "
-        "students on a LIVE course. Approve only after reviewing the comments and the "
-        "old→new grade preview the agent showed you. Allow = send; Deny = hold."
-    )
+    kind = _grader_push_checkpoint(tool_input.get("command", "") or "")
+    return _CHECKPOINT_REASONS.get(kind)
 
 
 # ---------------------------------------------------------------------------
