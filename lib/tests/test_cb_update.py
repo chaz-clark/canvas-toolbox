@@ -12,6 +12,41 @@ _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
+import json  # noqa: E402
+from cb_update import ensure_guardian_hook  # noqa: E402
+
+
+def _fake_toolkit(tmp_path):
+    """A course root with a vendored canvas-toolbox/lib/tools/grade_guardian.py."""
+    g = tmp_path / "canvas-toolbox" / "lib" / "tools"
+    g.mkdir(parents=True)
+    (g / "grade_guardian.py").write_text("# guardian\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_ensure_guardian_hook_installs_when_missing(tmp_path):
+    """The CSE450 gap: a repo cb_update'd for skills but never given the guardian.
+    cb_update now installs it (non-clobbering, idempotent)."""
+    course = _fake_toolkit(tmp_path)
+    assert ensure_guardian_hook(course, "canvas-toolbox", apply=False) == "would-install"
+    assert not (course / ".claude" / "settings.json").exists()   # dry-run wrote nothing
+    assert ensure_guardian_hook(course, "canvas-toolbox", apply=True) == "installed"
+    settings = json.loads((course / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert "grade_guardian" in json.dumps(settings)               # hook wired
+    assert ensure_guardian_hook(course, "canvas-toolbox", apply=True) == "present"  # idempotent
+
+
+def test_ensure_guardian_hook_skips_without_vendored_script(tmp_path):
+    assert ensure_guardian_hook(tmp_path, "canvas-toolbox", apply=True) == "skipped-no-script"
+
+
+def test_ensure_guardian_hook_refuses_unparseable_settings(tmp_path):
+    course = _fake_toolkit(tmp_path)
+    (course / ".claude").mkdir()
+    (course / ".claude" / "settings.json").write_text("{not json", encoding="utf-8")
+    assert ensure_guardian_hook(course, "canvas-toolbox", apply=True) == "bad-json"
+
+
 from cb_update import (  # noqa: E402
     plan_skill_symlinks,
     install_skill_symlinks,

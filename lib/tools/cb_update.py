@@ -28,6 +28,7 @@ hand-typing `cd` + `git pull` into the wrong repo.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -48,7 +49,13 @@ except ImportError:
 from cb_init import detect_course_context, REPO_ROOT
 from sync_grading_protocol import inject_grading_pointer
 
-SKILLS = ["grading", "course-build", "audit", "accommodations", "ferpa-deid", "title-iv"]
+try:
+    from grade_guardian import ensure_hook as _ensure_guardian_hook
+except ImportError:
+    _ensure_guardian_hook = None
+
+SKILLS = ["grading", "course-build", "audit", "accommodations", "ferpa-deid",
+          "title-iv", "voicing"]
 
 
 def plan_skill_symlinks(course_root: Path, toolkit_subdir: str,
@@ -147,6 +154,35 @@ def refresh_pointer(course_root: Path, apply: bool) -> tuple[str, str]:
     return (path.name, "refreshed")
 
 
+def ensure_guardian_hook(course_root: Path, toolkit_subdir: str, apply: bool) -> str:
+    """Install the grade_guardian PreToolUse hook into the course's
+    `.claude/settings.json` if missing — THE most important safety piece. A repo
+    init'd before the hook feature (and only ever `cb_update`d for skills) has none,
+    so its agents can hand-write Canvas writes and route around gates freely — the
+    'one repo without the hook does everything differently' situation. Idempotent,
+    non-clobbering, guarded on the vendored guardian script existing. Returns
+    present/would-install/installed/skipped-no-script/bad-json."""
+    if _ensure_guardian_hook is None:
+        return "skipped-no-script"
+    guardian = course_root / toolkit_subdir / "lib" / "tools" / "grade_guardian.py"
+    if not guardian.is_file():
+        return "skipped-no-script"
+    settings_path = course_root / ".claude" / "settings.json"
+    try:
+        existing = (json.loads(settings_path.read_text(encoding="utf-8"))
+                    if settings_path.exists() else {})
+    except (OSError, ValueError):
+        return "bad-json"                     # never clobber an unparseable settings file
+    new_settings, changed = _ensure_guardian_hook(existing)
+    if not changed:
+        return "present"
+    if not apply:
+        return "would-install"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(json.dumps(new_settings, indent=2) + "\n", encoding="utf-8")
+    return "installed"
+
+
 def main() -> int:
     force_utf8_console()
     ap = argparse.ArgumentParser(
@@ -190,6 +226,12 @@ def main() -> int:
 
     fname, status = refresh_pointer(course_root, args.apply)
     print(f"\nConstitution+skills pointer in {fname}: {status}")
+
+    hook_status = ensure_guardian_hook(course_root, toolkit_subdir, args.apply)
+    print(f"grade_guardian hook (.claude/settings.json): {hook_status}")
+    if hook_status in ("installed", "would-install"):
+        print("  ↳ this repo was missing the guardian — agents could hand-write "
+              "Canvas writes / bypass gates. Now enforced at create/edit/run.")
 
     print("\nReminder: `cd " + toolkit_subdir + " && git pull` keeps the toolkit "
           "(and the symlinked skills) current.")
