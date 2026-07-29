@@ -344,7 +344,7 @@ def render_report_md(
         "",
         "> ⚠️ **Contains student names — generated OUTSIDE the repo for FERPA. Do NOT copy it into a repo folder, cloud-sync it, or email it unencrypted.**",
         "",
-        "> Only **flagged** students appear (failing or never-participated). **Passing** students are excluded, as is anyone **formally dropped** (deleted/rejected enrollment). **Inactive/concluded** enrollments ARE included — they may be unofficial withdrawals not yet processed (see the Enrollment column).",
+        "> Only **flagged** students appear (failing or never-participated), and only **actively-enrolled** ones. **Passing** students are excluded, and so are **withdrawn** students — anyone dropped/deactivated/concluded (inactive, completed, deleted, rejected) is a formally-handled withdrawal, not an *unofficial* one. Pass `--include-inactive` to review borderline cases (e.g. a withdrawal you suspect wasn't processed).",
         "",
         "## Summary",
         "",
@@ -554,11 +554,12 @@ def main() -> int:
     ap.add_argument("--out", default=None,
                     help="Override output path. Default: "
                          "~/Downloads/engagement-<course-name>-<course-id>-<YYYY-MM-DD>.md")
-    ap.add_argument("--active-only", action="store_true",
-                    help="Audit only active enrollments. Default includes inactive/"
-                         "completed students (surfaced separately) — for Title IV "
-                         "you generally want them, as they may be unofficial "
-                         "withdrawals whose last engagement must be documented.")
+    ap.add_argument("--include-inactive", action="store_true",
+                    help="Also include withdrawn students — inactive/completed/deleted/"
+                         "rejected enrollments. By DEFAULT they're EXCLUDED: an inactive "
+                         "enrollment is a formally-dropped/withdrawn student (already "
+                         "handled), not the unofficial withdrawal this report targets. "
+                         "Include them only to review borderline cases.")
     ap.add_argument("--dry-run", action="store_true",
                     help="Print classification counts only; no file written.")
     ap.add_argument("--rust", action="store_true",
@@ -617,7 +618,7 @@ def main() -> int:
     # we'll use ONLY at the re-id step before writing the named report.
     try:
         enrollments = fetch_enrollments(base, cid, headers,
-                                        include_inactive=not args.active_only)
+                                        include_inactive=args.include_inactive)
     except (requests.HTTPError, requests.RequestException) as e:
         print(f"ERROR: enrollment fetch failed ({type(e).__name__}: {e}).",
               file=sys.stderr)

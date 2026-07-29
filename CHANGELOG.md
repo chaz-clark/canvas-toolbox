@@ -12,6 +12,16 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.10] — 2026-07-28
+
+**Engagement report now excludes withdrawn students by default.**
+
+The report was dominated by `inactive` (withdrawn/deactivated) students — in one section, 20 of 26 flagged were inactive. Those are **formally-handled** withdrawals, not the *unofficial* withdrawals the report targets, so they were noise. The default now audits **actively-enrolled students only** (inactive / completed / deleted / rejected excluded); the flag flips from `--active-only` to **`--include-inactive`** for the rare case where you want to review a withdrawal you suspect wasn't processed.
+
+Reverses the 1.7.37 default at the maintainer's direction (that release *added* inactive students on the reasoning they might be unofficial withdrawals; in practice they swamped the report with already-processed drops).
+
+---
+
 ## [1.8.9] — 2026-07-28
 
 **Critical: the Rust engagement engine had the SAME pagination bug — every student read "never participated" on Rust-enabled repos. Python is now the trusted default.**
