@@ -11,6 +11,11 @@ These tools mostly **read**; they surface problems, they don't apply fixes.
 > The **constitution** (AGENTS.md) binds you: FERPA Zone-2 files are never read, and
 > reports containing student names are written OUTSIDE the repo (see Title IV below).
 
+**Findings go on the board, not into the void.** When an audit surfaces something worth
+fixing, log it as a card in the course's `IMPROVEMENTS.md` (the `improve` skill) with
+`src: audit <date>` — so it's tracked to *done*, not filed in a one-off report and
+forgotten. An audit's real output is a prioritized set of cards.
+
 ## Structural + quality audits
 
 | Task | Tool |

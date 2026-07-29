@@ -12,6 +12,19 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.11.0] — 2026-07-29
+
+**New `improve` skill: a local continuous-improvement kanban (`IMPROVEMENTS.md`) so course findings are tracked to done, not lost in one-off letters.**
+
+Audits and field sessions kept surfacing "should fix / should try" items that landed in chat or a handoff letter and were gone by the next session. The `improve` skill gives each course a single git-tracked kanban board.
+
+- **`IMPROVEMENTS.md` at the course root** — plain markdown, instructor-editable, Zone-1 (no student PII). Columns are the lifecycle: `Backlog → Ready → In Progress → In Review → Done`. Cards carry an id (`C-###`), source+date, size/risk, and a PR/commit link as they move. Lightweight agile — WIP limit on In Progress, ordered Ready (top = next), an In-Review gate so nothing self-marks Done. Template ships in the skill.
+- **Audits feed the board.** The `audit` skill now says its real output is a prioritized set of `IMPROVEMENTS.md` cards (`src: audit <date>`), not a report that gets filed and forgotten.
+- **Named for clarity, not collision.** File `IMPROVEMENTS.md`, skill `improve` — a repo-facing "CI" slug would read as continuous *integration*; this is continuous *improvement*.
+- Wired into distribution: added to the `cb_update` skill set, the constitution's skills index, and the pointer block, so every `cb_update --apply` course activates it. (Also backfilled `voicing` into the pointer-block skill list, which had been omitted.)
+
+---
+
 ## [1.10.0] — 2026-07-28
 
 **`grader_push --comments-only`: add or fix feedback on already-graded work without touching the grade (#266).**

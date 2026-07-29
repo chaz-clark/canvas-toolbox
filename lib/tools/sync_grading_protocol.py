@@ -46,8 +46,8 @@ This course uses **canvas-toolbox**. Its always-on rules — FERPA discipline, t
 Canvas-write safety doctrine + the `grade_guardian` hook, and behavioral principles —
 live in **`canvas-toolbox/AGENTS.md`** (the constitution). Read it. Mode-specific
 procedure lives in **operating-mode skills** under `.claude/skills/`: `grading`,
-`course-build`, `audit`, `accommodations`, `ferpa-deid`, `title-iv`. Load the skill
-that matches your task.
+`course-build`, `audit`, `accommodations`, `ferpa-deid`, `title-iv`, `voicing`,
+`improve`. Load the skill that matches your task.
 
 **Grading is HG-5 — the instructor decides.** AI grading is decision support, not
 autonomy: grade → review the feedback → `grader_push.py --mark-reviewed` (type
