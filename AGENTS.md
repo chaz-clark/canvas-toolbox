@@ -127,6 +127,13 @@ when you say "probably", STOP and check), *Jidoka* (write tests with code; a red
 blocks progress), *Poka-yoke* (design mistakes out). Quality loop: Prevent → Detect →
 Verify; on a defect, fix it, verify with real data, then add an automated guard.
 
+**Ground claims in the source — letters are read, not parsed.** Any statement you repeat
+to a student (their requested grade, their evidence, what their letter "says") must come
+from **reading that student's prose in full** — never a regex/NLP extraction. A parser on
+prose fabricates (a field script emitted *"you requested an A"* to students who asked for
+a C). Structured data (code, notebooks, CSVs, the gradebook) may be parsed; a letter,
+self-assessment, or reflection is comprehension data — read it, or abstain from the claim.
+
 **Always run via `uv run`** (`uv run pytest lib/tests -q`, `uv run python lib/tools/…`).
 Dependencies (`markdownify`, etc.) live in the uv venv; system `python3`/`pytest`
 reports false failures from missing modules.
