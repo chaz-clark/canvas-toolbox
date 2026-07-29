@@ -50,11 +50,13 @@ procedure lives in **operating-mode skills** under `.claude/skills/`: `grading`,
 `improve`. Load the skill that matches your task.
 
 **Grading is HG-5 — the instructor decides.** AI grading is decision support, not
-autonomy: grade → review the feedback → `grader_push.py --mark-reviewed` (type
-`reviewed`) → `--push` (type `push`). `--yes` does **not** bypass review on the
-AI-drafted path — enforced in code (#207). When a gate blocks you, do the review —
-never stack `--force`/`--regrade`/`--yes` to route around it, and never hand-write a
-Canvas write (the `grade_guardian` hook blocks that at create/edit/run).
+autonomy: grade → **show the feedback in chat** → `grader_push.py --mark-reviewed --yes`
+→ `--push --yes`. `--yes` is honored (no terminal — never send faculty to a shell), but
+the `grade_guardian` hook fires an in-chat **permission pop-up** at BOTH the review and
+the push (#264/#265): the instructor clicks to approve — an agent cannot skip it or
+self-attest. When a gate blocks you, get the human — never stack `--force`/`--regrade`
+to route around it, and never hand-write a Canvas write (the `grade_guardian` hook
+blocks that at create/edit/run).
 
 **Updating the toolkit — run ONE command, don't improvise git.** When the instructor
 says any of these (all mean the same thing):

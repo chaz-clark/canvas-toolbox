@@ -125,6 +125,13 @@ tag prints in the pre-push banner. It won't stack if you switch graders mid-stre
 
 ## grader_standing — the "your grade" column
 
+**Which push tool? Ask: does the assignment take a student submission?**
+**Yes** (online upload / text / quiz) → `grader_push` (keyed on submission files).
+**No** (a No-Submission "Your Grade" / standing column) → **`grader_standing`** (roster-keyed
+by user_id, overwrites freely, no regrade gate). Using grader_push on a No-Submission
+column hits the regrade gate and dead-ends — grader_push now detects this and refuses
+with a pointer here, but pick the right tool up front.
+
 For a No-Submission column (often weighted 100%) that you compute from a syllabus
 table and refresh weekly — instructor-computed, value-only, roster-keyed. It
 sidesteps Canvas's auto-zero and the regrade gate. It **computes nothing** — your

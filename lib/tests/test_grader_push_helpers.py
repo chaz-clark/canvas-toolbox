@@ -1152,3 +1152,15 @@ def test_comments_only_and_grade_only_are_mutually_exclusive():
         capture_output=True, text=True)
     assert r.returncode == 1
     assert "opposites" in r.stderr
+
+
+def test_is_no_submission_assignment():
+    """No-Submission / on-paper columns → True (value grades belong in grader_standing);
+    online-submission types → False; unknown/empty → False (never block on missing data)."""
+    assert _GP.is_no_submission_assignment(["none"]) is True
+    assert _GP.is_no_submission_assignment(["on_paper"]) is True
+    assert _GP.is_no_submission_assignment(["none", "not_graded"]) is True
+    assert _GP.is_no_submission_assignment(["online_upload"]) is False
+    assert _GP.is_no_submission_assignment(["online_text_entry", "online_upload"]) is False
+    assert _GP.is_no_submission_assignment([]) is False
+    assert _GP.is_no_submission_assignment(None) is False

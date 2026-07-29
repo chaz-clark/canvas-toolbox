@@ -948,7 +948,21 @@ def fetch_assignment_lock_state(
             # before the PUT (Canvas otherwise silently coerces invalid
             # strings to wrong grades — e.g. "(held)" → incomplete on
             # pass_fail).
-            "grading_type": a.get("grading_type") or ""}
+            "grading_type": a.get("grading_type") or "",
+            # Issue #268: submission_types drives the No-Submission boundary —
+            # value grades on a No-Submission column belong in grader_standing.
+            "submission_types": a.get("submission_types") or []}
+
+
+def is_no_submission_assignment(submission_types) -> bool:
+    """True if the assignment takes NO online student submission — a No-Submission /
+    on-paper / not-graded column (e.g. a 'Your Grade' standing column). grader_push is
+    keyed on submission FILES; value grades on these belong in grader_standing. Unknown
+    / unfetched (empty) → False, so a failed metadata fetch never blocks a real push."""
+    types = {str(t).strip() for t in (submission_types or []) if str(t).strip()}
+    if not types:
+        return False
+    return types.issubset({"none", "on_paper", "not_graded"})
 
 
 def comment_has_resubmit_language(text: str) -> bool:
@@ -1650,8 +1664,25 @@ def main() -> int:
         print(f"WARN: assignment metadata fetch failed "
               f"({type(e).__name__}: {e}); lock-state + grading-type checks disabled.",
               file=sys.stderr)
-        lock_state = {"locked_now": False, "grading_type": ""}
+        lock_state = {"locked_now": False, "grading_type": "", "submission_types": []}
     grading_type = (lock_state.get("grading_type") or "").strip()
+
+    # Submission-type boundary (#268): grader_push is keyed on submission FILES. A
+    # No-Submission column (e.g. "Your Grade") has none — its value grades belong in
+    # grader_standing (roster-keyed, no regrade gate). This is the wrong-tool wall an
+    # agent otherwise hits as the regrade gate, then thrashes toward --force / the API.
+    # Comments CAN attach to any submission object, so --comments-only is still allowed.
+    if not args.comments_only and is_no_submission_assignment(lock_state.get("submission_types")):
+        st = lock_state.get("submission_types")
+        print(f"\n⛔ Assignment {args.assignment_id} is a No-Submission column "
+              f"(submission_types={st}). grader_push is for submission-based work; value "
+              "grades on a No-Submission / 'Your Grade' column belong in grader_standing "
+              "(roster-keyed, no regrade gate).", file=sys.stderr)
+        print("   Use:  grader_standing.py --csv <user_id,grade> --assignment-id "
+              f"{args.assignment_id} --push --allow-enrolled", file=sys.stderr)
+        print("   (To post COMMENTS to this column instead, re-run with --comments-only.)",
+              file=sys.stderr)
+        return 1
     # The resubmit-language check is still gated by the flags; only the
     # underlying fetch was lifted.
     if not args.no_lock_check and not args.grade_only and lock_state.get("locked_now"):
