@@ -55,7 +55,7 @@ except ImportError:
     _ensure_guardian_hook = None
 
 SKILLS = ["grading", "course-build", "audit", "accommodations", "ferpa-deid",
-          "title-iv", "voicing"]
+          "title-iv", "voicing", "improve"]
 
 
 def plan_skill_symlinks(course_root: Path, toolkit_subdir: str,
