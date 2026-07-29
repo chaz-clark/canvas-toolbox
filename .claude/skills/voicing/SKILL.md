@@ -17,30 +17,39 @@ write in that voice. Never make up a new one when a profile exists.**
 
 ## Find the profile (check, in order)
 
-1. `VOICING.md` at the course root
-2. `grading/voicing.md` (or `grading/voicing_profile.md`)
-3. A location the course `AGENTS.md` points to (some courses name their own)
+1. **`grading/FEEDBACK_VOICE.md`** — the canonical location (what DS250 / ITM327 use)
+2. `grading/tasks/feedback_voice*.md` or `agents/knowledge/student_feedback_voice*.md`
+   — older/alt spots some courses used before the convention settled
+3. A location the course `AGENTS.md` names (some courses point to their own)
 
 The profile is course context (the instructor's voice — **not** student PII), so it's
 Zone-1: safe to read and to commit. Read it fully before you write.
 
-## Apply it
+## The standard structure
 
-A voicing profile typically pins: overall tone (warm / direct / formal), how to open
-and close, how to deliver criticism (sandwich? straight?), encouragement style,
-signature phrases to **use** and ones to **avoid**, length, and second-person vs
-third. Match all of it. When the profile and a rubric conflict on wording, the rubric
-governs *what* you say; the profile governs *how* you say it.
+Profiles follow a shared skeleton (see `FEEDBACK_VOICE.template.md` in this skill) —
+so once you know it, you can read any course's profile fast:
+
+- **Core principles** — how feedback should read (second person, specific, short, …)
+- **Banned jargon (hard rule)** — words/phrases that read as "AI"; NEVER use them
+- **Template openers — keep them** — intentional frames to preserve, not "improve"
+- **Comment structure (by assignment type)** — the shape per KC / milestone / review /
+  final-letter: what to lead with, order, length, how to deliver criticism
+- **Before / after** — "too AI" vs in-voice pairs (the sharpest signal)
+- **Hard rules / poka-yokes** — non-negotiables (e.g. never blame a student for the
+  course's own inconsistency)
+
+Apply **all** of it. When the profile and a rubric conflict, the rubric governs *what*
+you say; the profile governs *how* you say it.
 
 ## If there is no profile yet
 
 Do **not** silently invent one. Instead:
-1. Ask the instructor a few quick questions — tone, how they like to open/close,
-   phrases they love/hate, how blunt to be about problems.
-2. Draft a short profile from their answers **and their existing comments** if any
-   are available for reference.
-3. Save it to `VOICING.md` (or `grading/voicing.md`) so **every future comment reuses
-   it** — that's the whole point. Confirm the save with the instructor.
+1. Copy `FEEDBACK_VOICE.template.md` (in this skill) as the structure.
+2. Fill it from the instructor — ask about tone, openers/closers, jargon they hate,
+   how blunt to be — **and** from their existing edited comments if any are available.
+3. Save it to **`grading/FEEDBACK_VOICE.md`** so every future comment reuses it — that's
+   the whole point. Confirm the save with the instructor.
 
 ## Where this plugs in
 

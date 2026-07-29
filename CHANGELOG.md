@@ -12,6 +12,14 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.8.13] — 2026-07-28
+
+**`voicing` skill: real convention + a template derived from the actual course profiles.**
+
+Read the voice files that already exist across the repos and found the real convention is **`grading/FEEDBACK_VOICE.md`** (not the `VOICING.md` the skill first guessed), with a shared structure — Core principles · Banned jargon · Template openers · Comment structure by assignment type · Before/after · Hard rules/poka-yokes. Captured that as **`FEEDBACK_VOICE.template.md`** in the skill (so a new profile has a known shape), and pointed the skill at the real location plus the alt spots some courses use (`agents/knowledge/student_feedback_voice*.md`) — which is exactly why one repo's agents kept missing its profile and inventing a new voice: the profile lived at a non-standard path.
+
+---
+
 ## [1.8.12] — 2026-07-28
 
 **Two fixes for the "reinvent instead of reuse" pattern: `cb_update` now installs the guardian hook, and a new `voicing` skill.**
