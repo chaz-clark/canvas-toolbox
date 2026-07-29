@@ -6,6 +6,22 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::time::Duration;
 
+/// Extract the `rel="next"` URL from a Canvas `Link` header, if present.
+/// Format: `<https://…?page=2>; rel="next", <https://…?page=5>; rel="last"`.
+fn parse_next_link(link: &str) -> Option<String> {
+    for part in link.split(',') {
+        let seg = part.trim();
+        if seg.contains("rel=\"next\"") {
+            if let (Some(a), Some(b)) = (seg.find('<'), seg.find('>')) {
+                if a < b {
+                    return Some(seg[a + 1..b].to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "engagement-audit")]
 #[command(about = "Fetch Canvas engagement data for Title IV audit (Rust impl)")]
@@ -80,21 +96,25 @@ impl CanvasClient {
         endpoint: &str,
         params: &[(&str, String)],
     ) -> Result<Vec<T>> {
+        // Follow the `Link: rel="next"` header instead of blindly incrementing `page`.
+        // `/students/submissions?student_ids[]` returns HTTP 400 (not an empty page)
+        // for a page past the last, so blind `page += 1` bailed on page 2 of a
+        // single-page result — the whole fetch errored and every student was recorded
+        // with NO engagement ("never participated"). Issue #67 (matches the Python fix).
         let mut all_items = Vec::new();
-        let mut page = 1;
+        let mut url = format!("{}/api/v1/{}", self.base_url, endpoint);
+        let mut first = true;
 
         loop {
-            let url = format!("{}/api/v1/{}", self.base_url, endpoint);
+            let mut req = self.client.get(&url).bearer_auth(&self.token);
+            if first {
+                let mut query_params: Vec<(&str, String)> = params.to_vec();
+                query_params.push(("per_page", "100".to_string()));
+                req = req.query(&query_params);
+                first = false;
+            }
 
-            let mut query_params: Vec<(&str, String)> = params.to_vec();
-            query_params.push(("per_page", "100".to_string()));
-            query_params.push(("page", page.to_string()));
-
-            let response = self
-                .client
-                .get(&url)
-                .bearer_auth(&self.token)
-                .query(&query_params)
+            let response = req
                 .send()
                 .await
                 .context(format!("Failed to GET {}", endpoint))?;
@@ -103,17 +123,23 @@ impl CanvasClient {
                 anyhow::bail!("HTTP {} for {}", response.status(), endpoint);
             }
 
+            // Read the next-page link BEFORE consuming the body with `.json()`.
+            let next = response
+                .headers()
+                .get(reqwest::header::LINK)
+                .and_then(|v| v.to_str().ok())
+                .and_then(parse_next_link);
+
             let items: Vec<T> = response
                 .json()
                 .await
                 .context(format!("Failed to parse JSON from {}", endpoint))?;
-
-            if items.is_empty() {
-                break;
-            }
-
             all_items.extend(items);
-            page += 1;
+
+            match next {
+                Some(n) => url = n,
+                None => break,
+            }
         }
 
         Ok(all_items)

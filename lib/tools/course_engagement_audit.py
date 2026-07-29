@@ -561,6 +561,11 @@ def main() -> int:
                          "withdrawals whose last engagement must be documented.")
     ap.add_argument("--dry-run", action="store_true",
                     help="Print classification counts only; no file written.")
+    ap.add_argument("--rust", action="store_true",
+                    help="Use the fast concurrent Rust engine instead of the trusted "
+                         "Python default. ONLY after rebuilding the Rust binary from "
+                         "current source — an older binary mis-reports engagement "
+                         "(every student 'never participated').")
     args = ap.parse_args()
 
     tok, base, cid = _env_canvas(args.course_id)
@@ -657,17 +662,25 @@ def main() -> int:
           f"({len(keyed_rows) - n_inactive} active, {n_inactive} inactive). "
           "Fetching engagement events...")
 
-    # Step 2: Per-student engagement events (KEYED — operates on user_id)
-    # Dispatcher: Use Rust binary if available, otherwise Python fallback
+    # Step 2: Per-student engagement events (KEYED — operates on user_id).
+    # Engine: the PYTHON implementation is the trusted default. The Rust binary is
+    # opt-in (--rust) and, until rebuilt from current source, carries the SAME
+    # blind-pagination bug the Python path fixed in 1.8.6 — a compiled Rust binary in
+    # the field zeroed out engagement and reported every student as "never
+    # participated". A wrong Title IV report is worse than a slow one, so Rust is no
+    # longer used unless explicitly requested AND freshly rebuilt.
     script_dir = Path(__file__).parent
     rust_bin = script_dir / "engagement_audit_rs" / "target" / "release" / "engagement-audit"
+    if not args.rust:
+        rust_bin = None  # trusted Python default
 
     user_ids = [row["user_id"] for row in keyed_rows]
     engagement_data = {}  # user_id -> {submission_timestamps, discussion_timestamps}
 
-    if rust_bin.exists():
-        # Rust path - concurrent fetching
-        print("  Using Rust implementation (concurrent, fast)...", file=sys.stderr)
+    if rust_bin and rust_bin.exists():
+        # Rust path - concurrent fetching (opt-in; must be rebuilt from current source)
+        print("  Using Rust implementation (--rust). Ensure it was rebuilt from "
+              "current source (older binaries mis-report engagement).", file=sys.stderr)
         try:
             user_ids_csv = ",".join(str(uid) for uid in user_ids)
             result = subprocess.run(
@@ -699,17 +712,12 @@ def main() -> int:
             rust_bin = None  # Force Python fallback
 
     if not rust_bin or not rust_bin.exists():
-        # Python fallback - sequential fetching
-        print("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
-        print("  ⚠ Rust binary not found — using Python fallback (SLOW)", file=sys.stderr)
-        print("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
-        print(file=sys.stderr)
-        print("  Python fallback is slow for large courses (5-10 min for 100+ students).", file=sys.stderr)
-        print("  For 10-20x speedup, install Rust:", file=sys.stderr)
-        print("    cb-init --with-rust", file=sys.stderr)
-        print(file=sys.stderr)
-        print("  Proceeding with Python fallback...", file=sys.stderr)
-        print(file=sys.stderr)
+        # Python — the trusted default engine (correct pagination; #67).
+        print("  Fetching engagement (Python engine — the trusted default).",
+              file=sys.stderr)
+        print("  Sequential, so slow for large courses (~5-10 min for 100+ students). "
+              "For speed, rebuild the Rust binary from current source and pass --rust.",
+              file=sys.stderr)
 
         try:
             from _course_engagement_audit_python import run_python_fallback
