@@ -22,11 +22,12 @@ WHAT IT DOES
 GUARDRAILS (no override on the first three)
   1. --mark-reviewed REQUIRED before --push. Marker auto-invalidates if any
      comment file mtime > marker mtime (you can't approve a state and then
-     mutate it). **Issue #207 (HG-5)** — on the AI-drafted (LLM-comment)
-     push path, --yes does NOT bypass the final "type 'push'" confirmation:
-     an agent can pass --yes, but the instructor is the top layer and must
-     decide the write. A deprecated disclosure tag in any comment file
-     refuses the push (override: --allow-bad-disclosure-tags).
+     mutate it). **HG-5 chat-approval (#264)** — on the AI-drafted (LLM-comment)
+     path, --yes IS honored (no terminal keystroke — that dead-ended non-technical
+     faculty at a shell). The human gate moved UP to the grade_guardian PreToolUse
+     hook, which forces an 'ask' permission prompt on the --push write: the
+     instructor's in-chat click is the attestation. A deprecated disclosure tag in
+     any comment file refuses the push (override: --allow-bad-disclosure-tags).
   2. canvas_course_guard refuses live-course writes unless --allow-enrolled
      is passed. The toolkit's standing safety bar.
   3. Per-assignment idempotency. Keys already in the .push_log.md scoped to
@@ -651,32 +652,6 @@ def truncate_comment_preview(text: str | None, limit: int = 240) -> str:
     return snippet
 
 
-def is_yes_refused_on_review(comment_files: list, yes_flag: bool) -> bool:
-    """Issue #97: --yes is refused on the LLM-comment review path.
-
-    The `.reviewed` marker attests that a HUMAN reviewed
-    `feedback/_all_comments.md` (+ each per-student `<KEY>.md`
-    justification). A grading agent under the keyless protocol can pass
-    `--yes` and self-attest review — that collapses the
-    human-in-the-middle gate. The fix is to refuse the combination on
-    the path where comment files exist (LLM-comment grading).
-
-    The value-only / human-graded path keeps `--yes` (the human IS the
-    grader; `--yes` there is a script convenience, not an attestation
-    bypass).
-
-    Issue #207 (HG-5): the same helper also gates the FINAL push
-    confirmation. #97 closed the bypass on `--mark-reviewed`, but `--yes`
-    still skipped the "type 'push'" prompt afterward — so an agent that
-    re-marks reviewed could chain `--push --yes` and post AI-drafted
-    feedback with no human keystroke. On the LLM-comment path, the
-    instructor (the top layer) must physically confirm the write.
-
-    Returns True if the caller should refuse the command and exit.
-    """
-    return bool(comment_files) and bool(yes_flag)
-
-
 def is_group_mirror_row(row: dict) -> bool:
     """Issue #100: a .review.csv row is a 'group mirror' if its
     `group_mirror_of` column is non-empty — it's not the representative
@@ -1208,11 +1183,12 @@ def main() -> int:
                          "uses a MANUAL posting policy — otherwise grades are entered but hidden "
                          "from students and read as 'needs grading' (issue #199).")
     ap.add_argument("--yes", action="store_true",
-                    help="Skip the confirmation prompt. NOTE: REFUSED on the "
-                         "LLM-comment --mark-reviewed path (issue #97) — a human "
-                         "must physically type 'reviewed' there to attest review "
-                         "of _all_comments.md. Works on the value-only / "
-                         "human-graded review path + on the main --push prompt.")
+                    help="Skip the terminal confirmation prompt — honored on ALL paths, "
+                         "including the AI-drafted (LLM-comment) --mark-reviewed / --push "
+                         "path (#264). The human gate is no longer a terminal keystroke "
+                         "but the grade_guardian 'ask' permission prompt on the push; the "
+                         "agent shows the review surface in-chat and the instructor "
+                         "approves in a reply, then clicks the prompt.")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Bypass canvas_course_guard for enrolled-course writes (instructor's own course).")
     ap.add_argument("--test-user", type=int,
@@ -1409,25 +1385,13 @@ def main() -> int:
                   "a review surface.", file=sys.stderr)
             return 1
 
-        # Issue #97: refuse --yes on the LLM-comment review path. The risk:
-        # an agent grading on the keyless protocol can self-attest review by
-        # running `grader_push --mark-reviewed --yes` immediately after
-        # writing _all_comments.md, then chain into --push. That collapses
-        # "grade" and "push" — the human-in-the-middle review of
-        # _all_comments.md never happens. The value-only / human-graded
-        # path keeps the --yes shortcut (the human IS the grader; --yes is
-        # a script convenience).
-        if is_yes_refused_on_review(comment_files, args.yes):
-            print(f"\n⛔ --yes is refused on the LLM-comment review path (issue #97).",
-                  file=sys.stderr)
-            print(f"   The .reviewed marker attests human review of "
-                  f"{fbdir.relative_to(challenge)}/_all_comments.md", file=sys.stderr)
-            print(f"   + each per-student {prefix}-*.md justification. An agent can "
-                  f"pass --yes; a human must physically type 'reviewed'.",
-                  file=sys.stderr)
-            print(f"   Fix: re-run WITHOUT --yes; eyeball the comments; type "
-                  f"'reviewed' at the prompt.", file=sys.stderr)
-            return 1
+        # Chat-approval model (#264): --yes is HONORED on the AI-drafted path.
+        # The human-in-the-loop no longer happens as a terminal keystroke here
+        # (that dead-ended non-technical faculty at a shell). Instead the agent
+        # shows the review surface in the conversation, the instructor approves in
+        # a reply, and the agent runs --mark-reviewed --yes. The .reviewed marker
+        # is a staleness guard (#46), not the attestation; the hard human gate is
+        # the grade_guardian 'ask' permission prompt on the --push write.
         if not args.yes and not require_typed_confirmation("\nType 'reviewed' to confirm: ", "reviewed"):
             print("Not marked.")
             return 1
@@ -1798,23 +1762,15 @@ def main() -> int:
             print(b)
         return 1
 
-    # --- HG-5 GATE: instructor is the top layer on the AI-drafted push path ---
-    # Issue #207: the presence of per-student comment files marks the LLM-comment
-    # (AI-drafted) path. On that path --yes must not bypass the final push
-    # confirmation — an agent can pass --yes, but a human must decide to write
-    # AI-drafted feedback to a live course (HG-5: decision support, not autonomy).
-    # The value-only / human-graded path (no comment files) keeps --yes.
+    # --- HG-5, chat-approval model (#264) ---
+    # Per-student comment files mark the AI-drafted (LLM-comment) path. --yes is now
+    # HONORED here: the agent shows the comments + old→new grades IN THE CONVERSATION,
+    # the instructor approves in a reply, and the write goes out. The hard human gate
+    # moved UP to the grade_guardian PreToolUse hook, which forces an 'ask' permission
+    # prompt on this --push — the instructor's in-chat click is the attestation.
+    # #207's terminal keystroke dead-ended non-technical faculty at a shell; the
+    # guardian prompt replaces it without ever sending them to a terminal.
     ai_comment_files = list(fbdir.glob(f"{prefix}-*.md"))
-    if is_yes_refused_on_review(ai_comment_files, args.yes):
-        print("\n⛔ --yes is refused on the AI-drafted push path (issue #207, HG-5).",
-              file=sys.stderr)
-        print("   Pushing AI-drafted feedback to a live course requires the instructor",
-              file=sys.stderr)
-        print("   to confirm the write — the instructor is the top layer and decides.",
-              file=sys.stderr)
-        print("   Fix: re-run WITHOUT --yes; type 'push' at the confirmation prompt.",
-              file=sys.stderr)
-        return 1
 
     # Issue #207: refuse deprecated disclosure-tag formats before writing. A stale
     # tag would get the canonical DISCLOSURE_TAG stacked on top of it at send-time.

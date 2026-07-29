@@ -24,6 +24,14 @@ WHAT IT DENIES
   - Read: FERPA Zone-2 files (.deid_master.csv et al.) — the AGENTS.md discipline,
     enforced deterministically instead of by instruction (#212).
 
+WHAT IT ASKS (does not deny — forces a human prompt) (#264)
+  - Bash: a grader_push.py --push that writes AI-drafted comments (not --grade-only /
+    --test-user / --retract). grader_push now honors --yes on that path (no terminal
+    keystroke — that dead-ended non-technical faculty at a shell), so the human review
+    gate lives HERE: the hook returns permissionDecision "ask", forcing Claude Code to
+    prompt the instructor. Their in-chat click is the attestation. (In full
+    bypass-permissions mode nothing prompts — an explicit opt-out, honestly out of scope.)
+
 WHAT IT DOES NOT DO (honest limits)
   Regex on a command / file body is not a semantic firewall. A determined agent
   can obfuscate (eval, base64, variable indirection) past it. This decisively
@@ -186,6 +194,38 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# ASK layer (#264): force a human permission prompt on the AI-drafted grade push.
+# grader_push now honors --yes there (no terminal keystroke), so the human review
+# gate is this hook forcing Claude Code to ask — the instructor's click attests.
+# ---------------------------------------------------------------------------
+
+def _is_ai_drafted_push(cmd: str) -> bool:
+    """True for a grader_push invocation that writes AI-drafted comments to a live
+    course — the write the instructor must approve in-chat. Excludes the value-only
+    (--grade-only), test-student (--test-user), and retract (--retract) paths."""
+    if "grader_push" not in cmd or not re.search(r"--push\b", cmd):
+        return False
+    return not any(re.search(re.escape(f) + r"\b", cmd)
+                   for f in ("--grade-only", "--test-user", "--retract"))
+
+
+def ask_reason(tool_name: str, tool_input: dict) -> str | None:
+    """Return a permission-prompt reason if this call is an AI-drafted grade push the
+    instructor should confirm, else None. Pure function — unit-testable without Claude
+    Code. main() turns a non-None reason into a permissionDecision 'ask'."""
+    tool_input = tool_input or {}
+    if tool_name != "Bash":
+        return None
+    if not _is_ai_drafted_push(tool_input.get("command", "") or ""):
+        return None
+    return (
+        "Human review gate (HG-5, #264): this pushes AI-drafted feedback + grades to "
+        "students on a LIVE course. Approve only after reviewing the comments and the "
+        "old→new grade preview the agent showed you. Allow = send; Deny = hold."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Installer helpers — cb_init wires this hook into a course repo's settings.json.
 # Single-sourced here so the matcher/command never drift from the hook itself.
 # ---------------------------------------------------------------------------
@@ -229,19 +269,35 @@ def ensure_hook(settings: dict) -> tuple:
     return settings, True
 
 
+def _emit_ask(reason: str) -> None:
+    """Print the PreToolUse JSON that forces Claude Code to prompt the instructor
+    (permissionDecision 'ask'). Exit 0 accompanies it — stdout JSON drives the
+    decision; exit 2 would instead hard-block (deny)."""
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "ask",
+        "permissionDecisionReason": reason,
+    }}))
+
+
 def main() -> int:
     if "--help" in sys.argv[1:]:
-        print("PreToolUse hook (issue #213). Reads a tool call as JSON on stdin; "
-              "exits 2 to block a direct Canvas grade write. Not an operator CLI.")
+        print("PreToolUse hook (issue #213/#264). Reads a tool call as JSON on stdin; "
+              "exits 2 to block a direct Canvas grade write, or emits an 'ask' JSON to "
+              "prompt the instructor before an AI-drafted grade push. Not an operator CLI.")
         return 0
     try:
         data = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError, OSError):
         return 0  # fail open — never break the session on bad/empty input
-    reason = evaluate(data.get("tool_name", ""), data.get("tool_input", {}))
+    tool_name, tool_input = data.get("tool_name", ""), data.get("tool_input", {})
+    reason = evaluate(tool_name, tool_input)
     if reason:
         print(reason, file=sys.stderr)
         return 2
+    ask = ask_reason(tool_name, tool_input)
+    if ask:
+        _emit_ask(ask)
     return 0
 
 
