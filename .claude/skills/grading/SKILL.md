@@ -190,6 +190,10 @@ grader_standing.py --csv standing.csv --assignment-id <id> --push --yes --allow-
 - Zone-2 files (`.deid_master.csv`, `.keymap.json`, `.known_names.txt`,
   `.review.csv`, `submissions_raw/`, `feedback/_grader*.csv`) are **never** read or
   displayed. Verify with `wc -l` / `ls`, never `cat`/`head`/`grep`.
+- The working files you *do* read here (`_computed_grades.csv`,
+  `_gradebook_canvas.csv`, `_actual_grades.csv`) carry names. Reading them is fine;
+  **echoing a name out of them is not** — report every student as `user_id` or
+  `deid_code`. See the constitution's FERPA section (Zone 2-Adjacent).
 
 ## Final-letter grading — split the write, two sanctioned tools
 

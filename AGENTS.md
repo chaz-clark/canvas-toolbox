@@ -75,14 +75,29 @@ surface:
 user_id, never the `sortable_name` column). Redirect to `/dev/null` or `cut` to
 columns 1,2 — never display raw rows.
 
-**Use codes, not names.** Tools accept `--deid-code`/`--user-id`; the *human* looks
-up the identifier locally and hands you the opaque code. You never re-identify.
-✅ "Reopened for user_id 280379" · ❌ "Reopened for Sam Bradshaw (280379)". If asked
-"who is user_id 280379?" → "I don't have the name mapping (FERPA Zone 2); check
-`grading/.deid_master.csv` locally."
+**These files are Zone 2-ADJACENT: read them freely, but NEVER echo a name out
+of them.** They're working files you legitimately need, and they carry names:
 
-*Two real incidents (2026-07-01, 2026-07-02) came from an agent reading/`head`-ing
-`.deid_master.csv` and surfacing a name. That is the failure this rule prevents.*
+- `grading/*/_computed_grades.csv` — computed grades, named
+- `grading/*/_gradebook_canvas.csv` — gradebook export, named
+- `grading/*/_actual_grades.csv` — pushed grades, named
+- `grading/*/FINAL_REVIEW_COMMENTS_*.md` — review comments, may name students
+
+**Use codes, not names — no matter which file the name came from.** Tools accept
+`--deid-code`/`--user-id`; the *human* looks up the identifier locally and hands you
+the opaque code. You never re-identify, and **being allowed to read a name never
+makes you allowed to print one** — refer to students only by `user_id` or
+`deid_code` in every response, summary, table, and commit message.
+✅ "Reopened for user_id 280379" · ❌ "Reopened for Sam Bradshaw (280379)"
+✅ "FR-B75C87 earned a B+ elevated to A" · ❌ "Student 280379 (Sam Bradshaw) …"
+If asked "who is user_id 280379?" → "I don't have the name mapping (FERPA Zone 2);
+check `grading/.deid_master.csv` locally."
+
+*Three real incidents. 2026-07-01 and 2026-07-02: an agent read/`head`-ed
+`.deid_master.csv` and surfaced a name — the READ failure, now also blocked by
+`grade_guardian`. 2026-07-28: an agent read names out of a legitimately-readable
+working file and printed them next to grades — the OUTPUT failure, which no read
+rule can catch. Both directions are covered above.*
 
 ---
 
