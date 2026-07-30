@@ -118,20 +118,55 @@ def install_skill_symlinks(plan: list[tuple[Path, str]], apply: bool) -> list[tu
     return results
 
 
-def ensure_gitignore(course_root: Path, apply: bool) -> str:
-    """Make sure `.claude/skills/` is gitignored (the symlinks/copies point at the
-    gitignored vendored toolkit; re-created by this tool, not committed)."""
+_BLANKET = ".claude/skills/"   # what we used to write — too broad (see below)
+_GI_HEADER = "# canvas-toolbox skills (symlinks into the vendored toolkit)"
+
+
+def ensure_gitignore(course_root: Path, skills: list[str], apply: bool) -> str:
+    """Gitignore the toolkit's OWN skills by name — never the whole directory.
+
+    The symlinks/copies point at the gitignored vendored toolkit and are re-created
+    by this tool, so they shouldn't be committed. But `install_skill_symlinks()`
+    already knows a course can own a skill of its own in that same folder
+    (`skip-course-owns`), and the old blanket `.claude/skills/` line gitignored those
+    too. Quietly: .gitignore doesn't affect tracked files, so nothing broke at apply
+    time — it bit the NEXT course-owned skill added, which `git add -A` and
+    `git status` then silently skipped (#271, #272).
+
+    Ignoring `SKILLS` by name makes the ignore set exactly what this tool creates, so
+    a course-owned skill is protected by construction. It also fails safe in the
+    right direction: a newly shipped toolkit skill shows up as a tracked symlink
+    (visible, trivially fixed) instead of a course-owned skill vanishing untracked.
+
+    Returns present/would-add/added/would-migrate/migrated ("migrate" = a legacy
+    blanket line was replaced in place; without that, every repo already updated by
+    an older cb_update would keep the blanket line forever)."""
     gi = course_root / ".gitignore"
-    line = ".claude/skills/"
     existing = gi.read_text(encoding="utf-8") if gi.is_file() else ""
-    if line in existing.splitlines():
+    lines = existing.splitlines()
+    wanted = [f".claude/skills/{s}/" for s in skills]
+
+    if _BLANKET in lines:
+        if not apply:
+            return "would-migrate"
+        out = []
+        for ln in lines:
+            if ln == _BLANKET:
+                out.extend(w for w in wanted if w not in lines)  # replace in place
+            else:
+                out.append(ln)
+        gi.write_text("\n".join(out) + "\n", encoding="utf-8")
+        return "migrated"
+
+    missing = [w for w in wanted if w not in lines]
+    if not missing:
         return "present"
     if not apply:
         return "would-add"
     with gi.open("a", encoding="utf-8") as fh:
         if existing and not existing.endswith("\n"):
             fh.write("\n")
-        fh.write(f"# canvas-toolbox skills (symlinks into the vendored toolkit)\n{line}\n")
+        fh.write(_GI_HEADER + "\n" + "".join(f"{w}\n" for w in missing))
     return "added"
 
 
@@ -222,7 +257,11 @@ def main() -> int:
     print("Skills → .claude/skills/ (so Claude Code activates them here):")
     for name, status in install_skill_symlinks(plan, args.apply):
         print(f"  {status:16} {name}")
-    print(f"  gitignore .claude/skills/: {ensure_gitignore(course_root, args.apply)}")
+    gi_status = ensure_gitignore(course_root, SKILLS, args.apply)
+    print(f"  gitignore (toolkit skills, by name): {gi_status}")
+    if gi_status in ("migrated", "would-migrate"):
+        print("  ↳ replaced a blanket `.claude/skills/` ignore, which also hid the "
+              "course's OWN skills from git (#271). Course-owned skills are now visible.")
 
     fname, status = refresh_pointer(course_root, args.apply)
     print(f"\nConstitution+skills pointer in {fname}: {status}")

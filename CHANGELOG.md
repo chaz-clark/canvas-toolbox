@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.14.1] — 2026-07-30
+
+**`cb_update` no longer gitignores the course's OWN skills (#271, #272).**
+
+`ensure_gitignore()` appended a blanket `.claude/skills/` — right for the toolkit's symlinks, wrong for a skill the course authored in that same folder. `cb_update` already models the distinction (`install_skill_symlinks()` returns `skip-course-owns` for a real directory it must not clobber) and then ignored those directories anyway.
+
+It failed *quietly*: `.gitignore` doesn't affect already-tracked files, so nothing broke at apply time. It bit the **next** course-owned skill added — untracked and ignored, so `git add -A` skipped it, `git status` never listed it, and it was simply never committed. Reported by a non-Canvas consumer (Brightspace) using the toolkit for its knowledge library and skills architecture, with six course-owned skills of its own.
+
+- **Ignore the toolkit's skills by name** (`.claude/skills/grading/`, …) instead of the directory. The ignore set now matches exactly what the tool creates, so anything classified `skip-course-owns` is protected **by construction** rather than by a negation list the consumer has to remember to extend. Fails safe in the right direction too: a newly shipped toolkit skill shows up as a tracked symlink (visible, trivially fixed) instead of a course-owned skill vanishing without a trace.
+- **Existing repos are migrated, not just new ones.** The old code returned `present` the moment it saw the blanket line, so a changed emit alone would have fixed only fresh repos and left every already-updated consumer — including the reporter's — broken. `--apply` now replaces a legacy blanket line in place (`migrated`), preserving surrounding entries and any consumer-added negations.
+- Consumers who added negations or a `pre-commit` guard as a workaround can keep them; they're harmless once the blanket line is gone.
+
+---
+
 ## [1.14.0] — 2026-07-29
 
 **Close the shell FERPA hole (`cat .keymap.json`) and codify "letters are read, not parsed" (#270).**
