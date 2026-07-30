@@ -12,6 +12,21 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.15.0] — 2026-07-30
+
+**FERPA output discipline: being allowed to READ a name never makes you allowed to PRINT one (#254).**
+
+The constitution had input discipline (don't read `.deid_master.csv`) but no output rule. A 2026-07-28 field incident exposed the asymmetry: an agent read names out of a *legitimately readable* working file (`_computed_grades.csv`) and printed them next to grades. No read rule can catch that — the read was allowed.
+
+- **New Zone 2-ADJACENT file class** — `_computed_grades.csv`, `_gradebook_canvas.csv`, `_actual_grades.csv`, `FINAL_REVIEW_COMMENTS_*.md`. Read them freely; never echo a name out of them. Fills the gap between "never read" (Zone 2) and unclassified.
+- **The output rule is now unconditional** — students are referred to by `user_id`/`deid_code` in every response, summary, table, and commit message, *regardless of which file the name came from*. Added ✅/❌ pairs drawn from the actual incident phrasing.
+- The `grading` skill — where the incident happened — names the three working files it has you read and points at the constitution.
+- Incident note now records all three (2026-07-01, 2026-07-02 read failures; 2026-07-28 output failure) so the two directions are visibly distinct.
+
+Phases 1–2 of #254. Phase 3 (automated pre-output scanner) is **not** implementable as specified — no Claude Code hook can inspect or block assistant prose — and remains open for a scoped-down design; see the issue thread.
+
+---
+
 ## [1.14.1] — 2026-07-30
 
 **`cb_update` no longer gitignores the course's OWN skills (#271, #272).**
