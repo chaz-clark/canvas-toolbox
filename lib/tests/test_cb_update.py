@@ -5,6 +5,7 @@ stale pointer in 6/9. These pin the two fixes: install skills at the course root
 (non-clobbering) and refresh the pointer in place.
 """
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -135,10 +136,61 @@ def test_install_never_clobbers_a_course_owned_skill(tmp_path):
     assert (owned / "SKILL.md").read_text(encoding="utf-8") == "course's own\n"  # intact
 
 
-def test_ensure_gitignore_adds_skills_line_once(tmp_path):
-    assert ensure_gitignore(tmp_path, apply=True) == "added"
-    assert ".claude/skills/" in (tmp_path / ".gitignore").read_text(encoding="utf-8")
-    assert ensure_gitignore(tmp_path, apply=True) == "present"  # idempotent
+def _gi_lines(tmp_path):
+    return (tmp_path / ".gitignore").read_text(encoding="utf-8").splitlines()
+
+
+def test_ensure_gitignore_ignores_toolkit_skills_by_name_not_the_directory(tmp_path):
+    """The blanket `.claude/skills/` also swallowed course-OWNED skills (#271).
+    Ignore only the names this tool installs."""
+    assert ensure_gitignore(tmp_path, ["grading", "audit"], apply=True) == "added"
+    lines = _gi_lines(tmp_path)
+    assert ".claude/skills/grading/" in lines and ".claude/skills/audit/" in lines
+    assert ".claude/skills/" not in lines                   # never the whole directory
+    assert ensure_gitignore(tmp_path, ["grading", "audit"], apply=True) == "present"
+
+
+def test_ensure_gitignore_migrates_the_legacy_blanket_line(tmp_path):
+    """Every repo an older cb_update already touched has the blanket line, and the
+    old code returned 'present' on sight of it — so a changed emit alone would fix
+    only fresh repos. Replace it in place."""
+    (tmp_path / ".gitignore").write_text(
+        "*.pyc\n.claude/skills/\n.env\n", encoding="utf-8")
+    assert ensure_gitignore(tmp_path, ["grading"], apply=False) == "would-migrate"
+    assert ".claude/skills/" in _gi_lines(tmp_path)          # dry-run wrote nothing
+    assert ensure_gitignore(tmp_path, ["grading"], apply=True) == "migrated"
+    lines = _gi_lines(tmp_path)
+    assert lines == ["*.pyc", ".claude/skills/grading/", ".env"]  # in place, nothing lost
+    assert ensure_gitignore(tmp_path, ["grading"], apply=True) == "present"  # idempotent
+
+
+def test_ensure_gitignore_adds_only_newly_shipped_skills(tmp_path):
+    ensure_gitignore(tmp_path, ["grading"], apply=True)
+    assert ensure_gitignore(tmp_path, ["grading", "improve"], apply=True) == "added"
+    assert _gi_lines(tmp_path).count(".claude/skills/grading/") == 1   # no duplicate
+
+
+def test_course_owned_skill_stays_visible_to_git(tmp_path):
+    """The bug as the consumer felt it: a course-authored skill added AFTER
+    cb_update ran was untracked AND ignored, so `git add -A` silently skipped it."""
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    owned = tmp_path / ".claude" / "skills" / "my-course-skill"
+    owned.mkdir(parents=True)
+    (owned / "SKILL.md").write_text("course's own\n", encoding="utf-8")
+    (tmp_path / ".gitignore").write_text(".claude/skills/\n", encoding="utf-8")  # legacy
+
+    def ignored(rel):
+        return subprocess.run(["git", "-C", str(tmp_path), "check-ignore", "-q", rel]
+                              ).returncode == 0
+
+    assert ignored(".claude/skills/my-course-skill/SKILL.md")      # the bug
+    ensure_gitignore(tmp_path, ["grading"], apply=True)
+    assert not ignored(".claude/skills/my-course-skill/SKILL.md")  # fixed
+    assert ignored(".claude/skills/grading/")                      # toolkit's own still ignored
+    status = subprocess.run(["git", "-C", str(tmp_path), "status", "--short", "-uall"],
+                            capture_output=True, text=True).stdout
+    assert "my-course-skill/SKILL.md" in status   # the consumer can finally commit it
+    assert "skills/grading" not in status         # toolkit symlinks still stay out
 
 
 def test_refresh_pointer_injects_into_course_agents(tmp_path):
