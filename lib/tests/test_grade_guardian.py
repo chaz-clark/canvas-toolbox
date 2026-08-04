@@ -15,7 +15,8 @@ if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
 from grade_guardian import (evaluate, ensure_hook, hook_command,  # noqa: E402
-                            _extract_script_paths, ask_reason, _grader_push_checkpoint)
+                            _extract_script_paths, ask_reason, _grader_push_checkpoint,
+                            load_zone2, compile_zone2, zone2_summary)
 
 _BYPASS_BODY = ('import requests\n'
                 'requests.put("https://x.instructure.com/api/v1/courses/1/assignments/2/'
@@ -358,3 +359,132 @@ def test_bash_exempts_sanctioned_reidentify_reading_keymap():
     cmd = ("uv run python canvas-toolbox/lib/tools/grader_reidentify.py "
            "--challenge-dir grading/kc3 --map grading/kc3/.keymap.json")
     assert evaluate("Bash", {"command": cmd}) is None
+
+
+# --- Zone-2 pattern set: one source, two forms, course-local extension (#278) ---
+
+def test_both_zone2_forms_derive_from_one_list_and_cannot_drift():
+    """They were two hand-maintained regexes with a 'kept in sync by hand' comment,
+    and had already drifted (case sensitivity, `.*` vs `[^/\\]*`). Same source now."""
+    entries, invalid = load_zone2(Path("/nonexistent"))
+    assert invalid == []
+    path_re, file_re = compile_zone2(entries)
+    for stem in (".deid_master.csv", ".known_names.txt", ".keymap.json",
+                 ".fetch_log.json", ".review.csv"):
+        assert path_re.search(f"grading/{stem}"), stem      # anchored form
+        assert file_re.search(f"cat grading/{stem}"), stem  # shell form
+
+
+def test_zone2_path_form_is_case_insensitive():
+    """It used to be case-sensitive while the shell form wasn't, so on a
+    case-insensitive filesystem `Read .DEID_MASTER.csv` passed a block `cat` caught."""
+    path_re, _ = compile_zone2(load_zone2(Path("/nonexistent"))[0])
+    assert path_re.search("grading/.DEID_MASTER.CSV")
+
+
+def test_course_local_patterns_extend_the_set(tmp_path):
+    """The Brightspace case (#278): a non-Canvas consumer's name-bearing files have
+    ZERO overlap with the Canvas defaults, so the hook enforced an empty set."""
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "ferpa_zone2.txt").write_text(
+        "# a Brightspace course's name-bearing files\n"
+        "\n"
+        r"_all_posts\.md" "\n"
+        r"_roster\.json" "\n"
+        r"/txt_full/" "\n",
+        encoding="utf-8")
+    entries, invalid = load_zone2(tmp_path)
+    assert invalid == []
+    path_re, file_re = compile_zone2(entries)
+    assert path_re.search("discussions/m3/_all_posts.md")
+    assert file_re.search("cat discussions/m3/_roster.json")
+    assert file_re.search("head discussions/txt_full/x.txt")
+    assert path_re.search("grading/.keymap.json")     # defaults still enforced
+
+
+def test_invalid_course_patterns_are_dropped_but_reported(tmp_path):
+    """A typo must not brick the session — but a silently ignored pattern is the
+    false sense of coverage this issue is about, so it has to surface."""
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "ferpa_zone2.txt").write_text(
+        "_all_posts\\.md\n[unclosed\n", encoding="utf-8")
+    entries, invalid = load_zone2(tmp_path)
+    assert invalid == ["[unclosed"]
+    compile_zone2(entries)                            # the good ones still compile
+    assert zone2_summary(tmp_path)["invalid"] == ["[unclosed"]
+
+
+def test_zone2_summary_reports_counts_and_source(tmp_path):
+    bare = zone2_summary(tmp_path)
+    assert bare["extra"] == 0 and bare["source"] is None   # nothing to mislead about
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "ferpa_zone2.txt").write_text("_all_posts\\.md\n", encoding="utf-8")
+    s = zone2_summary(tmp_path)
+    assert s["default"] > 0 and s["extra"] == 1 and s["source"].endswith("ferpa_zone2.txt")
+
+
+def test_missing_or_unreadable_extension_file_is_silent(tmp_path):
+    """Absent file is the overwhelmingly common case (every Canvas repo) — no noise,
+    no failure."""
+    assert load_zone2(tmp_path) == (load_zone2(Path("/nonexistent"))[0], [])
+
+
+def test_hook_process_actually_blocks_a_course_local_zone2_file(tmp_path):
+    """End-to-end through the REAL hook process, because that's the only thing that
+    proves the extension point works. The pure-function tests above can all pass
+    while `evaluate()` still consults a stale module-level regex — the same class of
+    self-confirming test that let #277 ship. Run the hook the way Claude Code does:
+    tool call on stdin, CLAUDE_PROJECT_DIR set, exit 2 = blocked."""
+    import os
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "ferpa_zone2.txt").write_text(r"_all_posts\.md" "\n",
+                                                          encoding="utf-8")
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)}
+
+    def run(payload):
+        return subprocess.run([sys.executable, str(HOOK)], env=env, text=True,
+                              input=json.dumps(payload), capture_output=True)
+
+    blocked = run({"tool_name": "Read",
+                   "tool_input": {"file_path": "discussions/m3/_all_posts.md"}})
+    assert blocked.returncode == 2, blocked.stderr
+    assert "FERPA" in blocked.stderr
+
+    # the shell form too — `cat` was the #270 hole, and it must cover extras as well
+    shell = run({"tool_name": "Bash",
+                 "tool_input": {"command": "cat discussions/m3/_all_posts.md"}})
+    assert shell.returncode == 2, shell.stderr
+
+    # and a file NOT in either set still passes — the extension must not over-block
+    ok = run({"tool_name": "Read", "tool_input": {"file_path": "README.md"}})
+    assert ok.returncode == 0
+
+
+def test_hook_process_without_course_patterns_still_enforces_defaults(tmp_path):
+    """No extension file (every Canvas repo) — defaults must be untouched."""
+    import os
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)}
+    r = subprocess.run([sys.executable, str(HOOK)], env=env, text=True, capture_output=True,
+                       input=json.dumps({"tool_name": "Read",
+                                         "tool_input": {"file_path": "grading/.keymap.json"}}))
+    assert r.returncode == 2, r.stderr
+
+
+def test_classlist_export_is_blocked_out_of_the_box(tmp_path):
+    """The sharpest artifact from #278's follow-up: a D2L Classlist export is the
+    complete identity join for a section (name + username + email + institutional id,
+    one row per student). Shipped as a default rather than left to config, because an
+    unconfigured consumer is exactly the 'installed and enforcing nothing' case the
+    issue is about. `Classlist_Export` is D2L's invariant export naming — the course
+    code, term and timestamp around it vary, that substring doesn't."""
+    import os
+    real = "DAT 300 Data Mining 25EW6_Classlist_Export_2026-08-04-120000.csv"
+    path_re, file_re = compile_zone2(load_zone2(Path("/nonexistent"))[0])
+    assert path_re.search(f"rosters/{real}")
+    assert file_re.search(f"cat '~/Downloads/{real}'")     # where it actually lands
+
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)}   # NO config file
+    r = subprocess.run([sys.executable, str(HOOK)], env=env, text=True, capture_output=True,
+                       input=json.dumps({"tool_name": "Read",
+                                         "tool_input": {"file_path": f"rosters/{real}"}}))
+    assert r.returncode == 2, r.stderr

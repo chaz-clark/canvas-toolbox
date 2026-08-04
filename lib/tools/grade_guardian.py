@@ -56,8 +56,10 @@ HOW CLAUDE CODE INVOKES IT
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
+from pathlib import Path
 
 # A write verb: an HTTP mutation, however the script spells it.
 _WRITE_VERB = re.compile(
@@ -87,29 +89,103 @@ _TOOLS_PATH = re.compile(r"/lib/tools/[^/\\]+\.py$")
 _DOC_PATH = re.compile(r"\.(md|markdown|rst|txt)$", re.IGNORECASE)
 
 # FERPA Zone-2 files — never surface to an LLM (AGENTS.md → FERPA discipline, #212).
-_FERPA_PATH = re.compile(
-    r"\.deid_master\.csv$"
-    r"|\.known_names\.txt$"
-    r"|\.keymap\.json$"
-    r"|\.fetch_log\.json$"
-    r"|\.review\.csv$"
-    r"|/submissions_raw/"
-    r"|feedback/_grader.*\.csv$"
-)
+#
+# ONE source list, two compiled forms. They were two hand-maintained regexes with a
+# "kept in sync by hand" comment, and they had already drifted: one was case-sensitive
+# and used `.*` where the other used `[^/\\]*`. Deriving both removes the hazard.
+#
+# `(pattern, anchor)` — anchor=True appends `$` in PATH form (a filename suffix, e.g.
+# `.keymap.json`); anchor=False is a path fragment that can appear mid-path (e.g.
+# `/submissions_raw/`). FILE form is never anchored: it matches anywhere in a shell
+# command string, so the Bash branch catches `cat .keymap.json` (#270).
+_ZONE2_DEFAULT: list[tuple[str, bool]] = [
+    (r"\.deid_master\.csv", True),
+    (r"\.known_names\.txt", True),
+    (r"\.keymap\.json", True),
+    (r"\.fetch_log\.json", True),
+    (r"\.review\.csv", True),
+    (r"/submissions_raw/", False),
+    (r"feedback/_grader[^/\\]*\.csv", True),   # stricter of the two drifted forms
+    # The one non-Canvas default, and it earns its place: a D2L/Brightspace Classlist
+    # export is the complete identity join for a section — name, username, email, and
+    # institutional id on one row per student. The consumer who reported #278 argued
+    # no shipped pattern could anticipate it because the filename carries course code,
+    # term and timestamp. True of those parts, but `Classlist_Export` is D2L's own
+    # export naming and is invariant across institutions — so this IS anticipatable,
+    # and it matters: the complaint is that the hook installs and enforces nothing, and
+    # a consumer who never writes the config file below would still be unprotected on
+    # the most identifying file they hold. Costs Canvas repos nothing (no Canvas
+    # artifact is named this). Also matches it sitting in ~/Downloads, unanchored.
+    (r"Classlist_Export[^/\\]*\.csv", True),
+]
 
-# The same Zone-2 files, matched anywhere in a SHELL command (no end-anchor), so the
-# Bash branch can catch `cat .keymap.json` — the Read-tool block above doesn't cover a
-# shell read (#270). Kept in sync with _FERPA_PATH by hand.
-_FERPA_FILE = re.compile(
-    r"\.deid_master\.csv"
-    r"|\.known_names\.txt"
-    r"|\.keymap\.json"
-    r"|\.fetch_log\.json"
-    r"|\.review\.csv"
-    r"|/submissions_raw/"
-    r"|feedback/_grader[^/\\]*\.csv",
-    re.IGNORECASE,
-)
+# Course-local additions (#278). The defaults are Canvas-workflow filenames; a
+# consumer on another LMS has entirely different name-bearing files (a Brightspace
+# course's are `_all_posts.md`, `_roster.json`, `txt_full/` — zero overlap), and
+# before this the hook installed, reported `present`, and enforced an empty set for
+# them. One regex per line, `#` comments and blanks ignored. Consumer patterns are
+# NEVER anchored: over-matching only blocks more reads, under-matching leaks.
+_ZONE2_EXTRA_FILE = ".claude/ferpa_zone2.txt"
+
+
+def _course_root() -> Path | None:
+    """The course root as Claude Code reports it to the hook. None outside a hook run."""
+    d = os.environ.get("CLAUDE_PROJECT_DIR")
+    return Path(d) if d else None
+
+
+def load_zone2(course_root: Path | None = None) -> tuple[list[tuple[str, bool]], list[str]]:
+    """Resolved Zone-2 entries + any extra lines that failed to compile.
+
+    Invalid patterns are DROPPED rather than raised — a guardrail must never brick a
+    session over a typo in a config file. They're returned so `zone2_summary()` can
+    surface them, because a silently-ignored pattern is exactly the false sense of
+    coverage this issue is about."""
+    entries, invalid = list(_ZONE2_DEFAULT), []
+    root = course_root if course_root is not None else _course_root()
+    if root is None:
+        return entries, invalid
+    try:
+        text = (root / _ZONE2_EXTRA_FILE).read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return entries, invalid
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            re.compile(line)
+        except re.error:
+            invalid.append(line)
+            continue
+        entries.append((line, False))       # unanchored — see above
+    return entries, invalid
+
+
+def compile_zone2(entries: list[tuple[str, bool]]) -> tuple[re.Pattern, re.Pattern]:
+    """(PATH form, FILE form) from one entry list. Both IGNORECASE — the PATH form
+    used to be case-sensitive, which on a case-insensitive filesystem (macOS default)
+    meant `Read .DEID_MASTER.csv` sailed through a block that `cat` caught."""
+    path_src = "|".join(p + ("$" if anchor else "") for p, anchor in entries)
+    file_src = "|".join(p for p, _ in entries)
+    return (re.compile(path_src, re.IGNORECASE), re.compile(file_src, re.IGNORECASE))
+
+
+def zone2_summary(course_root: Path | None = None) -> dict:
+    """For `cb_update` to report — so `present` can't be read as 'covering your
+    files'. {'default': int, 'extra': int, 'invalid': [str], 'source': str|None}."""
+    entries, invalid = load_zone2(course_root)
+    root = course_root if course_root is not None else _course_root()
+    src = root / _ZONE2_EXTRA_FILE if root else None
+    return {
+        "default": len(_ZONE2_DEFAULT),
+        "extra": len(entries) - len(_ZONE2_DEFAULT),
+        "invalid": invalid,
+        "source": str(src) if src and src.is_file() else None,
+    }
+
+
+_FERPA_PATH, _FERPA_FILE = compile_zone2(load_zone2()[0])
 
 # Raw display / read of a file's contents. The constitution forbids these on Zone-2
 # files ("not with Read, cat, head, tail, or bare grep"). Deliberately EXCLUDES the
