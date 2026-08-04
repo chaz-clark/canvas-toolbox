@@ -232,6 +232,48 @@ def ensure_guardian_hook(course_root: Path, toolkit_subdir: str, apply: bool) ->
     return "installed"
 
 
+def canvas_configured(course_root: Path) -> bool:
+    """Whether this repo has a Canvas course wired up. Checks the environment and
+    the course `.env` for a non-empty CANVAS_COURSE_ID."""
+    if os.environ.get("CANVAS_COURSE_ID", "").strip():
+        return True
+    try:
+        text = (course_root / ".env").read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return False
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("CANVAS_COURSE_ID") and "=" in line:
+            if line.split("=", 1)[1].strip().strip("'\""):
+                return True
+    return False
+
+
+def print_lms_mode(course_root: Path) -> None:
+    """Name the third repo shape (#279): vendored into a course with NO Canvas.
+
+    cb_init/cb_update modelled exactly two — vendored-into-Canvas and standalone —
+    so a consumer on another LMS ran in an undeclared mode and had to infer, tool by
+    tool, which parts applied to them. Most of what the toolkit offers doesn't touch
+    the Canvas API at all.
+
+    Deliberately reports what was OBSERVED rather than asserting a mode: absent
+    credentials are not proof a course isn't on Canvas (creds live elsewhere, a fresh
+    clone hasn't been configured yet), and telling someone their tools are inert when
+    they aren't is its own failure."""
+    if canvas_configured(course_root):
+        return
+    print("\nNo Canvas course configured here (no CANVAS_COURSE_ID in the environment "
+          "or .env).")
+    print("  ↳ If that's expected — a course on another LMS — the Canvas-API tools "
+          "(canvas_sync, grader_fetch, grader_push, grader_standing) are inert, but "
+          "the constitution, the skills, grade_guardian, the FERPA zone discipline, "
+          "and the N-pass consensus grading method don't need Canvas and all apply.")
+    print("     Build the de-id master without credentials: "
+          "build_deid_master.py --roster-json <path>")
+    print("     Add your own name-bearing files to " + _ZONE2_EXTRA_FILE + ".")
+
+
 def print_zone2_coverage(course_root: Path) -> None:
     """Report WHAT the guardian's FERPA set actually covers, not just that the hook
     is wired. `grade_guardian hook: present` was true and misleading in the same
@@ -309,6 +351,7 @@ def main() -> int:
         print("  ↳ this repo was missing the guardian — agents could hand-write "
               "Canvas writes / bypass gates. Now enforced at create/edit/run.")
     print_zone2_coverage(course_root)
+    print_lms_mode(course_root)
 
     print("\nReminder: `cd " + toolkit_subdir + " && git pull` keeps the toolkit "
           "(and the symlinked skills) current.")

@@ -12,6 +12,22 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.17.0] — 2026-08-04
+
+**The consumer can supply the roster: a documented identifier-map contract for courses with no LMS API (#279).**
+
+`cb_init`/`cb_update` modelled two repo shapes — vendored-into-Canvas, and standalone toolkit. There's a real third: vendored into a course repo with **no Canvas at all**, wanting everything except the Canvas API — the constitution, the skills, `grade_guardian`, the FERPA zone discipline, and the N-pass consensus grading method, none of which touch Canvas.
+
+The follow-up on the issue sharpened it from "declare a mode" to the thing that actually costs manual effort: the toolkit assumes one canonical student identifier because Canvas hands you one. A consumer without an API has several and no authoritative mapping between them.
+
+- **`build_deid_master.py --roster-json <path>`** builds the master from a local file and **reads no credentials at all**. The contract is deliberately the shape Canvas already returns, so everything downstream — deid codes, `.deid_master.csv`, `.known_names.txt`, de-id, re-id, push — works unchanged. Validation is strict and loud (missing `id`/`name`, non-integer `id`, malformed JSON, and **duplicate ids rejected rather than collapsed**): a hand-built identifier map is exactly where a silent error becomes a misattributed grade.
+- **New `org_id` column** in `.deid_master.csv` for the institution's id — D2L `OrgDefinedId`, Canvas `sis_user_id`, same concept, so Canvas repos get it populated too. **Stored, never a key.** The reporting consumer measured *zero* overlap between the two id spaces across a 25-student section, so treating them as interchangeable silently misattributes grades. Appended last and readers use `csv.DictReader`, so a master written before this release still parses — no rebuild required.
+- **`cb_update` names the third shape** when no Canvas course is configured: which tools are inert, which of the toolkit still fully applies, and the way through (`--roster-json`, `.claude/ferpa_zone2.txt`). It reports what it *observed* rather than asserting a mode — absent credentials aren't proof a course isn't on Canvas, and telling someone their tools are inert when they aren't is its own failure. Silent for configured Canvas repos.
+
+*Reported from a Brightspace course repo running the toolkit since 1.8.0.*
+
+---
+
 ## [1.16.0] — 2026-08-04
 
 **`grade_guardian`'s FERPA set is extensible, and says what it actually covers (#278).**

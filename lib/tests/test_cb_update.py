@@ -53,6 +53,8 @@ from cb_update import (  # noqa: E402
     install_skill_symlinks,
     ensure_gitignore,
     print_zone2_coverage,
+    print_lms_mode,
+    canvas_configured,
     refresh_pointer,
 )
 
@@ -276,3 +278,41 @@ def test_warns_loudly_about_invalid_patterns(tmp_path, capsys):
     print_zone2_coverage(tmp_path)
     out = capsys.readouterr().out
     assert "not valid" in out and "IGNORED" in out and "[unclosed" in out
+
+
+# --- the third repo shape: vendored into a NON-Canvas course (#279) ---------
+
+def test_canvas_configured_reads_env_file(tmp_path, monkeypatch):
+    monkeypatch.delenv("CANVAS_COURSE_ID", raising=False)
+    assert canvas_configured(tmp_path) is False              # no .env at all
+    (tmp_path / ".env").write_text("CANVAS_BASE_URL=x\nCANVAS_COURSE_ID=\n",
+                                   encoding="utf-8")
+    assert canvas_configured(tmp_path) is False              # present but EMPTY
+    (tmp_path / ".env").write_text('CANVAS_COURSE_ID="12345"\n', encoding="utf-8")
+    assert canvas_configured(tmp_path) is True               # quoted value counts
+
+
+def test_canvas_configured_prefers_the_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("CANVAS_COURSE_ID", "999")
+    assert canvas_configured(tmp_path) is True               # no .env needed
+
+
+def test_non_canvas_repo_is_told_what_still_applies(tmp_path, monkeypatch, capsys):
+    """#279: the mode was undeclared, so a consumer had to infer tool by tool which
+    parts applied. Most of the toolkit never touches the Canvas API."""
+    monkeypatch.delenv("CANVAS_COURSE_ID", raising=False)
+    print_lms_mode(tmp_path)
+    out = capsys.readouterr().out
+    assert "No Canvas course configured" in out
+    assert "inert" in out                                     # what does NOT work
+    for still_applies in ("constitution", "grade_guardian", "consensus grading"):
+        assert still_applies in out                           # ...and what does
+    assert "--roster-json" in out                             # the way through
+
+
+def test_canvas_repo_gets_no_mode_noise(tmp_path, monkeypatch, capsys):
+    """The overwhelmingly common case must stay silent — a guardrail that chatters
+    at everyone gets tuned out."""
+    monkeypatch.setenv("CANVAS_COURSE_ID", "12345")
+    print_lms_mode(tmp_path)
+    assert capsys.readouterr().out == ""

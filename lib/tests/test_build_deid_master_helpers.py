@@ -9,8 +9,13 @@ Source: lib/tools/build_deid_master.py
 
 No Canvas API calls. No filesystem writes. Pure functions in/out.
 """
+import csv
+import io
+import json
 import sys
 from pathlib import Path
+
+import pytest
 
 _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
@@ -25,6 +30,7 @@ from build_deid_master import (  # noqa: E402
     render_csv_rows,
     render_known_names_lines,
     student_to_row,
+    load_roster_json,
 )
 
 
@@ -251,10 +257,13 @@ def test_multiple_collisions_all_reported():
 # ---------------------------------------------------------------------------
 
 def test_render_csv_rows_header_first():
-    """The first row must be the header."""
+    """The first row must be the header. `org_id` appended LAST (1.17.0, #279) so
+    the addition is positionally additive for anything reading by index."""
     rows = [StudentRow("S-AAAAAA", 1, "Alpha, A", 0)]
     out = render_csv_rows(rows)
-    assert out[0] == ["deid_code", "user_id", "sortable_name", "withdrawn"]
+    assert out[0] == ["deid_code", "user_id", "sortable_name", "withdrawn", "org_id"]
+    assert out[0][:4] == ["deid_code", "user_id", "sortable_name", "withdrawn"]
+    assert out[1][4] == ""          # absent org_id serializes empty, never "None"
 
 
 def test_render_csv_rows_sorted_by_name():
@@ -371,3 +380,88 @@ def test_known_names_sorted_by_sortable_name():
     # First non-comment line should be Alpha (sortable, since
     # sorted by sortable_name → 'alpha, a' < 'beta, b' < 'zeta, z')
     assert body[0] == "Alpha, A"
+
+
+# ---------------------------------------------------------------------------
+# roster.json — the non-Canvas identifier-map contract (#279)
+# ---------------------------------------------------------------------------
+
+def _roster(tmp_path, payload):
+    p = tmp_path / "roster.json"
+    p.write_text(json.dumps(payload), encoding="utf-8")
+    return p
+
+
+def test_roster_json_round_trips_into_the_same_rows_canvas_would_produce(tmp_path):
+    """The contract IS the Canvas /users shape, so a non-Canvas consumer reuses the
+    whole downstream pipeline (de-id codes, master, known_names, re-id, push)."""
+    users = load_roster_json(_roster(tmp_path, [
+        {"id": 1395396, "name": "Farmer, Andrew", "org_id": "0123456"},
+        {"id": 1395397, "name": "Rembert, Cristen", "withdrawn": True},
+    ]))
+    rows = [student_to_row(u, "S-", 6) for u in users]
+    assert rows[0].user_id == 1395396
+    assert rows[0].org_id == "0123456"
+    assert rows[0].withdrawn == 0
+    assert rows[1].withdrawn == 1                     # explicit flag, no enrollments
+    # identical code to what Canvas would produce for the same id — the join holds
+    assert rows[0].deid_code == deid_code_for(1395396, "S-", 6)
+
+
+def test_org_id_is_stored_but_never_becomes_the_key(tmp_path):
+    """The reporting consumer measured ZERO overlap between internal ids and
+    OrgDefinedId across a 25-student section. Keying on the wrong one silently
+    misattributes grades, so org_id must not influence the code or the join."""
+    users = load_roster_json(_roster(tmp_path, [
+        {"id": 111, "name": "A", "org_id": "999999"},
+        {"id": 222, "name": "B", "org_id": "888888"},
+    ]))
+    rows = [student_to_row(u, "S-", 6) for u in users]
+    assert [r.deid_code for r in rows] == [deid_code_for(111), deid_code_for(222)]
+    assert [r.org_id for r in rows] == ["999999", "888888"]     # carried, not keyed
+
+
+def test_canvas_sis_user_id_populates_org_id_too():
+    """Same column, both worlds — Canvas calls the institution id sis_user_id."""
+    row = student_to_row({"id": 5, "name": "X", "sis_user_id": "00123"}, "S-", 6)
+    assert row.org_id == "00123"
+
+
+def test_roster_json_rejects_a_duplicate_id(tmp_path):
+    """Canvas duplicates are an API artifact that dedupe_users merges; a duplicate
+    in a HAND-BUILT map is a mistake in the map, and the master is one row per
+    student. Collapsing it silently would hide the error that matters most."""
+    path = _roster(tmp_path, [{"id": 7, "name": "A"}, {"id": 7, "name": "B"}])
+    with pytest.raises(ValueError, match="duplicate id 7"):
+        load_roster_json(path)
+
+
+@pytest.mark.parametrize("payload,expected", [
+    ({"id": 1}, "expected a JSON array"),
+    ([{"name": "no id"}], "missing required field 'id'"),
+    ([{"id": 1}], "missing required field 'name'"),
+    ([{"id": "not-a-number", "name": "A"}], "'id' must be an integer"),
+    (["just a string"], "expected an object"),
+])
+def test_roster_json_validation_is_loud(tmp_path, payload, expected):
+    """A hand-built identifier map is exactly where a silent error becomes a
+    misattributed grade."""
+    with pytest.raises(ValueError, match=expected):
+        load_roster_json(_roster(tmp_path, payload))
+
+
+def test_roster_json_reports_bad_json_and_missing_file(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json", encoding="utf-8")
+    with pytest.raises(ValueError, match="not valid JSON"):
+        load_roster_json(bad)
+    with pytest.raises(ValueError, match="cannot read"):
+        load_roster_json(tmp_path / "nope.json")
+
+
+def test_older_master_without_org_id_still_parses():
+    """The column is additive: readers use csv.DictReader, so a master written
+    before 1.17.0 keeps working rather than needing a rebuild."""
+    old = "deid_code,user_id,sortable_name,withdrawn\nS-AAA,1,\"Alpha, A\",0\n"
+    row = next(csv.DictReader(io.StringIO(old)))
+    assert row["user_id"] == "1" and row.get("org_id") is None

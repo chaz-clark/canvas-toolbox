@@ -13,11 +13,19 @@ identity surface. This tool fixes that — one CSV, one row per enrolled
 student, with a stable opaque code the operator can hand to other tools
 WITHOUT ever speaking the student's name to the agent or the cloud LLM.
 
-THE 4-COLUMN CONTRACT
+THE COLUMN CONTRACT
   deid_code     — stable opaque code, e.g. S-95DBB6 (sha256(user_id)[:6])
-  user_id       — Canvas numeric user_id, the source of truth
+  user_id       — numeric id, the source of truth and the key everything joins on
   sortable_name — "Lastname, Firstname" (NEVER read by tools unless explicit)
   withdrawn     — 1 if enrollment state is inactive/completed/deleted else 0
+  org_id        — the INSTITUTION's id (Canvas sis_user_id, D2L OrgDefinedId).
+                  Stored for the operator's own cross-system lookups; never a key.
+                  Added 1.17.0 — additive, and readers use csv.DictReader, so an
+                  older master without this column still parses.
+
+  `org_id` is deliberately NOT interchangeable with `user_id`. On the LMS that
+  prompted this (#279) the two id spaces had ZERO overlap across a 25-student
+  section, so treating either as the other silently misattributes grades.
 
 The `sortable_name` column lets the OPERATOR look up a student in their
 LOCAL gitignored file ("find Sydney → S-95DBB6") and hand the agent / tool
@@ -62,7 +70,12 @@ COLLISION MATH (sha256, first N hex chars uppercase, ~birthday paradox)
   8 hex (4B codes):  1000 students → 0.01% | 5000 → 0.3% | 10000 → 1.2%
   10 hex: practically collision-free at any class size.
 
+  # NOT on Canvas? Supply the roster yourself — no credentials needed (#279).
+  # See load_roster_json() for the full contract.
+  uv run python lib/tools/build_deid_master.py --roster-json grading/roster.json
+
 REQUIRES in .env: CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID
+  ...unless --roster-json is used, which reads no credentials at all.
 
 Resolves issue #109 — course-wide de-id master + per-student
 accommodation primitives (the accommodation tool consumes this CSV).
@@ -77,6 +90,7 @@ except ImportError:
     def force_utf8_console() -> None:
         pass  # No-op if _env_loader not available
 import csv
+import json
 import hashlib
 import os
 import sys
@@ -110,6 +124,7 @@ class StudentRow:
     user_id: int
     sortable_name: str
     withdrawn: int  # 0 or 1
+    org_id: str = ""  # institution id (Canvas sis_user_id / D2L OrgDefinedId); "" if none
 
 
 def deid_code_for(user_id: int, prefix: str = _DEFAULT_PREFIX,
@@ -139,14 +154,78 @@ def is_withdrawn(enrollments: list[dict]) -> int:
 
 
 def student_to_row(user: dict, prefix: str, hash_bits: int) -> StudentRow:
-    """Build one StudentRow from a Canvas /users response item."""
+    """Build one StudentRow from a Canvas /users item OR a roster.json entry.
+
+    Both shapes are accepted deliberately — the roster contract (#279) is defined as
+    "what Canvas already returns", so a non-Canvas consumer supplies the same dict and
+    every downstream tool works unchanged. `withdrawn` may be given directly (a roster
+    has no enrollment objects) or derived from `enrollments` (Canvas)."""
     uid = int(user["id"])
+    withdrawn = user.get("withdrawn")
     return StudentRow(
         deid_code=deid_code_for(uid, prefix, hash_bits),
         user_id=uid,
         sortable_name=user.get("sortable_name") or user.get("name") or "",
-        withdrawn=is_withdrawn(user.get("enrollments") or []),
+        withdrawn=int(bool(withdrawn)) if withdrawn is not None
+        else is_withdrawn(user.get("enrollments") or []),
+        # Canvas calls it sis_user_id, D2L calls it OrgDefinedId — same thing.
+        org_id=str(user.get("org_id") or user.get("sis_user_id") or ""),
     )
+
+
+def load_roster_json(path: Path) -> list[dict]:
+    """Read a consumer-supplied roster (#279) — the non-Canvas path into this tool.
+
+    THE CONTRACT: a JSON array of objects, one per enrolled student.
+
+        [{"id": 1395396, "name": "Farmer, Andrew",
+          "org_id": "0123456", "withdrawn": false}, ...]
+
+      id        REQUIRED. The identifier the consumer's grading artifacts are keyed
+                on — for Brightspace, the internal user id in a submission filename,
+                NOT OrgDefinedId. This becomes user_id and seeds the deid_code, so it
+                must be the one that appears in the files you will actually de-identify.
+      name      REQUIRED. Display name; `sortable_name` also accepted.
+      org_id    Optional. The institution's id (D2L OrgDefinedId, Canvas sis_user_id).
+                Stored, never used as a key — the reporting consumer measured ZERO
+                overlap between the two id spaces on a 25-student section, so treating
+                them as interchangeable silently misattributes grades.
+      withdrawn Optional bool, default false.
+
+    Validation is strict and loud. A hand-built identifier map is exactly where a
+    silent error becomes a misattributed grade, and this consumer's whole difficulty
+    is three competing identifiers with no authoritative mapping between them."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as e:
+        raise ValueError(f"cannot read {path}: {e}") from e
+    except json.JSONDecodeError as e:
+        raise ValueError(f"{path} is not valid JSON: {e}") from e
+    if not isinstance(data, list):
+        raise ValueError(f"{path}: expected a JSON array of student objects, "
+                         f"got {type(data).__name__}")
+    seen: dict[int, int] = {}
+    for i, entry in enumerate(data):
+        where = f"{path} entry {i}"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{where}: expected an object, got {type(entry).__name__}")
+        if "id" not in entry:
+            raise ValueError(f"{where}: missing required field 'id'")
+        try:
+            uid = int(entry["id"])
+        except (TypeError, ValueError):
+            raise ValueError(f"{where}: 'id' must be an integer, got {entry['id']!r}") from None
+        if not (entry.get("name") or entry.get("sortable_name")):
+            raise ValueError(f"{where}: missing required field 'name'")
+        if uid in seen:
+            # NOT collapsed silently. Canvas duplicates are a known API artifact
+            # (one row per section) that dedupe_users merges; a duplicate in a
+            # hand-built map is a mistake in the map, and the master's contract is
+            # one row per student.
+            raise ValueError(f"{where}: duplicate id {uid} (also at entry {seen[uid]}). "
+                             f"The master is one row per student — fix the roster.")
+        seen[uid] = i
+    return data
 
 
 def dedupe_users(users: list[dict]) -> tuple[list[dict], int]:
@@ -189,10 +268,10 @@ def detect_collisions(rows: list[StudentRow]) -> list[tuple[str, list[int]]]:
 def render_csv_rows(rows: list[StudentRow]) -> list[list[str]]:
     """Build the CSV body (header + rows). Sorted by sortable_name for
     deterministic output across runs."""
-    header = ["deid_code", "user_id", "sortable_name", "withdrawn"]
+    header = ["deid_code", "user_id", "sortable_name", "withdrawn", "org_id"]
     sorted_rows = sorted(rows, key=lambda r: r.sortable_name.lower())
     return [header] + [
-        [r.deid_code, str(r.user_id), r.sortable_name, str(r.withdrawn)]
+        [r.deid_code, str(r.user_id), r.sortable_name, str(r.withdrawn), r.org_id]
         for r in sorted_rows
     ]
 
@@ -309,27 +388,45 @@ def main() -> int:
                     help="overwrite an existing master without prompting")
     ap.add_argument("--dry-run", action="store_true",
                     help="print rows that would be written, don't touch the file")
+    ap.add_argument("--roster-json", type=Path, default=None,
+                    help="build from a local roster file instead of the Canvas API "
+                         "(non-Canvas consumers) — see load_roster_json for the "
+                         "contract. Needs no CANVAS_* credentials.")
     args = ap.parse_args()
-
-    base_url = os.environ.get("CANVAS_BASE_URL", "").rstrip("/")
-    if base_url and not base_url.startswith("http"):
-        base_url = "https://" + base_url
-    course_id = os.environ.get("CANVAS_COURSE_ID", "")
-    token = os.environ.get("CANVAS_API_TOKEN", "")
-    if not (base_url and course_id and token):
-        print("ERROR: CANVAS_BASE_URL / CANVAS_COURSE_ID / CANVAS_API_TOKEN "
-              "must be set in .env or the environment.", file=sys.stderr)
-        return 2
 
     if args.out.exists() and not args.force and not args.dry_run:
         print(f"ERROR: {args.out} already exists. Re-run with --force to overwrite.",
               file=sys.stderr)
         return 2
 
-    print(f"Fetching all students (active + invited + inactive + completed)...")
-    users = fetch_all_students(base_url, course_id, token)
-    print(f"  {len(users)} student records returned")
-    users, collapsed = dedupe_users(users)
+    if args.roster_json:
+        # The non-Canvas path (#279): the consumer supplies the identifier map. No
+        # credentials are read or required — the whole point is that a course on
+        # another LMS reuses the de-id / grading / push machinery unchanged.
+        try:
+            users = load_roster_json(args.roster_json)
+        except ValueError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 2
+        print(f"Roster: {len(users)} student(s) from {args.roster_json}")
+        collapsed = 0
+    else:
+        base_url = os.environ.get("CANVAS_BASE_URL", "").rstrip("/")
+        if base_url and not base_url.startswith("http"):
+            base_url = "https://" + base_url
+        course_id = os.environ.get("CANVAS_COURSE_ID", "")
+        token = os.environ.get("CANVAS_API_TOKEN", "")
+        if not (base_url and course_id and token):
+            print("ERROR: CANVAS_BASE_URL / CANVAS_COURSE_ID / CANVAS_API_TOKEN "
+                  "must be set in .env or the environment.\n"
+                  "       Not on Canvas? Supply the roster yourself: --roster-json "
+                  "<path> (see the tool docstring for the contract).", file=sys.stderr)
+            return 2
+
+        print("Fetching all students (active + invited + inactive + completed)...")
+        users = fetch_all_students(base_url, course_id, token)
+        print(f"  {len(users)} student records returned")
+        users, collapsed = dedupe_users(users)
     if collapsed:
         print(f"  collapsed {collapsed} duplicate record(s) from multi-section "
               f"enrollments → {len(users)} unique students (one row per student)")
