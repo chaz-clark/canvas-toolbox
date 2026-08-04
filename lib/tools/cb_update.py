@@ -283,6 +283,8 @@ def print_ignore_coverage(course_root: Path) -> None:
           "`.gitignore` containing")
     print("    `*` inside the directory itself, which survives edits to the root "
           "ignore file.")
+    print(f"    If these are this course's OWN name-bearing files, add them to "
+          f"{_ZONE2_EXTRA_FILE} too, so the guardian and the pre-push hook cover them.")
 
 
 def canvas_configured(course_root: Path) -> bool:
@@ -344,10 +346,18 @@ def print_zone2_coverage(course_root: Path) -> None:
               f"regex and are being IGNORED — you are not covered on those:")
         for bad in s["invalid"]:
             print(f"      {bad}")
-    elif not s["source"]:
-        print(f"  ↳ built-ins are Canvas filenames. If this course keeps names in files "
-              f"of its own, list them in {_ZONE2_EXTRA_FILE} (one regex per line) — "
-              f"otherwise the hook is installed but not covering them.")
+    elif not s["source"] and not canvas_configured(course_root):
+        # The nudge fires ONLY where it's actionable. The built-ins are Canvas
+        # filenames and cover a Canvas course completely, so telling every Canvas
+        # repo to write this file — on every run, forever — is homework they don't
+        # owe. A guardrail that chatters at everyone gets tuned out, which is the
+        # failure #278 was filed about; shipping it as a permanent nag reintroduces
+        # it one layer up. A Canvas repo that DOES keep its own name-bearing files
+        # gets pointed here by `print_ignore_coverage`, which fires on evidence.
+        print(f"  ↳ built-ins are Canvas filenames and this repo has no Canvas course "
+              f"configured. If it keeps names in files of its own, list them in "
+              f"{_ZONE2_EXTRA_FILE} (one regex per line) — otherwise the hook is "
+              f"installed but not covering them.")
 
 
 def main() -> int:

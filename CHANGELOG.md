@@ -12,6 +12,31 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.19.1] — 2026-08-04
+
+**Went and looked at what a faculty member actually sees. Found one thing working by accident and one nag that shouldn't exist.**
+
+### The VS Code path works — and now can't silently stop working
+
+A blocked push had never been observed in a GUI, only in a terminal. Read VS Code's git extension (`dist/main.js`) and ran a real blocked push against it. Its error path is `msg = stdout ? lines[last] : lines[0]`, shown in a **modal** dialog with the full text behind *Show Command Output*. So the instructor gets exactly one line of ours, and it happens to be the right one.
+
+That depends on two properties that are invisible in the source and silent to break:
+
+- **The first non-empty stderr line must stand alone.** Add a preamble like "Checking commits…" and the modal shows *that* instead of the denial.
+- **The hook must write nothing to stdout.** If stdout is non-empty VS Code takes the *last* line — and git appends its own `failed to push some refs` there. One stray `print()` replaces the whole message with something useless.
+
+Both are now pinned by tests that port VS Code's algorithm verbatim, verified by breaking each property and confirming the suite stops.
+
+### The Zone-2 nudge no longer fires at everyone
+
+1.16.0 shipped a prompt to create `.claude/ferpa_zone2.txt` on any repo lacking it — which is nearly every Canvas course, on every run, forever. The built-in patterns cover a Canvas course completely, so that was homework nobody owed. It's the exact failure #278 was filed about (a guardrail so noisy it gets tuned out), reintroduced one layer up by the fix for it.
+
+Now it fires only where it's actionable: a repo with no Canvas course configured. The pattern **count** still prints everywhere, because that's a fact rather than a chore. A Canvas repo that does keep its own name-bearing files gets pointed at the file by `print_ignore_coverage`, which fires on evidence.
+
+Net for a normal Canvas course: `cb_update` gained one status line across 1.16.0–1.19.0, not four.
+
+---
+
 ## [1.19.0] — 2026-08-04
 
 **A FERPA guard on the git layer: `grade_guardian` can't see `git push`, and a push can't be undone (#285).**

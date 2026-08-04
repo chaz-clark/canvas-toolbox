@@ -364,3 +364,29 @@ def test_coverage_report_still_flags_an_already_TRACKED_zone2_file(tmp_path, cap
 def test_coverage_report_skips_a_non_git_directory(tmp_path, capsys):
     print_ignore_coverage(tmp_path)
     assert capsys.readouterr().out == ""
+
+
+def test_zone2_nudge_is_silent_for_a_configured_canvas_repo(tmp_path, capsys, monkeypatch):
+    """The built-ins cover a Canvas course completely, so nudging every Canvas repo
+    to write ferpa_zone2.txt — on every run, forever — is homework they don't owe.
+    A guardrail that chatters at everyone gets tuned out."""
+    monkeypatch.setenv("CANVAS_COURSE_ID", "12345")
+    print_zone2_coverage(tmp_path)
+    out = capsys.readouterr().out
+    assert "Zone-2 patterns:" in out          # the FACT still prints
+    assert "one regex per line" not in out    # the homework doesn't
+
+
+def test_zone2_nudge_still_fires_for_a_non_canvas_repo(tmp_path, capsys, monkeypatch):
+    """Where it IS actionable — a consumer whose name-bearing files the built-ins
+    cannot know about."""
+    monkeypatch.delenv("CANVAS_COURSE_ID", raising=False)
+    print_zone2_coverage(tmp_path)
+    assert "one regex per line" in capsys.readouterr().out
+
+
+def test_coverage_report_points_at_the_extension_file(tmp_path, capsys):
+    """A Canvas repo that does keep its own name-bearing files gets pointed at
+    ferpa_zone2.txt here — on evidence, rather than as a standing nag."""
+    print_ignore_coverage(_cov_repo(tmp_path))
+    assert ".claude/ferpa_zone2.txt" in capsys.readouterr().out
