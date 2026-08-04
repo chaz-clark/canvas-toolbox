@@ -52,11 +52,18 @@ from sync_grading_protocol import inject_grading_pointer
 try:
     from grade_guardian import ensure_hook as _ensure_guardian_hook
     from grade_guardian import zone2_summary as _zone2_summary
+    from grade_guardian import load_zone2 as _load_zone2
+    from grade_guardian import compile_zone2 as _compile_zone2
     from grade_guardian import _ZONE2_EXTRA_FILE
 except ImportError:
     _ensure_guardian_hook = None
-    _zone2_summary = None
+    _zone2_summary = _load_zone2 = _compile_zone2 = None
     _ZONE2_EXTRA_FILE = ".claude/ferpa_zone2.txt"
+
+try:
+    from ferpa_pre_push import ensure_pre_push_hook as _ensure_pre_push
+except ImportError:
+    _ensure_pre_push = None
 
 SKILLS = ["grading", "course-build", "audit", "accommodations", "ferpa-deid",
           "title-iv", "voicing", "improve"]
@@ -232,6 +239,52 @@ def ensure_guardian_hook(course_root: Path, toolkit_subdir: str, apply: bool) ->
     return "installed"
 
 
+def print_ignore_coverage(course_root: Path) -> None:
+    """Report name-bearing files that git is NOT ignoring (#285).
+
+    The near-miss this catches: a consumer inverted a grading ignore block from
+    deny-with-allowlist to source-tracked-by-default, and the blanket line removed
+    turned out to have been the SOLE cover for three other name-bearing paths. All
+    three were exposed at once, and were caught by checking rather than by design.
+
+    A pre-push hook catches that at the moment of danger; this catches it at update
+    time, blocks nothing, and so can't wall anyone off from their own work.
+
+    LEAF FILENAMES ARE WITHHELD — a matched filename may itself carry a student
+    name. Pattern, count and directory only."""
+    if _zone2_summary is None or _load_zone2 is None or _compile_zone2 is None:
+        return
+    if not (course_root / ".git").is_dir():
+        return
+    entries, _ = _load_zone2(course_root)
+    path_re, _ = _compile_zone2(entries)
+
+    # --exclude-standard is load-bearing: without it `--others` lists IGNORED files
+    # too, so this fires even on a correctly-covered repo — and a warning that always
+    # fires gets tuned out, which is the #278 failure in a new place.
+    # `--cached` has no such flag by design: a TRACKED file is already exposed
+    # regardless of what .gitignore says, so it belongs in the report.
+    r = subprocess.run(["git", "-C", str(course_root), "ls-files",
+                        "--cached", "--others", "--exclude-standard", "-z"],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        return
+    exposed = sorted({str(Path(p).parent) + "/"
+                      for p in r.stdout.split("\0") if p and path_re.search(p)})
+    if not exposed:
+        return
+    print(f"\n⚠ {len(exposed)} director(ies) hold name-bearing files git is NOT "
+          f"ignoring:")
+    for d in exposed:
+        print(f"      {d.replace('./', '')}")
+    print("  ↳ filenames withheld (they may contain names). These are one `git add "
+          "-A` from a remote,")
+    print("    and a push cannot be undone. Add them to .gitignore — ideally a "
+          "`.gitignore` containing")
+    print("    `*` inside the directory itself, which survives edits to the root "
+          "ignore file.")
+
+
 def canvas_configured(course_root: Path) -> bool:
     """Whether this repo has a Canvas course wired up. Checks the environment and
     the course `.env` for a non-empty CANVAS_COURSE_ID."""
@@ -351,6 +404,18 @@ def main() -> int:
         print("  ↳ this repo was missing the guardian — agents could hand-write "
               "Canvas writes / bypass gates. Now enforced at create/edit/run.")
     print_zone2_coverage(course_root)
+
+    if _ensure_pre_push is not None:
+        pp = _ensure_pre_push(course_root, toolkit_subdir, args.apply)
+        print(f"FERPA pre-push guard (.git/hooks/pre-push): {pp}")
+        if pp in ("installed", "would-install"):
+            print("  ↳ the agent-layer guardian can't see `git push`. This checks the "
+                  "commit RANGE, since history is what gets published.")
+        elif pp == "skip-foreign":
+            print("  ↳ a pre-push hook already exists that we didn't write — left "
+                  "alone. Chain this in manually if you want both.")
+
+    print_ignore_coverage(course_root)
     print_lms_mode(course_root)
 
     print("\nReminder: `cd " + toolkit_subdir + " && git pull` keeps the toolkit "

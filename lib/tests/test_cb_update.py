@@ -54,6 +54,7 @@ from cb_update import (  # noqa: E402
     ensure_gitignore,
     print_zone2_coverage,
     print_lms_mode,
+    print_ignore_coverage,
     canvas_configured,
     refresh_pointer,
 )
@@ -315,4 +316,51 @@ def test_canvas_repo_gets_no_mode_noise(tmp_path, monkeypatch, capsys):
     at everyone gets tuned out."""
     monkeypatch.setenv("CANVAS_COURSE_ID", "12345")
     print_lms_mode(tmp_path)
+    assert capsys.readouterr().out == ""
+
+
+# --- ignore-coverage report (#285) ------------------------------------------
+
+def _cov_repo(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / "grading" / "kc3" / "submissions_raw").mkdir(parents=True)
+    (tmp_path / "grading" / ".deid_master.csv").write_text("x\n", encoding="utf-8")
+    (tmp_path / "grading" / "kc3" / "submissions_raw" / "Last_First_9.docx").write_text(
+        "x\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("ok\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_reports_name_bearing_files_git_is_not_ignoring(tmp_path, capsys):
+    """The near-miss: an ignore-rule restructure left three name-bearing paths
+    uncovered at once, caught by checking rather than by design."""
+    print_ignore_coverage(_cov_repo(tmp_path))
+    out = capsys.readouterr().out
+    assert "grading/" in out and "submissions_raw/" in out
+    assert "Last_First_9.docx" not in out      # leaf withheld — it may BE a name
+
+
+def test_coverage_report_is_silent_when_properly_ignored(tmp_path, capsys):
+    """`git ls-files --others` lists IGNORED files unless --exclude-standard is
+    passed, so without it this fires even on a covered repo — and a warning that
+    always fires gets tuned out."""
+    repo = _cov_repo(tmp_path)
+    (repo / ".gitignore").write_text("grading/\n", encoding="utf-8")
+    print_ignore_coverage(repo)
+    assert capsys.readouterr().out == ""
+
+
+def test_coverage_report_still_flags_an_already_TRACKED_zone2_file(tmp_path, capsys):
+    """gitignore does not untrack. A committed Zone-2 file is exposed no matter what
+    the ignore rules say, so it must still be reported."""
+    repo = _cov_repo(tmp_path)
+    (repo / ".gitignore").write_text("grading/\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-f", "grading/.deid_master.csv"],
+                   check=True, capture_output=True)
+    print_ignore_coverage(repo)
+    assert "grading/" in capsys.readouterr().out
+
+
+def test_coverage_report_skips_a_non_git_directory(tmp_path, capsys):
+    print_ignore_coverage(tmp_path)
     assert capsys.readouterr().out == ""
