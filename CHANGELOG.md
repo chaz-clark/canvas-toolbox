@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.15.1] — 2026-08-04
+
+**Fix the 1.14.1 gitignore lines, which matched nothing they were meant to match (#277).**
+
+`ensure_gitignore()` emitted `.claude/skills/<name>/` **with a trailing slash**. In gitignore a trailing slash matches *directories only*, and `install_skill_symlinks()` creates **symlinks** — which git treats as files. So the corrected ignore set matched none of the artifacts the tool actually creates: on migration, all eight toolkit skills flipped to untracked, and a `git add -A` would have committed eight symlinks pointing into the gitignored vendored toolkit. Regression introduced by the #271 fix in 1.14.1; shipped in 1.14.1 and 1.15.0.
+
+- **Emit the pattern without a trailing slash.** A slashless pattern matches both the symlink and the real directory of the Windows copy fallback, so it's correct on either install path.
+- **Migrate the 1.14.1/1.15.0 lines too**, not just the pre-1.14 blanket line — otherwise every repo that took the last two releases keeps the broken patterns. Multiple legacy lines collapse to one corrected set, in place.
+- **The tests now ask real git about a real symlink.** The 1.14.1 tests shelled out to `git check-ignore` but passed it a trailing-slash *path*, which git resolves as a directory — a directory-only pattern matched a directory-shaped query, and the assertion confirmed itself. Two tests now install the actual symlink and assert on `git status --porcelain` of the worktree, pathspec-scoped so the vendored originals can't be mistaken for the links pointing at them. Verified by reintroducing the bug: 6 tests fail, including both real-git ones.
+
+*Reported by a Brightspace consumer running `cb_update --apply` at 1.15.0.*
+
+---
+
 ## [1.15.0] — 2026-07-30
 
 **FERPA output discipline: being allowed to READ a name never makes you allowed to PRINT one (#254).**
