@@ -271,3 +271,61 @@ def test_installed_hook_actually_runs_on_a_real_push(tmp_path):
     r = _git(repo, "push", "origin", "HEAD:refs/heads/main")
     assert r.returncode != 0, "git push should have been refused"
     assert "PUSH BLOCKED" in (r.stdout + r.stderr)
+
+
+# --- the GUI rendering contract (genchi genbutsu, then jidoka) ---------------
+#
+# Verified by reading VS Code's git extension (dist/main.js) and running a real
+# blocked push. Its error path is, verbatim:
+#
+#   b = (stderr || stdout || message).replace(/^error: /mi,"")
+#         .split(/[\r\n]/).filter(s => !!s)
+#   msg = stdout ? b[b.length-1] : b[0]
+#   showErrorMessage(msg, {modal: true}, "Open Git Log", "Show Command Output")
+#
+# So a faculty member pushing from VS Code gets a MODAL dialog containing ONE line
+# of ours — and the full text only behind a button. Two properties make that line
+# the right one, and both are silent to break. These are the andon cord.
+
+def _vscode_modal_line(stderr: str, stdout: str) -> str:
+    """Port of the algorithm above. If VS Code changes, this test is where we find
+    out — better here than in front of an instructor."""
+    import re
+    b = re.sub(r"^error: ", "", stderr, flags=re.I | re.M)
+    lines = [s for s in re.split(r"[\r\n]", b) if s]
+    if not lines:
+        return "Git error"
+    return lines[-1] if stdout else lines[0]
+
+
+def test_vscode_modal_states_the_actual_reason(tmp_path):
+    """PROPERTY 1: the first non-empty stderr line must stand alone. VS Code shows
+    b[0] and hides the rest behind 'Show Command Output'. Add a preamble to stderr
+    and the instructor's modal reads that instead — which is how a carefully written
+    denial becomes an unexplained wall."""
+    repo = _repo(tmp_path)
+    (repo / "grading").mkdir()
+    (repo / "grading" / ".deid_master.csv").write_text("x\n", encoding="utf-8")
+    _git(repo, "add", "-f", "grading/.deid_master.csv")
+    _git(repo, "commit", "-qm", "leak")
+    sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    r = _run_hook(repo, sha, _NULL)
+
+    modal = _vscode_modal_line(r.stderr, r.stdout)
+    assert "PUSH BLOCKED" in modal and "FERPA" in modal, modal
+    assert "failed to push" not in modal
+
+
+def test_hook_writes_nothing_to_stdout(tmp_path):
+    """PROPERTY 2: VS Code switches to the LAST line when stdout is non-empty — and
+    git appends its own 'error: failed to push some refs' last. So a single stray
+    print() to stdout silently replaces the whole denial with git's generic message.
+    Everything this hook says must go to stderr."""
+    repo = _repo(tmp_path)
+    (repo / "grading").mkdir()
+    (repo / "grading" / ".keymap.json").write_text("{}", encoding="utf-8")
+    _git(repo, "add", "-f", "grading/.keymap.json")
+    _git(repo, "commit", "-qm", "leak")
+    sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    r = _run_hook(repo, sha, _NULL)
+    assert r.stdout == "", f"stdout must stay empty; got {r.stdout!r}"
