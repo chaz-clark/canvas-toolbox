@@ -76,6 +76,14 @@ name-bearing files, and `grade_guardian` enforces only what it knows about — a
 installed hook covering none of your files is worse than no hook. `cb_update` prints
 the active pattern count so "present" can't be read as "covered".
 
+**The git layer is guarded too.** `grade_guardian` stops *you* reading these; it
+cannot see `git push`, and a push can't be undone. `cb_update` installs a
+`pre-push` hook reading that same pattern file, which checks the commit RANGE —
+history is what gets published, and a later commit deleting a file doesn't unpublish
+it. Path checks run by default; content scans (uid→name maps, roster surnames) are
+opt-in via `.claude/ferpa_scan_content`, because surname matching false-positives on
+ordinary prose. `cb_update` also reports name-bearing directories git isn't ignoring.
+
 **Verify with `wc -l` or `ls` only.** To confirm a code exists, filter columns:
 `grep "S-95DBB6" grading/.deid_master.csv | cut -d',' -f1,2` (shows deid_code +
 user_id, never the `sortable_name` column). Redirect to `/dev/null` or `cut` to

@@ -12,6 +12,27 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.19.0] — 2026-08-04
+
+**A FERPA guard on the git layer: `grade_guardian` can't see `git push`, and a push can't be undone (#285).**
+
+The toolkit protected the agent layer well and the git layer not at all. All three incidents in the constitution's record are agent-side — which isn't evidence the git layer is safe, only that it hadn't been exercised.
+
+A `pre-commit` guard isn't sufficient. It misses anything committed before the hook existed, with `--no-verify`, on another machine, or **anything correct at commit time that a later ignore-rule change exposes**. That last one actually happened: a consumer inverted a grading ignore block from deny-with-allowlist to source-tracked-by-default, and the blanket line removed turned out to be the sole cover for three other name-bearing paths. Nothing in that sequence is visible to a commit hook.
+
+- **New `lib/tools/ferpa_pre_push.py`**, installed by `cb_update` at `.git/hooks/pre-push`. Checks the **commit range**, not the working tree — history is what gets published, and a later commit deleting a file doesn't unpublish it. Handles the new-branch case (`--not --remotes`) that a naive `remote..local` gets wrong.
+- **One pattern list, not two.** It reads the same `.claude/ferpa_zone2.txt` as `grade_guardian`. A second list would drift, which is precisely the 1.16.0 bug one layer down.
+- **Graded, not all-on.** Path checks by default (cheap, deterministic, near-zero false positives). Content scans — uid→name maps, roster surnames — opt-in via `.claude/ferpa_scan_content`, because surname matching trips on ordinary prose, citations and package names, and for an operator who can't read the regex that's an unexplainable wall in front of their own work. It never silently degrades: if a scan is off, the denial says so.
+- **The denial is written for the person who hits it.** A blocked push lands on someone trying to share their work, and "rewrite history" is beyond most faculty — so the message leads with the non-destructive fix (a fresh branch from a clean tree), then history rewriting with a caution, then how to narrow a false-positive pattern. A message that only says what's wrong produces `--no-verify`.
+- **Filenames are withheld from output.** A matched filename may itself be a student name; the report names directories only.
+- **`cb_update` reports name-bearing directories git isn't ignoring** — catching the ignore-restructure class at update time, blocking nothing.
+
+**Not `core.hooksPath`.** The issue proposed it, since hooks aren't cloned. But git consults `core.hooksPath` *instead of* `.git/hooks/`, so setting it makes an existing `.git/hooks/pre-commit` inert — and `pre-commit install` then refuses to run, so it can't be recovered. That would silently disable the ruff/actionlint gate in this repo and any consumer using the pre-commit framework: the same "installed and enforcing nothing" failure #278 was filed about. Installing to the path git already reads has no such collateral, and the not-cloned problem is solved by `cb_update` being the per-clone step. A regression test pins that an existing `pre-commit` hook survives installation.
+
+*Reported, with a working implementation, from a Brightspace course repo.*
+
+---
+
 ## [1.18.0] — 2026-08-04
 
 **The output rule gets the half it was missing: what to write, not just what not to (#280).**
