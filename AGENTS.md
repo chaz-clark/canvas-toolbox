@@ -81,23 +81,69 @@ the active pattern count so "present" can't be read as "covered".
 user_id, never the `sortable_name` column). Redirect to `/dev/null` or `cut` to
 columns 1,2 — never display raw rows.
 
-**These files are Zone 2-ADJACENT: read them freely, but NEVER echo a name out
-of them.** They're working files you legitimately need, and they carry names:
+**Zone 2-ADJACENT — names may be present, but NEVER beside an evaluation.** This
+tier covers both files you legitimately READ that carry names, and student-facing
+text you WRITE:
 
-- `grading/*/_computed_grades.csv` — computed grades, named
-- `grading/*/_gradebook_canvas.csv` — gradebook export, named
-- `grading/*/_actual_grades.csv` — pushed grades, named
-- `grading/*/FINAL_REVIEW_COMMENTS_*.md` — review comments, may name students
+- *Reading:* `grading/*/_computed_grades.csv`, `grading/*/_gradebook_canvas.csv`,
+  `grading/*/_actual_grades.csv`, `grading/*/FINAL_REVIEW_COMMENTS_*.md`
+- *Writing:* student-facing text you draft for the operator to deliver to one
+  identified student (a discussion reply, a message asking which data set they used)
 
 **Use codes, not names — no matter which file the name came from.** Tools accept
 `--deid-code`/`--user-id`; the *human* looks up the identifier locally and hands you
 the opaque code. You never re-identify, and **being allowed to read a name never
 makes you allowed to print one** — refer to students only by `user_id` or
-`deid_code` in every response, summary, table, and commit message.
+`deid_code` in every response, summary, table, and commit message. (Text you draft
+*for a student to read* is the one place a name belongs — see the convention below.
+Everything you write *about* a student uses codes.)
 ✅ "Reopened for user_id 280379" · ❌ "Reopened for Sam Bradshaw (280379)"
 ✅ "FR-B75C87 earned a B+ elevated to A" · ❌ "Student 280379 (Sam Bradshaw) …"
 If asked "who is user_id 280379?" → "I don't have the name mapping (FERPA Zone 2);
 check `grading/.deid_master.csv` locally."
+
+**In student-facing text, the convention governs the TEXT, not the file.** Refer to
+a student by given name plus last initial — never a full surname, not in headers,
+not in parentheticals, not in peer mentions. This is **exposure minimization, not
+de-identification**: in a small section a first name plus an initial usually resolves
+to one person, and the student's full name is already visible on the thread the draft
+is destined for. What it limits is what accumulates in the repo and in transcripts.
+
+**Operator-facing scaffolding** — the material required to LOCATE and CONFIRM the
+right artifact before delivering into it — is not student-facing text and may carry
+full names. Typically the platform's printed name, the thread title and the
+timestamp; where those don't uniquely identify a thread it may include a short
+excerpt of the post, or another participant's name where that is what disambiguates.
+**The test is necessity for navigation, not convenience:** if removing it wouldn't
+make the artifact harder to find, it isn't scaffolding. Never a licence for
+name-bearing prose.
+
+A *peer's* name is the sharpest case — the naming convention above bans peer mentions
+in student-facing text, so admitting one here needs the strictest reading of that
+test: last resort, when name-plus-timestamp-plus-excerpt still doesn't disambiguate.
+
+Scaffolding must live under an **already-gitignored path** — a per-directory
+`.gitignore` containing `*`, written when the directory is created, as
+`build_deid_master.py` already does for `grading/`. Protection that ships with the
+directory survives edits to the root ignore file; a root rule is only as durable as
+the next person restructuring it. (A consumer restructuring theirs found a blanket
+grading-directory deny had been the only thing covering three other name-bearing
+paths, and a replacement line matched nothing because a trailing comment became part
+of the pattern. Both caught by checking, not by design.)
+
+**Operator-supplied names.** This rule governs what you produce on your own
+initiative. A name the operator supplies in the same turn may be used
+conversationally *within that turn* — repeating it discloses nothing they did not
+just write, and refusing teaches them the rule is unusable. It must not otherwise be
+persisted: not to a file, not to a commit message, not to any artifact outlasting
+the exchange.
+
+**Unchanged and unconditional: a name never appears beside a score, a rubric
+criterion, a grade band, or a standing.** No exception, no tier, no turn scope.
+
+*The judgment call has not been eliminated, only moved* — from "is this a
+facilitation draft?" to "is there an evaluation next to this name?" The second is a
+condition you can check; the first is an inference about intent. Keep checking.
 
 *Three real incidents. 2026-07-01 and 2026-07-02: an agent read/`head`-ed
 `.deid_master.csv` and surfaced a name — the READ failure, now also blocked by
