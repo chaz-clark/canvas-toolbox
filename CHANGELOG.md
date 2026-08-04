@@ -12,6 +12,21 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.16.0] — 2026-08-04
+
+**`grade_guardian`'s FERPA set is extensible, and says what it actually covers (#278).**
+
+The Zone-2 pattern set was hardcoded to Canvas workflow filenames with no extension point. A non-Canvas consumer got the hook installed, got told `present`, and was protected against nothing — their name-bearing files had *zero* overlap with the pattern set. As the reporter put it, that line is true and misleading in the same breath: "present" reads as "covered."
+
+- **Course-local `.claude/ferpa_zone2.txt`** — one regex per line, `#` comments, unioned into both matchers. Consumer patterns are never anchored, since over-matching only blocks more reads while under-matching leaks. Invalid patterns are dropped rather than raised (a guardrail must never brick a session) but are reported loudly, because a silently-ignored pattern is the same false confidence in a new costume.
+- **`cb_update` prints the active pattern count** and, on a repo with no extension file, names the file to create. "Present" is no longer something the operator has to interpret.
+- **One source list, two compiled forms.** `_FERPA_PATH` and `_FERPA_FILE` were two hand-maintained regexes carrying a "kept in sync by hand" comment — and had already drifted: one was case-sensitive, and they disagreed on `.*` vs `[^/\\]*`. Both now derive from one list. **The path form is now case-insensitive**, closing a real hole: on a case-insensitive filesystem (macOS default) `Read .DEID_MASTER.csv` passed a block that `cat` caught.
+- **A D2L/Brightspace Classlist export is blocked out of the box.** It's the complete identity join for a section — name, username, email, and institutional id, one row per student — and it's the file most likely to be sitting in a downloads folder. Shipped as a default rather than left to config: the whole complaint is a hook that enforces nothing, and an unconfigured consumer would still be exposed on their most identifying artifact. The course code, term and timestamp around it vary; `Classlist_Export` is D2L's own export naming and doesn't. Costs Canvas repos nothing.
+
+*Reported from a Brightspace course repo running the toolkit since 1.8.0.*
+
+---
+
 ## [1.15.1] — 2026-08-04
 
 **Fix the 1.14.1 gitignore lines, which matched nothing they were meant to match (#277).**

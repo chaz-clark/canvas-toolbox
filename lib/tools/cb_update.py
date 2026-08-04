@@ -51,8 +51,12 @@ from sync_grading_protocol import inject_grading_pointer
 
 try:
     from grade_guardian import ensure_hook as _ensure_guardian_hook
+    from grade_guardian import zone2_summary as _zone2_summary
+    from grade_guardian import _ZONE2_EXTRA_FILE
 except ImportError:
     _ensure_guardian_hook = None
+    _zone2_summary = None
+    _ZONE2_EXTRA_FILE = ".claude/ferpa_zone2.txt"
 
 SKILLS = ["grading", "course-build", "audit", "accommodations", "ferpa-deid",
           "title-iv", "voicing", "improve"]
@@ -228,6 +232,29 @@ def ensure_guardian_hook(course_root: Path, toolkit_subdir: str, apply: bool) ->
     return "installed"
 
 
+def print_zone2_coverage(course_root: Path) -> None:
+    """Report WHAT the guardian's FERPA set actually covers, not just that the hook
+    is wired. `grade_guardian hook: present` was true and misleading in the same
+    breath for a non-Canvas consumer: the hook was installed and enforcing a set of
+    Canvas filenames that matched none of their name-bearing files (#278). "Present"
+    reads as "covered." Printing the counts — and naming the extension file when a
+    repo has none — keeps that from being an inference the operator has to make."""
+    if _zone2_summary is None:
+        return
+    s = _zone2_summary(course_root)
+    extra = f" + {s['extra']} course-local" if s["extra"] else ""
+    print(f"  FERPA Zone-2 patterns: {s['default']} built-in{extra}")
+    if s["invalid"]:
+        print(f"  ⚠ {len(s['invalid'])} pattern(s) in {_ZONE2_EXTRA_FILE} are not valid "
+              f"regex and are being IGNORED — you are not covered on those:")
+        for bad in s["invalid"]:
+            print(f"      {bad}")
+    elif not s["source"]:
+        print(f"  ↳ built-ins are Canvas filenames. If this course keeps names in files "
+              f"of its own, list them in {_ZONE2_EXTRA_FILE} (one regex per line) — "
+              f"otherwise the hook is installed but not covering them.")
+
+
 def main() -> int:
     force_utf8_console()
     ap = argparse.ArgumentParser(
@@ -281,6 +308,7 @@ def main() -> int:
     if hook_status in ("installed", "would-install"):
         print("  ↳ this repo was missing the guardian — agents could hand-write "
               "Canvas writes / bypass gates. Now enforced at create/edit/run.")
+    print_zone2_coverage(course_root)
 
     print("\nReminder: `cd " + toolkit_subdir + " && git pull` keeps the toolkit "
           "(and the symlinked skills) current.")

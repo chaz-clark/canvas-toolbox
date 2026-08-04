@@ -70,6 +70,12 @@ surface:
 - `grading/*/feedback/_grader*.csv` — grading sheets with names
 - `grading/**/submissions_raw/**` — raw submissions (potential name leaks)
 
+**A course adds its own Zone-2 files in `.claude/ferpa_zone2.txt`** (one regex per
+line). The list above is Canvas filenames; a course on another LMS has different
+name-bearing files, and `grade_guardian` enforces only what it knows about — an
+installed hook covering none of your files is worse than no hook. `cb_update` prints
+the active pattern count so "present" can't be read as "covered".
+
 **Verify with `wc -l` or `ls` only.** To confirm a code exists, filter columns:
 `grep "S-95DBB6" grading/.deid_master.csv | cut -d',' -f1,2` (shows deid_code +
 user_id, never the `sortable_name` column). Redirect to `/dev/null` or `cut` to

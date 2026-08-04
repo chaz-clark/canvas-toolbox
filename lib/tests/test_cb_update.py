@@ -52,6 +52,7 @@ from cb_update import (  # noqa: E402
     plan_skill_symlinks,
     install_skill_symlinks,
     ensure_gitignore,
+    print_zone2_coverage,
     refresh_pointer,
 )
 
@@ -243,3 +244,35 @@ def test_refresh_pointer_injects_into_course_agents(tmp_path):
 
 def test_refresh_pointer_reports_missing_when_no_agents_file(tmp_path):
     assert refresh_pointer(tmp_path, apply=True)[1] == "missing"
+
+
+# --- guardian Zone-2 coverage reporting (#278) ------------------------------
+
+def test_reports_zone2_coverage_and_names_the_extension_file(tmp_path, capsys):
+    """`grade_guardian hook: present` was true and misleading for a non-Canvas
+    consumer — installed, enforcing a Canvas-only set that matched none of their
+    files. Coverage has to be stated, not inferred."""
+    print_zone2_coverage(tmp_path)
+    out = capsys.readouterr().out
+    assert "Zone-2 patterns:" in out and "built-in" in out
+    assert ".claude/ferpa_zone2.txt" in out          # tells them where to extend
+
+
+def test_reports_course_local_pattern_count(tmp_path, capsys):
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "ferpa_zone2.txt").write_text(
+        "_all_posts\\.md\n_roster\\.json\n", encoding="utf-8")
+    print_zone2_coverage(tmp_path)
+    out = capsys.readouterr().out
+    assert "2 course-local" in out
+    assert "one regex per line" not in out           # already extended — no nag
+
+
+def test_warns_loudly_about_invalid_patterns(tmp_path, capsys):
+    """A dropped pattern is a silent hole — the exact false sense of coverage #278
+    is about. It must be impossible to miss."""
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "ferpa_zone2.txt").write_text("[unclosed\n", encoding="utf-8")
+    print_zone2_coverage(tmp_path)
+    out = capsys.readouterr().out
+    assert "not valid" in out and "IGNORED" in out and "[unclosed" in out
