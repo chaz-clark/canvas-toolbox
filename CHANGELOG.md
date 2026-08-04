@@ -12,6 +12,24 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.18.0] — 2026-08-04
+
+**The output rule gets the half it was missing: what to write, not just what not to (#280).**
+
+1.15.0 made the FERPA output rule unconditional — codes, never names. Correct for everything written *about* a student, and unworkable for text written *for* one. A discussion reply is name-addressed by construction: the artifact IS the student-facing text, its destination is that student's own thread, and it carries no score.
+
+Filed as a request for a facilitation carve-out; the reporter then withdrew that ask and argued against it themselves, on the grounds that an exception you must classify into at the moment of writing is the wrong shape. Shipping their replacement instead.
+
+- **Zone 2-Adjacent now covers authored outputs, not just files you read.** The tier was defined as "files you legitimately READ that carry names" — all inputs. Student-facing text you WRITE is now explicitly in it, rather than filed there by analogy.
+- **The naming convention governs the TEXT, not the file:** given name plus last initial in student-facing text. Documented as **exposure minimization, not de-identification** — in a small section a first name plus an initial usually resolves to one person, and the student's full name is already on the thread the draft is destined for. What it limits is what accumulates in the repo and in transcripts. Labelling it de-identification invites "…therefore it's safe beside a grade," which is the exact boundary this rule exists to hold.
+- **Operator-facing scaffolding** — what you need to locate and confirm the right thread — may carry full names, gated on a **necessity-for-navigation test** rather than a field list: if removing it wouldn't make the artifact harder to find, it isn't scaffolding. A peer's name is called out as the sharpest case, since the convention bans peer mentions. Must live under an already-gitignored path, because protection that ships with the directory survives edits to the root ignore file.
+- **Operator-supplied names are scoped to the turn.** A name you were just handed may be used conversationally in that turn — repeating it discloses nothing the operator didn't just write, and refusing teaches them the rule is unusable. It must not be persisted beyond it.
+- **The hard line is unchanged and unconditional:** a name never appears beside a score, a rubric criterion, a grade band, or a standing.
+- The shipped text says plainly that **the judgment call moved rather than disappeared** — from "is this a facilitation draft?" to "is there an evaluation next to this name?" The second is checkable; the first is an inference about intent. A reader told "no classification needed" stops checking.
+- The `voicing` skill — loaded whenever student-facing text is drafted — carries the convention, so it's present where the decision is actually made.
+
+---
+
 ## [1.17.0] — 2026-08-04
 
 **The consumer can supply the roster: a documented identifier-map contract for courses with no LMS API (#279).**

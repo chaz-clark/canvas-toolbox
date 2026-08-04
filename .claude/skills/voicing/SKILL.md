@@ -15,6 +15,22 @@ feedback that reads differently every time and doesn't match the instructor's.
 **Before drafting any student-facing comment, load the course's voicing profile and
 write in that voice. Never make up a new one when a profile exists.**
 
+## How to name the student in it
+
+**Given name plus last initial — never a full surname**, not in headers, not in
+parentheticals, not in peer mentions. This is Zone 2-Adjacent text (constitution →
+FERPA discipline): the artifact IS the student-facing text, so a name belongs in it,
+but the convention limits what accumulates in the repo and in transcripts. It is
+exposure minimization, **not** de-identification — a first name plus an initial
+usually resolves to one person in a small section, so it never makes a name safe to
+place beside a score, a rubric criterion, or a standing. That line is unconditional.
+
+Operator-facing scaffolding in a working file — what you need to locate and confirm
+the right thread before delivering into it — is not student-facing text and may carry
+full names. The test is necessity for navigation, not convenience: if removing it
+wouldn't make the artifact harder to find, it isn't scaffolding. It lives under an
+already-gitignored path. See the constitution's FERPA section for the full rule.
+
 ## Find the profile (check, in order)
 
 1. **`grading/FEEDBACK_VOICE.md`** — the canonical location (what DS250 / ITM327 use)
