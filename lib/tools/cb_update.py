@@ -134,27 +134,37 @@ def ensure_gitignore(course_root: Path, skills: list[str], apply: bool) -> str:
     `git status` then silently skipped (#271, #272).
 
     Ignoring `SKILLS` by name makes the ignore set exactly what this tool creates, so
-    a course-owned skill is protected by construction. It also fails safe in the
-    right direction: a newly shipped toolkit skill shows up as a tracked symlink
-    (visible, trivially fixed) instead of a course-owned skill vanishing untracked.
+    a course-owned skill is protected by construction.
 
-    Returns present/would-add/added/would-migrate/migrated ("migrate" = a legacy
-    blanket line was replaced in place; without that, every repo already updated by
-    an older cb_update would keep the blanket line forever)."""
+    **NO TRAILING SLASH on the emitted lines.** In gitignore a trailing slash matches
+    DIRECTORIES ONLY, and what this tool creates is a *symlink* — which git treats as
+    a file. 1.14.1 shipped `.claude/skills/<s>/` and so matched nothing it creates:
+    every toolkit skill flipped to untracked on migration, and a `git add -A` would
+    have committed symlinks pointing into the gitignored vendored toolkit (#277). A
+    slashless pattern matches both the symlink AND the real directory of the Windows
+    copy fallback, so it stays correct on either path. Tests assert against real git,
+    on a real symlink — a pattern-only assertion cannot see this class of bug.
+
+    Returns present/would-add/added/would-migrate/migrated ("migrate" = legacy lines
+    were replaced in place: 1.13-and-earlier's blanket `.claude/skills/`, or 1.14.1's
+    trailing-slash per-skill lines. Without that, repos already updated by an older
+    cb_update would keep the broken lines forever)."""
     gi = course_root / ".gitignore"
     existing = gi.read_text(encoding="utf-8") if gi.is_file() else ""
     lines = existing.splitlines()
-    wanted = [f".claude/skills/{s}/" for s in skills]
+    wanted = [f".claude/skills/{s}" for s in skills]        # no trailing slash — see above
+    legacy = {_BLANKET, *(f"{w}/" for w in wanted)}         # blanket, and 1.14.1's slashed
 
-    if _BLANKET in lines:
+    if any(ln in legacy for ln in lines):
         if not apply:
             return "would-migrate"
-        out = []
+        out, replaced = [], False
         for ln in lines:
-            if ln == _BLANKET:
-                out.extend(w for w in wanted if w not in lines)  # replace in place
-            else:
+            if ln not in legacy:
                 out.append(ln)
+            elif not replaced:                    # first legacy line → the corrected set
+                out.extend(w for w in wanted if w not in lines)
+                replaced = True                   # any further legacy lines just drop
         gi.write_text("\n".join(out) + "\n", encoding="utf-8")
         return "migrated"
 

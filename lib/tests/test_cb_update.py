@@ -142,11 +142,13 @@ def _gi_lines(tmp_path):
 
 def test_ensure_gitignore_ignores_toolkit_skills_by_name_not_the_directory(tmp_path):
     """The blanket `.claude/skills/` also swallowed course-OWNED skills (#271).
-    Ignore only the names this tool installs."""
+    Ignore only the names this tool installs — and with NO trailing slash (#277),
+    since a trailing slash matches directories only and these are symlinks."""
     assert ensure_gitignore(tmp_path, ["grading", "audit"], apply=True) == "added"
     lines = _gi_lines(tmp_path)
-    assert ".claude/skills/grading/" in lines and ".claude/skills/audit/" in lines
+    assert ".claude/skills/grading" in lines and ".claude/skills/audit" in lines
     assert ".claude/skills/" not in lines                   # never the whole directory
+    assert not any(ln.startswith(".claude/skills/") and ln.endswith("/") for ln in lines)
     assert ensure_gitignore(tmp_path, ["grading", "audit"], apply=True) == "present"
 
 
@@ -160,37 +162,74 @@ def test_ensure_gitignore_migrates_the_legacy_blanket_line(tmp_path):
     assert ".claude/skills/" in _gi_lines(tmp_path)          # dry-run wrote nothing
     assert ensure_gitignore(tmp_path, ["grading"], apply=True) == "migrated"
     lines = _gi_lines(tmp_path)
-    assert lines == ["*.pyc", ".claude/skills/grading/", ".env"]  # in place, nothing lost
+    assert lines == ["*.pyc", ".claude/skills/grading", ".env"]  # in place, nothing lost
     assert ensure_gitignore(tmp_path, ["grading"], apply=True) == "present"  # idempotent
+
+
+def test_ensure_gitignore_migrates_1_14_1_trailing_slash_lines(tmp_path):
+    """1.14.1/1.15.0 wrote directory-only patterns that match no symlink (#277).
+    Those repos need migrating too, not just the pre-1.14 blanket ones."""
+    (tmp_path / ".gitignore").write_text(
+        "*.pyc\n.claude/skills/grading/\n.claude/skills/audit/\n.env\n", encoding="utf-8")
+    assert ensure_gitignore(tmp_path, ["grading", "audit"], apply=False) == "would-migrate"
+    assert ensure_gitignore(tmp_path, ["grading", "audit"], apply=True) == "migrated"
+    # both slashed lines collapse to the corrected set, in place, nothing else lost
+    assert _gi_lines(tmp_path) == [
+        "*.pyc", ".claude/skills/grading", ".claude/skills/audit", ".env"]
+    assert ensure_gitignore(tmp_path, ["grading", "audit"], apply=True) == "present"
 
 
 def test_ensure_gitignore_adds_only_newly_shipped_skills(tmp_path):
     ensure_gitignore(tmp_path, ["grading"], apply=True)
     assert ensure_gitignore(tmp_path, ["grading", "improve"], apply=True) == "added"
-    assert _gi_lines(tmp_path).count(".claude/skills/grading/") == 1   # no duplicate
+    assert _gi_lines(tmp_path).count(".claude/skills/grading") == 1   # no duplicate
+
+
+def _git(tmp_path, *args, **kw):
+    return subprocess.run(["git", "-C", str(tmp_path), *args],
+                          capture_output=True, text=True, **kw)
+
+
+def _untracked(tmp_path):
+    """What git sees under the COURSE-ROOT skills dir. Pathspec-scoped so the
+    vendored `canvas-toolbox/.claude/skills/<s>/` originals (untracked in these
+    fixtures) can't be mistaken for the symlinks that point at them."""
+    return _git(tmp_path, "status", "--porcelain", "-uall", "--", ".claude/skills").stdout
+
+
+def test_real_git_ignores_the_installed_symlink_not_just_the_pattern(tmp_path):
+    """#277 — the regression a pattern-only assertion cannot see. `check-ignore`
+    happily matches a trailing-slash pattern against a trailing-slash PATH, so the
+    only honest check is to install the real artifact and ask git about the worktree.
+    A symlink is a file to git; a directory-only pattern never matches it."""
+    course = _fake_course(tmp_path)
+    _git(course, "init", "-q", ".")
+    status = install_skill_symlinks(
+        plan_skill_symlinks(course, "canvas-toolbox", ["grading"]), apply=True)[0][1]
+    assert status in ("linked", "copied")          # the real artifact now exists
+    ensure_gitignore(course, ["grading"], apply=True)
+    assert "skills/grading" not in _untracked(course)
 
 
 def test_course_owned_skill_stays_visible_to_git(tmp_path):
-    """The bug as the consumer felt it: a course-authored skill added AFTER
-    cb_update ran was untracked AND ignored, so `git add -A` silently skipped it."""
-    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-    owned = tmp_path / ".claude" / "skills" / "my-course-skill"
+    """The bug as the consumer felt it (#271): a course-authored skill added AFTER
+    cb_update ran was untracked AND ignored, so `git add -A` silently skipped it.
+    Asserted against a real worktree so it also covers #277 in the other direction —
+    the toolkit's own symlink must actually disappear from `git status`."""
+    course = _fake_course(tmp_path)
+    _git(course, "init", "-q", ".")
+    owned = course / ".claude" / "skills" / "my-course-skill"
     owned.mkdir(parents=True)
     (owned / "SKILL.md").write_text("course's own\n", encoding="utf-8")
-    (tmp_path / ".gitignore").write_text(".claude/skills/\n", encoding="utf-8")  # legacy
+    (course / ".gitignore").write_text(".claude/skills/\n", encoding="utf-8")  # legacy
+    install_skill_symlinks(
+        plan_skill_symlinks(course, "canvas-toolbox", ["grading"]), apply=True)
 
-    def ignored(rel):
-        return subprocess.run(["git", "-C", str(tmp_path), "check-ignore", "-q", rel]
-                              ).returncode == 0
-
-    assert ignored(".claude/skills/my-course-skill/SKILL.md")      # the bug
-    ensure_gitignore(tmp_path, ["grading"], apply=True)
-    assert not ignored(".claude/skills/my-course-skill/SKILL.md")  # fixed
-    assert ignored(".claude/skills/grading/")                      # toolkit's own still ignored
-    status = subprocess.run(["git", "-C", str(tmp_path), "status", "--short", "-uall"],
-                            capture_output=True, text=True).stdout
-    assert "my-course-skill/SKILL.md" in status   # the consumer can finally commit it
-    assert "skills/grading" not in status         # toolkit symlinks still stay out
+    assert "my-course-skill" not in _untracked(course)      # the bug: silently hidden
+    assert ensure_gitignore(course, ["grading"], apply=True) == "migrated"
+    after = _untracked(course)
+    assert "my-course-skill/SKILL.md" in after   # the consumer can finally commit it
+    assert "skills/grading" not in after         # toolkit's symlink still stays out
 
 
 def test_refresh_pointer_injects_into_course_agents(tmp_path):
