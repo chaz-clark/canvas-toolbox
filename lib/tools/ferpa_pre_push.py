@@ -65,9 +65,9 @@ except ImportError:
         pass
 
 try:
-    from grade_guardian import load_zone2, compile_zone2
+    from grade_guardian import load_zone2, compile_zone2, credential_path_re
 except ImportError:                      # standalone / partial vendoring
-    load_zone2 = compile_zone2 = None
+    load_zone2 = compile_zone2 = credential_path_re = None
 
 _NULL_SHA = "0" * 40
 _SCAN_CONTENT_FLAG = ".claude/ferpa_scan_content"
@@ -284,7 +284,13 @@ def main() -> int:
         return 0
 
     entries, _ = load_zone2(repo)
-    path_re, _ = compile_zone2(entries)
+    zone2_re, _ = compile_zone2(entries)
+    # Credentials too (#288). `.env` is gitignored today — but #285 exists because an
+    # ignore-rule restructure quietly stopped covering three paths, and a pushed token
+    # is usable by anyone who finds it the moment it lands.
+    cred_re = credential_path_re() if credential_path_re else None
+    path_re = re.compile(f"{zone2_re.pattern}|{cred_re.pattern}", re.IGNORECASE) \
+        if cred_re else zone2_re
     scan_on = (repo / _SCAN_CONTENT_FLAG).exists()
     roster = _load_roster(repo) if scan_on else []
 

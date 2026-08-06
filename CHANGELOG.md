@@ -12,6 +12,33 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.20.0] — 2026-08-06
+
+**One place to rotate the Canvas token — and the guardrails follow it there (#288).**
+
+Canvas now expires API tokens every 29 days across all institutions. An operator running five course repos was editing five `.env` files a month, and the one they forgot 401'd silently until a grading run failed — which is exactly what happened on 2026-08-06, blocking eight courses.
+
+- **`~/.canvas/config` global fallback**, resolved in `_env_loader.load_env()` — the one function all 90 tools already call, whose docstring anticipated precisely this ("a future improvement, e.g. multi-file precedence, lands in ONE place instead of twelve"). Precedence is unchanged and conventional: environment variable → repo `.env` → global. Demoting the env var, as the issue proposed, would have broken CI and one-off `CANVAS_API_TOKEN=x uv run …` overrides.
+- **An empty value counts as absent.** `cb_init` scaffolds a bare `CANVAS_API_TOKEN=` into every new repo; treating that as a value would make each new repo shadow the global file with an empty string and break on day one. A real repo in that state already existed in the field.
+- **The global file takes an ALLOWLIST — `CANVAS_API_TOKEN`, `CANVAS_BASE_URL` — and never a course id.** This is the safety property, not an oversight. `canvas_course_guard` (#27) exists because a stale `CANVAS_COURSE_ID` silently sends writes to the wrong course; a global one would manufacture that. An allowlist rather than a denylist because one field repo carries **eight** course-id-ish keys (`S1`/`S2`/`S3_COURSE_ID`, `BLUEPRINT_`, `MASTER_`, `PROTECTED_`, `SANDBOX_`), and missing one means grades in the wrong course. A course id in the global file is ignored *and reported*.
+- **Parsed with python-dotenv, not by hand.** `export CANVAS_API_TOKEN="1234~ab#cd"` defeats a naive `startswith()`, keeps the quotes, and truncates at the `#` — each silently, leaving "no token found" while the token sits in the file.
+- **`cb_update` migrates the installed base**, which is the whole problem — `cb_init` gets new repos right for free. It detects multi-course from sibling repos (directory names only; it never reads another repo's `.env`), consolidates the token, and **comments out** the local copy rather than deleting it. Idempotent and self-consolidating: run it in any repo, in any order, re-run freely. Single-course operators are untouched — a repo tool writing secrets into `$HOME` needs positive evidence, and the detection fails safe toward "single". `--multi-course` / `--single-course` override.
+- **When there's no token worth seeding, it scaffolds the file empty at `0600`.** The moment anyone consolidates is the moment their token expired — that's the reason they're there — so every local copy may be stale.
+- **`cb_update` now verifies the token** with one read-only `GET /users/self`: `valid` / `REJECTED` / `unreachable` / `no-token`. Consolidating rotation says nothing about whether the token is *current*, so the failure mode was otherwise unchanged. `unreachable` is deliberately distinct from `REJECTED` — reporting a network blip as a bad credential would send someone to regenerate a working one, and `cb_update` has always worked offline. `--no-token-check` opts out.
+- The `REJECTED` message names **three causes that are indistinguishable from outside**, led by the one found the hard way: a user-generated token can need **accepting** in Canvas → Account → Settings, and is listed as active the entire time it doesn't work.
+
+### The guardrails moved with the credential
+
+Consolidation made the token a better target: five repo-local gitignored files became one well-known path holding the single credential for every course, outside any repo.
+
+- **`grade_guardian` now covers credentials**, extending the existing hook rather than adding a second one that could be missing or inert. Graded on purpose: `~/.canvas/config` blocks both `Read` and shell display, since it holds a credential and nothing else; `.env` blocks raw shell display only, because blocking `Read` would also block `Edit` (the harness requires a read first), leaving blind whole-file overwrite — worse than the leak it prevents. `.env.example`, `.envrc`, and key-name inspection (`grep -o '^[A-Z_]*='`) stay allowed.
+- It catches the form that **actually leaks a token**: not `cat`, but a script calling `.read_text()` and printing. Mistake-proofing that only covered `cat`/`head` would have missed the real incident this was built from and felt safe.
+- **The pre-push guard blocks a committed credential too.** A pushed token is worse than a pushed name in one way that matters: it's usable by anyone who finds it, with no institutional relationship required, and revocation is the only remedy.
+
+*Verified end-to-end on a six-repo installation: migration applied, all six resolving the global token, all authenticating.*
+
+---
+
 ## [1.19.1] — 2026-08-04
 
 **Went and looked at what a faculty member actually sees. Found one thing working by accident and one nag that shouldn't exist.**

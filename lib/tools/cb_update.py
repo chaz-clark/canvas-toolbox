@@ -65,6 +65,13 @@ try:
 except ImportError:
     _ensure_pre_push = None
 
+try:
+    from _env_loader import GLOBAL_CONFIG as _GLOBAL_CONFIG
+    from _env_loader import global_config_problems as _global_problems
+except ImportError:
+    _GLOBAL_CONFIG = Path.home() / ".canvas" / "config"
+    _global_problems = None
+
 SKILLS = ["grading", "course-build", "audit", "accommodations", "ferpa-deid",
           "title-iv", "voicing", "improve"]
 
@@ -287,6 +294,155 @@ def print_ignore_coverage(course_root: Path) -> None:
           f"{_ZONE2_EXTRA_FILE} too, so the guardian and the pre-push hook cover them.")
 
 
+def count_sibling_course_repos(course_root: Path) -> int:
+    """How many course repos sit alongside this one — the multi-course signal (#288).
+
+    Counts DIRECTORIES ONLY. It never reads another repo's `.env`: knowing a sibling
+    exists is enough to decide, and reading other repos' secrets to make a
+    convenience decision would be a bad trade.
+
+    A repo counts if it vendors the toolkit AND has a `.env` — i.e. it's a configured
+    course, not a scaffold. Fails SAFE: if the layout isn't flat (repos elsewhere on
+    disk), this undercounts and the operator is treated as single-course, which
+    declines to touch $HOME. The surprising action needs positive evidence."""
+    try:
+        siblings = list(course_root.resolve().parent.iterdir())
+    except OSError:
+        return 1
+    n = 0
+    for d in siblings:
+        try:
+            if d.is_dir() and (d / "canvas-toolbox").is_dir() and (d / ".env").is_file():
+                n += 1
+        except OSError:
+            continue
+    return max(n, 1)
+
+
+def _write_global_config(token: str | None) -> None:
+    """Create `~/.canvas/config` at 0600. `token=None` scaffolds it empty for the
+    operator to paste into — chmod happens either way, because the file is about to
+    hold a secret whether or not it does yet."""
+    _GLOBAL_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    _GLOBAL_CONFIG.write_text(
+        "# canvas-toolbox global credentials — rotate the token HERE, once, for\n"
+        "# every course repo. Canvas expires tokens every 29 days.\n"
+        "#\n"
+        "# Only CANVAS_API_TOKEN and CANVAS_BASE_URL are read from this file.\n"
+        "# A CANVAS_COURSE_ID here is IGNORED on purpose: it belongs in each course's\n"
+        "# own .env. A global one would silently send writes to whichever course was\n"
+        "# configured last.\n"
+        f"CANVAS_API_TOKEN={token or ''}\n", encoding="utf-8")
+    _GLOBAL_CONFIG.chmod(0o600)
+
+
+def migrate_token_to_global(course_root: Path, multi: bool, apply: bool) -> str:
+    """Consolidate a rotating token into `~/.canvas/config` (#288).
+
+    Canvas expires tokens every 29 days across all institutions now, so an operator
+    with N course repos edits N `.env` files a month and 401s on the one they forget.
+    The installed base is the whole problem — `cb_init` gets new repos right for free.
+
+    Only acts for MULTI-course operators: a single-course user gains nothing from a
+    second location and shouldn't have a repo tool writing secrets into their home
+    directory. Idempotent and self-consolidating — run it in any repo, in any order,
+    and re-running is a no-op, so there's no list to keep track of.
+
+    The local token is COMMENTED OUT, never deleted: visible in the diff, recoverable,
+    and if it was a deliberate per-repo override you can put it back.
+
+    Returns single-course/no-token/present/would-*/created/consolidated."""
+    if not multi:
+        return "single-course"
+    env_path = course_root / ".env"
+    try:
+        env_text = env_path.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return "no-token"
+    local = ""
+    for raw in env_text.splitlines():
+        line = raw.strip()
+        if line.startswith("#"):
+            continue
+        if line.replace("export ", "", 1).startswith("CANVAS_API_TOKEN="):
+            local = line.split("=", 1)[1].strip().strip("'\"")
+
+    have_global = _GLOBAL_CONFIG.is_file()
+    if not local:
+        # No usable local token — already migrated, or scaffolded-but-empty. If there
+        # is nowhere to put a token yet, still create the FILE. The moment anyone
+        # consolidates is the moment their token just expired (that's the reason they
+        # are here), so every local copy is stale by definition and there may be
+        # nothing worth seeding. An empty, correctly-permissioned file they can paste
+        # into beats "no-token" and no further guidance.
+        if have_global:
+            return "present"
+        if not apply:
+            return "would-scaffold"
+        _write_global_config(None)
+        return "scaffolded"
+    action = "consolidated" if have_global else "created"
+    if not apply:
+        return "would-consolidate" if have_global else "would-create"
+
+    if not have_global:
+        _write_global_config(local)
+
+    out = []
+    for raw in env_text.splitlines():
+        s = raw.strip()
+        if not s.startswith("#") and \
+                s.replace("export ", "", 1).startswith("CANVAS_API_TOKEN="):
+            out.append(f"# moved to {_GLOBAL_CONFIG} by cb_update (#288) — "
+                       f"rotate it there, once, for every course")
+            out.append(f"# {raw}")
+        else:
+            out.append(raw)
+    env_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return action
+
+
+def check_token(timeout: float = 8.0) -> str:
+    """Ask Canvas whether the resolved token actually works (#288).
+
+    Consolidating rotation into one file fixes N edits a month; it says nothing
+    about whether the token in it is CURRENT. Canvas expires them every 29 days, so
+    the failure mode is unchanged — you find out during a grading run.
+
+    One read-only GET /users/self turns that into a line of output. Distinguishes
+    the cases that look identical from the outside:
+      valid           - works
+      REJECTED        - Canvas doesn't recognise it (expired, revoked, or the
+                        string isn't the one Canvas issued — its UI shows a token's
+                        full value only once, so an 'active' entry can look healthy
+                        while the copy you hold is unusable)
+      no-token        - nothing resolved from any source
+      unreachable     - offline / DNS / timeout. NOT a token problem, and must not
+                        be reported as one; cb_update has always worked offline and
+                        a network call must not make it look broken.
+    Never prints or returns the token."""
+    import os
+    token = os.environ.get("CANVAS_API_TOKEN", "")
+    base = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
+    if not token:
+        return "no-token"
+    if not base:
+        return "no-base-url"
+    if not base.startswith("http"):
+        base = "https://" + base
+    import urllib.error
+    import urllib.request
+    req = urllib.request.Request(f"{base}/api/v1/users/self",
+                                 headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return "valid" if 200 <= r.status < 300 else f"unexpected-{r.status}"
+    except urllib.error.HTTPError as e:
+        return "REJECTED" if e.code in (401, 403) else f"unexpected-{e.code}"
+    except Exception:                       # noqa: BLE001 — offline is not a failure
+        return "unreachable"
+
+
 def canvas_configured(course_root: Path) -> bool:
     """Whether this repo has a Canvas course wired up. Checks the environment and
     the course `.env` for a non-empty CANVAS_COURSE_ID."""
@@ -368,6 +524,17 @@ def main() -> int:
     ap.add_argument("--pull", action="store_true",
                     help="first `git pull` the VENDORED toolkit (the right repo), then "
                          "update — the one-command 'update canvas-toolbox'.")
+    creds = ap.add_mutually_exclusive_group()
+    creds.add_argument("--multi-course", action="store_true",
+                       help="you run several course repos: consolidate the Canvas token "
+                            f"into {_GLOBAL_CONFIG} so a 29-day rotation is ONE edit. "
+                            "Auto-detected from sibling repos; use this to force it.")
+    creds.add_argument("--single-course", action="store_true",
+                       help="never touch the global credentials file; keep the token "
+                            "in this repo's .env.")
+    ap.add_argument("--no-token-check", action="store_true",
+                    help="skip the read-only GET /users/self that verifies the Canvas "
+                         "token still works (the only network call cb_update makes).")
     args = ap.parse_args()
 
     course_root, is_subdir = detect_course_context()
@@ -426,6 +593,52 @@ def main() -> int:
                   "alone. Chain this in manually if you want both.")
 
     print_ignore_coverage(course_root)
+
+    # Canvas rotates API tokens every 29 days across all institutions now, so N course
+    # repos means N .env edits a month and a silent 401 on the one you forget (#288).
+    n_repos = count_sibling_course_repos(course_root)
+    multi = args.multi_course or (n_repos > 1 and not args.single_course)
+    cred = migrate_token_to_global(course_root, multi, args.apply)
+    print(f"\nCanvas credentials: {cred}"
+          + (f"  ({n_repos} course repos alongside this one)" if n_repos > 1 else ""))
+    if cred.startswith(("created", "would-create")):
+        print(f"  ↳ the token moves to {_GLOBAL_CONFIG} (chmod 600) and is commented "
+              f"out here. Rotate it THERE from now on — once, for every course.")
+        print("    Verify it's current: consolidating doesn't refresh an expired token, "
+              "it just gives you one place to fix it.")
+    elif cred.startswith(("consolidated", "would-consolidate")):
+        print(f"  ↳ this repo's .env shadowed {_GLOBAL_CONFIG}; the local copy is "
+              f"commented out so the global one is used.")
+    elif cred == "single-course" and n_repos == 1:
+        print("  ↳ one course repo here, so the token stays in .env. Running several? "
+              "`--multi-course` consolidates them.")
+    if _global_problems is not None:
+        for problem in _global_problems():
+            print(f"  ⚠ {problem}")
+
+    if not args.no_token_check:
+        status = check_token()
+        print(f"  token check: {status}")
+        if status == "REJECTED":
+            print("    ↳ Canvas returned 'Invalid access token' — it does not have this "
+                  "string. Three causes look identical from here:")
+            print("      1. NOT YET ACCEPTED. A user-generated token can need approving "
+                  "in Canvas → Account →")
+            print("         Settings before it works. It is listed as active the whole "
+                  "time. Check this FIRST —")
+            print("         it costs one click and looks exactly like an expired token "
+                  "until you do.")
+            print("      2. Expired or revoked (Canvas rotates every 29 days).")
+            print("      3. Not the string Canvas issued — the full value is shown ONCE, "
+                  "at generation; the entry")
+            print("         keeps showing a hint afterwards, so a saved copy can be "
+                  "unusable and still look healthy.")
+            print(f"      The token itself is fine to re-paste into {_GLOBAL_CONFIG} — "
+                  f"one edit covers every course.")
+        elif status == "unreachable":
+            print("    ↳ couldn't reach Canvas (offline?). This is NOT a token "
+                  "problem — nothing else here needs the network.")
+
     print_lms_mode(course_root)
 
     print("\nReminder: `cd " + toolkit_subdir + " && git pull` keeps the toolkit "

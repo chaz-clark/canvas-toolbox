@@ -13,10 +13,11 @@ Resolution order (first match wins):
   3. Hardcoded fallback `"0.0.0+unknown"` — only if both above fail (vendored
      copy missing pyproject.toml; manual file copy out of repo).
 
-Canonical scheme is the v0.x semver line (matches `git describe` and the
-AGENTS.md Active Context). A separate `v1.x` git tag series exists in
-history; it is NOT part of the v0.x line and is not maintained — treat v0.x
-as canonical going forward.
+Canonical scheme is the **v1.x** semver line — `pyproject.toml` is the source
+of truth and CHANGELOG.md tracks it. This paragraph previously said the
+opposite ("treat v0.x as canonical going forward"), which was already stale:
+the 1.x line has been the maintained one for 75 releases. A v0.x tag series
+exists in history and is not maintained.
 
 Downstream repos that vendor `lib/tools/` can print the version via any
 primary sync tool's `--version` flag to detect drift from upstream:

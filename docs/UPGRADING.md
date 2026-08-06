@@ -1,12 +1,7 @@
 # Upgrading canvas-toolbox
 
-For early adopters running an older version (v0.35.x and earlier). This
-is the migration guide; for the mechanical per-version diff, see
-[`CHANGELOG.md`](../CHANGELOG.md).
-
-Usage is still small enough (a handful of consumer repos as of
-2026-06-15) that we can be specific about what changed and how to
-handle it. This file gets shorter over time as adopters catch up.
+The migration guide — what changes about your *workflow*. For the
+mechanical per-version diff, see [`CHANGELOG.md`](../CHANGELOG.md).
 
 ---
 
@@ -16,10 +11,10 @@ Any grader tool's `--version` reports the toolkit version:
 
 ```bash
 uv run python canvas-toolbox/lib/tools/grader_fetch.py --version
-# → canvas-toolbox 0.35.4
+# → canvas-toolbox 1.13.0
 ```
 
-The current latest is **v0.50.1**.
+The current latest is **v1.20.0**.
 
 ---
 
@@ -30,19 +25,114 @@ repo (the recommended layout for m119 / ds460 / ds250 / itm327 /
 aol-student style adopters):
 
 ```bash
-cd canvas-toolbox
-git pull
-uv sync                              # picks up any new deps
-uv run python lib/tools/grader_fetch.py --version
-# → canvas-toolbox 0.50.1
+cd canvas-toolbox && git pull && uv sync
+cd .. && uv run python canvas-toolbox/lib/tools/cb_update.py          # dry run
+uv run python canvas-toolbox/lib/tools/cb_update.py --apply
 ```
 
-That's it for the upgrade itself. Read the "Behavior changes worth
-knowing" section below before your next run.
+`cb_update` is the re-init step: it makes new toolkit standards active
+in a repo that was set up months ago. **It is dry-run by default** —
+run it without `--apply` first and read what it says it will do.
 
 ---
 
-## Behavior changes worth knowing (v0.35 → v0.50)
+## Behavior changes worth knowing (v1.13 → v1.20)
+
+Three of these change what happens when you run something you already
+run. None require code changes, but two can stop you mid-workflow if
+they surprise you.
+
+### `cb_update --apply` now installs a hook that can BLOCK a push (1.19.0)
+
+The biggest change. `grade_guardian` protects the *agent* layer and
+cannot see `git push` — and unlike a bad read, a push can't be undone.
+`cb_update` now installs `.git/hooks/pre-push`, which checks the commit
+**range** (history is what gets published; deleting a file later doesn't
+unpublish it) and refuses a push carrying FERPA Zone-2 files or a
+credential.
+
+If it fires, the message tells you what to do in order, and **leads with
+the fix that doesn't rewrite history** — branch fresh from a clean tree
+and push that. The one thing not to do is `--no-verify`; that publishes
+the data.
+
+It installs to `.git/hooks/pre-push`, **not** via `core.hooksPath` —
+that setting is consulted *instead of* `.git/hooks/`, so it would
+silently disable an existing `pre-commit` hook (and `pre-commit install`
+then refuses to run). If you already have your own `pre-push`, yours is
+left alone and `cb_update` reports `skip-foreign`.
+
+Path checks run by default. Content scanning (uid→name maps, roster
+surnames) is opt-in via `touch .claude/ferpa_scan_content`, because
+surname matching trips on ordinary prose.
+
+### `cb_update --apply` may move your Canvas token (1.20.0)
+
+Canvas now expires API tokens every 29 days. If you run **more than one
+course repo**, `cb_update` consolidates the token into
+`~/.canvas/config` (chmod 600) and **comments out** — not deletes — the
+`CANVAS_API_TOKEN` line in that repo's `.env`. Rotation becomes one edit
+instead of one per repo.
+
+- **Single-course operators are untouched.** Detection is by sibling
+  repos and fails safe toward "single"; `--multi-course` forces it.
+- **Course ids never move.** `~/.canvas/config` accepts only
+  `CANVAS_API_TOKEN` and `CANVAS_BASE_URL`. A `CANVAS_COURSE_ID` there
+  is ignored and reported — a global course id would silently send
+  writes to whichever course was configured last.
+- Precedence is unchanged: environment variable → repo `.env` → global.
+  A real per-repo token still wins; an empty one doesn't count.
+- `cb_update` now verifies the token with one read-only call and reports
+  `valid` / `REJECTED` / `unreachable`. `--no-token-check` skips it.
+
+**If it says `REJECTED`, check first whether the token needs *accepting*
+in Canvas → Account → Settings.** A user-generated token is listed as
+active the entire time it doesn't work, so this looks exactly like an
+expired token. It cost the maintainer twenty minutes.
+
+### Agents can no longer `cat` your `.env` (1.20.0)
+
+`grade_guardian` now denies raw display of credential files — including
+the `python -c "...read_text()"` form, which is how it actually happens.
+`Read .env` still works (blocking it would also block `Edit`), as do
+`.env.example`, `.envrc`, and `grep -o '^[A-Z_]*=' .env` for key names.
+`~/.canvas/config` is blocked outright; nothing legitimate reads it.
+
+### Your course-owned skills become visible to git (1.14.1, 1.15.1)
+
+`cb_update` used to write a blanket `.claude/skills/` ignore, which also
+hid skills *you* wrote there. It now ignores the toolkit's skills by
+name and migrates the old line. After upgrading, a course-owned skill
+that was silently untracked will start showing in `git status` — that's
+the fix, not a regression. If you added `.gitignore` negations as a
+workaround, they're now redundant and harmless.
+
+### `.deid_master.csv` gained an `org_id` column (1.17.0)
+
+The institution's id — Canvas `sis_user_id`, D2L `OrgDefinedId`. It is
+**stored, never a key**. Appended last, and readers use `csv.DictReader`,
+so a master written before 1.17.0 still parses; no rebuild needed.
+
+### Student names in agent output (1.15.0, 1.18.0)
+
+Agents now refer to students by `user_id` / `deid_code` in anything
+written *about* a student, and by given name + last initial in text
+written *for* one (a discussion reply). A name never appears beside a
+score, criterion, or standing. If an agent starts declining to use a
+name you just typed, that's over-application — the rule scopes to what
+the agent surfaces on its own, not what you supplied in the same turn.
+
+### Not on Canvas? (1.16.0, 1.17.0)
+
+Courses on another LMS can now use the toolkit's constitution, skills,
+FERPA discipline and consensus grading without the Canvas API:
+`.claude/ferpa_zone2.txt` teaches `grade_guardian` your own name-bearing
+files, and `build_deid_master.py --roster-json` builds the de-id master
+from a local roster with no credentials.
+
+---
+
+## Older behavior changes (v0.35 → v0.50)
 
 These are operator-visible changes that might surprise a workflow you
 already have. None require code changes on your side, but you may want
@@ -111,9 +201,10 @@ handles m119-style task-level feedback dirs too.
 
 ---
 
-## What's actually new (the new tools you might want)
+## Tools added in the v0.35 → v0.50 window
 
-These shipped between v0.35.4 and v0.50.0. The order below is roughly
+Still current and still worth knowing if you skipped that window — but
+these are no longer the newest additions. The order below is roughly
 "most likely to be useful first".
 
 | Tool | What it does | When to reach for it |
@@ -155,11 +246,18 @@ When you're working in a consumer repo and notice `canvas-toolbox`
 isn't at the latest version, surface this file:
 
 > _The toolkit at `canvas-toolbox/` is at v{X}.{Y}.{Z}; latest is
-> v0.50.x. The upgrade is a `cd canvas-toolbox && git pull && uv sync`.
-> Behavior changes worth knowing in `canvas-toolbox/UPGRADING.md`._
+> v1.20.x. The upgrade is `cd canvas-toolbox && git pull && uv sync`,
+> then `cb_update.py` (dry-run) and `--apply`. Behavior changes worth
+> knowing in `canvas-toolbox/docs/UPGRADING.md` — from 1.19 onward
+> `--apply` installs a pre-push hook and may move the Canvas token._
 
 The toolkit doesn't auto-upgrade — that's by design (operator control).
 But agents can and should notice the gap.
+
+**Run `cb_update` without `--apply` first and show the operator the
+output.** From 1.19 it installs a hook that can block a push, and from
+1.20 it can rewrite `.env` and write to `$HOME`. All of that is correct
+and wanted — but it's the operator's call to see it before it happens.
 
 ---
 

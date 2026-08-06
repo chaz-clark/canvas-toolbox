@@ -55,6 +55,9 @@ from cb_update import (  # noqa: E402
     print_zone2_coverage,
     print_lms_mode,
     print_ignore_coverage,
+    count_sibling_course_repos,
+    migrate_token_to_global,
+    check_token,
     canvas_configured,
     refresh_pointer,
 )
@@ -390,3 +393,152 @@ def test_coverage_report_points_at_the_extension_file(tmp_path, capsys):
     ferpa_zone2.txt here — on evidence, rather than as a standing nag."""
     print_ignore_coverage(_cov_repo(tmp_path))
     assert ".claude/ferpa_zone2.txt" in capsys.readouterr().out
+
+
+# --- global Canvas credentials (#288) ---------------------------------------
+#
+# EVERY test that reaches an apply path monkeypatches cb_update._GLOBAL_CONFIG.
+# Without that these would write a token into the developer's real ~/.canvas/config.
+
+import cb_update as _cbu  # noqa: E402
+
+
+def _course(tmp_path, name, token="OLD_expired", n_siblings=0):
+    root = tmp_path / name
+    (root / "canvas-toolbox").mkdir(parents=True)
+    (root / ".env").write_text(
+        f"CANVAS_BASE_URL=https://x.instructure.com\n"
+        f"CANVAS_API_TOKEN={token}\nCANVAS_COURSE_ID=12345\n", encoding="utf-8")
+    for i in range(n_siblings):
+        sib = tmp_path / f"sibling{i}-master"
+        (sib / "canvas-toolbox").mkdir(parents=True)
+        (sib / ".env").write_text("CANVAS_API_TOKEN=x\n", encoding="utf-8")
+    return root
+
+
+def test_multi_course_is_detected_from_siblings(tmp_path):
+    """Counts DIRECTORIES only — never reads another repo's .env to make a
+    convenience decision."""
+    one, many = tmp_path / "one", tmp_path / "many"
+    one.mkdir(); many.mkdir()
+    assert count_sibling_course_repos(_course(one, "solo")) == 1
+    assert count_sibling_course_repos(_course(many, "a", n_siblings=4)) == 5
+
+
+def test_a_scaffold_without_env_is_not_a_course_repo(tmp_path):
+    root = _course(tmp_path, "a")
+    (tmp_path / "not-configured" / "canvas-toolbox").mkdir(parents=True)  # no .env
+    assert count_sibling_course_repos(root) == 1
+
+
+def test_single_course_never_touches_home(tmp_path, monkeypatch):
+    """A repo tool writing secrets into $HOME needs positive evidence. One course
+    gains nothing from a second location."""
+    target = tmp_path / "home" / ".canvas" / "config"
+    monkeypatch.setattr(_cbu, "_GLOBAL_CONFIG", target)
+    root = _course(tmp_path, "solo")
+    assert migrate_token_to_global(root, multi=False, apply=True) == "single-course"
+    assert not target.exists()
+    assert "CANVAS_API_TOKEN=OLD_expired" in (root / ".env").read_text(encoding="utf-8")
+
+
+def test_multi_course_creates_the_global_file_and_comments_out_the_local(tmp_path, monkeypatch):
+    """The 29-day rotation problem: N repos, N .env edits a month, a silent 401 on
+    the one you forget."""
+    target = tmp_path / "home" / ".canvas" / "config"
+    monkeypatch.setattr(_cbu, "_GLOBAL_CONFIG", target)
+    root = _course(tmp_path, "a", token="TOK_abc", n_siblings=4)
+
+    assert migrate_token_to_global(root, multi=True, apply=False) == "would-create"
+    assert not target.exists()                       # dry run wrote nothing
+
+    assert migrate_token_to_global(root, multi=True, apply=True) == "created"
+    assert "CANVAS_API_TOKEN=TOK_abc" in target.read_text(encoding="utf-8")
+    assert target.stat().st_mode & 0o777 == 0o600    # it holds a token
+    env = (root / ".env").read_text(encoding="utf-8")
+    assert "# CANVAS_API_TOKEN=TOK_abc" in env       # commented, NOT deleted
+    assert "CANVAS_COURSE_ID=12345" in env           # course id untouched
+
+
+def test_migration_is_idempotent_and_self_consolidating(tmp_path, monkeypatch):
+    """Run it in any repo, in any order, re-run freely — there's no list to track."""
+    target = tmp_path / "home" / ".canvas" / "config"
+    monkeypatch.setattr(_cbu, "_GLOBAL_CONFIG", target)
+    root = _course(tmp_path, "a", n_siblings=4)
+    migrate_token_to_global(root, multi=True, apply=True)
+    assert migrate_token_to_global(root, multi=True, apply=True) == "present"
+
+
+def test_a_second_repo_consolidates_rather_than_recreating(tmp_path, monkeypatch):
+    target = tmp_path / "home" / ".canvas" / "config"
+    monkeypatch.setattr(_cbu, "_GLOBAL_CONFIG", target)
+    first = _course(tmp_path, "a", token="TOK_first", n_siblings=4)
+    migrate_token_to_global(first, multi=True, apply=True)
+    second = _course(tmp_path, "b", token="TOK_stale")
+    assert migrate_token_to_global(second, multi=True, apply=True) == "consolidated"
+    assert "TOK_first" in target.read_text(encoding="utf-8")   # first one wins, not clobbered
+    assert "# CANVAS_API_TOKEN=TOK_stale" in (second / ".env").read_text(encoding="utf-8")
+
+
+def test_migration_handles_an_export_prefixed_token(tmp_path, monkeypatch):
+    target = tmp_path / "home" / ".canvas" / "config"
+    monkeypatch.setattr(_cbu, "_GLOBAL_CONFIG", target)
+    root = _course(tmp_path, "a", n_siblings=4)
+    (root / ".env").write_text('export CANVAS_API_TOKEN="TOK_quoted"\n', encoding="utf-8")
+    assert migrate_token_to_global(root, multi=True, apply=True) == "created"
+    assert "CANVAS_API_TOKEN=TOK_quoted" in target.read_text(encoding="utf-8")
+
+
+def test_scaffolds_an_empty_config_when_there_is_no_token_to_seed(tmp_path, monkeypatch):
+    """The moment anyone consolidates is the moment their token expired — that's the
+    reason they're here — so every local copy may be stale and there may be nothing
+    worth seeding. An empty 0600 file to paste into beats 'no-token' and no guidance.
+    (Real instance: a repo scaffolded with `CANVAS_API_TOKEN=` and never filled.)"""
+    target = tmp_path / "home" / ".canvas" / "config"
+    monkeypatch.setattr(_cbu, "_GLOBAL_CONFIG", target)
+    root = _course(tmp_path, "a", token="", n_siblings=4)      # empty = absent
+
+    assert migrate_token_to_global(root, multi=True, apply=False) == "would-scaffold"
+    assert not target.exists()
+    assert migrate_token_to_global(root, multi=True, apply=True) == "scaffolded"
+    body = target.read_text(encoding="utf-8")
+    assert body.rstrip().endswith("CANVAS_API_TOKEN=")         # ready to paste into
+    assert target.stat().st_mode & 0o777 == 0o600              # perms set regardless
+    assert "IGNORED" in body                                    # the course-id warning
+    # once it exists, a repo with nothing to contribute is a no-op
+    assert migrate_token_to_global(root, multi=True, apply=True) == "present"
+
+
+def test_token_check_reports_no_token_without_a_network_call(monkeypatch):
+    for v in ("CANVAS_API_TOKEN", "CANVAS_BASE_URL"):
+        monkeypatch.delenv(v, raising=False)
+    assert check_token() == "no-token"
+
+
+def test_token_check_distinguishes_rejected_from_unreachable(monkeypatch):
+    """The distinction that matters. cb_update has always worked offline; reporting
+    a network failure as a bad token would send someone to regenerate a perfectly
+    good credential."""
+    import urllib.error
+    import urllib.request
+    monkeypatch.setenv("CANVAS_API_TOKEN", "tok")
+    monkeypatch.setenv("CANVAS_BASE_URL", "byui.instructure.com")
+
+    def _401(*a, **kw):
+        raise urllib.error.HTTPError("u", 401, "Unauthorized", {}, None)
+    monkeypatch.setattr(urllib.request, "urlopen", _401)
+    assert check_token() == "REJECTED"
+
+    def _offline(*a, **kw):
+        raise OSError("nodename nor servname provided")
+    monkeypatch.setattr(urllib.request, "urlopen", _offline)
+    assert check_token() == "unreachable"
+
+
+def test_token_check_never_returns_the_token(monkeypatch):
+    monkeypatch.setenv("CANVAS_API_TOKEN", "SECRET_tok")
+    monkeypatch.setenv("CANVAS_BASE_URL", "byui.instructure.com")
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen",
+                        lambda *a, **kw: (_ for _ in ()).throw(OSError("x")))
+    assert "SECRET" not in check_token()

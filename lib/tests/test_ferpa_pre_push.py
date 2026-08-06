@@ -329,3 +329,30 @@ def test_hook_writes_nothing_to_stdout(tmp_path):
     sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
     r = _run_hook(repo, sha, _NULL)
     assert r.stdout == "", f"stdout must stay empty; got {r.stdout!r}"
+
+
+def test_a_committed_credential_file_blocks_the_push(tmp_path):
+    """A pushed token is worse than a pushed name in one specific way: it's usable
+    by anyone who finds it, with no institutional relationship required, and
+    revocation is the only remedy. .env is gitignored today — but #285 exists
+    because an ignore restructure quietly stopped covering three paths."""
+    repo = _repo(tmp_path)
+    (repo / ".env").write_text("CANVAS_API_TOKEN=10706~secret\n", encoding="utf-8")
+    _git(repo, "add", "-f", ".env")
+    _git(repo, "commit", "-qm", "oops")
+    sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    r = _run_hook(repo, sha, _NULL)
+    assert r.returncode == 1, r.stderr
+    assert "PUSH BLOCKED" in r.stderr
+    assert "secret" not in r.stderr          # never echoes what it caught
+
+
+def test_an_env_template_does_not_block_the_push(tmp_path):
+    """Repos track .env.example on purpose. Blocking it would train people to
+    --no-verify, which costs more than it protects."""
+    repo = _repo(tmp_path)
+    (repo / ".env.example").write_text("CANVAS_API_TOKEN=\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "template")
+    sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    assert _run_hook(repo, sha, _NULL).returncode == 0
