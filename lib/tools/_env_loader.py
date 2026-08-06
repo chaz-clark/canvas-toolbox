@@ -61,12 +61,94 @@ import sys
 from pathlib import Path
 
 
+GLOBAL_CONFIG = Path.home() / ".canvas" / "config"
+
+# What the GLOBAL file is allowed to supply. An allowlist, not a denylist: a
+# denylist would have to be extended for every future per-course key (S3_COURSE_ID,
+# the next one nobody has thought of), and the cost of missing one is a grade pushed
+# to the wrong course.
+#
+# CANVAS_COURSE_ID is excluded ON PURPOSE and this is the whole safety property.
+# canvas_course_guard (#27) exists because "a stale or hand-edited .env can silently
+# point CANVAS_COURSE_ID at the wrong course". If a course id could come from a
+# global file, a repo with a missing or partial .env would silently inherit whichever
+# course was configured last — manufacturing exactly that failure. The token is
+# per-USER and rotates; the course id is per-REPO and doesn't. Only the first belongs
+# in a shared file.
+GLOBAL_KEYS = ("CANVAS_API_TOKEN", "CANVAS_BASE_URL")
+
+
+def _global_values() -> tuple[dict, list[str]]:
+    """(allowed values, rejected key names) from ~/.canvas/config.
+
+    Parsed with python-dotenv, not by hand. `export CANVAS_API_TOKEN="1234~ab#cd"`
+    is a real line shape: a naive `line.startswith(KEY)` misses the export prefix
+    entirely, a naive split keeps the quotes, and a naive comment-strip truncates at
+    the `#`. Each of those fails SILENTLY — you get "no token found" while the token
+    sits in the file."""
+    try:
+        from dotenv import dotenv_values
+    except ImportError:
+        return {}, []
+    if not GLOBAL_CONFIG.is_file():
+        return {}, []
+    try:
+        raw = dotenv_values(GLOBAL_CONFIG)
+    except (OSError, ValueError):
+        return {}, []
+    allowed = {k: v for k, v in raw.items() if k in GLOBAL_KEYS and v}
+    rejected = [k for k in raw if k not in GLOBAL_KEYS]
+    return allowed, rejected
+
+
+def global_config_problems() -> list[str]:
+    """Human-readable warnings about ~/.canvas/config — for tools to surface rather
+    than swallow. Never raises; a credential file problem must not brick a tool."""
+    out = []
+    if not GLOBAL_CONFIG.is_file():
+        return out
+    try:
+        mode = GLOBAL_CONFIG.stat().st_mode
+        if mode & 0o077:
+            out.append(f"{GLOBAL_CONFIG} is readable by other users. "
+                       f"It holds an API token — run: chmod 600 {GLOBAL_CONFIG}")
+    except OSError:
+        pass
+    _, rejected = _global_values()
+    for k in rejected:
+        if "COURSE_ID" in k.upper():
+            out.append(f"{GLOBAL_CONFIG} sets {k} — IGNORED. A course id must live in "
+                       f"the course's own .env; a global one silently sends writes to "
+                       f"whichever course was configured last.")
+        else:
+            out.append(f"{GLOBAL_CONFIG} sets {k} — ignored (only {', '.join(GLOBAL_KEYS)} "
+                       f"are read from the global file).")
+    return out
+
+
 def load_env() -> Path | None:
-    """Resolve and load the nearest .env. Returns the path loaded, or None."""
+    """Resolve and load the nearest .env, then fill gaps from ~/.canvas/config.
+
+    Precedence, highest first:
+      1. an already-set environment variable  (CI, one-off `TOKEN=x uv run …`)
+      2. the repo's .env                       (per-repo override)
+      3. ~/.canvas/config                      (the shared, rotating secret)
+
+    Canvas expires API tokens every 29 days, so an operator running N course repos was
+    editing N .env files a month — and the one they forgot 401'd silently until a
+    grading run failed. The global file makes that one edit.
+
+    EMPTY COUNTS AS ABSENT. cb_init scaffolds a bare `CANVAS_API_TOKEN=` into every new
+    repo's .env; treating that as a value would mean each new repo shadows the global
+    file with an empty string and breaks on day one. Only a REAL value overrides.
+
+    Returns the .env path loaded (unchanged contract — 90 tools call this), or None."""
     try:
         from dotenv import find_dotenv, load_dotenv
     except ImportError:
         return None
+
+    loaded: Path | None = None
 
     # 1. CWD-anchored upward walk (python-dotenv's built-in)
     #    Documented invocation pattern: operator runs from course-repo root,
@@ -74,19 +156,41 @@ def load_env() -> Path | None:
     found = find_dotenv(usecwd=True)
     if found:
         load_dotenv(found)
-        return Path(found)
+        loaded = Path(found)
+    else:
+        # 2. __file__-anchored upward walk (fallback for unusual layouts)
+        #    Catches the case where the tool is invoked from outside the repo
+        #    tree (e.g. an absolute-path invocation from a different CWD).
+        p = Path(__file__).resolve()
+        for parent in p.parents:
+            candidate = parent / ".env"
+            if candidate.exists():
+                load_dotenv(candidate)
+                loaded = candidate
+                break
 
-    # 2. __file__-anchored upward walk (fallback for unusual layouts)
-    #    Catches the case where the tool is invoked from outside the repo
-    #    tree (e.g. an absolute-path invocation from a different CWD).
-    p = Path(__file__).resolve()
-    for parent in p.parents:
-        candidate = parent / ".env"
-        if candidate.exists():
-            load_dotenv(candidate)
-            return candidate
+    # 3. Global fallback — only for keys still missing or empty, and only the
+    #    allowlisted ones. Applied key-by-key rather than via load_dotenv() on the
+    #    file, so an unexpected key in there can never reach the environment.
+    import os
+    allowed, _ = _global_values()
+    for key in GLOBAL_KEYS:
+        if not os.environ.get(key) and allowed.get(key):
+            os.environ[key] = allowed[key]
 
-    return None
+    return loaded
+
+
+def token_source() -> str:
+    """Where the token in the current environment came from — for reporting.
+    'env'/'repo .env'/'~/.canvas/config'/'none'. Best-effort, never raises."""
+    import os
+    if not os.environ.get("CANVAS_API_TOKEN"):
+        return "none"
+    allowed, _ = _global_values()
+    if os.environ["CANVAS_API_TOKEN"] == allowed.get("CANVAS_API_TOKEN"):
+        return str(GLOBAL_CONFIG)
+    return "repo .env or environment"
 
 
 def force_utf8_console() -> None:

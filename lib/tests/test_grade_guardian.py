@@ -488,3 +488,53 @@ def test_classlist_export_is_blocked_out_of_the_box(tmp_path):
                        input=json.dumps({"tool_name": "Read",
                                          "tool_input": {"file_path": f"rosters/{real}"}}))
     assert r.returncode == 2, r.stderr
+
+
+# --- credentials (#288) -----------------------------------------------------
+#
+# Zone-2 protected student data; nothing protected the API token. Consolidating it
+# into ~/.canvas/config made that sharper: five repo-local gitignored files became
+# ONE well-known path holding the single credential for every course.
+
+def test_global_credential_file_is_blocked_for_read_and_shell():
+    """It holds a credential and nothing else, so blocking it costs nothing —
+    load_env() reads it in-process, which is never a tool call."""
+    assert evaluate("Read", {"file_path": "/Users/x/.canvas/config"}) is not None
+    assert evaluate("Bash", {"command": "cat ~/.canvas/config"}) is not None
+
+
+def test_env_blocks_shell_display_but_not_read():
+    """Graded deliberately. Blocking Read on .env would also block Edit — the
+    harness requires a read first — leaving only blind whole-file overwrite, which
+    is worse than the leak it prevents. .env also holds course ids and settings an
+    agent legitimately works with."""
+    assert evaluate("Bash", {"command": "cat .env"}) is not None
+    assert evaluate("Bash", {"command": "head -5 ds460-master/.env"}) is not None
+    assert evaluate("Read", {"file_path": "ds460-master/.env"}) is None
+
+
+def test_blocks_the_python_read_form_that_actually_leaked_a_token():
+    """The real incident this is built from: not `cat`, but a script printing the
+    file. Any mistake-proofing that only covers cat/head misses how it happens."""
+    cmd = ("python3 -c \"from pathlib import Path; "
+           "print(Path('ds460-master/.env').read_text())\"")
+    assert evaluate("Bash", {"command": cmd}) is not None
+
+
+def test_key_name_inspection_still_works():
+    """The escape hatch. Checking WHICH keys are configured is legitimate and
+    frequent; it lists no values and isn't a raw-display verb."""
+    assert evaluate("Bash", {"command": "grep -o '^[A-Z_]*=' .env"}) is None
+
+
+def test_templates_and_direnv_are_not_credentials():
+    """Pure friction if blocked — neither carries a secret."""
+    assert evaluate("Bash", {"command": "cat .env.example"}) is None
+    assert evaluate("Bash", {"command": "cat .envrc"}) is None
+    assert evaluate("Read", {"file_path": "scaffold/.env.example"}) is None
+
+
+def test_credential_denial_says_where_the_value_comes_from_instead():
+    """A denial that doesn't name the alternative gets worked around."""
+    msg = evaluate("Read", {"file_path": "/Users/x/.canvas/config"})
+    assert "load_env" in msg and "grep" in msg

@@ -187,6 +187,44 @@ def zone2_summary(course_root: Path | None = None) -> dict:
 
 _FERPA_PATH, _FERPA_FILE = compile_zone2(load_zone2()[0])
 
+
+# --------------------------------------------------------------------------
+# CREDENTIALS (#288). Zone-2 protects student data; nothing protected the API
+# token, and consolidating it into `~/.canvas/config` made that worse: five
+# repo-local gitignored files became ONE well-known path holding the single
+# credential for every course. More valuable, more predictable, and outside the
+# repo where repo-scoped protections don't reach.
+#
+# A leaked token is worse than a leaked name in one specific way — it is
+# immediately usable by anyone who finds it, with no institutional relationship
+# required, and revocation is the only remedy.
+#
+# GRADED ON PURPOSE, and the asymmetry is the point:
+#   ~/.canvas/config  holds a credential and nothing else -> block Read AND shell.
+#                     Nothing legitimate reads it except load_env(), which is
+#                     in-process Python and never a tool call.
+#   .env              holds course ids and settings an agent legitimately works
+#                     with -> block raw SHELL DISPLAY only, leave Read alone.
+#                     Blocking Read would also block Edit (the harness requires a
+#                     read first), leaving only blind whole-file overwrite, which
+#                     is worse than the leak it prevents.
+#
+# The escape hatch stays open: `grep -o '^[A-Z_]*=' .env` lists KEY NAMES without
+# values and isn't a raw-display verb, so checking what's configured still works.
+_CRED_READ = re.compile(r"\.canvas/config$", re.IGNORECASE)
+
+# `(?![\w.])` so `.env` matches but `.env.example` and `.envrc` do not — a
+# template and a direnv file carry no secret and blocking them is pure friction.
+_CRED_SHELL = re.compile(r"\.canvas/config|\.env(?![\w.])", re.IGNORECASE)
+
+# Shared with the pre-push guard: a credential must not reach a remote either.
+CREDENTIAL_PATTERNS = (r"\.canvas/config", r"\.env(?![\w.])")
+
+
+def credential_path_re() -> re.Pattern:
+    """Paths that carry a Canvas credential — for the git layer (#285/#288)."""
+    return re.compile("|".join(CREDENTIAL_PATTERNS), re.IGNORECASE)
+
 # Raw display / read of a file's contents. The constitution forbids these on Zone-2
 # files ("not with Read, cat, head, tail, or bare grep"). Deliberately EXCLUDES the
 # sanctioned filtered verification (`grep <code> .deid_master.csv | cut -d',' -f1,2`,
@@ -261,6 +299,19 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
         # that legitimately read these (grader_reidentify) run via lib/tools/ → exempt.
         # Metadata (`wc`/`ls`/`stat`) and the sanctioned `grep <code> … | cut -f1,2`
         # verification aren't raw-display verbs, so they still pass.
+        # Credentials (#288) — same raw-display test, different reason. A token
+        # printed into a transcript is exposed even if the transcript is private,
+        # and this fires on the python `open()`/`.read_text()` forms too, which is
+        # how it actually gets leaked in practice (a script that prints a file).
+        if ("/lib/tools/" not in cmd.replace("\\", "/")
+                and _RAW_READ.search(cmd) and _CRED_SHELL.search(cmd)):
+            return (
+                "⛔ Canvas credential file — never cat/head/print it. It holds an API "
+                "token; anything displayed here is in the transcript for good, and a "
+                "leaked token is usable by anyone who finds it. Tools read it in-process "
+                "via _env_loader.load_env() and never surface the value. To see WHICH "
+                "keys are set without values: grep -o '^[A-Z_]*=' <file>"
+            )
         if ("/lib/tools/" not in cmd.replace("\\", "/")
                 and _RAW_READ.search(cmd) and _FERPA_FILE.search(cmd)):
             return (
@@ -306,6 +357,14 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
 
     if tool_name == "Read":
         path = tool_input.get("file_path", "") or ""
+        if _CRED_READ.search(path):
+            return (
+                "⛔ Global Canvas credential file — do not Read it. It holds ONE API "
+                "token used by every course repo, and a Read puts it in the transcript "
+                "permanently. Tools load it in-process (_env_loader.load_env()) and "
+                "never surface the value; you don't need to see it. To check it's "
+                "configured: grep -o '^[A-Z_]*=' ~/.canvas/config"
+            )
         if _FERPA_PATH.search(path):
             return (
                 "⛔ FERPA Zone-2 file — do not Read it (AGENTS.md → FERPA discipline). "
