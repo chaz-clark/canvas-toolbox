@@ -58,6 +58,7 @@ from cb_update import (  # noqa: E402
     count_sibling_course_repos,
     migrate_token_to_global,
     check_token,
+    normalize_global_config,
     canvas_configured,
     refresh_pointer,
 )
@@ -582,3 +583,43 @@ def test_token_check_resolves_credentials_instead_of_reading_a_bare_environ(tmp_
     check_token()
     assert seen.get("auth") == "Bearer GLOBAL_tok", \
         "check_token must test the credential the tools resolve, not a bare environ"
+
+
+def test_global_config_is_written_with_export(tmp_path, monkeypatch):
+    """A plain `KEY=value` sources into a SHELL variable that no child process
+    inherits, so `source ~/.canvas/config && python script.py` silently finds
+    nothing — two field agents did exactly that and concluded the token was
+    missing. `export` makes sourcing work and python-dotenv still parses it."""
+    target = tmp_path / "home" / ".canvas" / "config"
+    monkeypatch.setattr(_cbu, "_GLOBAL_CONFIG", target)
+    _cbu._write_global_config("TOK_abc")
+    body = target.read_text(encoding="utf-8")
+    assert "export CANVAS_API_TOKEN=TOK_abc" in body
+    assert target.stat().st_mode & 0o777 == 0o600
+
+
+def test_existing_config_without_export_is_normalized(tmp_path, monkeypatch):
+    """Files written before this change lack the prefix. The toolkit never noticed
+    (it parses the file directly) but every ad-hoc `source … && python …` got
+    nothing."""
+    target = tmp_path / "home" / ".canvas" / "config"
+    target.parent.mkdir(parents=True)
+    target.write_text("# comment\nCANVAS_API_TOKEN=TOK_abc\n", encoding="utf-8")
+    monkeypatch.setattr(_cbu, "_GLOBAL_CONFIG", target)
+
+    assert normalize_global_config(apply=False) == "would-fix"
+    assert "export" not in target.read_text(encoding="utf-8")   # dry run wrote nothing
+    assert normalize_global_config(apply=True) == "fixed"
+    body = target.read_text(encoding="utf-8")
+    assert "export CANVAS_API_TOKEN=TOK_abc" in body
+    assert "# comment" in body                                   # comments preserved
+    assert normalize_global_config(apply=True) == "present"      # idempotent
+
+
+def test_normalize_ignores_commented_lines_and_missing_file(tmp_path, monkeypatch):
+    target = tmp_path / "home" / ".canvas" / "config"
+    monkeypatch.setattr(_cbu, "_GLOBAL_CONFIG", target)
+    assert normalize_global_config(apply=True) == "absent"
+    target.parent.mkdir(parents=True)
+    target.write_text("# CANVAS_API_TOKEN=commented_out\n", encoding="utf-8")
+    assert normalize_global_config(apply=True) == "present"      # a comment isn't a setting

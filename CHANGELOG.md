@@ -12,6 +12,22 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.20.4] — 2026-08-07
+
+**`~/.canvas/config` is now `source`-able, and ad-hoc scripts are told how to load it (#288 follow-up).**
+
+Two field agents independently ran `source ~/.canvas/config && python …` and got nothing. A plain `KEY=value` line sources into a **shell variable**, which no child process inherits — so the token was there and invisible. Both concluded it was missing; one offered to put a token back in `.env`.
+
+The toolkit never noticed because it parses the file directly. The gap only appears for everything *outside* the toolkit — ad-hoc scripts, and course-local `tools/*.py` that read `os.environ` after loading `.env`. Those worked before consolidation and silently stopped afterward. That class of consumer wasn't considered when the migration was designed.
+
+- **The file is written with `export`.** Sourcing now works, and python-dotenv parses the prefix unchanged, so one file serves the toolkit, the shell, and any script that reads `os.environ`.
+- **`cb_update` adds the missing prefix to an existing config** (`--apply`), preserving comments and re-asserting `0600`. Idempotent; a commented-out line is left alone.
+- **The pointer block gives agents the two-line idiom** for loading credentials in an ad-hoc script, and states plainly that `env | grep CANVAS` showing only `CANVAS_BASE_URL`/`CANVAS_COURSE_ID` is normal — the token isn't exported into a session, and its absence there proves nothing. Both agents treated that output as evidence of misconfiguration.
+
+*Verified end-to-end: `source ~/.canvas/config` → child process sees the token → Canvas returns 200.*
+
+---
+
 ## [1.20.3] — 2026-08-07
 
 **Tell agents where the Canvas token actually lives (#288 follow-up).**
