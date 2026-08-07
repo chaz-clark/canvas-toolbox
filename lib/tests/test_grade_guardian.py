@@ -8,6 +8,8 @@ the sanctioned tools / ordinary work (a guardrail that cries wolf gets disabled)
 import json
 import subprocess
 import sys
+
+import pytest
 from pathlib import Path
 
 _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
@@ -538,3 +540,47 @@ def test_credential_denial_says_where_the_value_comes_from_instead():
     """A denial that doesn't name the alternative gets worked around."""
     msg = evaluate("Read", {"file_path": "/Users/x/.canvas/config"})
     assert "load_env" in msg and "grep" in msg
+
+
+# --- credential guard: PIPELINE-AWARE (the escape hatch it used to deny) --------
+
+@pytest.mark.parametrize("cmd,label", [
+    ("grep -o '^[A-Z_]*=' ~/.canvas/config | head -10", "the reported false positive"),
+    ("grep -o '^[A-Z_]*=' .env | sort | head -3", "longer safe pipeline"),
+    ("grep -o '^[A-Z_]*=' ~/.canvas/config", "unpiped"),
+    ("wc -l ~/.canvas/config", "metadata"),
+    ("ls -l ~/.canvas/config", "metadata"),
+    ("chmod 600 ~/.canvas/config", "legitimate admin"),
+    ("test -f ~/.canvas/config && echo yes", "existence check"),
+    ("grep -r CANVAS_API_TOKEN lib/tools/", "grepping source, not the file"),
+])
+def test_sanctioned_credential_commands_are_allowed(cmd, label):
+    """The denial message tells operators to run `grep -o '^[A-Z_]*=' <file>` — and
+    the guard denied exactly that when piped to `head`, because a raw-read verb
+    appeared ANYWHERE in the command. A guard that refuses its own documented escape
+    hatch teaches people it's arbitrary, which is how one stops being respected.
+    The test that would have caught it is the message's own text, piped."""
+    assert evaluate("Bash", {"command": cmd}) is None, label
+
+
+@pytest.mark.parametrize("cmd,label", [
+    ("cat ~/.canvas/config | head -10", "the segment touching the file IS the read"),
+    ("cat .env", "plain"),
+    ("head -5 .env", "plain"),
+    ("less .env", "pager"),
+    ("grep -o '^[A-Z_]*=' .env; cat .env", "safe segment then unsafe one"),
+    ("grep -o '^[A-Z_]*=' .env && cat ~/.canvas/config", "&& chained"),
+    ("grep '' ~/.canvas/config | head", "bare grep prints every line, token included"),
+    ("grep . .env", "grep . matches everything"),
+    ("grep -v zzz .env", "inverted match prints everything"),
+    ("cut -d= -f2- ~/.canvas/config", "cut is how you EXTRACT a token"),
+    ("awk -F= '{print $2}' .env", "awk value extraction"),
+    ("sed -n '1,5p' ~/.canvas/config", "sed print"),
+    ("python3 -c \"print(open('.env').read())\"", "the form that actually leaked one"),
+    ("cat .env | grep -o '^[A-Z_]*='", "raw read FIRST, filtered after"),
+])
+def test_credential_reads_are_still_blocked(cmd, label):
+    """Segment-scoping must not open a hole. Anything whose file-touching segment
+    emits contents is denied — including plain `grep`, which was never in the
+    raw-read set and so slipped through before this."""
+    assert evaluate("Bash", {"command": cmd}) is not None, label

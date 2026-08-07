@@ -12,6 +12,21 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.20.2] — 2026-08-07
+
+**The credential guard denied its own documented escape hatch (#288 follow-up).**
+
+The denial message tells operators to inspect key names with `grep -o '^[A-Z_]*=' <file>`. A field agent ran exactly that, piped to `head -10`, and was blocked — because `head` appeared *somewhere* in the command and the check scanned the whole string. A guard that refuses the command its own message recommends teaches people it's arbitrary, and that's how one stops being respected.
+
+- **The check is now per-segment.** A pipeline/compound command is split on `|`, `;`, `&&`, `||`, and only the segment that actually names the credential file is judged. `grep -o … | head` passes because the only thing reaching `head` is key names; `cat file | head` still blocks because the segment touching the file *is* the raw read.
+- **Plain `grep` on a credential file now blocks** unless it's the sanctioned anchored key-name form. `grep '' ~/.canvas/config` prints every line, token included — "it's only a grep" was never safe. This hole predates the segment change; writing the test table is what surfaced it.
+- **Content filters count as reads** on credential files: `cut`, `awk`, `sed`, `tr`, `xargs`. `cut -d= -f2-` is precisely how you extract a token. Not applied to Zone-2 files, where the constitution explicitly permits the filtered `grep <code> … | cut -f1,2` verification.
+- Legitimate operations stay open: `chmod`, `rm`, `test -f`, `wc`, `ls`, `stat`, and grepping source code for the variable name.
+
+25 cases are now pinned in the suite, covering both directions. The one that would have caught the original bug is the denial message's own text, piped — which is the check I should have written when I wrote the message.
+
+---
+
 ## [1.20.1] — 2026-08-07
 
 **`cb_update`'s token check was testing the wrong thing (#288 follow-up).**
