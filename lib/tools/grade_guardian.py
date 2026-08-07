@@ -225,6 +225,46 @@ def credential_path_re() -> re.Pattern:
     """Paths that carry a Canvas credential — for the git layer (#285/#288)."""
     return re.compile("|".join(CREDENTIAL_PATTERNS), re.IGNORECASE)
 
+
+# Shell segment boundaries. The check must run PER SEGMENT, not across the whole
+# command: `grep -o '^[A-Z_]*=' ~/.canvas/config | head` was denied because `head`
+# appeared *somewhere*, even though the only thing reaching it was key names. The
+# denial message recommends that exact command — so the guard was refusing its own
+# documented escape hatch, which is how a guardrail stops being respected.
+_SEGMENTS = re.compile(r"\|\||&&|[;|\n]")
+
+# The sanctioned key-name inspection: `grep -o` with an ANCHORED pattern ending at
+# `=`, which by construction emits key names and never a value. Anything else that
+# touches a credential file falls through to the raw-read test and is denied — a
+# bare `grep '' file` prints every line, so "it's grep" is not itself safe.
+_KEYNAME_GREP = re.compile(r"\bgrep\b[^|;&]*\s-o\b[^|;&]*\^\[?[A-Z_]", re.IGNORECASE)
+
+# Metadata verbs the constitution already permits on Zone-2 files. No contents.
+_METADATA_ONLY = re.compile(r"^\s*(wc|ls|stat|file|du)\b")
+
+# Tools that emit file CONTENTS even though they aren't "display" verbs. `grep ''
+# ~/.canvas/config` prints every line, token included — so "it's only a grep" was
+# never safe, and `cut -d= -f2-` is precisely how you'd extract a token. These are
+# denied on a credential file unless the segment matched the sanctioned key-name
+# form above. Not applied to Zone-2 files, where the constitution explicitly
+# permits the filtered `grep <code> … | cut -f1,2` verification.
+_CONTENT_FILTER = re.compile(r"\b(grep|egrep|fgrep|rg|ag|awk|sed|cut|tr|xargs)\b")
+
+
+def _credential_leak(cmd: str, cred_re: re.Pattern) -> bool:
+    """True if any single pipeline/command segment BOTH names a credential file AND
+    reads its contents rawly. Segment-scoped so downstream `| head` on already-safe
+    output is fine, while `cat file | head` — where the segment touching the file is
+    the raw read — is not."""
+    for seg in _SEGMENTS.split(cmd):
+        if not cred_re.search(seg):
+            continue                       # this segment doesn't touch the file
+        if _KEYNAME_GREP.search(seg) or _METADATA_ONLY.search(seg):
+            continue                       # sanctioned: key names / metadata only
+        if _RAW_READ.search(seg) or _CONTENT_FILTER.search(seg):
+            return True
+    return False
+
 # Raw display / read of a file's contents. The constitution forbids these on Zone-2
 # files ("not with Read, cat, head, tail, or bare grep"). Deliberately EXCLUDES the
 # sanctioned filtered verification (`grep <code> .deid_master.csv | cut -d',' -f1,2`,
@@ -304,7 +344,7 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
         # and this fires on the python `open()`/`.read_text()` forms too, which is
         # how it actually gets leaked in practice (a script that prints a file).
         if ("/lib/tools/" not in cmd.replace("\\", "/")
-                and _RAW_READ.search(cmd) and _CRED_SHELL.search(cmd)):
+                and _credential_leak(cmd, _CRED_SHELL)):
             return (
                 "⛔ Canvas credential file — never cat/head/print it. It holds an API "
                 "token; anything displayed here is in the transcript for good, and a "
