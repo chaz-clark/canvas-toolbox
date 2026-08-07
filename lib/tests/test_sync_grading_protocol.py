@@ -103,3 +103,18 @@ def test_process_apply_writes_once(tmp_path):
     # second apply is a no-op
     assert process_agents_file(p, apply=True) == "present"
     assert p.read_text(encoding="utf-8").count(POINTER_MARKER) == 1
+
+
+def test_pointer_block_tells_agents_where_credentials_live():
+    """A field agent read a course .env, saw no CANVAS_API_TOKEN, and reported
+    'API Token: Missing' — then offered to add one back, which would silently
+    shadow ~/.canvas/config and reinstate the stale-copy problem consolidation
+    removed. The token WAS resolvable; nothing told the agent where to look.
+
+    This is the block every consumer AGENTS.md carries, so it's where the answer
+    has to be."""
+    new, _ = inject_grading_pointer("# Course\n\nContext.\n")
+    assert "~/.canvas/config" in new                  # where it actually lives
+    assert "never add a token back" in new            # don't recreate the shadow
+    assert "token check:" in new                      # how to check without reading files
+    assert "accepting" in new                         # the REJECTED cause that looks like expiry

@@ -58,6 +58,18 @@ self-attest. When a gate blocks you, get the human — never stack `--force`/`--
 to route around it, and never hand-write a Canvas write (the `grade_guardian` hook
 blocks that at create/edit/run).
 
+**The Canvas token may not be in `.env` — that is normal, not a misconfiguration.**
+Credentials resolve in this order: environment variable → this repo's `.env` →
+**`~/.canvas/config`** (one file, all courses — Canvas expires tokens every 29 days,
+so it is rotated in ONE place). A `.env` with no `CANVAS_API_TOKEN` is the *expected*
+state on a multi-course machine. **Never conclude "token missing" by reading `.env`,
+and never add a token back into it** — a real value there shadows the global file and
+silently reinstates the stale-copy problem the consolidation removed. To check whether
+Canvas is reachable, run `uv run python canvas-toolbox/lib/tools/cb_update.py` and read
+its `token check:` line (`valid` / `REJECTED` / `no-token`); don't inspect files. If it
+says `REJECTED`, the token most often just needs **accepting** in Canvas → Account →
+Settings — it is listed as active the whole time it doesn't work.
+
 **Updating the toolkit — run ONE command, don't improvise git.** When the instructor
 says any of these (all mean the same thing):
 "update cb", "git pull cb", "pull cb", "update canvas-toolbox", "pull canvas-toolbox",
