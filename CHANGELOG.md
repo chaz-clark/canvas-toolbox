@@ -12,6 +12,22 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.20.3] — 2026-08-07
+
+**Tell agents where the Canvas token actually lives (#288 follow-up).**
+
+A field agent opened a course `.env`, found no `CANVAS_API_TOKEN`, and reported *"API Token: Missing — Canvas is not accessible."* The token was resolvable the whole time; the toolkit in that repo returns it correctly from `~/.canvas/config`. Nothing told the agent that file exists.
+
+Worse, its proposed fix was to add a token back into `.env` — which would shadow the global file and silently reinstate the stale-copy problem consolidation removed. One helpful agent could undo the migration on a repo and nobody would notice until a token rotation.
+
+- The **pointer block** injected into every consumer `AGENTS.md` now states the resolution order (environment variable → repo `.env` → `~/.canvas/config`), says plainly that a `.env` without a token is the *expected* state on a multi-course machine, and forbids adding one back.
+- It directs agents to check reachability by running `cb_update` and reading its `token check:` line rather than inspecting files — and notes that `REJECTED` most often means the token needs **accepting** in Canvas settings, since it stays listed as active the entire time it doesn't work.
+- The block is self-healing, so every consumer picks this up on their next `cb_update` without touching course-specific content. Verified against a real consumer `AGENTS.md`: detected as stale, refreshed, idempotent on re-run.
+
+*No code changed — the credential path was already correct. What was missing was any way for an agent to know it.*
+
+---
+
 ## [1.20.2] — 2026-08-07
 
 **The credential guard denied its own documented escape hatch (#288 follow-up).**
