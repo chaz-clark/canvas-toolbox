@@ -70,6 +70,19 @@ its `token check:` line (`valid` / `REJECTED` / `no-token`); don't inspect files
 says `REJECTED`, the token most often just needs **accepting** in Canvas → Account →
 Settings — it is listed as active the whole time it doesn't work.
 
+**Writing an ad-hoc script or running a course-local `tools/*.py`?** Load credentials
+the way the toolkit does — do NOT read `.env` yourself and do NOT assume `os.environ`
+is already populated:
+
+```python
+import sys; sys.path.insert(0, "canvas-toolbox/lib/tools")
+from _env_loader import load_env; load_env()   # env → .env → ~/.canvas/config
+```
+
+From a shell, `source ~/.canvas/config` also works (the file uses `export`).
+`env | grep CANVAS` showing only `CANVAS_BASE_URL`/`CANVAS_COURSE_ID` is normal — the
+token is not exported into your session and its absence there proves nothing.
+
 **Updating the toolkit — run ONE command, don't improvise git.** When the instructor
 says any of these (all mean the same thing):
 "update cb", "git pull cb", "pull cb", "update canvas-toolbox", "pull canvas-toolbox",

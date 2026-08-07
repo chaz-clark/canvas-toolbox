@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -322,18 +323,56 @@ def count_sibling_course_repos(course_root: Path) -> int:
 def _write_global_config(token: str | None) -> None:
     """Create `~/.canvas/config` at 0600. `token=None` scaffolds it empty for the
     operator to paste into — chmod happens either way, because the file is about to
-    hold a secret whether or not it does yet."""
+    hold a secret whether or not it does yet.
+
+    WRITTEN WITH `export`, which matters more than it looks. A plain `KEY=value` line
+    creates a SHELL variable that child processes never inherit, so
+    `source ~/.canvas/config && python script.py` silently finds nothing — two field
+    agents tried exactly that and concluded the token was missing. `export` makes
+    sourcing work, and python-dotenv parses the prefix fine, so the one file serves
+    both the toolkit and any ad-hoc script or course-local tool that reads os.environ."""
     _GLOBAL_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     _GLOBAL_CONFIG.write_text(
         "# canvas-toolbox global credentials — rotate the token HERE, once, for\n"
         "# every course repo. Canvas expires tokens every 29 days.\n"
         "#\n"
+        "# `export` is deliberate: it lets `source ~/.canvas/config` work for ad-hoc\n"
+        "# scripts as well as the toolkit's own loader. Keep it.\n"
+        "#\n"
         "# Only CANVAS_API_TOKEN and CANVAS_BASE_URL are read from this file.\n"
         "# A CANVAS_COURSE_ID here is IGNORED on purpose: it belongs in each course's\n"
         "# own .env. A global one would silently send writes to whichever course was\n"
         "# configured last.\n"
-        f"CANVAS_API_TOKEN={token or ''}\n", encoding="utf-8")
+        f"export CANVAS_API_TOKEN={token or ''}\n", encoding="utf-8")
     _GLOBAL_CONFIG.chmod(0o600)
+
+
+def normalize_global_config(apply: bool) -> str:
+    """Add the missing `export` prefix to an existing `~/.canvas/config` (#288).
+
+    Files written before this change use a plain `KEY=value`, which sources into a
+    shell variable that no child process inherits. The toolkit never noticed — it
+    parses the file directly — but every ad-hoc `source … && python …` silently got
+    nothing. Returns present/would-fix/fixed/absent. Never logs the value."""
+    if not _GLOBAL_CONFIG.is_file():
+        return "absent"
+    try:
+        text = _GLOBAL_CONFIG.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return "absent"
+    lines = text.splitlines()
+    needs = [i for i, ln in enumerate(lines)
+             if not ln.lstrip().startswith("#")
+             and re.match(r"\s*(CANVAS_API_TOKEN|CANVAS_BASE_URL)\s*=", ln)]
+    if not needs:
+        return "present"
+    if not apply:
+        return "would-fix"
+    for i in needs:
+        lines[i] = "export " + lines[i].lstrip()
+    _GLOBAL_CONFIG.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _GLOBAL_CONFIG.chmod(0o600)
+    return "fixed"
 
 
 def migrate_token_to_global(course_root: Path, multi: bool, apply: bool) -> str:
@@ -625,6 +664,11 @@ def main() -> int:
     elif cred == "single-course" and n_repos == 1:
         print("  ↳ one course repo here, so the token stays in .env. Running several? "
               "`--multi-course` consolidates them.")
+    norm = normalize_global_config(args.apply)
+    if norm in ("fixed", "would-fix"):
+        print(f"  {'added' if norm == 'fixed' else 'would add'} the missing `export` "
+              f"prefix in {_GLOBAL_CONFIG} — without it `source` sets a shell variable "
+              f"that child processes never inherit.")
     if _global_problems is not None:
         for problem in _global_problems():
             print(f"  ⚠ {problem}")
