@@ -509,9 +509,18 @@ def test_scaffolds_an_empty_config_when_there_is_no_token_to_seed(tmp_path, monk
     assert migrate_token_to_global(root, multi=True, apply=True) == "present"
 
 
-def test_token_check_reports_no_token_without_a_network_call(monkeypatch):
+def test_token_check_reports_no_token_without_a_network_call(tmp_path, monkeypatch):
+    """Must isolate BOTH sources now that check_token resolves credentials properly —
+    otherwise it reads the developer's real ~/.canvas/config and this passes or fails
+    depending on whose machine runs it."""
+    import _env_loader
     for v in ("CANVAS_API_TOKEN", "CANVAS_BASE_URL"):
         monkeypatch.delenv(v, raising=False)
+    # load_env()'s __file__-anchored fallback walks up from lib/tools/ and finds the
+    # TOOLKIT's own .env before anything else — on a maintainer's machine that holds a
+    # real token, so without this the test asserts against their credential.
+    monkeypatch.setattr(_env_loader, "load_env", lambda: None)
+    monkeypatch.setattr(_env_loader, "GLOBAL_CONFIG", tmp_path / "nope" / "config")
     assert check_token() == "no-token"
 
 
@@ -542,3 +551,34 @@ def test_token_check_never_returns_the_token(monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen",
                         lambda *a, **kw: (_ for _ in ()).throw(OSError("x")))
     assert "SECRET" not in check_token()
+
+
+def test_token_check_resolves_credentials_instead_of_reading_a_bare_environ(tmp_path, monkeypatch):
+    """cb_update is not a Canvas tool and never called load_env(), so check_token()
+    read an os.environ nothing had populated — it never looked at ~/.canvas/config.
+    Five consumer repos reported a rejected token on the same day the operator's curl
+    against that file returned 200. A check that tests something other than what the
+    tools use is worse than no check."""
+    import _env_loader
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.delenv("CANVAS_BASE_URL", raising=False)
+    cfg = tmp_path / ".canvas" / "config"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("CANVAS_API_TOKEN=GLOBAL_tok\n", encoding="utf-8")
+    monkeypatch.setattr(_env_loader, "GLOBAL_CONFIG", cfg)
+    repo = tmp_path / "course"
+    repo.mkdir()
+    (repo / ".env").write_text("CANVAS_BASE_URL=byui.instructure.com\n", encoding="utf-8")
+    monkeypatch.chdir(repo)
+
+    seen = {}
+    import urllib.request
+
+    def _capture(req, *a, **kw):
+        seen["auth"] = req.get_header("Authorization")
+        raise OSError("stop before the network")
+    monkeypatch.setattr(urllib.request, "urlopen", _capture)
+
+    check_token()
+    assert seen.get("auth") == "Bearer GLOBAL_tok", \
+        "check_token must test the credential the tools resolve, not a bare environ"

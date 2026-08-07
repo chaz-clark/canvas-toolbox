@@ -12,6 +12,23 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.20.1] — 2026-08-07
+
+**`cb_update`'s token check was testing the wrong thing (#288 follow-up).**
+
+Five consumer repos reported `token check: REJECTED` on the same day the operator's `curl` against `~/.canvas/config` returned `200`. The tool was right that *something* was wrong and wrong about what.
+
+`cb_update` is not a Canvas tool and never called `load_env()`. `check_token()` read a bare `os.environ` that nothing had populated — so it **never looked at `~/.canvas/config` at all**. On a clean environment it reported `no-token`; where a stale value happened to be present in the process environment, it reported `REJECTED` against that. The credential it was supposed to be verifying was never sent.
+
+A check that tests something other than what the tools use is worse than no check: it sent an operator to regenerate a working token, twice.
+
+- `check_token()` now resolves credentials through `load_env()` first — the same environment variable → repo `.env` → `~/.canvas/config` chain every tool uses. Verified on a real repo: `no-token` before, `valid` after, same file and same token.
+- A test pins that the credential actually reaching Canvas is the resolved one, by capturing the `Authorization` header rather than trusting the returned status.
+
+*Also worth knowing:* `load_env()`'s `__file__`-anchored fallback walks up from `lib/tools/` and finds a **vendored toolkit's own `.env`** before the course root's. Consumers don't normally have one, but a maintainer checkout does — and it silently wins over the global file. If `canvas-toolbox/.env` exists on your machine and carries a token, delete that line.
+
+---
+
 ## [1.20.0] — 2026-08-06
 
 **One place to rotate the Canvas token — and the guardrails follow it there (#288).**

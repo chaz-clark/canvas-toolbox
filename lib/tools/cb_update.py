@@ -420,8 +420,21 @@ def check_token(timeout: float = 8.0) -> str:
       unreachable     - offline / DNS / timeout. NOT a token problem, and must not
                         be reported as one; cb_update has always worked offline and
                         a network call must not make it look broken.
+    RESOLVES CREDENTIALS FIRST. cb_update is not a Canvas tool and never called
+    load_env(), so this read a bare os.environ that nothing had populated — it never
+    looked at ~/.canvas/config at all. It reported `no-token` on a clean environment,
+    or `REJECTED` against whatever stale value happened to be in the process env,
+    while the real credential sat unread. Five consumer repos reported a rejected
+    token on the same day the operator's `curl` against that file returned 200.
+    A check that tests something other than what the tools use is worse than none.
+
     Never prints or returns the token."""
     import os
+    try:
+        from _env_loader import load_env
+        load_env()                      # env var -> repo .env -> ~/.canvas/config
+    except ImportError:
+        pass
     token = os.environ.get("CANVAS_API_TOKEN", "")
     base = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
     if not token:
