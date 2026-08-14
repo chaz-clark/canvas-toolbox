@@ -71,15 +71,75 @@ _WRITE_VERB = re.compile(
 )
 
 # Canvas grade-write context: the submissions endpoint or a grade/comment payload.
+#
+# `/assignments/<anything>/submissions` rather than `/assignments/\d+/submissions`
+# because real code builds the path with an f-string — `/assignments/{aid}/submissions`
+# has no literal digits and the anchored form misses it entirely.
+#
+# There used to be a `canvas.*submission` catch-all here. It matched any line
+# containing both words, including PROSE: a legitimate setup script was blocked
+# because its docstring said "the justification comes in as a Canvas submission
+# COMMENT instead" — documentation of what the script deliberately does NOT do,
+# read as evidence that it does (#297). The endpoint pattern below covers the real
+# cases it was there for, without matching English.
 _CANVAS_CTX = re.compile(
     r"/api/v1/courses/\d+/assignments/\d+/submissions"
+    r"|/assignments/[^/\s\"']+/submissions"
     r"|/submissions/\d+"
     r"|posted_grade"
     r"|submission\[submission\]"
-    r"|comment\[text_comment\]"
-    r"|canvas.*submission",
+    r"|comment\[text_comment\]",
     re.IGNORECASE,
 )
+
+
+def _code_only(body: str) -> str:
+    """Strip comments and docstrings from a Python source body (#297).
+
+    The run-catch reads a script's SOURCE looking for grade-write code. A docstring
+    describing the script — including one saying it does *not* write grades — is not
+    executable and must not be evidence. Real payload strings (`"posted_grade"`) are
+    kept: only `#` comments and bare-expression docstrings are removed.
+
+    Fails OPEN: anything unparseable returns the original text, so a syntax error or
+    a non-Python file can never quietly disable the check.
+
+    BLANKS the offending spans in place rather than rebuilding from tokens.
+    Rebuilding re-joins tokens with whitespace, which turns `requests.put(` into
+    `requests . put (` and stops `_WRITE_VERB` matching — silently disabling the
+    guard. Caught by running the bypass fixtures; offsets must survive untouched."""
+    try:
+        import io
+        import tokenize
+        chars = list(body)
+        # absolute offset of the start of each 1-indexed line
+        starts, off = {}, 0
+        for i, line in enumerate(body.splitlines(keepends=True), 1):
+            starts[i] = off
+            off += len(line)
+
+        def blank(tok):
+            a = starts[tok.start[0]] + tok.start[1]
+            b = starts[tok.end[0]] + tok.end[1]
+            for i in range(a, min(b, len(chars))):
+                if chars[i] != "\n":           # keep line structure intact
+                    chars[i] = " "
+
+        at_stmt_start = True
+        for tok in tokenize.generate_tokens(io.StringIO(body).readline):
+            if tok.type == tokenize.COMMENT:
+                blank(tok)
+                continue
+            if tok.type == tokenize.STRING and at_stmt_start:
+                blank(tok)                     # bare string statement == docstring
+            if tok.type in (tokenize.NEWLINE, tokenize.NL, tokenize.INDENT,
+                            tokenize.DEDENT, tokenize.ENCODING):
+                at_stmt_start = True
+            else:
+                at_stmt_start = False
+        return "".join(chars)
+    except Exception:                          # noqa: BLE001 — fail open, always
+        return body
 
 # The sanctioned tool source. Writing Canvas-write code here is legitimate — this
 # IS the reviewed tooling; running these scripts is the safe path.
@@ -372,7 +432,7 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
         for script in _extract_script_paths(cmd):
             if "/lib/tools/" in ("/" + script.replace("\\", "/")):
                 continue  # the reviewed tooling — running it is the safe path
-            body = _read_script(script)
+            body = _code_only(_read_script(script))   # prose is not executable (#297)
             if body and _WRITE_VERB.search(body) and _CANVAS_CTX.search(body):
                 return _redirect(f"running {script} — it writes grades to Canvas directly")
         return None
@@ -390,6 +450,9 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
         # while the real payload used `content`). Check every plausible key.
         body = (tool_input.get("content") or tool_input.get("file_contents")
                 or tool_input.get("new_string") or "")
+        body = _code_only(body)              # prose is not executable (#297); an Edit
+        #                                      fragment that won't tokenize falls back
+        #                                      to the raw text, so nothing is weakened.
         if _WRITE_VERB.search(body) and _CANVAS_CTX.search(body):
             target = path or "a new file"
             return _redirect(f"Canvas grade-write code being written into {target}")
