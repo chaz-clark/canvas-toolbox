@@ -12,6 +12,25 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.21.2] — 2026-08-14
+
+**`grade_guardian` read a docstring as evidence of a grade write (#297).**
+
+A legitimate course-setup script — creating unpublished Classic Quiz mirrors, writing no grades or comments — was blocked. The trigger was a line of **prose in its own docstring**:
+
+> *"the missed-stand-up justification comes in as a Canvas submission COMMENT instead"*
+
+`_CANVAS_CTX` carried a `canvas.*submission` catch-all that matched any line containing both words. The script's documentation of what it deliberately does **not** do was read as evidence that it does, and the operator had to run it outside Claude Code — defeating the point of the hook.
+
+- **Comments and docstrings are stripped before a body is matched.** The run-catch reads source looking for grade-write *code*; prose isn't executable and can't be evidence. Real payload literals (`"posted_grade"`) are kept — only `#` comments and bare-expression docstrings go. Fails open on anything unparseable, so a syntax error or a non-Python file can never quietly disable the check.
+- **`canvas.*submission` is replaced** with `/assignments/<anything>/submissions`, which matches the endpoint whether the ids are literal or interpolated in an f-string — the case the catch-all actually existed for — without matching English.
+
+**Deliberately not implemented:** the issue's Option 1 (whitelist by script name) and Option 3 (marker comment). Both are bypass vectors — an agent routing around the guard would name its script accordingly or add the marker. That trades a false positive for a hole in the guard's entire purpose.
+
+*A near-miss worth recording:* the first implementation rebuilt the source from tokens, which re-joined `requests.put(` as `requests . put (` and stopped `_WRITE_VERB` matching — silently disabling the guard completely. All three bypass fixtures passed straight through. The fix blanks spans in place so offsets survive; a test now pins it.
+
+---
+
 ## [1.21.1] — 2026-08-14
 
 **The three things a semester migration trips over on the way in (#294 related).**

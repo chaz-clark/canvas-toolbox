@@ -584,3 +584,70 @@ def test_credential_reads_are_still_blocked(cmd, label):
     emits contents is denied — including plain `grep`, which was never in the
     raw-read set and so slipped through before this."""
     assert evaluate("Bash", {"command": cmd}) is not None, label
+
+
+# --- prose is not executable (#297) ------------------------------------------
+
+_SETUP_SCRIPT = '''\
+"""Create Classic Quiz mirrors of NewQuiz stand-ups (unpublished).
+
+- NO essay question — the missed-stand-up justification comes in as a Canvas
+  submission COMMENT instead, handled elsewhere.
+"""
+import requests
+def make_quiz(base, course, title):
+    return requests.post(f"{base}/api/v1/courses/{course}/quizzes",
+                         json={"quiz": {"title": title, "published": False}})
+'''
+
+_LYING_SCRIPT = '''\
+"""This script does NOT write grades. Honest."""
+import requests
+def push(b, cid, aid, uid, g):
+    requests.put(f"{b}/api/v1/courses/{cid}/assignments/{aid}/submissions/{uid}",
+                 json={"submission": {"posted_grade": g}})
+'''
+
+
+def test_a_docstring_describing_grades_is_not_a_grade_write(tmp_path):
+    """The reported false positive. A legitimate setup script was blocked because
+    its docstring said the justification "comes in as a Canvas submission COMMENT
+    instead" — documentation of what it deliberately does NOT do, read as evidence
+    that it does. No code in it touches a submission."""
+    s = tmp_path / "mirror_standups_classic.py"
+    s.write_text(_SETUP_SCRIPT, encoding="utf-8")
+    assert evaluate("Bash", {"command": f"python3 {s}"}) is None
+
+
+def test_a_reassuring_docstring_does_not_launder_a_real_grade_write(tmp_path):
+    """The other direction: stripping prose must not let a script talk its way out.
+    What matters is the code, and this one writes a grade."""
+    s = tmp_path / "innocent.py"
+    s.write_text(_LYING_SCRIPT, encoding="utf-8")
+    assert evaluate("Bash", {"command": f"python3 {s}"}) is not None
+
+
+def test_code_only_preserves_offsets_so_write_verbs_still_match():
+    """The regression this nearly shipped with: rebuilding the source from tokens
+    re-joins them with whitespace, turning `requests.put(` into `requests . put (`
+    so _WRITE_VERB stops matching — silently disabling the guard entirely. Blank
+    the spans in place instead."""
+    from grade_guardian import _WRITE_VERB, _code_only
+    stripped = _code_only(_LYING_SCRIPT)
+    assert "requests.put" in stripped and _WRITE_VERB.search(stripped)
+    assert "Honest" not in stripped              # the docstring IS gone
+
+
+def test_code_only_fails_open_on_unparseable_input():
+    """A guardrail must never be disabled by a syntax error or a non-Python file."""
+    from grade_guardian import _code_only
+    broken = 'def f(:\n  requests.put("/assignments/1/submissions/2")\n'
+    assert "requests.put" in _code_only(broken)
+    assert _code_only("not python at all {{{") == "not python at all {{{"
+
+
+def test_payload_strings_are_kept_not_stripped():
+    """Only comments and BARE docstrings go. A real payload literal is evidence."""
+    from grade_guardian import _code_only
+    src = 'import requests\nd = {"submission": {"posted_grade": "95"}}\n'
+    assert "posted_grade" in _code_only(src)
