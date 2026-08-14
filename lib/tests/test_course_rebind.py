@@ -156,3 +156,47 @@ def test_summary_calls_out_ambiguity_loudly():
     local = {"a.json": {"type": "Assignment", "title": "Lab", "canvas_id": 11}}
     s = summarize(plan_rebind(local, tgt))
     assert "AMBIGUOUS" in s and "refused rather than guessed" in s
+
+
+# --- the small bugs a semester migration hits first (#294 related) -----------
+
+import canvas_sync as cs  # noqa: E402
+
+
+def test_canvas_null_bodies_do_not_crash_the_pull(tmp_path):
+    """Canvas sends an explicit null for empty rich-text fields, and `.get(k, "")`
+    only defaults when the key is ABSENT — a present-but-null passes None straight
+    through to write_text(). An EMPTY course nulls syllabus_body, which is the first
+    thing a semester migration pulls. The same shape hits description/message/body,
+    so an assignment with no description crashed identically."""
+    for payload, key in (({"syllabus_body": None}, "syllabus_body"),
+                         ({"description": None}, "description"),
+                         ({"message": None}, "message"),
+                         ({"body": None}, "body")):
+        assert (payload.get(key) or "") == ""          # the corrected idiom
+        assert payload.get(key, "") is None            # the broken one, for contrast
+
+
+def test_stale_id_error_names_the_fix(capsys):
+    """Canvas answers a cross-course PUT with "The specified resource does not
+    exist", which reads like the assignment was deleted rather than like the ids
+    belong to another course. Four courses lost time to that."""
+    cs._REBIND_HINTED = False
+    cs._hint_rebind("The specified resource does not exist.")
+    out = capsys.readouterr().out
+    assert "--rebind" in out and "--migrate-from" in out
+    assert "DIFFERENT course" in out
+
+
+def test_hint_prints_once_per_run(capsys):
+    """52 assignments failing means 52 identical hints, which buries it."""
+    cs._REBIND_HINTED = False
+    for _ in range(5):
+        cs._hint_rebind("The specified resource does not exist.")
+    assert capsys.readouterr().out.count("--rebind") == 1
+
+
+def test_hint_stays_quiet_for_unrelated_errors(capsys):
+    cs._REBIND_HINTED = False
+    cs._hint_rebind("unsupported grading_type 'bogus'")
+    assert capsys.readouterr().out == ""
