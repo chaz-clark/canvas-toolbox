@@ -12,6 +12,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.21.1] — 2026-08-14
+
+**The three things a semester migration trips over on the way in (#294 related).**
+
+- **Pull no longer crashes on an empty course.** Canvas sends an explicit `null` for empty rich-text fields, and `.get(key, "")` only defaults when the key is **absent** — a present-but-null passes `None` straight through to `write_text()`. An empty course nulls `syllabus_body`, which is the first thing a semester migration pulls.
+
+  Fixed the whole class rather than the reported instance: the same shape appears in **15 places** across `description`, `message` and `body`, so an assignment with no description, a discussion with no message, or a blank homepage crashed identically. All now use `.get(key) or ""`.
+
+- **A missing `markdown` package now says what to do.** It's a declared dependency, so `ModuleNotFoundError` on `--build` means the vendored toolkit was never synced after a pull — but the bare traceback sends people hunting for a package instead of running `cd canvas-toolbox && uv sync`.
+
+- **A stale-id push failure now names the fix.** Canvas answers a cross-course `PUT` with *"The specified resource does not exist"*, which reads like the assignment was deleted rather than like the ids belong to a different course. Four courses lost time to that before anyone identified it. The error now points at `--rebind` / `--migrate-from` with the current course id filled in — printed **once per run**, since 52 failing assignments would otherwise bury it 52 times.
+
+---
+
 ## [1.21.0] — 2026-08-14
 
 **Semester migration: `--rebind` and `--migrate-from` (#294).**

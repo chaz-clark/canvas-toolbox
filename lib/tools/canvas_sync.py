@@ -412,7 +412,19 @@ def _html_to_md(html: str, title: str = "", canvas_id: int = 0, page_url: str = 
 
 def _md_to_html(md_text: str) -> str:
     """Convert markdown (with optional YAML frontmatter) to Canvas-ready HTML."""
-    import markdown as md_lib
+    try:
+        import markdown as md_lib
+    except ImportError:
+        # `markdown` IS a declared dependency, so this means the vendored toolkit's
+        # deps were never synced after a pull — a bare ModuleNotFoundError sends
+        # people hunting for a missing package instead of running one command.
+        raise SystemExit(
+            "ERROR: the `markdown` package isn't installed.\n"
+            "  It is a declared dependency, so this usually means the vendored\n"
+            "  toolkit hasn't been synced since its last update. Run:\n"
+            "      cd canvas-toolbox && uv sync\n"
+            "  and re-run --build."
+        ) from None
 
     # Strip YAML frontmatter block if present
     body = md_text
@@ -430,7 +442,7 @@ def _assignment_json_to_md(assignment: dict) -> str:
     import markdownify
 
     # Extract description HTML and convert to markdown
-    description_html = assignment.get("description", "")
+    description_html = assignment.get("description") or ""
     body_md = ""
     if description_html:
         soup = BeautifulSoup(description_html, "lxml")
@@ -467,7 +479,7 @@ def _quiz_json_to_md(quiz: dict) -> str:
     import markdownify
 
     # Extract description HTML and convert to markdown
-    description_html = quiz.get("description", "")
+    description_html = quiz.get("description") or ""
     body_md = ""
     if description_html:
         soup = BeautifulSoup(description_html, "lxml")
@@ -505,7 +517,7 @@ def _discussion_json_to_md(discussion: dict) -> str:
     import markdownify
 
     # Extract message HTML and convert to markdown
-    message_html = discussion.get("message", "")
+    message_html = discussion.get("message") or ""
     body_md = ""
     if message_html:
         soup = BeautifulSoup(message_html, "lxml")
@@ -538,7 +550,7 @@ def _pull_page(course_id: str, page_url: str) -> Optional[str]:
     data = _get(f"/courses/{course_id}/pages/{page_url}")
     if isinstance(data, list) or "body" not in data:
         return None
-    return data.get("body", "")
+    return data.get("body") or ""
 
 
 def _pull_assignment(course_id: str, assignment_id: int) -> Optional[dict]:
@@ -548,7 +560,7 @@ def _pull_assignment(course_id: str, assignment_id: int) -> Optional[dict]:
     return {
         "canvas_id": data.get("id"),
         "name": data.get("name"),
-        "description": data.get("description", ""),
+        "description": data.get("description") or "",
         "points_possible": data.get("points_possible"),
         "grading_type": data.get("grading_type"),
         "due_at": data.get("due_at"),
@@ -568,7 +580,7 @@ def _pull_discussion(course_id: str, topic_id: int) -> Optional[dict]:
     return {
         "canvas_id": data.get("id"),
         "title": data.get("title"),
-        "message": data.get("message", ""),
+        "message": data.get("message") or "",
         "todo_date": data.get("todo_date"),
         "published": data.get("published", False),
     }
@@ -582,7 +594,7 @@ def _pull_quiz(course_id: str, quiz_id: int) -> Optional[dict]:
         "canvas_id": data.get("id"),
         "assignment_id": data.get("assignment_id"),
         "title": data.get("title"),
-        "description": data.get("description", ""),
+        "description": data.get("description") or "",
         "points_possible": data.get("points_possible"),
         "quiz_type": data.get("quiz_type"),
         "time_limit": data.get("time_limit"),
@@ -697,7 +709,7 @@ def cmd_init():
     # Homepage (Canvas front_page — not a module item)
     homepage = _get(f"/courses/{course_id}/front_page")
     if homepage and not homepage.get("errors"):
-        homepage_body = homepage.get("body", "")
+        homepage_body = homepage.get("body") or ""
         homepage_url = homepage.get("url", "front-page")
         homepage_path = COURSE_DIR / "homepage.html"
         homepage_path.write_text(homepage_body, encoding="utf-8")
@@ -713,7 +725,7 @@ def cmd_init():
         _vprint(f"  [homepage] homepage.html ({len(homepage_body)} chars)")
 
     # Syllabus (Canvas left-sidebar Syllabus tab — not a module item)
-    syllabus_body = course.get("syllabus_body", "")
+    syllabus_body = course.get("syllabus_body") or ""
     syllabus_path = COURSE_DIR / "syllabus.html"
     syllabus_path.write_text(syllabus_body, encoding="utf-8")
     for fid in _extract_file_refs(syllabus_body):
@@ -834,7 +846,7 @@ def cmd_init():
                 data = _pull_assignment(course_id, content_id)
                 if data:
                     filepath.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
-                    for fid in _extract_file_refs(data.get("description", "")):
+                    for fid in _extract_file_refs(data.get("description") or ""):
                         referenced_by.setdefault(fid, []).append(str(filepath))
                     item_record["filename"] = filename
                     h = _file_hash(filepath)
@@ -889,7 +901,7 @@ def cmd_init():
                 data = _pull_discussion(course_id, content_id)
                 if data:
                     filepath.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
-                    for fid in _extract_file_refs(data.get("message", "")):
+                    for fid in _extract_file_refs(data.get("message") or ""):
                         referenced_by.setdefault(fid, []).append(str(filepath))
                     item_record["filename"] = filename
                     h = _file_hash(filepath)
@@ -926,7 +938,7 @@ def cmd_init():
                 data = _pull_quiz(course_id, content_id)
                 if data:
                     filepath.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
-                    for fid in _extract_file_refs(data.get("description", "")):
+                    for fid in _extract_file_refs(data.get("description") or ""):
                         referenced_by.setdefault(fid, []).append(str(filepath))
                     item_record["filename"] = filename
                     h = _file_hash(filepath)
@@ -1267,6 +1279,29 @@ def _cleanup_stale_files(course_dir: Path, tracked_paths: set, meta_paths: set) 
     return deleted
 
 
+_REBIND_HINTED = False
+
+
+def _hint_rebind(error_text: str) -> None:
+    """Name the fix when a push fails on an id from another course (#294).
+
+    "The specified resource does not exist" is Canvas's answer to
+    `PUT /courses/B/assignments/<A's id>`, and it reads like the assignment is gone
+    rather than like the ids belong to a different course. Four courses spent real
+    time on that. Printed ONCE per run — repeating it 52 times buries it."""
+    global _REBIND_HINTED
+    if _REBIND_HINTED or "does not exist" not in (error_text or "").lower():
+        return
+    _REBIND_HINTED = True
+    print("    ↳ this usually means the local canvas_ids belong to a DIFFERENT "
+          "course.")
+    print(f"      If you are migrating into {CANVAS_COURSE_ID}, run:")
+    print(f"          canvas_sync.py --rebind {CANVAS_COURSE_ID}          "
+          f"# content already there")
+    print(f"          canvas_sync.py --migrate-from <OLD_ID> --to {CANVAS_COURSE_ID} "
+          f"--apply   # empty course")
+
+
 def _fetch_course_inventory(course_id: str) -> list[dict]:
     """Everything in `course_id` that local sync state can point at (#294).
 
@@ -1529,7 +1564,7 @@ def _push_assignment(filepath: Path, meta: dict) -> bool:
     data = json.loads(filepath.read_text(encoding="utf-8"))
     payload: dict = {
         "name": data.get("name", ""),
-        "description": data.get("description", ""),
+        "description": data.get("description") or "",
         "points_possible": data.get("points_possible"),
         "published": data.get("published", True),
     }
@@ -1555,6 +1590,7 @@ def _push_assignment(filepath: Path, meta: dict) -> bool:
     })
     if result.get("error"):
         print(f"    ERROR: {result['error']}")
+        _hint_rebind(result["error"])
         return False
     return True
 
@@ -1566,7 +1602,7 @@ def _push_quiz(filepath: Path, meta: dict) -> bool:
         print(f"    ERROR: no canvas_id in index for {filepath}")
         return False
     data = json.loads(filepath.read_text(encoding="utf-8"))
-    payload: dict = {"description": data.get("description", "")}
+    payload: dict = {"description": data.get("description") or ""}
     if "title" in data:
         payload["title"] = data["title"]
     if "points_possible" in data:
@@ -1582,6 +1618,7 @@ def _push_quiz(filepath: Path, meta: dict) -> bool:
     })
     if result.get("error"):
         print(f"    ERROR: {result['error']}")
+        _hint_rebind(result["error"])
         return False
     # Dates must go to the linked assignment endpoint — quiz endpoint ignores due_at
     assignment_id = data.get("assignment_id")
@@ -1607,12 +1644,13 @@ def _push_discussion(filepath: Path, meta: dict) -> bool:
     data = json.loads(filepath.read_text(encoding="utf-8"))
     result = _put(f"/courses/{CANVAS_COURSE_ID}/discussion_topics/{canvas_id}", {
         "title": data.get("title", ""),
-        "message": data.get("message", ""),
+        "message": data.get("message") or "",
         "todo_date": data.get("todo_date"),
         "published": data.get("published", True),
     })
     if result.get("error"):
         print(f"    ERROR: {result['error']}")
+        _hint_rebind(result["error"])
         return False
     return True
 
