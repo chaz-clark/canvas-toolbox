@@ -48,10 +48,14 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
 import requests
+
+from _course_rebind import (apply_rebind, index_target, plan_rebind,
+                             summarize)
 
 from __toolbox_version__ import __version__
 from canvas_course_guard import enforce as _course_guard
@@ -1263,6 +1267,145 @@ def _cleanup_stale_files(course_dir: Path, tracked_paths: set, meta_paths: set) 
     return deleted
 
 
+def _fetch_course_inventory(course_id: str) -> list[dict]:
+    """Everything in `course_id` that local sync state can point at (#294).
+
+    Normalized to the shape `_course_rebind` expects: type/title/canvas_id, plus
+    page_url for Pages. New Quizzes surface through the assignments endpoint with a
+    quiz_lti flag — they're included so a rebind can re-point them even though
+    canvas_sync can't EDIT them (they're Canvas-UI-only)."""
+    out: list[dict] = []
+    for a in _get(f"/courses/{course_id}/assignments", {"per_page": 100}) or []:
+        out.append({"type": "Assignment", "title": a.get("name"),
+                    "canvas_id": a.get("id")})
+    for q in _get(f"/courses/{course_id}/quizzes", {"per_page": 100}) or []:
+        out.append({"type": "Quiz", "title": q.get("title"), "canvas_id": q.get("id")})
+    for p in _get(f"/courses/{course_id}/pages", {"per_page": 100}) or []:
+        out.append({"type": "Page", "title": p.get("title"),
+                    "page_url": p.get("url"), "canvas_id": p.get("page_id")})
+    for d in _get(f"/courses/{course_id}/discussion_topics", {"per_page": 100}) or []:
+        out.append({"type": "Discussion", "title": d.get("title"),
+                    "canvas_id": d.get("id")})
+    return out
+
+
+def _rewrite_frontmatter_ids(index: dict, plan: dict, quiet: bool = False) -> int:
+    """Update the `canvas_id:` line in each rebound markdown file.
+
+    The id lives in TWO places — the index and the frontmatter — and leaving the
+    frontmatter stale would make the next pull/build disagree with the index."""
+    n = 0
+    for path, (_old, new, _how) in plan["matched"].items():
+        md = (index["files"].get(path) or {}).get("markdown_path")
+        if not md:
+            continue
+        p = Path(md)
+        if not p.is_file():
+            continue
+        text = p.read_text(encoding="utf-8")
+        new_text, subs = re.subn(r"(?m)^canvas_id:\s*\d+\s*$", f"canvas_id: {new}", text)
+        if subs:
+            p.write_text(new_text, encoding="utf-8")
+            n += 1
+    if not quiet and n:
+        print(f"  updated canvas_id in {n} markdown file(s)")
+    return n
+
+
+def cmd_rebind(new_course_id: str, apply: bool = False) -> int:
+    """Re-point local sync state at a different Canvas course (#294).
+
+    Requires the content to ALREADY EXIST in the target — this matches and remaps, it
+    does not create. For an empty target, run `--migrate-from` instead, which has
+    Canvas copy the content first."""
+    index = _load_index()
+    files = index.get("files") or {}
+    if not files:
+        print("No .canvas/index.json — run --pull against the source course first.")
+        return 2
+    old_course = index.get("course_id", "?")
+    print(f"Rebind: course {old_course} → {new_course_id}"
+          f"  ({'APPLYING' if apply else 'DRY RUN — pass --apply to write'})")
+
+    inventory = _fetch_course_inventory(new_course_id)
+    if not inventory:
+        print(f"  Target course {new_course_id} returned NO content.")
+        print("  If it's a new empty course, use:  --migrate-from "
+              f"{old_course} --to {new_course_id}")
+        return 2
+    print(f"  target course holds {len(inventory)} item(s)")
+
+    plan = plan_rebind(files, index_target(inventory))
+    print(summarize(plan))
+    for bucket, label in (("ambiguous", "AMBIGUOUS"), ("unmatched", "unmatched")):
+        for p in plan[bucket][:10]:
+            print(f"    {label}: {p}")
+        if len(plan[bucket]) > 10:
+            print(f"    … and {len(plan[bucket]) - 10} more")
+
+    if not apply:
+        print("\nRe-run with --apply to write the new ids.")
+        return 0
+    if not plan["matched"]:
+        print("\nNothing matched — refusing to rewrite the index.")
+        return 2
+    _save_index(apply_rebind(index, plan, new_course_id))
+    _rewrite_frontmatter_ids(index, plan)
+    print(f"\n✓ rebound {len(plan['matched'])} item(s) to course {new_course_id}.")
+    if plan["unmatched"] or plan["ambiguous"]:
+        print("  Items listed above were NOT rebound and will still fail to push.")
+    return 0
+
+
+def cmd_migrate_from(source_course_id: str, new_course_id: str,
+                     apply: bool = False, timeout_s: int = 900) -> int:
+    """Copy a course via Canvas, then rebind local state to the copy (#294).
+
+    Canvas's own content migration does the creating. That is deliberate: New Quizzes
+    cannot be created through the classic API at all, and a hand-rolled create path
+    would also drop rubrics, question banks and file attachments. Both field
+    workarounds — `create_content_migration()` and .imscc export/import — are this
+    same mechanism, done by hand."""
+    if not apply:
+        print(f"DRY RUN — would copy course {source_course_id} → {new_course_id} "
+              f"via Canvas content migration, then rebind local state to it.")
+        print("  Canvas creates the content (including New Quizzes); the rebind "
+              "re-points local ids at it.")
+        print("  Re-run with --apply to start the copy.")
+        return 0
+
+    print(f"Starting Canvas content migration {source_course_id} → {new_course_id} …")
+    res = _post(f"/courses/{new_course_id}/content_migrations", {
+        "migration_type": "course_copy_importer",
+        "settings": {"source_course_id": str(source_course_id)},
+    })
+    mig_id = (res or {}).get("id")
+    if not mig_id:
+        print(f"  ERROR: could not start migration: {str(res)[:300]}")
+        return 2
+
+    waited = 0
+    while waited < timeout_s:
+        time.sleep(5)
+        waited += 5
+        st = _get(f"/courses/{new_course_id}/content_migrations/{mig_id}") or {}
+        state = st.get("workflow_state", "?")
+        if state in ("completed", "failed"):
+            print(f"  migration {state} after {waited}s")
+            if state == "failed":
+                print(f"  {str(st.get('migration_issues_url') or st)[:200]}")
+                return 2
+            break
+        print(f"  … {state} ({waited}s)")
+    else:
+        print(f"  TIMED OUT after {timeout_s}s. The copy may still finish — re-run "
+              f"`--rebind {new_course_id}` once Canvas reports it complete.")
+        return 2
+
+    print("\nCopy complete. Rebinding local state to the new course …")
+    return cmd_rebind(new_course_id, apply=True)
+
+
 def _push_summary(pushed_course_level: list) -> str:
     """The line cmd_push prints when no index["files"] entry needed pushing.
 
@@ -2088,6 +2231,18 @@ Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
     parser.add_argument("--pull", nargs="?", const="", metavar="PATH",
                         help="Full course pull (no path) or re-pull one file from Canvas (with path)")
     parser.add_argument("--build", action="store_true", help="Convert course_src/*.md to course/*.html")
+    parser.add_argument("--rebind", metavar="NEW_COURSE_ID",
+                        help="Re-point local sync state at a DIFFERENT course by "
+                             "matching titles/slugs (#294). The content must already "
+                             "exist there — for an empty course use --migrate-from.")
+    parser.add_argument("--migrate-from", metavar="OLD_COURSE_ID",
+                        help="Have Canvas copy OLD_COURSE_ID into --to, then rebind "
+                             "local state to the copy. Use for an EMPTY new course.")
+    parser.add_argument("--to", metavar="NEW_COURSE_ID",
+                        help="Target course id for --migrate-from")
+    parser.add_argument("--apply", action="store_true",
+                        help="Write changes for --rebind / --migrate-from "
+                             "(both are dry-run by default)")
     parser.add_argument("--upload", metavar="PATH", help="Upload a local file or folder to Canvas Files")
     parser.add_argument("--folder", default="course_assets", metavar="FOLDER",
                         help="Canvas folder to upload into (default: course_assets)")
@@ -2113,6 +2268,22 @@ Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
 
     if args.quiet:
         globals()["QUIET"] = True
+
+    # Migration paths target a DIFFERENT course than CANVAS_COURSE_ID, so the guard
+    # (#27) has to check the TARGET — guarding the env var would verify the course we
+    # are migrating away from. --migrate-from CREATES content in the target, which is
+    # the largest write this tool makes; --rebind only reads it (its writes are local).
+    if args.migrate_from and not args.to:
+        print("ERROR: --migrate-from requires --to NEW_COURSE_ID", file=sys.stderr)
+        sys.exit(2)
+    _mig_target = args.to if args.migrate_from else args.rebind
+    if _mig_target:
+        _course_guard(CANVAS_BASE_URL, _headers(), _mig_target,
+                      "write" if (args.migrate_from and args.apply) else "read",
+                      allow_override=args.allow_enrolled, label="target course")
+        sys.exit(cmd_migrate_from(args.migrate_from, args.to, apply=args.apply)
+                 if args.migrate_from
+                 else cmd_rebind(args.rebind, apply=args.apply))
 
     # Startup safety guard (#27) — never block --build (local-only, no Canvas call).
     if not args.build:
