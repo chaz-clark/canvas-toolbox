@@ -12,6 +12,24 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.21.0] — 2026-08-14
+
+**Semester migration: `--rebind` and `--migrate-from` (#294).**
+
+`canvas_id` is course-specific, so pull from course A and push to course B and every write becomes `PUT /courses/B/assignments/<A's id>` → *"The specified resource does not exist."* Four courses hit this in one week — 52, 131, 44 and 71 items — and it recurs three times a year plus on every master→section promotion.
+
+- **`canvas_sync.py --rebind NEW_COURSE_ID`** matches local sync state against the target course and re-points every id. Pages match on `page_url` (a real slug); assignments, quizzes and discussions match on title — exact first, then case/whitespace-normalized. Rewrites both places the id lives: `.canvas/index.json` **and** the markdown frontmatter. Dry-run by default.
+- **`canvas_sync.py --migrate-from OLD --to NEW --apply`** has Canvas copy the course (`course_copy_importer`), polls to completion, then rebinds. For the empty-course case, which is the normal one each semester.
+- **Ambiguous matches are refused, never guessed.** A duplicate title on either side stops that item and reports it. A wrong remap silently aims every future push — and any grade sync — at the wrong assignment, and nothing surfaces until someone spots marks on the wrong item. Unmatched and unidentifiable items are reported too; nothing is dropped silently.
+- **Stale `module_item_id` / `module_canvas_id` are cleared** on rebound entries rather than carried over. They belong to the old course, and a stale id is worse than an absent one because it looks valid.
+- **The course guard checks the TARGET**, not `CANVAS_COURSE_ID` — guarding the env var would verify the course you're migrating *away from*. `--migrate-from --apply` is guarded as a **write** (it creates content); `--rebind` as a read.
+
+**Why Canvas does the copying.** Stripping the ids and letting push create fresh was tried in the field and failed 44/44 with *"no canvas_id in index"* — every writer in `canvas_sync` is update-only, and there is no create path. Nor should there be: New Quizzes can't be created or edited through the classic API at all (`canvas_sync` already refuses them with *"Canvas-only: must be edited in Canvas UI"*), and a hand-rolled create path would silently drop them along with rubrics, question banks and file attachments. Both field workarounds — `create_content_migration()` and `.imscc` export/import — independently converged on Canvas's own copy. So Canvas creates the content; the toolkit re-points local state at it.
+
+*Verified against the live DS 460 migration: guard flagged the target correctly, 5 pages matched by slug, and it reported exactly the 52 unmatched assignments named in the issue.*
+
+---
+
 ## [1.20.4] — 2026-08-07
 
 **`~/.canvas/config` is now `source`-able, and ad-hoc scripts are told how to load it (#288 follow-up).**
