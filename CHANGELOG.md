@@ -12,6 +12,21 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
+## [1.22.0] — 2026-08-15
+
+**Course dates push — and are verified, because Canvas may silently ignore them (#182).**
+
+`--migrate-from` (#294) made semester migration one command except for course dates, which still needed a manual trip to the Canvas UI. `_course.json` carried `start_at`/`end_at` and `--push` ignored them.
+
+- **`cmd_push` now writes course dates** via `PUT /courses/:id` when they change in `_course.json`.
+- **The write is confirmed by reading it back**, and this is the point rather than a nicety. Many institutions enable the account setting `prevent_course_availability_editing_by_teachers`, under which Canvas **returns 200 and keeps the old dates** for a teacher token — the operator who requested this feature hit exactly that ("dates not updated", no error). A fire-and-forget PUT would print *"✓ Course dates updated"* while nothing happened, which is #182's original bug — push claims success, the edit is discarded — reproduced one layer out. When the dates don't stick, the output names the account setting and points at Canvas → Settings → Course Details.
+- **`restrict_enrollments_to_course_dates` now round-trips too.** Without it, course dates govern nothing — the term dates win — so setting dates alone can "succeed" and change nothing an instructor can see.
+- **Timestamps are compared by instant, not string.** Canvas may echo an equivalent-but-differently-formatted date; a textual compare would report a successful write as a failure and send someone to their admin for nothing.
+- **`course_hash` only advances when everything round-trips.** Advancing it after a partial push is what made a discarded edit look clean in the first place.
+- `_course_late_policy_hash` → **`_course_pushable_hash`**, now covering late_policy *and* dates. #182's invariant is unchanged: the hash must cover exactly what push writes — too much and an unpushable edit (a course rename) shows as modified forever, too little and a real edit is silently dropped. Both directions are pinned by tests.
+
+---
+
 ## [1.21.2] — 2026-08-14
 
 **`grade_guardian` read a docstring as evidence of a grade write (#297).**

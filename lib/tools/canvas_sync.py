@@ -180,22 +180,79 @@ def _file_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
 
 
-def _course_late_policy_hash(path: Path) -> str:
-    """Hash ONLY the late_policy sub-object of _course.json.
+def _course_pushable_hash(path: Path) -> str:
+    """Hash exactly the fields `cmd_push` round-trips: late_policy + course dates.
 
-    cmd_push round-trips only late_policy (PATCH .../late_policy) — never name,
-    course_code, dates, or grading_standard_id. So status and the stored
-    course_hash must reflect exactly that. Hashing the whole file instead made an
-    edit to a non-pushable field (e.g. name) show as `M [Course]` in --status and
-    then get silently dropped by --push, which still reported OK (#182). Scoping
-    the hash to late_policy keeps status honest: [Course] appears only when
-    something push can actually write has changed.
-    """
+    Renamed from `_course_late_policy_hash` when date pushing landed (#182). The
+    invariant is the one that issue was filed about: the hash must cover what push
+    actually writes and nothing else. Cover too much and an unpushable edit (a course
+    rename) shows as modified forever; cover too little and a real edit looks clean
+    while being silently discarded."""
+    d = json.loads(path.read_text(encoding="utf-8"))
+    subset = {"late_policy": d.get("late_policy", {})}
+    for f in _COURSE_DATE_FIELDS:
+        if f in d:
+            subset[f] = d[f]
+    return hashlib.sha256(
+        json.dumps(subset, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()[:16]
+
+
+_COURSE_DATE_FIELDS = ("start_at", "end_at", "restrict_enrollments_to_course_dates")
+
+
+def _norm_dt(v):
+    """Compare Canvas timestamps by instant, not by string. Canvas may echo a date
+    back in a different but equivalent format, and a textual compare would read that
+    as "the write didn't take"."""
+    if v is None or isinstance(v, bool):
+        return v
+    s = str(v).strip()
+    if not s:
+        return None
     try:
-        lp = json.loads(path.read_text(encoding="utf-8")).get("late_policy", {})
-    except (OSError, json.JSONDecodeError):
-        return ""
-    return hashlib.sha256(json.dumps(lp, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+        from datetime import datetime
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return s
+
+
+def _push_course_dates(meta: dict) -> tuple[bool, str]:
+    """Push course start/end dates — and VERIFY Canvas actually took them (#182).
+
+    The verification is the whole point. Many institutions enable the account setting
+    `prevent_course_availability_editing_by_teachers`, under which Canvas **silently
+    ignores** `start_at` / `end_at` / `restrict_enrollments_to_course_dates` from a
+    teacher token: the PUT returns 200 and the dates are unchanged. The operator who
+    asked for this feature hit exactly that ("dates not updated", no error).
+
+    So a fire-and-forget PUT would report "✓ Course dates updated" while nothing
+    happened — which is #182's original bug (push claims success, edit is discarded)
+    reproduced one layer out. Read back, compare by instant, and say which it was.
+
+    `restrict_enrollments_to_course_dates` is included because course dates do not
+    govern anything without it — the term dates win — so setting dates alone can
+    "succeed" and change nothing an instructor can see."""
+    payload = {f: meta[f] for f in _COURSE_DATE_FIELDS if f in meta}
+    if not payload:
+        return True, "no date fields in _course.json"
+
+    _put(f"/courses/{CANVAS_COURSE_ID}", {"course": payload})
+    after = _get(f"/courses/{CANVAS_COURSE_ID}") or {}
+    stuck = [f for f in payload if _norm_dt(after.get(f)) != _norm_dt(payload[f])]
+    if not stuck:
+        s, e = payload.get("start_at"), payload.get("end_at")
+        return True, f"course dates updated ({str(s)[:10]} → {str(e)[:10]})"
+    return False, (
+        f"Canvas did NOT apply {', '.join(stuck)} — it returned success and kept the "
+        f"old value.\n"
+        f"      This is normally the account setting "
+        f"`prevent_course_availability_editing_by_teachers`,\n"
+        f"      under which a teacher token cannot set course availability dates. "
+        f"Set them in\n"
+        f"      Canvas → Settings → Course Details, or ask a Canvas admin. The local "
+        f"file is unchanged."
+    )
 
 
 def _push_late_policy(lp: dict) -> tuple:
@@ -690,6 +747,10 @@ def cmd_init():
         "grading_standard_id": course.get("grading_standard_id"),
         "start_at": course.get("start_at"),
         "end_at": course.get("end_at"),
+        # Without this, course dates do not govern anything — the term
+        # dates win — so a date push can "succeed" and change nothing.
+        "restrict_enrollments_to_course_dates":
+            course.get("restrict_enrollments_to_course_dates", False),
         "late_policy": {
             "late_submission_deduction_enabled": late_policy.get("late_submission_deduction_enabled", False),
             "late_submission_deduction": late_policy.get("late_submission_deduction", 0.0),
@@ -703,7 +764,7 @@ def cmd_init():
     course_path = COURSE_DIR / "_course.json"
     course_path.write_text(json.dumps(course_meta, indent=2))
     index["course"] = course_meta  # summary in index for agent lookup
-    index["course_hash"] = _course_late_policy_hash(course_path)  # only late_policy pushes (#182)
+    index["course_hash"] = _course_pushable_hash(course_path)  # late_policy + dates (#182)
     print(f"Course: {course.get('name')}")
 
     # Homepage (Canvas front_page — not a module item)
@@ -1466,7 +1527,7 @@ def _special_file_changes(index: dict, course_path: Optional[Path] = None) -> li
     will do is the dangerous direction to be wrong in on a live course.
 
     _course.json is diffed by its late_policy sub-object ONLY (via
-    _course_late_policy_hash), because that is the only field cmd_push writes.
+    _course_pushable_hash), because those are the only fields cmd_push writes.
     Edits to name/dates/grading_standard_id are not pushable and must not show as
     a pending [Course] change (#182).
 
@@ -1483,7 +1544,7 @@ def _special_file_changes(index: dict, course_path: Optional[Path] = None) -> li
         if path.exists() and _file_hash(path) != meta.get("hash"):
             changes.append((label, str(path)))
 
-    if course_path.exists() and _course_late_policy_hash(course_path) != index.get("course_hash"):
+    if course_path.exists() and _course_pushable_hash(course_path) != index.get("course_hash"):
         changes.append(("Course", str(course_path)))
 
     return changes
@@ -1693,22 +1754,35 @@ def cmd_push(target: Optional[str] = None):
     # Check _course.json — late_policy and other course-level settings
     course_path = COURSE_DIR / "_course.json"
     if course_path.exists() and (not target or "_course" in target or "course" == target):
-        course_hash = _course_late_policy_hash(course_path)  # only late_policy pushes (#182)
+        course_hash = _course_pushable_hash(course_path)  # what push round-trips (#182)
         stored_hash = index.get("course_hash")
         if course_hash != stored_hash:
             print(f"  [Course] {course_path}")
             data = json.loads(course_path.read_text(encoding="utf-8"))
+            ok = True
             lp = data.get("late_policy", {})
             if lp:
                 resp, created = _push_late_policy(lp)
                 if resp.status_code < 400:
-                    index["course_hash"] = course_hash
-                    index["course"] = data
-                    pushed_course_level.append("Course")
                     print(f"    OK (late_policy {'created' if created else 'updated'})")
                 else:
+                    ok = False
                     print(f"    FAILED late_policy: {resp.text[:200]}")
-                _save_index(index)
+            # Course dates (#182). Verified by read-back — see _push_course_dates.
+            dates_ok, msg = _push_course_dates(data)
+            if msg != "no date fields in _course.json":
+                print(f"    {'OK (' + msg + ')' if dates_ok else 'NOT APPLIED: ' + msg}")
+            ok = ok and dates_ok
+            if ok:
+                # Only advance the hash when EVERYTHING round-tripped. Advancing it
+                # after a partial push is what made a discarded edit look clean (#182).
+                index["course_hash"] = course_hash
+                index["course"] = data
+                pushed_course_level.append("Course")
+            else:
+                print("    (course_hash NOT advanced — --status will keep showing "
+                      "this as modified until it applies)")
+            _save_index(index)
 
     # Check syllabus separately — it's tracked under index["syllabus"], not index["files"]
     syllabus_meta = index.get("syllabus")
