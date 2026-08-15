@@ -31,10 +31,11 @@ def _write(path: Path, text: str) -> str:
 
 def _write_course(path: Path, late_policy: dict, **fields) -> str:
     """Write a realistic _course.json (late_policy + course-level fields) and
-    return its late_policy-ONLY hash — what --status/--push actually compare (#182)."""
+    return the PUSHABLE-subset hash — late_policy + course dates, i.e. exactly
+    what --status/--push compare (#182)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"late_policy": late_policy, **fields}), encoding="utf-8")
-    return canvas_sync._course_late_policy_hash(path)
+    return canvas_sync._course_pushable_hash(path)
 
 
 def test_no_changes_on_a_freshly_pulled_mirror(tmp_path):
@@ -166,3 +167,64 @@ def test_push_summary_lists_every_file_pushed():
 
 def test_push_summary_still_says_nothing_to_push_when_nothing_was():
     assert canvas_sync._push_summary([]) == "Nothing to push — all files match Canvas."
+
+
+# --- course dates: pushed, and VERIFIED (#182) -------------------------------
+
+def test_pushable_hash_covers_dates_so_a_date_edit_shows_as_modified(tmp_path):
+    """#182's invariant: the hash must cover exactly what push round-trips. Before
+    dates were pushable they were excluded on purpose; now that push writes them,
+    excluding them would make a real edit look clean and be silently discarded."""
+    c = tmp_path / "_course.json"
+    before = _write_course(c, {}, start_at="2026-01-05T00:00:00Z", end_at="2026-04-20T00:00:00Z")
+    after = _write_course(c, {}, start_at="2026-09-14T00:00:00Z", end_at="2026-12-16T00:00:00Z")
+    assert before != after
+
+
+def test_pushable_hash_ignores_fields_push_cannot_write(tmp_path):
+    """The other half of the invariant. A course rename is not pushable, so it must
+    NOT show as modified — otherwise --status nags forever about something no
+    command can resolve."""
+    c = tmp_path / "_course.json"
+    a = _write_course(c, {}, name="DS 460 Spring", course_code="DS460")
+    b = _write_course(c, {}, name="RENAMED", course_code="DS460")
+    assert a == b
+
+
+def test_dates_are_confirmed_by_read_back_not_by_status_code(monkeypatch):
+    """The trap this feature had to avoid. Under the account setting
+    `prevent_course_availability_editing_by_teachers` Canvas returns 200 and
+    silently keeps the old dates — the reporter hit exactly that. A fire-and-forget
+    PUT would print "✓ Course dates updated" while nothing changed, which is #182's
+    original bug (push claims success, edit discarded) one layer out."""
+    monkeypatch.setattr(canvas_sync, "_put", lambda *a, **k: {})
+    # Canvas echoes back the OLD dates — the write was ignored
+    monkeypatch.setattr(canvas_sync, "_get",
+                        lambda *a, **k: {"start_at": "2026-01-05T00:00:00Z",
+                                         "end_at": "2026-04-20T00:00:00Z"})
+    ok, msg = canvas_sync._push_course_dates(
+        {"start_at": "2026-09-14T00:00:00Z", "end_at": "2026-12-16T00:00:00Z"})
+    assert ok is False
+    assert "did NOT apply" in msg
+    assert "prevent_course_availability_editing_by_teachers" in msg
+
+
+def test_dates_report_success_only_when_canvas_actually_took_them(monkeypatch):
+    monkeypatch.setattr(canvas_sync, "_put", lambda *a, **k: {})
+    monkeypatch.setattr(canvas_sync, "_get",
+                        lambda *a, **k: {"start_at": "2026-09-14T00:00:00Z",
+                                         "end_at": "2026-12-16T00:00:00Z"})
+    ok, msg = canvas_sync._push_course_dates(
+        {"start_at": "2026-09-14T00:00:00Z", "end_at": "2026-12-16T00:00:00Z"})
+    assert ok is True and "2026-09-14 → 2026-12-16" in msg
+
+
+def test_equivalent_timestamp_formats_are_not_read_as_a_failure(monkeypatch):
+    """Canvas may echo a date in a different but equivalent format. A textual
+    compare would call that "the write didn't take" and send someone to their admin
+    for nothing."""
+    monkeypatch.setattr(canvas_sync, "_put", lambda *a, **k: {})
+    monkeypatch.setattr(canvas_sync, "_get",
+                        lambda *a, **k: {"start_at": "2026-09-14T00:00:00+00:00"})
+    ok, _ = canvas_sync._push_course_dates({"start_at": "2026-09-14T00:00:00Z"})
+    assert ok is True
