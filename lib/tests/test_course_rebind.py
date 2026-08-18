@@ -5,6 +5,7 @@ A bad remap silently aims every future push, and any grade sync, at a different
 assignment, and nothing surfaces until someone spots marks on the wrong item. So the
 refusal cases carry as much weight as the success cases.
 """
+import json
 import sys
 from pathlib import Path
 
@@ -200,3 +201,69 @@ def test_hint_stays_quiet_for_unrelated_errors(capsys):
     cs._REBIND_HINTED = False
     cs._hint_rebind("unsupported grading_type 'bogus'")
     assert capsys.readouterr().out == ""
+
+
+# --- the second id a classic quiz carries (#300) -----------------------------
+
+def Q(title, cid, aid=None):  # classic quiz in the target course
+    it = {"type": "Quiz", "title": title, "canvas_id": cid}
+    if aid is not None:
+        it["assignment_id"] = aid
+    return it
+
+
+def test_target_index_carries_the_linked_assignment_id():
+    """Matching only ever yields the QUIZ id. The assignment id behind it has to be
+    carried alongside, or the caller has no way to look it up."""
+    tgt = _target(Q("Quiz 1", 300, aid=400), A("Lab", 900))
+    assert tgt["assignment_by_id"] == {300: 400}
+
+
+def _quiz_case(tmp_path, monkeypatch, *, local_aid, target_aid):
+    """One rebound quiz on disk; returns the quiz file's JSON after the rewrite."""
+    monkeypatch.chdir(tmp_path)
+    qfile = tmp_path / "q.json"
+    payload = {"canvas_id": 100, "title": "Quiz 1", "due_at": "2026-01-05T23:59:00Z"}
+    if local_aid is not None:
+        payload["assignment_id"] = local_aid
+    qfile.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    index = {"course_id": "146406", "files": {
+        "q.json": {"type": "Quiz", "title": "Quiz 1", "canvas_id": 100}}}
+    tgt = _target(Q("Quiz 1", 300, aid=target_aid))
+    plan = plan_rebind(index["files"], tgt)
+    cs._rewrite_quiz_assignment_ids(index, plan, tgt, quiet=True)
+    return json.loads(qfile.read_text(encoding="utf-8"))
+
+
+def test_rebind_updates_the_quiz_assignment_id(tmp_path, monkeypatch):
+    """The reported bug: canvas_id rebinds, assignment_id doesn't, and every date
+    PUT then 404s against the old course."""
+    data = _quiz_case(tmp_path, monkeypatch, local_aid=200, target_aid=400)
+    assert data["assignment_id"] == 400
+
+
+def test_rebind_drops_a_stale_id_when_the_target_quiz_has_none(tmp_path, monkeypatch):
+    """Ungraded surveys and practice quizzes have no linked assignment. Keeping the
+    old id would aim the date PUT at the previous course; _push_quiz skips the call
+    entirely when the key is absent."""
+    data = _quiz_case(tmp_path, monkeypatch, local_aid=200, target_aid=None)
+    assert "assignment_id" not in data
+
+
+def test_rebind_preserves_the_rest_of_the_quiz_file(tmp_path, monkeypatch):
+    data = _quiz_case(tmp_path, monkeypatch, local_aid=200, target_aid=400)
+    assert data["title"] == "Quiz 1" and data["due_at"] == "2026-01-05T23:59:00Z"
+
+
+def test_rebind_leaves_non_quiz_files_alone(tmp_path, monkeypatch):
+    """Assignments carry a canvas_id in their JSON too; nothing here should touch it."""
+    monkeypatch.chdir(tmp_path)
+    afile = tmp_path / "a.json"
+    afile.write_text(json.dumps({"canvas_id": 11, "name": "Lab"}), encoding="utf-8")
+    index = {"course_id": "1", "files": {
+        "a.json": {"type": "Assignment", "title": "Lab", "canvas_id": 11}}}
+    tgt = _target(A("Lab", 900))
+    plan = plan_rebind(index["files"], tgt)
+    assert cs._rewrite_quiz_assignment_ids(index, plan, tgt, quiet=True) == 0
+    assert json.loads(afile.read_text())["canvas_id"] == 11

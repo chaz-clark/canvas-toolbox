@@ -1369,13 +1369,17 @@ def _fetch_course_inventory(course_id: str) -> list[dict]:
     Normalized to the shape `_course_rebind` expects: type/title/canvas_id, plus
     page_url for Pages. New Quizzes surface through the assignments endpoint with a
     quiz_lti flag — they're included so a rebind can re-point them even though
-    canvas_sync can't EDIT them (they're Canvas-UI-only)."""
+    canvas_sync can't EDIT them (they're Canvas-UI-only).
+
+    Quizzes also carry `assignment_id` — the linked assignment behind a classic quiz,
+    which is the endpoint its dates are pushed to (#300)."""
     out: list[dict] = []
     for a in _get(f"/courses/{course_id}/assignments", {"per_page": 100}) or []:
         out.append({"type": "Assignment", "title": a.get("name"),
                     "canvas_id": a.get("id")})
     for q in _get(f"/courses/{course_id}/quizzes", {"per_page": 100}) or []:
-        out.append({"type": "Quiz", "title": q.get("title"), "canvas_id": q.get("id")})
+        out.append({"type": "Quiz", "title": q.get("title"), "canvas_id": q.get("id"),
+                    "assignment_id": q.get("assignment_id")})
     for p in _get(f"/courses/{course_id}/pages", {"per_page": 100}) or []:
         out.append({"type": "Page", "title": p.get("title"),
                     "page_url": p.get("url"), "canvas_id": p.get("page_id")})
@@ -1408,6 +1412,44 @@ def _rewrite_frontmatter_ids(index: dict, plan: dict, quiet: bool = False) -> in
     return n
 
 
+def _rewrite_quiz_assignment_ids(index: dict, plan: dict, target: dict,
+                                 quiet: bool = False) -> int:
+    """Re-point the SECOND id a classic quiz carries — its linked assignment (#300).
+
+    A classic quiz is two objects in Canvas: the quiz, and an assignment kept behind
+    it. `_push_quiz` sends metadata to the quiz endpoint but DATES to the assignment
+    endpoint, and that `assignment_id` lives in the quiz's own JSON file rather than
+    in the index — so `apply_rebind()`, which only rewrites index entries, cannot
+    reach it. Left alone the quiz rebinds cleanly and then every date PUT 404s
+    against the old course, which reads like the assignment was deleted.
+
+    A target quiz with no linked assignment (ungraded surveys, practice quizzes) has
+    the stale key REMOVED rather than kept: `_push_quiz` skips the date PUT when it's
+    absent, and a stale id that looks valid is worse than none at all."""
+    n = 0
+    for path, (_old, new, _how) in plan["matched"].items():
+        if (index["files"].get(path) or {}).get("type") != "Quiz":
+            continue
+        p = Path(path)
+        if not p.is_file():
+            continue
+        data = json.loads(p.read_text(encoding="utf-8"))
+        new_aid = (target.get("assignment_by_id") or {}).get(new)
+        if new_aid:
+            if data.get("assignment_id") == new_aid:
+                continue
+            data["assignment_id"] = new_aid
+        elif "assignment_id" in data:
+            data.pop("assignment_id")
+        else:
+            continue
+        p.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+        n += 1
+    if not quiet and n:
+        print(f"  updated assignment_id in {n} quiz file(s)")
+    return n
+
+
 def cmd_rebind(new_course_id: str, apply: bool = False) -> int:
     """Re-point local sync state at a different Canvas course (#294).
 
@@ -1431,7 +1473,8 @@ def cmd_rebind(new_course_id: str, apply: bool = False) -> int:
         return 2
     print(f"  target course holds {len(inventory)} item(s)")
 
-    plan = plan_rebind(files, index_target(inventory))
+    target = index_target(inventory)
+    plan = plan_rebind(files, target)
     print(summarize(plan))
     for bucket, label in (("ambiguous", "AMBIGUOUS"), ("unmatched", "unmatched")):
         for p in plan[bucket][:10]:
@@ -1447,6 +1490,7 @@ def cmd_rebind(new_course_id: str, apply: bool = False) -> int:
         return 2
     _save_index(apply_rebind(index, plan, new_course_id))
     _rewrite_frontmatter_ids(index, plan)
+    _rewrite_quiz_assignment_ids(index, plan, target)
     print(f"\n✓ rebound {len(plan['matched'])} item(s) to course {new_course_id}.")
     if plan["unmatched"] or plan["ambiguous"]:
         print("  Items listed above were NOT rebound and will still fail to push.")

@@ -63,15 +63,23 @@ def index_target(items: list[dict]) -> dict:
     """Build lookup tables from a target-course inventory.
 
     `items` are dicts with at least: type, canvas_id, title, and page_url for Pages.
-    Returns {"by_slug", "by_title", "by_norm", "ambiguous"} where `ambiguous` holds
-    normalized titles that appear more than once IN THE TARGET — those can never be
-    matched safely, whatever the local side looks like."""
-    by_slug, by_title, by_norm = {}, {}, {}
+    Returns {"by_slug", "by_title", "by_norm", "ambiguous", "assignment_by_id"} where
+    `ambiguous` holds normalized titles that appear more than once IN THE TARGET —
+    those can never be matched safely, whatever the local side looks like.
+
+    `assignment_by_id` maps a target canvas_id to the linked assignment id, for the
+    types that carry a second id (#300). A classic quiz has two: the quiz, and the
+    assignment Canvas keeps behind it — which is where its dates actually live. The
+    caller needs the new one to re-point the quiz's JSON file; matching only ever
+    yields the quiz id, so the pairing has to be carried here."""
+    by_slug, by_title, by_norm, assignment_by_id = {}, {}, {}, {}
     norm_keys = []
     for it in items:
         t, cid = it.get("type"), it.get("canvas_id")
         if not cid:
             continue
+        if it.get("assignment_id"):
+            assignment_by_id[cid] = it["assignment_id"]
         if t in _SLUG_TYPES and it.get("page_url"):
             by_slug[(t, it["page_url"])] = cid
             continue
@@ -84,7 +92,7 @@ def index_target(items: list[dict]) -> dict:
         by_norm[(t, n)] = cid
     ambiguous = {k for k in _dupes([f"{t}\x00{n}" for t, n in norm_keys])}
     return {"by_slug": by_slug, "by_title": by_title, "by_norm": by_norm,
-            "ambiguous": ambiguous}
+            "ambiguous": ambiguous, "assignment_by_id": assignment_by_id}
 
 
 def plan_rebind(local_files: dict, target: dict) -> dict:
