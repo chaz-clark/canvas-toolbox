@@ -40,7 +40,15 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
-load_dotenv()
+# ~/.canvas/config holds the shared, rotating token and ONLY _env_loader
+# reads it (#293). A bare load_dotenv() sees .env alone, so a repo whose
+# .env carries no token resolves to an empty bearer and 401s as though the
+# token were revoked.
+try:
+    from _env_loader import load_env
+    load_env()
+except ImportError:
+    load_dotenv()
 
 CANVAS_API_TOKEN   = os.environ.get("CANVAS_API_TOKEN", "")
 # Normalize the base URL: the .env convention is scheme-less; requests needs a

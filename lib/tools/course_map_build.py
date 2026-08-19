@@ -1125,7 +1125,15 @@ def main():
     if args.class_days:
         os.environ["CLASS_DAYS"] = args.class_days
 
-    load_dotenv()
+    # ~/.canvas/config holds the shared, rotating token and ONLY _env_loader
+    # reads it (#293). A bare load_dotenv() sees .env alone, so a repo whose
+    # .env carries no token resolves to an empty bearer and 401s as though the
+    # token were revoked.
+    try:
+        from _env_loader import load_env
+        load_env()
+    except ImportError:
+        load_dotenv()
 
     if args.emit_blank:
         md, _ = emit_report(data=None)

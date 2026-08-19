@@ -14,8 +14,22 @@ from dotenv import dotenv_values
 
 # ---------------------------------------------------------------------------
 # Load env — .env file takes precedence, then environment
+#
+# load_env() first, so ~/.canvas/config is reachable (#293). Without it the live
+# sandbox tests SKIP for any operator who keeps the rotating token in the global
+# file rather than a repo .env — and a silent skip reads exactly like a pass.
 # ---------------------------------------------------------------------------
-_env = {**os.environ, **dotenv_values(".env")}
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+try:
+    from _env_loader import load_env
+    load_env()
+except ImportError:
+    pass
+
+# EMPTY COUNTS AS ABSENT, matching load_env(): cb_init scaffolds a bare
+# `CANVAS_API_TOKEN=` into every new repo, and letting that empty string win
+# would shadow the global file and skip every live test on day one.
+_env = {**os.environ, **{k: v for k, v in dotenv_values(".env").items() if v}}
 
 CANVAS_API_TOKEN = _env.get("CANVAS_API_TOKEN", "")
 CANVAS_BASE_URL = _env.get("CANVAS_BASE_URL", "").rstrip("/")

@@ -80,7 +80,15 @@ from rubric_quality_audit import fetch_course_outcomes
 from syllabus_outcomes import extract_outcomes
 from bloom_verbs import detect_bloom, all_bloom_levels, leading_nonobservable, BLOOM_RANK
 
-load_dotenv()
+# ~/.canvas/config holds the shared, rotating token and ONLY _env_loader
+# reads it (#293). A bare load_dotenv() sees .env alone, so a repo whose
+# .env carries no token resolves to an empty bearer and 401s as though the
+# token were revoked.
+try:
+    from _env_loader import load_env
+    load_env()
+except ImportError:
+    load_dotenv()
 
 CANVAS_API_TOKEN = os.environ.get("CANVAS_API_TOKEN", "")
 _raw_url = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")

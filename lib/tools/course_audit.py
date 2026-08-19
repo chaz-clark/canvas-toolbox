@@ -74,7 +74,15 @@ from dotenv import load_dotenv
 
 from __toolbox_version__ import __version__
 
-load_dotenv()
+# ~/.canvas/config holds the shared, rotating token and ONLY _env_loader
+# reads it (#293). A bare load_dotenv() sees .env alone, so a repo whose
+# .env carries no token resolves to an empty bearer and 401s as though the
+# token were revoked.
+try:
+    from _env_loader import load_env
+    load_env()
+except ImportError:
+    load_dotenv()
 
 _TOOLS_DIR = Path(__file__).resolve().parent
 # Specialist roster: (key, tool filename, human label, json-flag).
