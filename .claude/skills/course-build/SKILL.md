@@ -38,6 +38,7 @@ defends against it, but naming the target explicitly is on you.
 | Master → Blueprint propagation | `blueprint_sync.py` |
 | Validate a blueprint sync | `validate_blueprint_sync.py` + `blueprint_exception_report.py` |
 | Module prerequisites / completion | `module_settings_sync.py` |
+| Create a custom grading scheme | `grading_scheme_setup.py --title ... --tiers ... --apply` |
 | Multi-course wrapper | `sync_context.sh` |
 | Post-push structural audit | `course_quality_check.py` *(then hand off to the `audit` skill)* |
 
