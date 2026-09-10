@@ -10,6 +10,29 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`canvas_course_guard` blocked a due-date push to a course whose term hadn't started.**
+
+A section built before the semester — 25 students enrolled, course still `unpublished`,
+nothing visible to anyone — was treated identically to a live mid-term course: hard
+`exit(2)` on `--push`. The operator had 60 approved due-date changes and no path that
+wasn't "do it by hand in Canvas."
+
+- **New verdict `ENROLLED_UNPUBLISHED`.** The guard already fetched the course object;
+  it now reads `workflow_state` from it (no extra call). Enrolled + `unpublished` /
+  `created` / `claimed` + **not** a Blueprint child → advisory, `enforce()` proceeds
+  without `--allow-enrolled`. Students can't see the course, so enrollment count isn't
+  a live-exposure signal there. A published course, or any Blueprint child, still
+  hard-stops.
+- **`AGENTS.md` carve-out.** "A blocked gate means get the human, not add a flag" now
+  says explicitly that an instructor's specific instruction to use `--allow-enrolled`
+  for a named operation on a named course *is* getting the human — the agent confirms
+  scope and proceeds. The bar is: the agent must not reach for the flag on its own, or
+  read a vague "sounds good" as authorization. (An agent had refused a push the operator
+  had explicitly and specifically authorized.)
+- **First tests for the guard** (`test_canvas_course_guard.py`) — it was safety-critical
+  with zero coverage. Covers each verdict, the unpublished carve-out, Blueprint-child
+  precedence, override honored, and guard-API-error never blocks.
+
 ---
 
 ## [1.22.0] — 2026-08-15
