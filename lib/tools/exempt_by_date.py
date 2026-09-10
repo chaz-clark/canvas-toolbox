@@ -35,7 +35,7 @@ HOW IT WORKS
 PII-FREE LOOKUP
   Resolve target student with EITHER:
     --user-id 123456        Canvas user_id (numeric)
-    --deid-code S-95DBB6    Code from grading/.deid_master.csv
+    --deid-code S-68BC40    Code from grading/.deid_master.csv
                             (built by build_deid_master.py)
 
   The deid_code lookup reads ONLY the user_id column — student's name is
@@ -57,7 +57,7 @@ USAGE — dry-run by default (use --apply to actually write)
 
   # Excuse by week number (before Week 5 = Weeks 1-4)
   uv run python lib/tools/exempt_by_date.py \\
-    --deid-code S-95DBB6 --before-week 5 --apply
+    --deid-code S-68BC40 --before-week 5 --apply
 
   # Undo: remove excused status (set excused: false)
   uv run python lib/tools/exempt_by_date.py \\

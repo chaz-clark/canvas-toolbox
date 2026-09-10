@@ -15,8 +15,8 @@ USAGE FROM OTHER TOOLS
   force_recalc_for_student(
       base=base_url,
       headers=headers,
-      course_id=407908,
-      student_id=280379,
+      course_id=123456,
+      student_id=900003,
       assignment_id=123456  # optional - recalc just this assignment
   )
 

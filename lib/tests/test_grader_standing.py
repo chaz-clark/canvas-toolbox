@@ -158,7 +158,7 @@ def test_main_dry_run_resolves_sis_keys_and_writes_nothing(tmp_path, monkeypatch
     csv_path = tmp_path / "standing.csv"
     csv_path.write_text("login_id,your_grade\nalice@x.edu,88\nbob@x.edu,92\n", encoding="utf-8")
 
-    monkeypatch.setattr(_GS, "_env_canvas", lambda: ("tok", "407908", "https://x.instructure.com"))
+    monkeypatch.setattr(_GS, "_env_canvas", lambda: ("tok", "123456", "https://x.instructure.com"))
 
     def fake_get(url, **kw):
         if "/users" in url:
@@ -166,7 +166,7 @@ def test_main_dry_run_resolves_sis_keys_and_writes_nothing(tmp_path, monkeypatch
                 {"id": 501, "login_id": "alice@x.edu", "enrollments": [{"enrollment_state": "active"}]},
                 {"id": 502, "login_id": "bob@x.edu", "enrollments": [{"enrollment_state": "active"}]},
             ])
-        if url.rstrip("/").endswith(f"/assignments/16958677"):
+        if url.rstrip("/").endswith(f"/assignments/345678"):
             return _Resp({"name": "Your Grade", "points_possible": 100})
         return _Resp({})
     monkeypatch.setattr(_GS.requests, "get", fake_get)
@@ -182,7 +182,7 @@ def test_main_dry_run_resolves_sis_keys_and_writes_nothing(tmp_path, monkeypatch
     rc = _GS.main.__wrapped__ if hasattr(_GS.main, "__wrapped__") else _GS.main
     monkeypatch.setattr(sys, "argv",
                         ["grader_standing.py", "--csv", str(csv_path),
-                         "--assignment-id", "16958677", "--course-id", "407908"])
+                         "--assignment-id", "345678", "--course-id", "123456"])
     code = rc()
     out = capsys.readouterr().out
     assert code == 0

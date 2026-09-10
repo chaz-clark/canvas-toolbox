@@ -747,7 +747,7 @@ the recovery runbook; this section is the long-form context.
 **What "bot-walled" looks like:**
 
 ```
-  415951: share.google/aimode/OkBUB9ct… → FAILED (Google bot-detection
+  900007: share.google/aimode/Ab3Xy9Qz… → FAILED (Google bot-detection
     wall (google.com/sorry/index). Stealth flags didn't suffice.
     Operator may need to fetch manually …)
 ```

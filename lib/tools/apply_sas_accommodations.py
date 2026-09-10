@@ -21,7 +21,7 @@ HANDOFF SCHEMA (life-pm produces; canvas-toolbox consumes)
 
   Default path: grading/.sas_accommodations.yml (FERPA tier 2 gitignored)
 
-  - deid_code: S-95DBB6
+  - deid_code: S-68BC40
     letter_date: 2026-06-22
     accommodations:
       - key: extra_time_1.5x       # required

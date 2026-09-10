@@ -17,10 +17,10 @@ initiated for a specific student**.
 
 Every tool here accepts `--deid-code <S-XXXXXX>` or `--user-id <n>` directly. You do
 **not** read `.deid_master.csv` to "look up" the student — that's a FERPA Zone-2
-violation. If the instructor says "give Sydney extra time," ask them for Sydney's
+violation. If the instructor says "give Ada extra time," ask them for Ada's
 deid_code or user_id; you never resolve the name yourself.
 
-Output discipline: ✅ "Applied 1.5× time for deid_code S-95DBB6" · ❌ "…for Sydney."
+Output discipline: ✅ "Applied 1.5× time for deid_code S-68BC40" · ❌ "…for Ada."
 
 ## Tools
 

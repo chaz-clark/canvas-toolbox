@@ -127,19 +127,19 @@ def _write_master(tmp_path: Path) -> Path:
         w = csv.DictWriter(fh, fieldnames=["deid_code", "user_id",
                                             "sortable_name", "withdrawn"])
         w.writeheader()
-        w.writerow({"deid_code": "S-95DBB6", "user_id": "173819",
-                    "sortable_name": "Ahlstrom, Sydney", "withdrawn": "0"})
+        w.writerow({"deid_code": "S-68BC40", "user_id": "900001",
+                    "sortable_name": "Anon, Ada", "withdrawn": "0"})
     return p
 
 
 def test_resolve_basic(tmp_path):
     p = _write_master(tmp_path)
-    assert resolve_user_id_from_master(p, "S-95DBB6") == 173819
+    assert resolve_user_id_from_master(p, "S-68BC40") == 900001
 
 
 def test_resolve_case_insensitive(tmp_path):
     p = _write_master(tmp_path)
-    assert resolve_user_id_from_master(p, "s-95dbb6") == 173819
+    assert resolve_user_id_from_master(p, "s-68bc40") == 900001
 
 
 def test_resolve_missing_master_points_at_builder(tmp_path):
@@ -160,8 +160,8 @@ def test_resolve_missing_code(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_payload_includes_user_id():
-    payload = build_extension_payload(user_id=173819, extra_time_minutes=30)
-    assert payload["quiz_extensions[][user_id]"] == 173819
+    payload = build_extension_payload(user_id=900001, extra_time_minutes=30)
+    assert payload["quiz_extensions[][user_id]"] == 900001
 
 
 def test_payload_includes_extra_time():

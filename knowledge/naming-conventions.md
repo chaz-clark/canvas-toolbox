@@ -272,9 +272,9 @@ For machine-parseable output, use snake_case field names:
 ```python
 # ✓ Structured output (JSON, CSV, etc.)
 output = {
-    "course_id": 407908,
-    "user_id": 173819,
-    "assignment_id": 16958677,
+    "course_id": 123456,
+    "user_id": 900001,
+    "assignment_id": 345678,
     "submitted_at": "2026-07-08T12:00:00Z"
 }
 print(json.dumps(output, indent=2))

@@ -31,7 +31,7 @@ keyed-grading + PR-check tools.
 
 **DO NOT READ** `grading/.deid_master.csv`. It contains student names (FERPA Zone 2).
 
-When the instructor provides `--user-id 280379` or `--deid-code DS-B9CA2B`, use it directly with accommodation tools. You never need the mapping file.
+When the instructor provides `--user-id 900003` or `--deid-code DS-CF9C91`, use it directly with accommodation tools. You never need the mapping file.
 
 ---
 
@@ -57,9 +57,13 @@ across every tool, every run, every refresh. That's what this file is.
 
 ```csv
 deid_code,user_id,sortable_name,withdrawn
-S-95DBB6,173819,"Ahlstrom, Sydney",0
-S-A8FE4E,18065,"Alfaia Monteiro, Ronaldo",1
+S-68BC40,900001,"Anon, Ada",0
+S-D4C81D,900002,"Byte, Ben",1
 ```
+
+<!-- All rows above are synthetic — fake ids, fake names. A real .deid_master.csv
+never lives in this repo (it's gitignored, FERPA tier 2). -->
+
 
 | Column | Type | Meaning | Read by tools? |
 |---|---|---|---|
@@ -82,7 +86,7 @@ deid_code = f"{prefix}{sha256(str(user_id))[:hash_bits].upper()}"
 ```
 
 - **Default prefix:** `S-` (Student). Override via `--prefix DS-` or similar.
-- **Default hash bits:** 6 hex chars. Format example: `S-95DBB6`.
+- **Default hash bits:** 6 hex chars. Format example: `S-68BC40`.
 - **Stable:** same `user_id` → same `deid_code` across every run.
 - **Order-free:** doesn't depend on roster position or fetch order.
 - **Collision-aware:** the build tool detects duplicates at write-time
@@ -97,7 +101,7 @@ Collision math (sha256 first N hex chars, birthday paradox):
 | 10 | 1T | practically collision-free at any class size |
 
 For typical 30–200 student courses, 6 hex is safe and far more typeable
-(`S-95DBB6` vs `S-95DBB6A8`).
+(`S-68BC40` vs `S-68BC40A8`).
 
 ---
 
@@ -139,8 +143,8 @@ forgets to add `grading/` to their main `.gitignore`, the directory's own
 
 ```python
 from lib.tools.build_deid_master import resolve_user_id_from_master  # pseudo
-uid = resolve_user_id_from_master(Path("grading/.deid_master.csv"), "S-95DBB6")
-# uid is now 173819. sortable_name was never read.
+uid = resolve_user_id_from_master(Path("grading/.deid_master.csv"), "S-68BC40")
+# uid is now 900001. sortable_name was never read.
 ```
 
 **Reference implementation:** `lib/tools/student_late_accommodation.py`
@@ -148,7 +152,7 @@ uid = resolve_user_id_from_master(Path("grading/.deid_master.csv"), "S-95DBB6")
 clear errors when the master doesn't exist or the code isn't present.
 
 **Operators tell their agent:**
-> *"Give student S-95DBB6 late-work accommodation on all assignments."*
+> *"Give student S-68BC40 late-work accommodation on all assignments."*
 
 The agent passes the code (not the name) to the tool. The tool resolves
 the code locally. The name never crosses the LLM boundary.

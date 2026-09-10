@@ -90,7 +90,7 @@ def test_match_paths_uses_the_shared_zone2_list(tmp_path):
 
 def test_uid_name_map_pattern_catches_serializations_but_not_prose():
     for carrier in ('{"806485": "Jane Doe"}', "806485 = 'Jane Doe'",
-                    '1395396,"Farmer, Andrew"'):
+                    '900005,"Dot, Dana"'):
         assert _UID_NAME_MAP.search(carrier), carrier
     for benign in ("version = '1.18.0'", "see RFC 2119", "{'count': 42}"):
         assert not _UID_NAME_MAP.search(benign), benign

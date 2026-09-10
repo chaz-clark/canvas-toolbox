@@ -125,7 +125,7 @@ def is_grader_fetch_naming(filename: str) -> bool:
     shape — no student name in the filename; the roster is the authority.
 
     Patterns we recognize as grader_fetch shape:
-      - <prefix>_<digits>.<ext>      (2 underscore parts; e.g. p1t1_280379.html)
+      - <prefix>_<digits>.<ext>      (2 underscore parts; e.g. p1t1_900003.html)
       - <prefix>_<digits>_<a-z>.<ext> (3 parts, single-letter 3rd for multi-attachment)
 
     Old Canvas downloads have the shape `<name>_<subid>_<attid>_<title>.<ext>`

@@ -223,8 +223,8 @@ Thirteen workflows. Each one is a prompt your agent can act on.
 | **Pull New Quiz response data** | *"Pull the per-student responses from quiz <id>"* | The New Quizzes API doesn't expose responses directly; the toolkit reads them via the student-analysis report. FERPA-safe by default (uid-keyed; names opt-in). |
 | **Grade an assignment end-to-end** | *"Grade the KC1 assignment"* | Fetch → de-identify → 3-pass consensus → review surface (`_all_comments.md`) → push gated behind `--mark-reviewed`. You approve every grade. |
 | **Run a UW / UF check (Title IV)** | *"Run a UW check with UF date 2026-04-15"* or *"Last participation report"* | Classifies each enrolled student as ACTIVE / UW / UF / NEVER_PARTICIPATED by their last academically related activity vs your UF cutoff. PDF + MD report drops in **~/Downloads/** (outside the repo — FERPA tier 3). Compliant with 34 CFR 668.22 + the 2025-2026 FSA Handbook (verified 2026-06-26). |
-| **Give one student late-work accommodation** | *"Give student S-95DBB6 late-work grace for the rest of the semester"* / *"…starting from the last 2 weeks"* / *"…on assignment 1234 only"* | Writes per-student assignment overrides. Two flavors (drop close date OR shift dates forward) × four scoping modes (one assignment / whole semester / from a date / rolling window). PII-free via the [de-id master](#the-de-id-master--the-primitive-under-everything). See [Per-student late-work accommodation](#per-student-late-work-accommodation) below. |
-| **Give one student extra time on timed quizzes** | *"Give student S-95DBB6 1.5x time on all timed quizzes"* / *"…2x time on quiz 1234"* | Writes per-student quiz extensions on classic Canvas quizzes — `--multiplier 1.5` adds 50% extra; `--multiplier 2.0` adds double time. `--all-timed` covers every timed quiz in the course; `--quiz-id` scopes to one. Untimed quizzes auto-skip. |
+| **Give one student late-work accommodation** | *"Give student S-68BC40 late-work grace for the rest of the semester"* / *"…starting from the last 2 weeks"* / *"…on assignment 1234 only"* | Writes per-student assignment overrides. Two flavors (drop close date OR shift dates forward) × four scoping modes (one assignment / whole semester / from a date / rolling window). PII-free via the [de-id master](#the-de-id-master--the-primitive-under-everything). See [Per-student late-work accommodation](#per-student-late-work-accommodation) below. |
+| **Give one student extra time on timed quizzes** | *"Give student S-68BC40 1.5x time on all timed quizzes"* / *"…2x time on quiz 1234"* | Writes per-student quiz extensions on classic Canvas quizzes — `--multiplier 1.5` adds 50% extra; `--multiplier 2.0` adds double time. `--all-timed` covers every timed quiz in the course; `--quiz-id` scopes to one. Untimed quizzes auto-skip. |
 | **Apply a BYUI Accessibility Services letter** | *"Apply the SAS accommodations for this student"* / *"Run my .sas_accommodations.yml"* | Reads `grading/.sas_accommodations.yml` (produced by life-pm from your BYUI Outlook inbox), dispatches per accommodation key. **Canvas-tier** (quiz time extension 1.5x/2.0x, occasional extensions, test reschedule) auto-runs; **proctoring-tier** (Proctorio breaks, private testing room) + **policy-tier** (spelling/grammar, attendance, recording, etc.) surface as an instructor checklist. Audit log at `grading/.sas_accommodations_applied.log`. |
 | **Share your grader with another faculty teaching the same course** | *"Bundle this course's rubrics and configs to share with another faculty"* | Exports a ZIP with rubrics, task specs, configs, course-level pitfalls. Your personal voice file is REFUSED by the export — by design. They build their own voice. |
 | **Roll out a new semester** | *"Sync my master course to the spring section"* | Master → Blueprint; Canvas handles section distribution. Safety gates keep section edits from leaking back to master. |
@@ -462,23 +462,23 @@ When ONE student needs deadline flexibility — for any reason, on some or all a
 ```bash
 # Preview (dry-run by default — use --apply to actually write)
 uv run python lib/tools/student_late_accommodation.py \
-  --deid-code S-95DBB6 --from-days-ago 14
+  --deid-code S-68BC40 --from-days-ago 14
 
 # Apply for one specific assignment
 uv run python lib/tools/student_late_accommodation.py \
-  --deid-code S-95DBB6 --assignment-id 123 --apply
+  --deid-code S-68BC40 --assignment-id 123 --apply
 
 # Apply from a specific date forward (rest of semester)
 uv run python lib/tools/student_late_accommodation.py \
-  --deid-code S-95DBB6 --from 2026-04-01 --apply
+  --deid-code S-68BC40 --from 2026-04-01 --apply
 
 # Apply across whole semester with backdating
 uv run python lib/tools/student_late_accommodation.py \
-  --deid-code S-95DBB6 --all --apply
+  --deid-code S-68BC40 --all --apply
 
 # Undo cleanly — same scope flags work for --remove
 uv run python lib/tools/student_late_accommodation.py \
-  --deid-code S-95DBB6 --from-days-ago 14 --remove --apply
+  --deid-code S-68BC40 --from-days-ago 14 --remove --apply
 ```
 
 ## When overrides don't take effect
@@ -488,14 +488,14 @@ Sometimes Canvas doesn't immediately apply assignment overrides created via the 
 ```bash
 # Apply accommodation AND force Canvas to recalculate
 uv run python lib/tools/student_late_accommodation.py \
-  --deid-code S-95DBB6 --from-days-ago 14 --apply --force-recalc
+  --deid-code S-68BC40 --from-days-ago 14 --apply --force-recalc
 ```
 
 This performs a no-op "touch" on each override to trigger Canvas's internal recalculation. Usually not needed, but critical when students report they still can't submit after an accommodation was applied.
 
 ## The de-id master — the primitive under everything
 
-`--deid-code S-95DBB6` resolves to a Canvas user_id **without anyone ever speaking the student's name to the agent**. That works because of a new primitive in v0.70.0: a **course-wide de-identification master** at `grading/.deid_master.csv` (gitignored, FERPA tier 2).
+`--deid-code S-68BC40` resolves to a Canvas user_id **without anyone ever speaking the student's name to the agent**. That works because of a new primitive in v0.70.0: a **course-wide de-identification master** at `grading/.deid_master.csv` (gitignored, FERPA tier 2).
 
 Build it once, refresh when your roster changes:
 
@@ -505,7 +505,7 @@ uv run python lib/tools/build_deid_master.py
 
 One row per enrolled student, four columns: `deid_code, user_id, sortable_name, withdrawn`. The `withdrawn` flag catches students who dropped mid-semester — the default Canvas People view silently hides them, and that's how 7 dropped students went missing from one pilot's final-grade analysis until this primitive existed.
 
-**You** look up "Sydney" in the local CSV → see `S-95DBB6` → hand the agent only that code. The tool reads only the `user_id` column. Names never cross the LLM boundary.
+**You** look up "Ada" in the local CSV → see `S-68BC40` → hand the agent only that code. The tool reads only the `user_id` column. Names never cross the LLM boundary.
 
 Full knowledge file: [`deid_master_knowledge.md`](lib/agents/knowledge/deid_master_knowledge.md).
 
@@ -513,20 +513,20 @@ Full knowledge file: [`deid_master_knowledge.md`](lib/agents/knowledge/deid_mast
 
 # Per-student extra time on timed quizzes
 
-For accommodations that say *"give Sydney 1.5x time on quizzes"* — whether they came through a formal SAS letter or an informal arrangement — the toolkit writes Canvas quiz extensions on classic quizzes. The tool computes the right number of extra minutes from each quiz's `time_limit` so a 60-minute quiz becomes 90 (1.5x) or 120 (2.0x) for that student only.
+For accommodations that say *"give Ada 1.5x time on quizzes"* — whether they came through a formal SAS letter or an informal arrangement — the toolkit writes Canvas quiz extensions on classic quizzes. The tool computes the right number of extra minutes from each quiz's `time_limit` so a 60-minute quiz becomes 90 (1.5x) or 120 (2.0x) for that student only.
 
 ```bash
 # Preview: 1.5x on every timed quiz in the course
 uv run python lib/tools/student_quiz_time_extension.py \
-  --deid-code S-95DBB6 --multiplier 1.5 --all-timed
+  --deid-code S-68BC40 --multiplier 1.5 --all-timed
 
 # Apply 2.0x (double time) across all timed quizzes
 uv run python lib/tools/student_quiz_time_extension.py \
-  --deid-code S-95DBB6 --multiplier 2.0 --all-timed --apply
+  --deid-code S-68BC40 --multiplier 2.0 --all-timed --apply
 
 # Apply to ONE specific quiz
 uv run python lib/tools/student_quiz_time_extension.py \
-  --deid-code S-95DBB6 --multiplier 1.5 --quiz-id 12345 --apply
+  --deid-code S-68BC40 --multiplier 1.5 --quiz-id 12345 --apply
 ```
 
 Partial minutes always round UP — the student never gets less time than the multiplier promises. Untimed quizzes are skipped automatically (no extension is needed). PII-free via the same de-id master.
@@ -535,7 +535,7 @@ Partial minutes always round UP — the student never gets less time than the mu
 
 ```bash
 uv run python lib/tools/student_quiz_time_extension.py \
-  --deid-code S-95DBB6 --multiplier 1.5 --all-timed --apply --force-recalc
+  --deid-code S-68BC40 --multiplier 1.5 --all-timed --apply --force-recalc
 ```
 
 > **Note on New Quizzes (LTI):** this tool covers classic Canvas quizzes only. New Quizzes use a different API path; per-student time multipliers there are currently set via the New Quizzes Moderation UI. New Quizzes API support is a follow-up.
@@ -554,15 +554,15 @@ When Canvas assignment overrides don't apply correctly (student can't submit des
 ```bash
 # Force recalc for one student's overrides (dry-run)
 uv run python lib/tools/fix_group_override_recalc.py \
-  --course-id 407908 --student-id 280379 --dry-run
+  --course-id 123456 --student-id 900003 --dry-run
 
 # Apply fix for one student
 uv run python lib/tools/fix_group_override_recalc.py \
-  --course-id 407908 --student-id 280379
+  --course-id 123456 --student-id 900003
 
 # Force recalc for group overrides
 uv run python lib/tools/fix_group_override_recalc.py \
-  --course-id 407908 --group-id 1885662
+  --course-id 123456 --group-id 234567
 ```
 
 **What it does:** Performs a no-op PUT on each assignment override targeting the student or group. This triggers Canvas's `assignment_override_updated` event and forces recalculation of assignment availability.
@@ -582,13 +582,13 @@ When students submit assignments via Slack DM or email instead of through Canvas
 ```bash
 # Preview what would be submitted (dry-run by default)
 uv run python lib/tools/submit_on_behalf.py \
-  --deid-code S-95DBB6 \
+  --deid-code S-68BC40 \
   --assignment-id 12345 \
   --file ~/Downloads/essay.pdf
 
 # Actually submit
 uv run python lib/tools/submit_on_behalf.py \
-  --deid-code S-95DBB6 \
+  --deid-code S-68BC40 \
   --assignment-id 12345 \
   --file ~/Downloads/essay.pdf \
   --comment "Submitted via Slack on student's behalf due to Canvas access issue" \

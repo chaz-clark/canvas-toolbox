@@ -83,17 +83,17 @@ def test_dedupe_users_skips_record_with_bad_id():
 
 def test_deid_code_deterministic():
     """Same user_id → same code, every run."""
-    assert deid_code_for(173819) == deid_code_for(173819)
+    assert deid_code_for(900001) == deid_code_for(900001)
 
 
 def test_deid_code_different_users_different_codes():
     """Different user_ids → different codes (almost always)."""
-    assert deid_code_for(173819) != deid_code_for(18065)
+    assert deid_code_for(900001) != deid_code_for(900002)
 
 
 def test_deid_code_default_format():
     """Default: S- prefix, 6 hex chars uppercase."""
-    code = deid_code_for(173819)
+    code = deid_code_for(900001)
     assert code.startswith("S-")
     body = code[2:]
     assert len(body) == 6
@@ -102,14 +102,14 @@ def test_deid_code_default_format():
 
 
 def test_deid_code_custom_prefix():
-    code = deid_code_for(173819, prefix="DS-")
+    code = deid_code_for(900001, prefix="DS-")
     assert code.startswith("DS-")
     assert len(code) == 3 + 6  # "DS-" + 6 hex
 
 
 def test_deid_code_custom_hash_bits():
     """--hash-bits 8 should give an 8-char code body."""
-    code = deid_code_for(173819, hash_bits=8)
+    code = deid_code_for(900001, hash_bits=8)
     assert code.startswith("S-")
     assert len(code[2:]) == 8
 
@@ -117,7 +117,7 @@ def test_deid_code_custom_hash_bits():
 def test_deid_code_int_or_str_user_id():
     """int and str user_ids should hash identically — defends against
     Canvas API returning user_id as int while operator passes a string."""
-    assert deid_code_for(173819) == deid_code_for(int("173819"))
+    assert deid_code_for(900001) == deid_code_for(int("900001"))
 
 
 # ---------------------------------------------------------------------------
@@ -173,16 +173,16 @@ def test_withdrawn_unknown_state_falls_back_to_zero():
 
 def test_student_to_row_basic():
     user = {
-        "id": 173819,
-        "sortable_name": "Ahlstrom, Sydney",
+        "id": 900001,
+        "sortable_name": "Anon, Ada",
         "enrollments": [{"enrollment_state": "active"}],
     }
     row = student_to_row(user, prefix="S-", hash_bits=6)
     assert isinstance(row, StudentRow)
-    assert row.user_id == 173819
-    assert row.sortable_name == "Ahlstrom, Sydney"
+    assert row.user_id == 900001
+    assert row.sortable_name == "Anon, Ada"
     assert row.withdrawn == 0
-    assert row.deid_code == deid_code_for(173819, "S-", 6)
+    assert row.deid_code == deid_code_for(900001, "S-", 6)
 
 
 def test_student_to_row_missing_sortable_name_falls_back_to_name():
@@ -207,8 +207,8 @@ def test_student_to_row_missing_both_names():
 
 def test_student_to_row_withdrawn_student():
     user = {
-        "id": 18065,
-        "sortable_name": "Alfaia Monteiro, Ronaldo",
+        "id": 900002,
+        "sortable_name": "Byte, Ben",
         "enrollments": [{"enrollment_state": "inactive"}],
     }
     row = student_to_row(user, "S-", 6)
@@ -307,16 +307,16 @@ def test_render_csv_rows_deterministic():
 def test_known_names_emits_both_forms():
     """Each student contributes BOTH sortable AND display forms — the
     scrub matches whichever shape appears in document text."""
-    rows = [StudentRow("S-AAA", 1, "Ahlstrom, Sydney", 0)]
+    rows = [StudentRow("S-AAA", 1, "Anon, Ada", 0)]
     lines = render_known_names_lines(rows)
-    assert "Ahlstrom, Sydney" in lines
-    assert "Sydney Ahlstrom" in lines
+    assert "Anon, Ada" in lines
+    assert "Ada Anon" in lines
 
 
 def test_known_names_includes_header_comments():
     """File leads with explanatory comments so a future reader knows
     not to hand-edit + that it's auto-derived."""
-    rows = [StudentRow("S-AAA", 1, "Ahlstrom, Sydney", 0)]
+    rows = [StudentRow("S-AAA", 1, "Anon, Ada", 0)]
     lines = render_known_names_lines(rows)
     assert lines[0].startswith("#")
     assert any("Auto-derived" in ln for ln in lines[:3])
@@ -362,7 +362,7 @@ def test_known_names_handles_single_word_name():
 def test_known_names_deterministic():
     """Same input → identical output (sha256-stable when scrub-validates)."""
     rows = [
-        StudentRow("S-AAA", 1, "Ahlstrom, Sydney", 0),
+        StudentRow("S-AAA", 1, "Anon, Ada", 0),
         StudentRow("S-BBB", 2, "Smith, John", 0),
     ]
     assert render_known_names_lines(rows) == render_known_names_lines(rows)
@@ -396,16 +396,16 @@ def test_roster_json_round_trips_into_the_same_rows_canvas_would_produce(tmp_pat
     """The contract IS the Canvas /users shape, so a non-Canvas consumer reuses the
     whole downstream pipeline (de-id codes, master, known_names, re-id, push)."""
     users = load_roster_json(_roster(tmp_path, [
-        {"id": 1395396, "name": "Farmer, Andrew", "org_id": "0123456"},
-        {"id": 1395397, "name": "Rembert, Cristen", "withdrawn": True},
+        {"id": 900005, "name": "Dot, Dana", "org_id": "0009001"},
+        {"id": 900006, "name": "Echo, Erin", "withdrawn": True},
     ]))
     rows = [student_to_row(u, "S-", 6) for u in users]
-    assert rows[0].user_id == 1395396
-    assert rows[0].org_id == "0123456"
+    assert rows[0].user_id == 900005
+    assert rows[0].org_id == "0009001"
     assert rows[0].withdrawn == 0
     assert rows[1].withdrawn == 1                     # explicit flag, no enrollments
     # identical code to what Canvas would produce for the same id — the join holds
-    assert rows[0].deid_code == deid_code_for(1395396, "S-", 6)
+    assert rows[0].deid_code == deid_code_for(900005, "S-", 6)
 
 
 def test_org_id_is_stored_but_never_becomes_the_key(tmp_path):

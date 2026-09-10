@@ -121,7 +121,7 @@ def test_entries_without_identity_are_skipped_not_guessed():
 def test_apply_repoints_ids_and_course_and_clears_stale_module_ids():
     """Stale module ids belong to the OLD course. Carrying them over is worse than
     dropping them, because a wrong id looks valid."""
-    index = {"course_id": "407908", "files": {
+    index = {"course_id": "123456", "files": {
         "a.json": {"type": "Assignment", "title": "Lab", "canvas_id": 11,
                    "module_item_id": 555, "module_canvas_id": 777, "hash": "abc"}}}
     plan = plan_rebind(index["files"], _target(A("Lab", 900)))

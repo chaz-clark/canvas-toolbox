@@ -113,8 +113,8 @@ _GEMINI_RE = re.compile(
 )
 # Gemini AI Mode shares (issue #52) — different surface from gemini.google.com/share.
 # AI Mode is the "Gemini-with-search-and-tools" experience; share URL lives on
-# share.google/aimode/<base62-hash>. Real-world m119 SP26 P1T2 cohort surfaced one
-# (uid 415951). Hash is short (15-20 chars) and uses base62 alphabet.
+# share.google/aimode/<base62-hash>. A real cohort surfaced one
+# (uid 900007). Hash is short (15-20 chars) and uses base62 alphabet.
 _AIMODE_RE = re.compile(
     r"https?://share\.google/aimode/[A-Za-z0-9_-]{8,}/?",
 )

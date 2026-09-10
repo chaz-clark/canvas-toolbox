@@ -57,7 +57,7 @@ def test_classify_unknown_key():
 # ---------------------------------------------------------------------------
 
 def test_plan_extra_time_15x():
-    plan = plan_one_accommodation("S-95DBB6", {"key": "extra_time_1.5x"})
+    plan = plan_one_accommodation("S-68BC40", {"key": "extra_time_1.5x"})
     assert plan.tier == "canvas"
     assert plan.command is not None
     assert "student_quiz_time_extension.py" in " ".join(plan.command)
@@ -65,11 +65,11 @@ def test_plan_extra_time_15x():
     assert "1.5" in plan.command
     assert "--all-timed" in plan.command
     assert "--deid-code" in plan.command
-    assert "S-95DBB6" in plan.command
+    assert "S-68BC40" in plan.command
 
 
 def test_plan_extra_time_20x():
-    plan = plan_one_accommodation("S-95DBB6", {"key": "extra_time_2.0x"})
+    plan = plan_one_accommodation("S-68BC40", {"key": "extra_time_2.0x"})
     assert "2.0" in plan.command
 
 
@@ -205,14 +205,14 @@ def test_plan_entries_preserves_order():
 
 def test_audit_line_contains_all_fields():
     plan = DispatchPlan(
-        deid_code="S-95DBB6",
+        deid_code="S-68BC40",
         key="extra_time_1.5x",
         tier="canvas",
         command=["foo"],
         note="Canvas: +50% extra time.",
     )
     line = render_audit_line(plan, "APPLIED", "2026-06-26T12:00:00+00:00")
-    assert "S-95DBB6" in line
+    assert "S-68BC40" in line
     assert "extra_time_1.5x" in line
     assert "canvas" in line
     assert "APPLIED" in line

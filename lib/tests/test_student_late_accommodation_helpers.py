@@ -46,35 +46,35 @@ def _write_master(tmp_path: Path, rows: list[dict]) -> Path:
 
 def test_resolve_basic(tmp_path):
     p = _write_master(tmp_path, [
-        {"deid_code": "S-95DBB6", "user_id": "173819",
-         "sortable_name": "Ahlstrom, Sydney", "withdrawn": "0"},
+        {"deid_code": "S-68BC40", "user_id": "900001",
+         "sortable_name": "Anon, Ada", "withdrawn": "0"},
     ])
-    assert resolve_user_id_from_master(p, "S-95DBB6") == 173819
+    assert resolve_user_id_from_master(p, "S-68BC40") == 900001
 
 
 def test_resolve_case_insensitive(tmp_path):
-    """Operator can type s-95dbb6 or S-95DBB6 — both work."""
+    """Operator can type s-68bc40 or S-68BC40 — both work."""
     p = _write_master(tmp_path, [
-        {"deid_code": "S-95DBB6", "user_id": "173819",
-         "sortable_name": "Ahlstrom, Sydney", "withdrawn": "0"},
+        {"deid_code": "S-68BC40", "user_id": "900001",
+         "sortable_name": "Anon, Ada", "withdrawn": "0"},
     ])
-    assert resolve_user_id_from_master(p, "s-95dbb6") == 173819
-    assert resolve_user_id_from_master(p, "S-95dbb6") == 173819
+    assert resolve_user_id_from_master(p, "s-68bc40") == 900001
+    assert resolve_user_id_from_master(p, "S-68bc40") == 900001
 
 
 def test_resolve_strips_whitespace(tmp_path):
     """Tolerate trailing/leading whitespace from copy-paste."""
     p = _write_master(tmp_path, [
-        {"deid_code": "S-95DBB6", "user_id": "173819",
-         "sortable_name": "Ahlstrom, Sydney", "withdrawn": "0"},
+        {"deid_code": "S-68BC40", "user_id": "900001",
+         "sortable_name": "Anon, Ada", "withdrawn": "0"},
     ])
-    assert resolve_user_id_from_master(p, "  S-95DBB6  ") == 173819
+    assert resolve_user_id_from_master(p, "  S-68BC40  ") == 900001
 
 
 def test_resolve_missing_code_raises_keyerror(tmp_path):
     p = _write_master(tmp_path, [
-        {"deid_code": "S-95DBB6", "user_id": "173819",
-         "sortable_name": "Ahlstrom, Sydney", "withdrawn": "0"},
+        {"deid_code": "S-68BC40", "user_id": "900001",
+         "sortable_name": "Anon, Ada", "withdrawn": "0"},
     ])
     with pytest.raises(KeyError):
         resolve_user_id_from_master(p, "S-DOESNOTEXIST")
@@ -84,7 +84,7 @@ def test_resolve_missing_master_raises_filenotfound(tmp_path):
     """The error must point the operator at build_deid_master.py."""
     nope = tmp_path / "does_not_exist.csv"
     with pytest.raises(FileNotFoundError) as exc_info:
-        resolve_user_id_from_master(nope, "S-95DBB6")
+        resolve_user_id_from_master(nope, "S-68BC40")
     assert "build_deid_master" in str(exc_info.value)
 
 
@@ -106,8 +106,8 @@ def test_resolve_returns_int_not_str(tmp_path):
 def test_payload_includes_student_id():
     assignment = {"due_at": "2026-04-15T23:59:00Z",
                   "unlock_at": "2026-04-01T00:00:00Z"}
-    payload = build_override_payload(assignment, user_id=173819)
-    assert payload["assignment_override[student_ids][]"] == 173819
+    payload = build_override_payload(assignment, user_id=900001)
+    assert payload["assignment_override[student_ids][]"] == 900001
 
 
 def test_payload_includes_title():
@@ -370,8 +370,8 @@ def test_shift_payload_shifts_all_three_dates():
 
 
 def test_shift_payload_includes_student_id_and_title():
-    payload = build_shift_payload({}, user_id=173819, days=7)
-    assert payload["assignment_override[student_ids][]"] == 173819
+    payload = build_shift_payload({}, user_id=900001, days=7)
+    assert payload["assignment_override[student_ids][]"] == 900001
     assert "reschedule" in payload["assignment_override[title]"].lower()
 
 

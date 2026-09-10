@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-08
 **Tool:** `lib/tools/submit_on_behalf.py`
-**Test Environment:** BYUI Canvas (DS460 course)
+**Test Environment:** BYUI Canvas (live course)
 
 ---
 
@@ -18,56 +18,56 @@ The `submit_on_behalf.py` tool successfully uploads files to Canvas but **cannot
 
 ## Test Cases
 
-### Test 1: DS-A16AE3 - Personal Challenge 2nd Attempt
+### Test 1: DS-68BC40 - resubmission
 
-**File:** `DS460 Personal Challenge 1 2026-06-20 10_57_38.html`
-**Assignment:** 16958677 - "Key Challenge 1 - PySpark GroupBy Personal Challenge"
-**Student:** DS-A16AE3 (user_id 173819)
+**File:** `challenge1_resubmission.html`
+**Assignment:** 345678 - "Challenge 1"
+**Student:** DS-68BC40 (user_id 900001)
 
 **Results:**
-- ✓ File uploaded successfully (Canvas file_id: 167590494)
+- ✓ File uploaded successfully (Canvas file_id: 987651)
 - ✗ Submission failed: `403 Client Error: Forbidden`
 
 **API Response:**
 ```
 403 Client Error: Forbidden for url:
-https://byui.instructure.com/api/v1/courses/407908/assignments/16958677/submissions
+https://byui.instructure.com/api/v1/courses/123456/assignments/345678/submissions
 ```
 
 ---
 
-### Test 2: DS-BA2D38 - GroupBy Challenge
+### Test 2: DS-5E4E3C - Challenge 1
 
-**File:** `pyspark_groupby_personal_challenge (1) 2026-06-24 02_46_48.html`
-**Assignment:** 16958677 - "Key Challenge 1 - PySpark GroupBy Personal Challenge"
-**Student:** DS-BA2D38 (user_id 164679)
+**File:** `challenge1_submission.html`
+**Assignment:** 345678 - "Challenge 1"
+**Student:** DS-5E4E3C (user_id 900004)
 
 **Results:**
-- ✓ File uploaded successfully (Canvas file_id: 167590606)
+- ✓ File uploaded successfully (Canvas file_id: 987652)
 - ✗ Submission failed: `403 Client Error: Forbidden`
 
 ---
 
-### Test 3: DS-BA2D38 - PartitionBy Challenge
+### Test 3: DS-5E4E3C - Challenge 2
 
-**File:** `pyspark_partitionby_personal_challenge-1 2026-06-24 04_26_25.html`
-**Assignment:** 16958671 - "Key Challenge 2 - PySpark PartitionBy Personal Challenge"
-**Student:** DS-BA2D38 (user_id 164679)
+**File:** `challenge2_submission.html`
+**Assignment:** 345679 - "Challenge 2"
+**Student:** DS-5E4E3C (user_id 900004)
 
 **Results:**
-- ✓ File uploaded successfully (Canvas file_id: 167590628)
+- ✓ File uploaded successfully (Canvas file_id: 987653)
 - ✗ Submission failed: `403 Client Error: Forbidden`
 
 ---
 
-### Test 4: DS-BA2D38 - S5 Complex Features
+### Test 4: DS-5E4E3C - Stretch problem
 
-**File:** `S5 Complex Features.html`
-**Assignment:** 16958699 - "S5 - Complex Feature Engineering"
-**Student:** DS-BA2D38 (user_id 164679)
+**File:** `stretch_submission.html`
+**Assignment:** 345680 - "Stretch problem"
+**Student:** DS-5E4E3C (user_id 900004)
 
 **Results:**
-- ✓ File uploaded successfully (Canvas file_id: 167590652)
+- ✓ File uploaded successfully (Canvas file_id: 987654)
 - ✗ Submission failed: `400 Client Error: Bad Request`
 
 **Note:** Different error code (400 vs 403) suggests different validation issue. File still uploaded successfully.
@@ -146,10 +146,10 @@ Since files upload successfully to Canvas, instructors can manually attach them:
 4. Add comment explaining the submission
 
 **Uploaded files from this test (available for manual attachment):**
-- DS-A16AE3 assignment 16958677: Canvas file_id 167590494
-- DS-BA2D38 assignment 16958677: Canvas file_id 167590606
-- DS-BA2D38 assignment 16958671: Canvas file_id 167590628
-- DS-BA2D38 assignment 16958699: Canvas file_id 167590652
+- DS-68BC40 assignment 345678: Canvas file_id 987651
+- DS-5E4E3C assignment 345678: Canvas file_id 987652
+- DS-5E4E3C assignment 345679: Canvas file_id 987653
+- DS-5E4E3C assignment 345680: Canvas file_id 987654
 
 ---
 

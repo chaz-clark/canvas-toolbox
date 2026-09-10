@@ -75,7 +75,7 @@ _SCAN_CONTENT_FLAG = ".claude/ferpa_scan_content"
 # A uid -> name mapping in any serialization: the single most dangerous artifact,
 # because it re-identifies every code in the repo at once. Deterministic enough to
 # be worth scanning for; unlike a surname it can't collide with ordinary prose.
-# `[ ,]{1,2}` not `[ ,]`: the CSV form is `1395396,"Farmer, Andrew"` — a comma AND a
+# `[ ,]{1,2}` not `[ ,]`: the CSV form is `900005,"Dot, Dana"` — a comma AND a
 # space between the name parts. That's the .deid_master.csv shape, i.e. the case this
 # most needs to catch. Deliberately not `\s`, which would span newlines.
 _UID_NAME_MAP = re.compile(

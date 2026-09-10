@@ -27,26 +27,26 @@ WHAT'S IN SCOPE
 
 PII-FREE LOOKUP
   --user-id 123456        bare Canvas user_id
-  --deid-code S-95DBB6    looked up in grading/.deid_master.csv
+  --deid-code S-68BC40    looked up in grading/.deid_master.csv
                           (built by build_deid_master.py; tool reads
                           only the user_id column)
 
 USAGE — dry-run by default (use --apply to actually write)
   # Preview: 1.5x on every timed classic quiz in the course
   uv run python lib/tools/student_quiz_time_extension.py \\
-    --deid-code S-95DBB6 --multiplier 1.5 --all-timed
+    --deid-code S-68BC40 --multiplier 1.5 --all-timed
 
   # Apply 2.0x (double time) across all timed quizzes
   uv run python lib/tools/student_quiz_time_extension.py \\
-    --deid-code S-95DBB6 --multiplier 2.0 --all-timed --apply
+    --deid-code S-68BC40 --multiplier 2.0 --all-timed --apply
 
   # ONE specific quiz
   uv run python lib/tools/student_quiz_time_extension.py \\
-    --deid-code S-95DBB6 --multiplier 1.5 --quiz-id 12345 --apply
+    --deid-code S-68BC40 --multiplier 1.5 --quiz-id 12345 --apply
 
   # Custom multiplier (e.g. 1.25x for 25% extra time)
   uv run python lib/tools/student_quiz_time_extension.py \\
-    --user-id 173819 --multiplier 1.25 --all-timed --apply
+    --user-id 900001 --multiplier 1.25 --all-timed --apply
 
 REQUIRES in .env: CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID
 

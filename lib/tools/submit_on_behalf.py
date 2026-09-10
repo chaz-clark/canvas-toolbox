@@ -19,26 +19,26 @@ WHAT THIS TOOL DOES
   4. Audit trail shows "submitted by instructor on behalf of student"
 
 PII-FREE LOOKUP
-  --deid-code S-95DBB6    looked up in grading/.deid_master.csv
+  --deid-code S-68BC40    looked up in grading/.deid_master.csv
   --user-id 123456        bare Canvas user_id (for testing)
 
 USAGE — dry-run by default (use --apply to actually submit)
-  # Preview: submit essay.pdf for student S-95DBB6 on assignment 12345
+  # Preview: submit essay.pdf for student S-68BC40 on assignment 12345
   uv run python lib/tools/submit_on_behalf.py \\
-    --deid-code S-95DBB6 \\
+    --deid-code S-68BC40 \\
     --assignment-id 12345 \\
     --file ~/Downloads/essay.pdf
 
   # Actually submit (triggers grading notification)
   uv run python lib/tools/submit_on_behalf.py \\
-    --deid-code S-95DBB6 \\
+    --deid-code S-68BC40 \\
     --assignment-id 12345 \\
     --file ~/Downloads/essay.pdf \\
     --apply
 
   # Submit with a comment
   uv run python lib/tools/submit_on_behalf.py \\
-    --deid-code S-95DBB6 \\
+    --deid-code S-68BC40 \\
     --assignment-id 12345 \\
     --file ~/Downloads/essay.pdf \\
     --comment "Submitted via Slack on student's behalf due to Canvas access issue" \\
@@ -312,7 +312,7 @@ def main() -> int:
 
     # Student identification (PII-free)
     id_group = ap.add_mutually_exclusive_group(required=True)
-    id_group.add_argument("--deid-code", help="Student deid code (e.g., S-95DBB6)")
+    id_group.add_argument("--deid-code", help="Student deid code (e.g., S-68BC40)")
     id_group.add_argument("--user-id", type=int, help="Canvas user_id (testing only)")
 
     # Assignment identification

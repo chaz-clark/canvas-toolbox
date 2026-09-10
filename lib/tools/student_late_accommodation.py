@@ -20,7 +20,7 @@ when the due date passes.
 PII-FREE LOOKUP
   Resolve the target student with EITHER:
     --user-id 123456        the bare Canvas user_id
-    --deid-code S-95DBB6    looked up in grading/.deid_master.csv
+    --deid-code S-68BC40    looked up in grading/.deid_master.csv
                             (built by build_deid_master.py)
   The deid_code lookup reads ONLY the user_id column of the master —
   the student's name is never read, printed, or sent to the agent.
@@ -49,33 +49,33 @@ SCOPE — pick ONE of these (mutually exclusive)
 USAGE — dry-run by default (use --apply to actually write)
   # Preview adding accommodation to ONE assignment
   uv run python lib/tools/student_late_accommodation.py \\
-    --deid-code S-95DBB6 --assignment-id 123
+    --deid-code S-68BC40 --assignment-id 123
 
   # Apply to ONE assignment
   uv run python lib/tools/student_late_accommodation.py \\
-    --user-id 173819 --assignment-id 123 --apply
+    --user-id 900001 --assignment-id 123 --apply
 
   # Apply across ALL published assignments (whole semester, backdated)
   uv run python lib/tools/student_late_accommodation.py \\
-    --deid-code S-95DBB6 --all --apply
+    --deid-code S-68BC40 --all --apply
 
   # From a specific date forward (rest of semester)
   uv run python lib/tools/student_late_accommodation.py \\
-    --deid-code S-95DBB6 --from 2026-04-01 --apply
+    --deid-code S-68BC40 --from 2026-04-01 --apply
 
   # Rolling window: last 2 weeks through end of semester
   uv run python lib/tools/student_late_accommodation.py \\
-    --deid-code S-95DBB6 --from-days-ago 14 --apply
+    --deid-code S-68BC40 --from-days-ago 14 --apply
 
   # SAS test_reschedule: shift dates forward 7 days (vs the default
   # "drop lock_at" mode used for occasional_extensions)
   uv run python lib/tools/student_late_accommodation.py \\
-    --deid-code S-95DBB6 --assignment-id 123 --shift-by-days 7 --apply
+    --deid-code S-68BC40 --assignment-id 123 --shift-by-days 7 --apply
 
   # Remove the accommodation (cleanly undo) — scope flags work for
   # remove too, so you can undo across the same window you applied
   uv run python lib/tools/student_late_accommodation.py \\
-    --deid-code S-95DBB6 --all --remove --apply
+    --deid-code S-68BC40 --all --remove --apply
 
 REQUIRES in .env: CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID
 REQUIRES: a deid master built by lib/tools/build_deid_master.py (only

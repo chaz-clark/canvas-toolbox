@@ -14,7 +14,7 @@ student, with a stable opaque code the operator can hand to other tools
 WITHOUT ever speaking the student's name to the agent or the cloud LLM.
 
 THE COLUMN CONTRACT
-  deid_code     — stable opaque code, e.g. S-95DBB6 (sha256(user_id)[:6])
+  deid_code     — stable opaque code, e.g. S-68BC40 (sha256(user_id)[:6])
   user_id       — numeric id, the source of truth and the key everything joins on
   sortable_name — "Lastname, Firstname" (NEVER read by tools unless explicit)
   withdrawn     — 1 if enrollment state is inactive/completed/deleted else 0
@@ -28,7 +28,7 @@ THE COLUMN CONTRACT
   section, so treating either as the other silently misattributes grades.
 
 The `sortable_name` column lets the OPERATOR look up a student in their
-LOCAL gitignored file ("find Sydney → S-95DBB6") and hand the agent / tool
+LOCAL gitignored file ("find Ada → S-68BC40") and hand the agent / tool
 only the code. The tool resolves code → user_id reading ONLY that column.
 
 WHY `withdrawn` MATTERS
@@ -186,8 +186,8 @@ def load_roster_json(path: Path) -> list[dict]:
 
     THE CONTRACT: a JSON array of objects, one per enrolled student.
 
-        [{"id": 1395396, "name": "Farmer, Andrew",
-          "org_id": "0123456", "withdrawn": false}, ...]
+        [{"id": 900005, "name": "Dot, Dana",
+          "org_id": "0009001", "withdrawn": false}, ...]
 
       id        REQUIRED. The identifier the consumer's grading artifacts are keyed
                 on — for Brightspace, the internal user id in a submission filename,

@@ -32,18 +32,18 @@ THE FIX
 USAGE
   # Fix overrides for a specific group
   uv run python lib/tools/fix_group_override_recalc.py \\
-    --course-id 407908 \\
-    --group-id 1885662
+    --course-id 123456 \\
+    --group-id 234567
 
   # Fix overrides for a specific student
   uv run python lib/tools/fix_group_override_recalc.py \\
-    --course-id 407908 \\
-    --student-id 280379
+    --course-id 123456 \\
+    --student-id 900003
 
   # Check what overrides would be updated (dry run)
   uv run python lib/tools/fix_group_override_recalc.py \\
-    --course-id 407908 \\
-    --student-id 280379 \\
+    --course-id 123456 \\
+    --student-id 900003 \\
     --dry-run
 
 REQUIRES in .env: CANVAS_API_TOKEN, CANVAS_BASE_URL

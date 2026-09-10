@@ -80,20 +80,20 @@ USAGE
   # First run on a new assignment — validate on Test Student only
   uv run python lib/tools/grader_fetch.py \\
     --challenge-dir grading/kc1 \\
-    --assignment-id 16958677 \\
+    --assignment-id 345678 \\
     --prefix kc1 \\
     --test-student-only
 
   # Full cohort fetch (after Test Student validates clean)
   uv run python lib/tools/grader_fetch.py \\
     --challenge-dir grading/kc1 \\
-    --assignment-id 16958677 \\
+    --assignment-id 345678 \\
     --prefix kc1
 
   # Re-download a cohort (e.g., after late submissions came in)
   uv run python lib/tools/grader_fetch.py \\
     --challenge-dir grading/kc1 \\
-    --assignment-id 16958677 \\
+    --assignment-id 345678 \\
     --prefix kc1 \\
     --force
 

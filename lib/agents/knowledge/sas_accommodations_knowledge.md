@@ -112,7 +112,7 @@ FERPA tier 2 (gitignored). The de-id master sits next to it
 `user_id` without ever reading sortable_name.
 
 ```yaml
-- deid_code: S-95DBB6           # required, looked up in de-id master
+- deid_code: S-68BC40           # required, looked up in de-id master
   letter_date: 2026-06-22       # optional, audit trail
   accommodations:
     - key: extra_time_1.5x

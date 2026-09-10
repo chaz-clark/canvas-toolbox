@@ -310,13 +310,13 @@ Tools that directly support individual students with special circumstances (late
    **Usage:**
    ```bash
    # Default: what's needed to reach C- (70%)
-   uv run python lib/tools/student_grade_forecast.py --deid-code S-95DBB6
+   uv run python lib/tools/student_grade_forecast.py --deid-code S-68BC40
 
    # Custom target: "I'm at a C, how do I get a B?"
-   uv run python lib/tools/student_grade_forecast.py --deid-code S-95DBB6 --target-grade B
+   uv run python lib/tools/student_grade_forecast.py --deid-code S-68BC40 --target-grade B
 
    # Include closed assignments (if willing to reopen via accommodations)
-   uv run python lib/tools/student_grade_forecast.py --deid-code S-95DBB6 --waive-late
+   uv run python lib/tools/student_grade_forecast.py --deid-code S-68BC40 --waive-late
    ```
 
    **Features:**
@@ -351,7 +351,7 @@ Tools that directly support individual students with special circumstances (late
    uv run python lib/tools/exempt_by_date.py --user-id 123456 --before-week 5 --apply
 
    # Use deid-code instead of user-id (FERPA-safe)
-   uv run python lib/tools/exempt_by_date.py --deid-code S-95DBB6 --before-week 5 --apply
+   uv run python lib/tools/exempt_by_date.py --deid-code S-68BC40 --before-week 5 --apply
 
    # Undo: remove excused status from all previously excused assignments
    uv run python lib/tools/exempt_by_date.py --user-id 123456 --undo --apply

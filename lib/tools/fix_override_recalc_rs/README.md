@@ -43,14 +43,14 @@ The Python wrapper handles execution automatically:
 ```bash
 # Via Python wrapper (recommended)
 uv run python lib/tools/fix_group_override_recalc.py \
-  --course-id 407908 \
-  --student-id 280379 \
+  --course-id 123456 \
+  --student-id 900003 \
   --dry-run
 
 # Direct Rust binary (for debugging)
 ./target/release/fix-override-recalc \
-  --course-id 407908 \
-  --student-id 280379 \
+  --course-id 123456 \
+  --student-id 900003 \
   --base-url https://byui.instructure.com \
   --token $CANVAS_API_TOKEN \
   --dry-run
@@ -60,7 +60,7 @@ uv run python lib/tools/fix_group_override_recalc.py \
 
 **Python (original):**
 - Sequential API calls
-- ~5-10 minutes for 108 assignments on course 407908
+- ~5-10 minutes for 108 assignments on course 123456
 - Single-threaded
 
 **Rust (this implementation):**

@@ -349,7 +349,7 @@ def test_bash_allows_metadata_and_filtered_zone2_access():
     for cmd in (
         "wc -l grading/.deid_master.csv",
         "ls -la grading/kc3/submissions_raw/",
-        "grep S-95DBB6 grading/.deid_master.csv | cut -d',' -f1,2",
+        "grep S-68BC40 grading/.deid_master.csv | cut -d',' -f1,2",
         "git log HEAD..main -- grading/.deid_master.csv",   # HEAD != head; metadata verb
     ):
         assert evaluate("Bash", {"command": cmd}) is None, cmd

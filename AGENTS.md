@@ -85,7 +85,7 @@ opt-in via `.claude/ferpa_scan_content`, because surname matching false-positive
 ordinary prose. `cb_update` also reports name-bearing directories git isn't ignoring.
 
 **Verify with `wc -l` or `ls` only.** To confirm a code exists, filter columns:
-`grep "S-95DBB6" grading/.deid_master.csv | cut -d',' -f1,2` (shows deid_code +
+`grep "S-68BC40" grading/.deid_master.csv | cut -d',' -f1,2` (shows deid_code +
 user_id, never the `sortable_name` column). Redirect to `/dev/null` or `cut` to
 columns 1,2 — never display raw rows.
 
@@ -105,9 +105,9 @@ makes you allowed to print one** — refer to students only by `user_id` or
 `deid_code` in every response, summary, table, and commit message. (Text you draft
 *for a student to read* is the one place a name belongs — see the convention below.
 Everything you write *about* a student uses codes.)
-✅ "Reopened for user_id 280379" · ❌ "Reopened for Sam Bradshaw (280379)"
-✅ "FR-B75C87 earned a B+ elevated to A" · ❌ "Student 280379 (Sam Bradshaw) …"
-If asked "who is user_id 280379?" → "I don't have the name mapping (FERPA Zone 2);
+✅ "Reopened for user_id 900003" · ❌ "Reopened for Cid Cole (900003)"
+✅ "FR-B75C87 earned a B+ elevated to A" · ❌ "Student 900003 (Cid Cole) …"
+If asked "who is user_id 900003?" → "I don't have the name mapping (FERPA Zone 2);
 check `grading/.deid_master.csv` locally."
 
 **In student-facing text, the convention governs the TEXT, not the file.** Refer to
