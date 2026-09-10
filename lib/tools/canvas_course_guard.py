@@ -16,6 +16,13 @@ the caller passes `allow_override=True` (from `--allow-enrolled`). On
 `mode="read"` it prints an advisory and continues. On its own API error
 it warns but does NOT block — guard failure must not break a tool.
 
+Exception: an enrolled course that is still `unpublished` (students cannot
+see it yet — e.g. a section built before the term starts) is NOT a
+live-exposure risk. That case verdicts as ENROLLED_UNPUBLISHED and
+`enforce()` proceeds with an advisory, no `--allow-enrolled` needed. A
+Blueprint child still hard-stops regardless of publish state — that risk
+is content propagation, not student exposure.
+
 Pure functions: takes base_url + headers as args; no caller-globals
 dependence; matches the canvas_pages.py / __toolbox_version__.py shared-
 helper pattern.
@@ -32,9 +39,15 @@ _TIMEOUT = 20
 # Verdict values
 SAFE = "safe"
 ENROLLED = "enrolled"
+ENROLLED_UNPUBLISHED = "enrolled_unpublished"  # enrolled but students can't see it yet
 BLUEPRINT_CHILD = "blueprint_child"
 ENROLLED_AND_BLUEPRINT_CHILD = "enrolled_and_blueprint_child"
 ERROR = "error"  # guard call itself failed; don't block
+
+# Course workflow_states in which students cannot see the course: enrollment
+# exists but carries no live-exposure risk. "available" is the only published
+# state; "completed"/"deleted" are handled elsewhere (concluded / 404).
+_PREPUBLISH_STATES = {"unpublished", "created", "claimed"}
 
 _SAFE_ALTERNATIVE = (
     "Sections belong in S#_COURSE_ID (S1_COURSE_ID, S2_COURSE_ID, …), "
@@ -47,7 +60,8 @@ def check_course_safety(
 ) -> tuple[str, list[str], str]:
     """Return (verdict, reasons, course_name).
 
-    verdict: SAFE | ENROLLED | BLUEPRINT_CHILD | ENROLLED_AND_BLUEPRINT_CHILD | ERROR
+    verdict: SAFE | ENROLLED | ENROLLED_UNPUBLISHED | BLUEPRINT_CHILD
+             | ENROLLED_AND_BLUEPRINT_CHILD | ERROR
     reasons: human-readable lines explaining the verdict
     course_name: from the course object, or "<unknown>" if the call failed
     """
@@ -55,6 +69,7 @@ def check_course_safety(
     reasons: list[str] = []
     enrolled = False
     blueprint_child = False
+    workflow_state = None
 
     try:
         resp = requests.get(
@@ -67,6 +82,7 @@ def check_course_safety(
                            f"{resp.text[:150]}"], course_name
         course = resp.json() if resp.content else {}
         course_name = course.get("name") or course_name
+        workflow_state = course.get("workflow_state")
         total = course.get("total_students")
         if isinstance(total, int) and total > 0:
             enrolled = True
@@ -96,10 +112,13 @@ def check_course_safety(
 
     if enrolled and blueprint_child:
         return ENROLLED_AND_BLUEPRINT_CHILD, reasons, course_name
-    if enrolled:
-        return ENROLLED, reasons, course_name
     if blueprint_child:
         return BLUEPRINT_CHILD, reasons, course_name
+    if enrolled and workflow_state in _PREPUBLISH_STATES:
+        reasons.append(f"course is {workflow_state} — students cannot see it yet")
+        return ENROLLED_UNPUBLISHED, reasons, course_name
+    if enrolled:
+        return ENROLLED, reasons, course_name
     return SAFE, reasons, course_name
 
 
@@ -109,6 +128,7 @@ def enforce(
 ) -> None:
     """Run the guard. On unsafe + mode='write' + not allow_override -> exit 2.
     On unsafe + mode='read' -> advisory warning, continue.
+    On enrolled-but-unpublished -> advisory, continue (no override needed).
     On guard error -> warning, continue (never block on guard failure)."""
     if mode not in ("read", "write"):
         raise ValueError(f"mode must be 'read' or 'write', got {mode!r}")
@@ -125,6 +145,13 @@ def enforce(
         return
 
     reason_str = "; ".join(reasons)
+
+    if verdict == ENROLLED_UNPUBLISHED:
+        print(f"ℹ️  canvas_course_guard: {label} {course_id} ('{name}') — "
+              f"{reason_str}. Students cannot see this course yet; proceeding.",
+              file=sys.stderr)
+        return
+
     header = (f"⚠️  canvas_course_guard: {label} {course_id} ('{name}') "
               f"flagged as {verdict.replace('_', ' ')} — {reason_str}.")
 

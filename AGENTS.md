@@ -181,6 +181,12 @@ surface the blocker to the instructor. **Do not route around it, and do not stac
 `--yes`/`--regrade`/`--allow-enrolled` to force a gate** — a blocked gate means "get
 the human," not "add a flag." (Deep grading protocol: the `grading` skill.)
 
+The one carve-out: an **explicit, specific instruction from the instructor** to use
+that flag for *this* operation on *this* course ("push the approved date changes to
+423164 with `--allow-enrolled`") *is* getting the human. Confirm the scope back to
+them, then run it with the flag. What's barred is the agent reaching for the flag on
+its own judgment, or treating a vague "sounds good" as authorization.
+
 Confirm scope before every write — master vs blueprint vs section. `request_confirmation()`
 is required before Canvas writes.
 
