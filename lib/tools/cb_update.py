@@ -137,8 +137,84 @@ def install_skill_symlinks(plan: list[tuple[Path, str]], apply: bool) -> list[tu
     return results
 
 
+# ---------------------------------------------------------------------------
+# The CLAUDE.md shim — without it the constitution never loads
+# ---------------------------------------------------------------------------
+
+CLAUDE_SHIM = ".claude/CLAUDE.md"
+
+_SHIM_MARKER = ("<!-- cb_managed: generated copy of AGENTS.md — "
+                "edit AGENTS.md, not this file -->")
+
+
+def plan_claude_shim(course_root: Path) -> tuple[Path, str]:
+    """(link_path, relative_target) for the CLAUDE.md shim — pure, testable."""
+    link = course_root / ".claude" / "CLAUDE.md"
+    target_abs = course_root / "AGENTS.md"
+    return link, os.path.relpath(target_abs, link.parent)
+
+
+def _managed_shim(link: Path) -> bool:
+    """True if `link` is a real FILE this tool previously wrote (the Windows
+    symlink fallback), so a re-run REFRESHES it instead of mistaking it for a
+    course-owned CLAUDE.md.
+
+    Skills mark a copied DIRECTORY with a marker file inside it. A copied *file*
+    has nowhere to put one, so the marker rides in its first line — which also
+    tells anyone who opens it that edits belong in AGENTS.md."""
+    if link.is_symlink() or not link.is_file():
+        return False
+    try:
+        with link.open(encoding="utf-8") as fh:
+            return _SHIM_MARKER in fh.readline()
+    except OSError:
+        return False
+
+
+def install_claude_shim(link: Path, rel: str, apply: bool) -> str:
+    """Point `.claude/CLAUDE.md` at `../AGENTS.md`.
+
+    WHY THIS EXISTS
+      Claude Code does not read `AGENTS.md`. It reads `CLAUDE.md` or
+      `.claude/CLAUDE.md` — Anthropic's own docs, and measured directly on
+      2.0.37 (agent_instruction_files_knowledge.md carries the probe table).
+      A repo whose only instruction file is AGENTS.md hands Claude Code
+      NOTHING, silently, with no warning. 23 repos here were in that state.
+
+      A symlink keeps one real file: AGENTS.md stays the source of truth and
+      keeps its tool-agnostic name for the 20+ tools that read it natively.
+      Nothing is duplicated, so nothing can drift.
+
+      NOT an `@AGENTS.md` import — that is widely suggested and does NOT expand
+      at project level (only the global ~/.claude/CLAUDE.md does). Measured.
+
+    Returns present/would-install/linked/copied/skip-course-owns/missing-target,
+    matching install_skill_symlinks()."""
+    if link.is_symlink() and os.readlink(link) == rel:
+        return "present"
+    if link.exists() and not link.is_symlink() and not _managed_shim(link):
+        return "skip-course-owns"          # a real, hand-written CLAUDE.md — theirs
+    if not (link.parent.parent / "AGENTS.md").is_file():
+        return "missing-target"
+    if not apply:
+        return "would-install"
+
+    link.parent.mkdir(parents=True, exist_ok=True)
+    if link.is_symlink() or link.exists():
+        link.unlink()                      # stale/wrong symlink, or our prior copy
+    try:
+        link.symlink_to(rel)
+        return "linked"
+    except OSError:
+        # Windows / no-symlink-permission fallback: copy, marked so we refresh it.
+        src = (link.parent / rel).resolve()
+        link.write_text(_SHIM_MARKER + "\n\n" + src.read_text(encoding="utf-8"),
+                        encoding="utf-8")
+        return "copied"
+
+
 _BLANKET = ".claude/skills/"   # what we used to write — too broad (see below)
-_GI_HEADER = "# canvas-toolbox skills (symlinks into the vendored toolkit)"
+_GI_HEADER = "# canvas-toolbox — what this tool creates (skills + the CLAUDE.md shim)"
 
 
 def ensure_gitignore(course_root: Path, skills: list[str], apply: bool) -> str:
@@ -173,6 +249,10 @@ def ensure_gitignore(course_root: Path, skills: list[str], apply: bool) -> str:
     lines = existing.splitlines()
     wanted = [f".claude/skills/{s}" for s in skills]        # no trailing slash — see above
     legacy = {_BLANKET, *(f"{w}/" for w in wanted)}         # blanket, and 1.14.1's slashed
+    # The CLAUDE.md shim is ignored for the same reason: this tool re-creates it, and
+    # on Windows it is a COPY of AGENTS.md — committing that would ship a duplicate
+    # that drifts from the original. Slashless: it is a symlink, i.e. a file to git.
+    wanted = wanted + [CLAUDE_SHIM]
 
     if any(ln in legacy for ln in lines):
         if not apply:
@@ -619,10 +699,22 @@ def main() -> int:
     for name, status in install_skill_symlinks(plan, args.apply):
         print(f"  {status:16} {name}")
     gi_status = ensure_gitignore(course_root, SKILLS, args.apply)
-    print(f"  gitignore (toolkit skills, by name): {gi_status}")
+    print(f"  gitignore (toolkit skills + CLAUDE.md shim, by name): {gi_status}")
     if gi_status in ("migrated", "would-migrate"):
         print("  ↳ replaced a blanket `.claude/skills/` ignore, which also hid the "
               "course's OWN skills from git (#271). Course-owned skills are now visible.")
+
+    shim_link, shim_rel = plan_claude_shim(course_root)
+    shim_status = install_claude_shim(shim_link, shim_rel, args.apply)
+    print(f"\nCLAUDE.md shim ({CLAUDE_SHIM} → {shim_rel}): {shim_status}")
+    if shim_status in ("linked", "copied", "would-install"):
+        print("  ↳ Claude Code does NOT read AGENTS.md — it reads CLAUDE.md. Without "
+              "this shim this repo's constitution never reaches a session.")
+    elif shim_status == "skip-course-owns":
+        print(f"  ↳ a hand-written {CLAUDE_SHIM} is already here — left untouched. "
+              "Delete it if you want the AGENTS.md shim instead.")
+    elif shim_status == "missing-target":
+        print("  ↳ no AGENTS.md at the course root, so there is nothing to point at.")
 
     fname, status = refresh_pointer(course_root, args.apply)
     print(f"\nConstitution+skills pointer in {fname}: {status}")
