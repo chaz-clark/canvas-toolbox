@@ -19,6 +19,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
@@ -93,14 +95,55 @@ def test_detect_adopter_when_fork_uses_different_owner():
 # ---------------------------------------------------------------------------
 
 def test_env_stub_lists_required_fields():
-    """The stub MUST surface the two required fields by name. COURSE_ID
-    + SANDBOX_ID are mentioned but commented out (optional)."""
+    """The stub MUST surface the two required fields by name."""
     stub = env_stub_content()
     assert "CANVAS_API_TOKEN=" in stub
     assert "CANVAS_BASE_URL=" in stub
-    # Optional fields should be commented (start with #)
-    assert "# CANVAS_COURSE_ID=" in stub
-    assert "# CANVAS_SANDBOX_ID=" in stub
+
+
+@pytest.mark.parametrize("key", [
+    "CANVAS_TIMEZONE",       # DST-correct .imscc date shifting
+    "CANVAS_MODE",           # online/offline — the no-token path
+    "MASTER_COURSE_ID",      # blueprint_sync needs it
+    "BLUEPRINT_COURSE_ID",
+    "PROTECTED_COURSE_IDS",  # course ids the toolkit must never write to
+])
+def test_env_stub_carries_keys_the_hardcoded_copy_had_lost(key):
+    """cb_init used to write its own hardcoded stub, four keys behind
+    .env.example. An operator never saw these, so never set them — and a
+    missing CANVAS_TIMEZONE silently shifts due dates across a DST boundary.
+    Reading the template at write-time is what keeps them from drifting."""
+    assert key in env_stub_content()
+
+
+def test_env_stub_reads_the_injected_template(tmp_path):
+    t = tmp_path / ".env.example"
+    t.write_text("CANVAS_API_TOKEN=\nSENTINEL_KEY=\n", encoding="utf-8")
+    assert "SENTINEL_KEY=" in env_stub_content(t)
+
+
+def test_env_stub_falls_back_when_template_is_missing(tmp_path):
+    """A partial vendored checkout must still yield a usable .env — halting
+    for two required values beats crashing during setup."""
+    stub = env_stub_content(tmp_path / "does-not-exist.example")
+    assert "CANVAS_API_TOKEN=" in stub
+    assert "CANVAS_BASE_URL=" in stub
+
+
+def test_env_stub_falls_back_when_template_is_empty(tmp_path):
+    t = tmp_path / ".env.example"
+    t.write_text("   \n\n", encoding="utf-8")
+    assert "CANVAS_API_TOKEN=" in env_stub_content(t)
+
+
+def test_scaffold_template_is_the_same_file_not_a_copy():
+    """Two .env.example files drifted apart once already — scaffold's had
+    PROTECTED_COURSE_IDS, root's had CANVAS_TIMEZONE/CANVAS_MODE, and cb_init
+    shipped a third version thinner than both. One file, two names."""
+    root = Path(__file__).resolve().parent.parent.parent
+    a = (root / ".env.example").read_text(encoding="utf-8")
+    b = (root / "scaffold" / ".env.example").read_text(encoding="utf-8")
+    assert a == b
 
 
 def test_stub_is_filled_false_for_fresh_stub():
