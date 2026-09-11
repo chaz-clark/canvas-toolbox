@@ -25,6 +25,7 @@ _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
+import cb_init  # noqa: E402
 from cb_init import (  # noqa: E402
     detect_mode_from_remote,
     env_stub_content,
@@ -293,3 +294,62 @@ def test_check_mode_against_tmp_repo(tmp_path):
     assert result.returncode == 0, (
         f"cb-init --check should exit 0; got {result.returncode}\n{out}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Credentials: don't stop a setup to ask for something the machine already has,
+# and never address the halt message to a human at a terminal.
+# ---------------------------------------------------------------------------
+
+def test_credentials_resolve_when_both_present(monkeypatch):
+    monkeypatch.setenv("CANVAS_API_TOKEN", "tok")
+    monkeypatch.setenv("CANVAS_BASE_URL", "https://x.instructure.com")
+    resolved, where = cb_init.credentials_already_resolve()
+    assert resolved is True
+    assert where
+
+
+def test_credentials_do_not_resolve_when_token_missing(monkeypatch, tmp_path):
+    """GLOBAL_CONFIG is repointed at an empty path — without that this reads the
+    DEVELOPER's real ~/.canvas/config and passes for the wrong reason (the same
+    hazard test_env_loader.py documents)."""
+    import _env_loader
+    monkeypatch.setattr(_env_loader, "GLOBAL_CONFIG", tmp_path / "nope")
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.setenv("CANVAS_BASE_URL", "https://x.instructure.com")
+    assert cb_init.credentials_already_resolve()[0] is False
+
+
+def test_step3_is_a_noop_when_credentials_already_resolve(tmp_path, monkeypatch, capsys):
+    """#288 put the token in ~/.canvas/config so it's set ONCE for N courses.
+    Setting up a SECOND course must not halt to demand it again."""
+    monkeypatch.setenv("CANVAS_API_TOKEN", "tok")
+    monkeypatch.setenv("CANVAS_BASE_URL", "https://x.instructure.com")
+    assert cb_init.step_3_env_stub(
+        course_root=tmp_path, auto_yes=True, check_only=False) is True
+    assert not (tmp_path / ".env").exists()          # nothing written
+    assert "no .env needed" in capsys.readouterr().out
+
+
+def test_credential_next_step_is_addressed_to_the_agent(capsys):
+    """AGENTS.md: never hand an instructor a terminal command, an editor, or a
+    file to fill in. cb_init is run BY an agent on their behalf, so the halt
+    message has to tell the AGENT what to do — it used to say 'edit it —
+    VS Code / vim / nano', which the agent relayed verbatim."""
+    cb_init._print_credential_next_step()
+    out = capsys.readouterr().out
+    assert "FOR THE AGENT" in out
+    assert "ASK the instructor IN CHAT" in out
+    assert "WRITE those values into the .env yourself" in out
+    for banned in ("vim", "nano", "open a terminal", "copy-paste"):
+        assert banned not in out.lower(), f"still tells the human to {banned!r}"
+
+
+@pytest.mark.parametrize("banned", ["vim", "nano", "copy-paste", "copy and paste"])
+def test_no_cb_init_message_sends_the_instructor_to_a_terminal(banned):
+    """Guard against the whole class: a reviewer adding a friendly 'just run
+    this in your terminal' line reintroduces the No-Go the audience rule bans."""
+    src = (Path(__file__).resolve().parent.parent / "tools" / "cb_init.py").read_text(
+        encoding="utf-8")
+    printed = "\n".join(ln for ln in src.splitlines() if "print(" in ln)
+    assert banned not in printed.lower(), f"cb_init prints {banned!r} at the operator"
