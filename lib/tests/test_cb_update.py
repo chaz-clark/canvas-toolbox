@@ -170,7 +170,10 @@ def test_ensure_gitignore_migrates_the_legacy_blanket_line(tmp_path):
     assert ".claude/skills/" in _gi_lines(tmp_path)          # dry-run wrote nothing
     assert ensure_gitignore(tmp_path, ["grading"], apply=True) == "migrated"
     lines = _gi_lines(tmp_path)
-    assert lines == ["*.pyc", ".claude/skills/grading", ".env"]  # in place, nothing lost
+    # the CLAUDE.md shim rides in with the corrected set — Claude Code reads
+    # CLAUDE.md, not AGENTS.md, so the shim is ignored for the same reason.
+    assert lines == ["*.pyc", ".claude/skills/grading", ".claude/CLAUDE.md",
+                     ".env"]  # in place, nothing lost
     assert ensure_gitignore(tmp_path, ["grading"], apply=True) == "present"  # idempotent
 
 
@@ -183,7 +186,8 @@ def test_ensure_gitignore_migrates_1_14_1_trailing_slash_lines(tmp_path):
     assert ensure_gitignore(tmp_path, ["grading", "audit"], apply=True) == "migrated"
     # both slashed lines collapse to the corrected set, in place, nothing else lost
     assert _gi_lines(tmp_path) == [
-        "*.pyc", ".claude/skills/grading", ".claude/skills/audit", ".env"]
+        "*.pyc", ".claude/skills/grading", ".claude/skills/audit",
+        ".claude/CLAUDE.md", ".env"]
     assert ensure_gitignore(tmp_path, ["grading", "audit"], apply=True) == "present"
 
 

@@ -819,6 +819,15 @@ The `grade_guardian` hook (installed by `cb-init`) enforces this at the harness.
     agents_md_path.write_text(stub_content, encoding="utf-8")
     print(f"  ✓ Created AGENTS.md stub at {agents_md_path}")
     print("    This file will grow with HERMES learning as you work with Claude.")
+
+    # Claude Code does NOT read AGENTS.md — it reads CLAUDE.md / .claude/CLAUDE.md.
+    # Without this shim the file we just wrote never reaches a session. Imported
+    # here rather than at module scope because cb_update imports THIS module.
+    from cb_update import CLAUDE_SHIM, install_claude_shim, plan_claude_shim
+    link, rel = plan_claude_shim(course_root)
+    status = install_claude_shim(link, rel, apply=True)
+    print(f"  ✓ {CLAUDE_SHIM} → {rel} ({status}) — Claude Code reads CLAUDE.md, "
+          f"not AGENTS.md")
     return True
 
 
