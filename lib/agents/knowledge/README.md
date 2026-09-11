@@ -34,6 +34,7 @@ The twelve files cover overlapping but distinct ground. Quick routing:
 | The layer-routed NLP + LLM hybrid grading architecture (which layer owns which rubric row; priors never score) | [`grader_hybrid_architecture.md`](grader_hybrid_architecture.md) |
 | Whether a course repo should reuse a vendored tool vs. hand-roll one — the custom→vendored migration map + tool-discovery rule | [`toolkit_reuse_knowledge.md`](toolkit_reuse_knowledge.md) |
 | Title IV course-engagement audit — classifying students into UW/UF/Never-Participated/Active by last engagement date for R2T4 reporting (NEW FERPA tier 3 — Downloads-folder named report) | [`course_engagement_audit_knowledge.md`](course_engagement_audit_knowledge.md) |
+| Which tool reads which project instruction file — **Claude Code does NOT read `AGENTS.md`**; the symlink fix, the support matrix, and the disproved "nesting/flattening" hypotheses | [`agent_instruction_files_knowledge.md`](agent_instruction_files_knowledge.md) |
 
 ---
 
