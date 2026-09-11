@@ -193,6 +193,9 @@ COURSE_ROOT, IS_SUBDIRECTORY = detect_course_context()
 # (TOKEN + BASE_URL); COURSE_ID + SANDBOX_ID are usually passed via CLI
 # flags per-command (e.g. `--course-id 12345`) but adopters who work on
 # one course can drop it in env to save typing.
+# FALLBACK ONLY. The real stub is read from `.env.example` at write-time — see
+# env_stub_content(). This minimum exists so a partial vendored checkout (no
+# .env.example on disk) still produces a usable .env instead of crashing.
 ENV_STUB = """# Canvas course configuration
 # This file lives at the course root (not inside canvas-toolbox/).
 # Fill in the REQUIRED values below, then re-run cb-init to continue.
@@ -227,10 +230,33 @@ def detect_mode_from_remote(remote_url: str) -> str:
     return "maintainer" if "chaz-clark/canvas-toolbox" in remote_url else "adopter"
 
 
-def env_stub_content() -> str:
-    """Return the .env stub written when no .env exists. Pure function so
-    tests can assert content without filesystem touches."""
-    return ENV_STUB
+def env_stub_content(template: Path | None = None) -> str:
+    """Return the .env stub written when no .env exists.
+
+    SOURCED FROM `.env.example`, not a hardcoded copy. cb_init used to carry its
+    own `ENV_STUB`, and it had fallen four keys behind the documented template —
+    so every operator set up by cb-init got a .env that never mentioned:
+
+      CANVAS_TIMEZONE       DST-correct .imscc date shifting. Without it a
+                            Saturday 11:59pm due date can land on Sunday across
+                            a daylight-saving boundary.
+      CANVAS_MODE           online/offline — the path for faculty with no token.
+      MASTER_COURSE_ID      required by blueprint_sync.
+      BLUEPRINT_COURSE_ID
+      PROTECTED_COURSE_IDS  course ids this toolkit must never write to.
+
+    A key an operator never sees is a key they never set. One template, read at
+    write-time, is the only way the two cannot drift again.
+
+    `template` is injectable so tests don't depend on the repo's own file.
+    Falls back to the built-in minimum if the template is missing (partial
+    vendored checkout) — halting for two required values beats crashing."""
+    path = template if template is not None else (REPO_ROOT / ".env.example")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return ENV_STUB
+    return text if text.strip() else ENV_STUB
 
 
 def parse_canvas_self_name(payload) -> str:  # noqa: ANN001 — accept anything
