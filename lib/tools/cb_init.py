@@ -94,6 +94,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import shutil
 import subprocess
@@ -445,8 +446,9 @@ def step_1_install_uv(*, auto_yes: bool, check_only: bool) -> bool:
     if not is_uv_installed():
         # The installer adds uv to PATH via shell-rc; this process doesn't pick it up.
         print("  ✓ uv installed but not yet on this shell's PATH.")
-        print("    Open a new terminal (or `source ~/.zshrc` / `~/.bashrc`),")
-        print("    then re-run cb-init.")
+        print("    AGENT: uv is on disk but not on THIS shell's PATH. Re-invoke "
+              "it by absolute path, or start a fresh shell yourself — do not ask "
+              "the instructor to open a terminal.")
         return False
     print("  ✓ uv installed.")
     return True
@@ -473,9 +475,60 @@ def step_2_install_python(*, auto_yes: bool, check_only: bool) -> bool:
     return True
 
 
+def credentials_already_resolve() -> tuple[bool, str]:
+    """(resolved, where) — do CANVAS_API_TOKEN + CANVAS_BASE_URL resolve from
+    ANY sanctioned source: environment, a repo .env, or `~/.canvas/config`?
+
+    #288 added the global file so a token is rotated in ONE place across N
+    course repos. cb_init never consulted it, so setting up a SECOND course
+    halted and demanded a token the machine already had. Checking first is the
+    difference between a stop and a no-op."""
+    try:
+        from _env_loader import load_env, token_source
+    except ImportError:
+        return False, ""
+    try:
+        load_env()
+    except Exception:
+        return False, ""
+    if os.environ.get("CANVAS_API_TOKEN") and os.environ.get("CANVAS_BASE_URL"):
+        return True, token_source()
+    return False, ""
+
+
+def _print_credential_next_step() -> None:
+    """Tell the AGENT what to do — not a human at a terminal.
+
+    AGENTS.md: "Audience = non-technical faculty. Complete actions for them;
+    never hand an instructor a terminal command to copy-paste, `cd` into, or
+    type a confirmation at." cb_init is run BY an agent on the instructor's
+    behalf, but every halt message here used to be addressed to someone sitting
+    at a shell ("edit it — VS Code / vim / nano", "then re-run cb-init"). The
+    agent relayed that faithfully and the instructor got sent to a terminal.
+    The message was for the wrong reader."""
+    print("    NEXT STEP — FOR THE AGENT, NOT THE INSTRUCTOR:")
+    print("      1. ASK the instructor IN CHAT for their Canvas token")
+    print("         (Canvas → Account → Settings → New Access Token) and their")
+    print("         Canvas URL (e.g. https://school.instructure.com).")
+    print("      2. WRITE those values into the .env yourself.")
+    print(f"      3. Better for a multi-course machine: put them in "
+          f"{Path.home() / '.canvas' / 'config'} instead —")
+    print("         one file, every course, one edit per token rotation (#288).")
+    print("      4. Re-run cb-init yourself to continue.")
+    print("    Do NOT hand the instructor a terminal command, an editor, or a")
+    print("    file to fill in. Complete the action for them.")
+
+
 def step_3_env_stub(*, course_root: Path, auto_yes: bool, check_only: bool) -> bool:
     env_path = course_root / ".env"
     old_env_path = REPO_ROOT / ".env"  # v1.5 location
+
+    # #288: the token may already resolve globally — don't stop a setup to ask
+    # for something the machine already has.
+    resolved, where = credentials_already_resolve()
+    if resolved and not env_path.exists():
+        print(f"Step 3/14: ✓ credentials already resolve from {where} — no .env needed.")
+        return True
 
     # v1.6 migration: check for .env in old location (canvas-toolbox/.env)
     if IS_SUBDIRECTORY and not env_path.exists() and old_env_path.exists():
@@ -496,7 +549,7 @@ def step_3_env_stub(*, course_root: Path, auto_yes: bool, check_only: bool) -> b
                 print("    .env is filled — continuing setup.")
                 return True
             print("    .env migrated but required fields are blank.")
-            print("    Fill in CANVAS_API_TOKEN + CANVAS_BASE_URL, then re-run cb-init.")
+            _print_credential_next_step()
             return False
         print("  ⚠ Migration declined — creating new .env stub instead.")
 
@@ -505,7 +558,7 @@ def step_3_env_stub(*, course_root: Path, auto_yes: bool, check_only: bool) -> b
             print("Step 3/14: ✓ .env present + required fields filled — skipping.")
             return True
         print(f"Step 3/14: ⚠ .env exists at {env_path} but required fields are blank.")
-        print("  Fill in CANVAS_API_TOKEN + CANVAS_BASE_URL, then re-run cb-init.")
+        _print_credential_next_step()
         return False
     if check_only:
         print(f"Step 3/14: would write a .env stub to {env_path}.")
@@ -518,10 +571,8 @@ def step_3_env_stub(*, course_root: Path, auto_yes: bool, check_only: bool) -> b
         return False
     env_path.write_text(env_stub_content(), encoding="utf-8")
     print(f"  ✓ Wrote stub to {env_path}.")
-    print("    Now: edit it (any editor — VS Code / vim / nano / etc.),")
-    print("    fill in CANVAS_API_TOKEN + CANVAS_BASE_URL (CANVAS_COURSE_ID is optional),")
-    print("    then re-run cb-init to continue from step 4.")
-    return False  # halt — operator needs to fill in values manually per decision
+    _print_credential_next_step()
+    return False  # halt — the two required values still have to come from somewhere
 
 
 def step_4_uv_sync(*, auto_yes: bool, check_only: bool) -> bool:
