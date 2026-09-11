@@ -189,3 +189,50 @@ def test_missing_agents_md_fails_loudly(tmp_path, monkeypatch):
     (tmp_path / ".canvas-toolbox").mkdir()
     (tmp_path / ".canvas-toolbox" / "AGENTS.md").write_text(SOURCE, encoding="utf-8")
     assert _run(monkeypatch, tmp_path) == 2
+
+
+# ---------------------------------------------------------------------------
+# Stale copies are an OLD REVISION of the constitution, not course content
+# ---------------------------------------------------------------------------
+
+def test_old_revision_lines_are_not_mistaken_for_course_content():
+    """THE BUG A REAL MIGRATION FOUND. A course repo's AGENTS.md was a stale copy
+    of the constitution, and the lines flagged as 'course learning about to be
+    dropped' were the identifier/placeholder-name strings the #307 FERPA scrub had
+    replaced. The gate was refusing to drop exactly what that scrub existed to
+    remove — and would have refused forever on every repo carrying a stale copy.
+
+    (The real values are deliberately NOT reproduced here. Quoting them in a
+    comment about the scrub would undo the scrub — which is how they got back
+    into this file the first time.)"""
+    stale = 'Reopened for user_id 900003 (Cid Cole)'
+    backup = SOURCE + f"\n{stale}\n"
+    assert course_content_lines(backup, SOURCE) == [stale]          # HEAD-only: flagged
+    assert course_content_lines(backup, SOURCE, {stale}) == []      # with history: not
+
+
+def test_real_course_content_survives_the_history_filter():
+    """The filter must not swallow genuine HERMES learning — that is the whole
+    thing the gate protects."""
+    backup = SOURCE + "\nDS460 grades in sprints.\n"
+    assert course_content_lines(backup, SOURCE, {"an old toolkit line"}) == [
+        "DS460 grades in sprints."]
+
+
+def test_verify_passes_when_the_only_extra_lines_are_historical():
+    stale = "an old constitution line"
+    results = verify(_merged(None), SOURCE, SOURCE + f"\n{stale}\n", {stale})
+    assert all(ok for ok, _ in results)
+
+
+def test_verify_still_fails_when_real_course_content_would_be_dropped():
+    results = verify(_merged(None), SOURCE, SOURCE + "\nreal course note\n",
+                     {"unrelated historical line"})
+    assert not all(ok for ok, _ in results)
+    assert any("COURSE LEARNING DROPPED" in m for _, m in results)
+
+
+def test_historical_lines_is_best_effort_on_a_non_repo(tmp_path):
+    """Any git failure returns empty, which falls back to the stricter HEAD-only
+    comparison — erring toward refusing, never toward silently dropping."""
+    assert mc.historical_lines(tmp_path) == set()

@@ -44,6 +44,7 @@ EXIT CODES
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -85,21 +86,59 @@ def split_merged(text: str) -> tuple[str, str | None]:
     return toolkit, course
 
 
-def course_content_lines(backup: str, source: str) -> list[str]:
-    """Lines in the backup that are NOT in the source constitution.
+def historical_lines(clone: Path) -> set[str]:
+    """Every line that has EVER appeared in the toolkit's own AGENTS.md.
 
-    Used to answer one question only: did the OLD file carry course-specific
-    content? If it did, the merged file must still have some. Deliberately a
-    coarse set-difference, not a diff — it decides whether a course section is
-    REQUIRED, and over-counting there is safe (it can only demand a section that
-    a curation pass would keep anyway).
-    """
+    WHY THIS IS NEEDED. A stale course copy of the constitution is an OLD
+    REVISION of this file — not course content. Comparing only against current
+    HEAD classifies those old lines as "course learning about to be dropped",
+    so the gate refuses, and it refuses FOREVER on exactly the repos that most
+    need updating. Worse: forcing past it reinstates whatever the old revision
+    said.
+
+    Found on a real repo. Migrating a course repo whose constitution was a
+    stale copy, the lines flagged as "course content" were the identifier and
+    placeholder-name strings that the #307 FERPA scrub had replaced — i.e. the
+    gate was refusing to drop the very lines that scrub existed to remove.
+
+    118 revisions / ~2.9k unique lines, so this is a few hundred ms. Best
+    effort: on any git failure return empty and fall back to the HEAD-only
+    comparison, which errs toward refusing — never toward silently dropping."""
+    try:
+        shas = subprocess.run(
+            ["git", "-C", str(clone), "log", "--format=%H", "--", "AGENTS.md"],
+            capture_output=True, text=True, check=True).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    seen: set[str] = set()
+    for sha in shas:
+        try:
+            body = subprocess.run(
+                ["git", "-C", str(clone), "show", f"{sha}:AGENTS.md"],
+                capture_output=True, text=True, check=True).stdout
+        except (OSError, subprocess.SubprocessError):
+            continue
+        seen.update(ln.strip() for ln in body.splitlines() if ln.strip())
+    return seen
+
+
+def course_content_lines(backup: str, source: str,
+                         known: frozenset[str] | set[str] = frozenset()) -> list[str]:
+    """Lines in the backup that the COURSE authored — i.e. not in the current
+    constitution and not in any past revision of it (`known`).
+
+    Answers one question: did the OLD file carry course-specific content that a
+    merge must preserve? Over-counting is safe (it can only demand a section a
+    curation pass would keep anyway); under-counting would let real HERMES
+    learning be dropped silently, so the fallback when `known` is empty is the
+    stricter HEAD-only comparison."""
     src = {ln.strip() for ln in source.splitlines() if ln.strip()}
     return [ln for ln in backup.splitlines()
-            if ln.strip() and ln.strip() not in src]
+            if ln.strip() and ln.strip() not in src and ln.strip() not in known]
 
 
-def verify(merged: str, source: str, backup: str | None) -> list[tuple[bool, str]]:
+def verify(merged: str, source: str, backup: str | None,
+           known: frozenset[str] | set[str] = frozenset()) -> list[tuple[bool, str]]:
     """Return [(ok, message)] for every check. Pure — callers do the I/O."""
     results: list[tuple[bool, str]] = []
 
@@ -115,7 +154,7 @@ def verify(merged: str, source: str, backup: str | None) -> list[tuple[bool, str
 
     # 2. Course learning survived.
     if backup is not None:
-        had = course_content_lines(backup, source)
+        had = course_content_lines(backup, source, known)
         if had:
             kept = bool(course_half and course_half.strip())
             results.append((
@@ -179,7 +218,8 @@ def main() -> int:
     if backup is None:
         print(f"merge_cleanup: no {BACKUP_NAME} — verifying current {TARGET_NAME}.")
 
-    results = verify(merged, source, backup)
+    known = historical_lines(source_path.parent)
+    results = verify(merged, source, backup, known)
     for ok, msg in results:
         print(f"  {'✓' if ok else '✗'} {msg}")
     sys.stdout.flush()   # keep the checks above the stderr verdict below
