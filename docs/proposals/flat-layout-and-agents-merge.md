@@ -94,20 +94,28 @@ for f in new_manifest, f != AGENTS.md:     → copy to root (overwrite)
 Deletion tracking is a set difference, not bespoke logic — that is the whole reason the
 hidden clone is worth keeping.
 
-### Collision rule (must be decided before build)
+### Collision rule — resolved by survey, no exclusions needed
 
-The toolkit ships `README.md`, `CHANGELOG.md`, `LICENSE`. `ds460-master` has its **own**
-`README.md` *and* `README_CLARK.md`. Flattening overwrites the course's `README.md` —
-this is a real, demonstrated collision, not hypothetical.
+An earlier draft of this plan proposed excluding `README.md` / `CHANGELOG.md` / `LICENSE`
+from the manifest, on the assumption that a course's own `README.md` would be clobbered.
+**The survey says otherwise — no course repo has a course-authored `README.md`:**
 
-**Proposed:** toolkit `README.md` / `CHANGELOG.md` / `LICENSE` are **excluded from the
-flatten manifest**. They are toolkit-repo artifacts with no function in a course repo —
-the constitution is `AGENTS.md`, not `README.md`. Course keeps its own.
+| Repo | `README.md` |
+|---|---|
+| cse450 · ds250-onln · m119 · mathcourses | none at all |
+| ds460-master | 278 lines — a **stale copy of the toolkit README** (`# Canvas Course Toolkit`) |
+| itm327-master | 282 lines — same stale toolkit copy |
+| ds295r (flat) | 755 lines — the **current** toolkit README, correctly flattened |
+
+Course-authored content lives in `README_CLARK.md` (ds460's is `# DS 460 — Big Data
+Programming & Analytics`), which is **not in the toolkit manifest** and is therefore never
+touched. Including `README.md` in the flatten is correct: it *refreshes* a 278-line stale
+copy to the current 755-line one. No exclusions.
 
 ### Success criteria
 - A file deleted upstream disappears from the course root on next update.
 - No course-owned path is ever written.
-- `README.md` in a course repo survives an update untouched.
+- `README_CLARK.md` (and any other non-manifest file) survives an update untouched.
 
 ---
 
@@ -117,12 +125,32 @@ the constitution is `AGENTS.md`, not `README.md`. Course keeps its own.
 
 1. `mv AGENTS.md AGENTS.merge.md` (old file, carries HERMES learning)
 2. copy `.canvas-toolbox/AGENTS.md` → `AGENTS.md` (fresh constitution)
-3. invoke the **merge skill**
-4. verify (Phase 5)
-5. delete `AGENTS.merge.md` **only after verification passes**
+3. invoke the **merge skill** (LLM judgment — the only non-deterministic step)
+4. run **`merge_cleanup.py`** — mandatory, deterministic, not the agent's call
 
 If the skill never runs or aborts, `AGENTS.merge.md` persists next to a generic
 `AGENTS.md` — a detectable broken state, healed on the next update run. Nothing is lost.
+
+### `merge_cleanup.py` — the gate (**built**)
+
+The merge needs an LLM; deciding whether the merge is *acceptable* does not. Leaving
+that to the same agent that just did the merge means it grades its own homework — it can
+decide cleanup happened, self-attest, and move on. So the split is: **the skill merges,
+`merge_cleanup.py` decides whether the result may be kept.** It deletes
+`AGENTS.merge.md` only when every check passes; on any failure the backup stays and the
+exit code is 2, so the broken state is visible and recoverable.
+
+It is invoked by the **update orchestration**, not by the agent's discretion — the agent
+is called for the judgment portion only.
+
+| Check | Fails when |
+|---|---|
+| Constitution byte-identical to source | the toolkit half was paraphrased or reordered |
+| Course learning survived | backup carried course lines, merged file has no course section |
+| Token budget | ≥ 1200 lines — past the auto-include limit, the file stops loading at session start, silently undoing the merge |
+
+`--check` verifies without deleting. Idempotent: with no backup present it verifies the
+current file and exits 0, so a re-run after a good merge is a clean no-op.
 
 ### Merge skill contract
 
@@ -244,16 +272,26 @@ remote; there is no HERMES content to preserve.
 | Merge skill never runs → broken intermediate state | `.merge.md` persists; state is detectable and healed on next run. Nothing lost. |
 | Flatten clobbers a course file | Manifest-scoped writes + explicit README/CHANGELOG/LICENSE exclusion. |
 | Course repo `git status` floods with toolkit files | Generated `.gitignore` from the manifest, regenerated every update. |
-| Skills discovery at course root is assumed, not proven | **Open — see below.** |
+| Skills discovery — does flat break it? | **No.** `ds295r` (flat) carries all eight skills as **real directories** at `.claude/skills/` — the most standard location there is, strictly more reliable than the symlinks nested depends on. Flat is the reference case, not the risk. |
+| Nested discovery is assumed, not proven | **Open — see below.** |
 
 ---
 
 ## Open question to resolve first
 
-Tests cover symlink *creation*; nothing verifies the agent actually *discovers* skills at a
-course root. The claim rests on `cb_update`'s docstring. Before building Phase 7, open a
-session in `ds460-master` and confirm the toolkit's eight skills appear in the listing and
-the agent knows the FERPA rules unprompted.
+Flat is settled: real directories at `.claude/skills/` is the canonical layout, and
+`ds295r` demonstrates it. What is *not* settled is whether **nested** discovery has been
+working — tests cover symlink *creation*; nothing verifies the agent actually *discovers*
+through them. The claim rests on `cb_update`'s docstring.
 
-If nested discovery already works, flat is a simplification (delete 893 lines of bridging).
-If it does not, flat is a **fix**, and the migration is more urgent.
+**The test:** open a session in `ds460-master` (nested, symlinks) and one in
+`ds295r-ai-engineering` (flat, real dirs). In each, check whether the toolkit's eight
+skills appear in the skill listing, and whether the agent cites the FERPA Zone-2 rules
+unprompted.
+
+| Outcome | Means |
+|---|---|
+| Both show skills | Nested works. Flat is a **simplification** — deletes 893 lines of bridging. |
+| Only flat shows skills | Nested has been silently broken. Flat is a **fix**, and migration is urgent. |
+
+Either answer is useful. Right now Phase 7 would be building on an assumption.
