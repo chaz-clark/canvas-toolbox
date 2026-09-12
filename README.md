@@ -28,6 +28,8 @@ Three small choices before the toolkit is yours:
 
 An **IDE** ("integrated development environment") is the app you'll work in. Pick one, download it, and install it like any other application.
 
+[🎥 Watch the Step 1 video](https://youtu.be/fHYr6IASo4k)
+
 | If you… | Use | Free? | Download |
 |---|---|---|---|
 | **have no strong preference** *(the safe default)* | **Visual Studio Code** — the standard, with the largest selection of AI assistant extensions | yes | [code.visualstudio.com](https://code.visualstudio.com/) |
@@ -43,6 +45,10 @@ An **IDE** ("integrated development environment") is the app you'll work in. Pic
 ## Step 2 — Pick your AI assistant
 
 Use the subscription you **already have** so you don't pay twice. In your IDE, open the **Extensions panel** (the icon that looks like four squares on the side bar), search by the name below, click **Install**, then **sign in** when it prompts you.
+
+[🎥 Watch the Step 2 video](https://youtu.be/c5Y0b2bm3Xk)
+
+[🎥 BYU-Idaho employees: log in to ChatGPT with your CES account](https://video.byui.edu/media/t/1_3z0s18cd) *(BYU-Idaho access required)*
 
 | You already have… | Install this | Sign in with | Link |
 |---|---|---|---|
@@ -64,6 +70,8 @@ Use the subscription you **already have** so you don't pay twice. In your IDE, o
 
 **Create an empty folder on your computer, open it in the IDE you set up in Steps 1 and 2, and paste this prompt to your AI assistant:**
 
+[🎥 Watch the Step 3 video](https://youtu.be/b1gys2PPY7w)
+
 > *"Help me set up Canvas Toolbox for my Canvas course. Please clone https://github.com/chaz-clark/canvas-toolbox into this folder, run `cb-init` to bootstrap everything, and walk me through filling in my Canvas credentials when it pauses."*
 
 That's it. `cb-init` is our one-command bootstrap — it installs `uv` and Python, writes a `.env` stub, syncs dependencies, smoke-tests your Canvas API token, and is **idempotent** (safe to re-run). You'll just need to provide three pieces of information when it asks:
@@ -75,6 +83,12 @@ That's it. `cb-init` is our one-command bootstrap — it installs `uv` and Pytho
 Total time on a fresh machine: ~5 minutes (most of it is the agent installing dependencies in the background).
 
 > 🚀 **Performance for large courses (100+ students or assignments):** Some tools have optional Rust implementations that provide 10-100x speedup. Run `cb-init --with-rust` instead of `cb-init` to enable these optimizations (~500 MB install, 2-5 minutes). Optional in v1.5.x, will become required in v2.x. See [Rust migration strategy](docs/proposals/rust-migration-3-phase-strategy.md) for details.
+
+---
+
+## Step 4 — How to use it
+
+[🎥 Watch the Step 4 video](https://youtu.be/qSsKr4T7SVY)
 
 ---
 
