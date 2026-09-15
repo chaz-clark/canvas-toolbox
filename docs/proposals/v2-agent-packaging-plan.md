@@ -220,6 +220,10 @@ canvas-toolbox/
 │   ├── voicing/SKILL.md
 │   ├── accommodations/SKILL.md
 │   └── title-iv/SKILL.md
+├── .agents/skills/                   # generated Codex workspace adapter
+├── .claude/skills/                   # generated Claude Code workspace adapter
+├── .codex-plugin/
+│   └── plugin.json                   # generated Codex plugin adapter, not canonical
 ├── mcp.json                          # absent/empty until the MCP safety gate passes
 ├── agent-packages/
 │   ├── registry.yaml                 # package inventory + compatibility status
@@ -263,7 +267,9 @@ course-repo/
 ├── AGENTS.md                         # constitution + curated course-specific learning
 ├── agent-packages/                   # flattened runtime-neutral packages
 ├── skills/                           # portable skills; exact discovery verified in Phase 1
-├── <runtime discovery paths>         # generated/local adapters where still required
+├── .agents/skills/                   # generated real directories for Codex discovery
+├── .claude/skills/                   # generated real directories for Claude discovery
+├── <other runtime discovery paths>   # generated/local adapters where still required
 ├── lib/                              # deterministic Canvas tools
 ├── course/                           # local course mirror/source
 ├── grading/                          # protected grading workspace
@@ -461,7 +467,7 @@ Every phase is separately reviewable and ends with tests. Stop at the first fail
       2026-09-14.
 - [x] Run `uv run pytest lib/tests -q` on the unmodified product baseline plus this docs-only
       plan.
-- [ ] Record representative fresh/nested/flat consumer layouts without reading FERPA Zone-2
+- [x] Record representative fresh/nested/flat consumer layouts without reading FERPA Zone-2
       files.
 - [x] Confirm no local commits exist on `main` that are absent from remotes.
 
@@ -469,9 +475,12 @@ Every phase is separately reviewable and ends with tests. Stop at the first fail
 
 ### Phase 1 — Runtime discovery spike and architecture decision record
 
-- [ ] Verify which project instruction files Codex actually loads in VS Code.
-- [ ] Verify which project skill directories Codex actually discovers.
-- [ ] Build a disposable, skills-only Agent Plugins 1.0 fixture with a root `plugin.json` and
+- [x] Verify root `AGENTS.md` loading in a fresh Codex session; complete the VS Code UI check
+      after portable plugin installation.
+- [x] Verify Codex project skill discovery: `.agents/skills/` and `.codex/skills/` pass; root
+      `skills/` is filesystem fallback as an ordinary workspace, while plugin-based discovery
+      remains a separate host test.
+- [x] Build a disposable, skills-only Agent Plugins 1.0 fixture with a root `plugin.json` and
       one harmless probe skill.
 - [ ] Install the fixture directly from a Git URL in VS Code.
 - [ ] Verify whether the Codex VS Code extension can discover and invoke its portable skill.
@@ -479,18 +488,24 @@ Every phase is separately reviewable and ends with tests. Stop at the first fail
 - [ ] Compare direct Git installation, `chat.pluginLocations`, and flattened workspace-local
       skill discovery.
 - [ ] Confirm plugin enable/disable and update behavior without relying on it for safety.
-- [ ] Repeat for Claude Code and GitHub Copilot.
+- [x] Verify Claude Code CLI discovery for `.claude/skills/` and an Agent Plugins root loaded
+      through `--plugin-dir`.
+- [ ] Repeat the VS Code discovery test for Claude Code and GitHub Copilot.
 - [ ] Record Continue.dev/Cline/Antigravity/Positron as tested, degraded, or unsupported.
-- [ ] Test flat real directories, symlinks, and generated pointer files where applicable.
-- [ ] Verify root `AGENTS.md` loading after a fresh session/reload.
+- [x] Test Codex project skills as flat real directories and in-repository symlinks on macOS.
+- [ ] Test generated pointer files where a runtime requires them and real copied directories on
+      Windows.
+- [x] Verify root `AGENTS.md` loading after a fresh ephemeral session; repeat after a VS Code
+      reload.
 - [ ] Verify toolkit skills appear in each host's visible skill/capability list when the host
       exposes one.
-- [ ] Write `docs/architecture/adr-001-runtime-neutral-agent-packages.md` with the measured
-      support matrix and final adapter paths.
+- [x] Create `docs/architecture/adr-001-runtime-neutral-agent-packages.md` and maintain its
+      measured support matrix; finalize adapter paths when the remaining host tests pass.
 - [x] Review the completed `life-pm` OpenWorker/package plan before freezing shared conventions.
 - [x] Record preliminary shared and domain-specific conventions in this plan; preserve the
       final measured decisions in the Phase 1 ADR.
-- [ ] Update this plan if measurements disprove any proposed path.
+- [x] Update this plan with the initial measurements that disproved native Codex discovery from
+      a workspace root `skills/`; continue updating it if later measurements change the path.
 
 **Gate:** Codex, Claude Code, and Copilot adapter paths are based on observed behavior. Codex
 passes every required discovery check. The ADR explicitly decides whether Agent Plugins 1.0 is
@@ -848,3 +863,5 @@ evidence.
 |---|---|---|---|---|
 | 2026-09-14 | Plan created | `d754cca` / #317 | Current code and flatten proposal reviewed; 1374 tests passed in 246.34s | Added Agent Plugins 1.0 as a measured, skills-first portable target; compare `life-pm` before schema freeze |
 | 2026-09-14 | Cross-repository alignment review | pending / #317 | Completed `life-pm` proposal read in full and compared against Canvas package, schema, adapter, distribution, consent, profile, and update decisions | Share the neutral architecture vocabulary without coupling releases; retain domain-specific safety schemas; carry final measured choices into the Phase 1 ADR |
+| 2026-09-14 | Phase 0 complete | pending / #317 | Branch and draft PR verified; 1374-test baseline green; fresh, nested, and flat structural fixtures recorded without reading course or Zone-2 data | Begin runtime discovery; product behavior remains unchanged |
+| 2026-09-14 | Runtime discovery spike (partial) | pending / #317 | Codex root constitution, project paths, real directories, and symlinks measured; Claude project/plugin paths measured; disposable Codex plugin validated; marketplace runtime path defect reproduced and cleaned up | Use root `skills/` as canonical, generate `.agents/skills/` and `.claude/skills/`, keep both plugin manifests thin, and hold Phase 2 until VS Code/Copilot measurements finish |
