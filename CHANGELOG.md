@@ -10,6 +10,25 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`grade_guardian`'s bypass-detection regex would not have caught a script mimicking
+`grader_quiz_clear_pending.py`'s actual write mechanism.**
+
+An audit of every sanctioned Canvas grade/comment writer's real payload against the
+pattern meant to catch bypasses of it found one real gap: a Classic Quiz grade can be
+changed WITHOUT ever touching `posted_grade` or an `/assignments/.../submissions`
+URL — `grader_quiz_clear_pending.py` zeroes a pending question's score via
+`PUT .../quizzes/{qid}/submissions/{id}` with `{"quiz_submissions": [{"questions":
+{q: {"score": 0}}}]}`, a shape `_CANVAS_CTX` didn't cover.
+
+- **`_CANVAS_CTX` now also matches `/quizzes/<anything>/submissions`**, mirroring the
+  existing f-string-tolerant `/assignments/<anything>/submissions` pattern. A
+  hand-written bypass mimicking the quiz-score mechanism is now denied — proven with
+  the actual bypass shape run through `evaluate()`, not just asserted.
+- **`AGENTS.md`'s constitutional wording corrected.** It named only `grader_push.py`
+  and `grader_standing.py` as sanctioned grade/comment writers; `grader_push_comments.py`,
+  `grader_letter_comments.py`, `grader_audit_workflow.py --fix`, and
+  `grader_quiz_clear_pending.py` are equally sanctioned and are now named.
+
 **`canvas_sync.py --push` unconditionally skipped every field for New-Quiz-backed
 assignments, including due/unlock/lock dates (#318).**
 

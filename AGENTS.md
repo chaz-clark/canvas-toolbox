@@ -164,7 +164,12 @@ rule can catch. Both directions are covered above.*
 ## ⚠️ Canvas writes go through the toolkit (constitutional — never overridden)
 
 **Grades and comments reach Canvas ONLY through a sanctioned `lib/tools/` writer:**
-`grader_push.py` (submission feedback) or `grader_standing.py` (the standing column).
+`grader_push.py` (submission feedback, HG-5-gated), `grader_standing.py` (the standing
+column), `grader_push_comments.py` (transports grader-staged, reviewed comments),
+`grader_letter_comments.py` (instructor-authored comment-only, never AI-drafted),
+`grader_audit_workflow.py --fix` (idempotent grade re-post, never a new value), and
+`grader_quiz_clear_pending.py` (zeroes pending quiz scores) — read a tool's own
+docstring before use; none of them accept unreviewed, AI-drafted content.
 **Never** hand-write a Canvas grade/comment write — no custom `requests`/`curl`, no
 inline `python -c`, no `/tmp/*.py`. A direct write skips *every* safeguard at once
 (review gate, duplicate-comment Andon, Test-Student exclusion, grade validation,
