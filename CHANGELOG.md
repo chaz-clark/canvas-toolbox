@@ -10,6 +10,26 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`canvas_sync.py --push` unconditionally skipped every field for New-Quiz-backed
+assignments, including due/unlock/lock dates (#318).**
+
+Migrating a course from Spring to Fall term, 51 New-Quiz-backed quiz files had stale
+due/unlock/lock dates from the old term. Correcting the local `.json` files and running
+`--push` reported "Canvas-only: NewQuiz descriptions must be edited in Canvas UI (API
+not supported)" and silently acknowledged every one as done — 0/51 pushed. The code
+path skipped ALL fields for `item_type == "NewQuiz"`, not just quiz content/settings.
+
+- **`_push_newquiz_dates()`** pushes only `due_at`/`lock_at`/`unlock_at` via
+  `PUT /courses/:id/assignments/:id` — confirmed empirically, not assumed: a clean 200
+  for 25/25 dated New-Quiz assignments in the reporting course. The restriction is real
+  only for the quiz content/settings sidecar (`.newquiz.json` — items, quiz-specific
+  settings), which genuinely has no write support in Canvas's New Quizzes API; date
+  fields live on the standard Assignment object regardless of quiz engine.
+- **Deliberately narrower than `_push_assignment()`** — never sends `description`,
+  `submission_types`, or `grading_type`. Those weren't part of what was tested, and
+  touching `submission_types` on a New-Quiz assignment shell risks breaking its LTI
+  linkage.
+
 **`canvas_course_guard` blocked a due-date push to a course whose term hadn't started.**
 
 A section built before the semester — 25 students enrolled, course still `unpublished`,
