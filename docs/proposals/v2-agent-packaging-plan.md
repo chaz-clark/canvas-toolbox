@@ -531,25 +531,31 @@ Windows measurements still hold the gate open.
 
 ### Phase 2 — Manifest schemas and validator
 
-- [ ] Add the package-manifest JSON Schema.
-- [ ] Add the distribution-manifest JSON Schema.
-- [ ] Add controlled vocabularies for effects, data classes, approvals, and credential names.
-- [ ] Adopt Agent Plugins 1.0's `plugin.json` schema directly for portable metadata; do not
-      duplicate its standard fields in a custom schema without a documented reason.
-- [ ] Define Canvas-specific package metadata separately rather than placing non-portable
+- [x] Add the package-manifest JSON Schema.
+- [x] Add the distribution-manifest JSON Schema.
+- [x] Add controlled vocabularies for effects, data classes, approvals, and credential names.
+- [x] Adopt Agent Plugins 1.0's `plugin.json` schema directly for portable metadata; do not
+      duplicate its standard fields in a custom schema without a documented reason. Vendored
+      unchanged with provenance; diffed byte-identical against upstream on 2026-09-14.
+- [x] Define Canvas-specific package metadata separately rather than placing non-portable
       security fields into `plugin.json`.
-- [ ] Implement a read-only `package_validate.py` tool.
-- [ ] Validate unique ids and filesystem-safe paths.
-- [ ] Validate that declared skills, prompts, tools, references, and assets exist.
-- [ ] Validate that distributed paths are tracked by the hidden clone.
-- [ ] Validate that every known Canvas writer is declared and approval-gated.
-- [ ] Reject Zone-2, secret, raw-submission, and generated grading-output paths.
-- [ ] Emit stable JSON and concise human-readable output.
-- [ ] Add malformed-manifest, unknown-tool, missing-path, undeclared-writer, and forbidden-path
+- [x] Implement a read-only `package_validate.py` tool.
+- [x] Validate unique ids and filesystem-safe paths.
+- [x] Validate that declared skills, prompts, tools, references, and assets exist.
+- [x] Validate that distributed paths are tracked by the hidden clone.
+- [x] Validate that every known Canvas writer is declared and approval-gated.
+- [x] Reject Zone-2, secret, raw-submission, and generated grading-output paths. The Zone-2 and
+      credential portions are derived from `grade_guardian.load_zone2()`/`CREDENTIAL_PATTERNS`
+      rather than hand-copied, after a hand-copied list was found missing
+      `Classlist_Export*.csv` and incorrectly blocking `.env.example` (#278 "ONE PATTERN LIST,
+      NOT TWO" recurrence, caught and fixed before Phase 2 closed).
+- [x] Emit stable JSON and concise human-readable output.
+- [x] Add malformed-manifest, unknown-tool, missing-path, undeclared-writer, and forbidden-path
       fixtures.
-- [ ] Add the validator to CI and pre-commit.
+- [x] Add the validator to CI and pre-commit.
 
-**Gate:** invalid packages fail loudly; current behavior is otherwise unchanged.
+**Gate:** invalid packages fail loudly; current behavior is otherwise unchanged. ✅ 1376 tests
+pass, ruff clean, validator wired into `ci.yml` and `.pre-commit-config.yaml` on 2026-09-14.
 
 ### Phase 3 — Create canonical agent packages
 
@@ -897,3 +903,4 @@ evidence.
 | 2026-09-14 | Copilot Agent Plugin discovery (partial) | pending / #317 | A temporary profile activated the built-in Copilot host; local source installation passed; the plugin and its one skill were visible; `/canvas-toolbox-packaging-probe` returned the expected marker; root `AGENTS.md` remained active | Agent Plugins 1.0 has measured Copilot support but remains an additional output; retain Codex and Claude workspace adapters and finish remote-source, lifecycle, cross-extension, and Windows checks |
 | 2026-09-14 | Copilot Agent Plugin lifecycle (partial) | pending / #317 | Disable changed the visible Skills count from 25 to 24 and removed the Plugins group; re-enable restored both; uninstall changed Installed to zero; all four exact disposable probe/profile paths were removed | Enable, disable, and uninstall are measured passes; update and capability-change presentation remain release-gate measurements |
 | 2026-09-14 | Maintainer test track | pending / #317 | Root README now identifies the v2 branch as pre-beta; `docs/V2_TESTING.md` defines readiness gates from automated fixtures through one-at-a-time `*-master` pilots | Do not migrate a real course until schemas, packages, setup/update, disposable migration, and the testing guide's readiness gate pass |
+| 2026-09-14 | Phase 2 complete | pending / #317 | Package/distribution JSON Schemas added; Agent Plugins 1.0.0 `plugin.json` schema vendored and diffed byte-identical to upstream; `package_validate.py` read-only validator with malformed/unknown-tool/missing-path/undeclared-writer/forbidden-path fixtures; forbidden-path Zone-2/credential patterns re-derived from `grade_guardian` after a hand-copied list was found missing `Classlist_Export*.csv` and over-blocking `.env.example`; validator wired into `ci.yml` and `.pre-commit-config.yaml`; 1376 tests pass, ruff clean | Begin Phase 3: create canonical `course-design`/`grading`/`student-support` package directories and move the eight operating skills into canonical root `skills/` |

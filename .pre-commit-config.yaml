@@ -7,6 +7,9 @@
 # What runs:
 #   1. ruff check    — Python lint (bug-catching; see [tool.ruff] in pyproject.toml)
 #   2. actionlint    — Lint .github/workflows/*.yml for syntax + action issues
+#   3. package-validate — read-only agent-package/distribution/plugin manifest
+#                       validation (v2, #317 Phase 2); fast and deterministic,
+#                       so it runs here rather than waiting for CI.
 #
 # What does NOT run here (deliberate):
 #   - ruff format     — would reformat ~84 existing files on first run. Deferred
@@ -45,3 +48,12 @@ repos:
         # as `./bin/cb-init`, etc., so the extensionless name is the
         # right UX).
         files: '(\.sh$|^bin/cb-)'
+
+  - repo: local
+    hooks:
+      - id: package-validate
+        name: package-validate (agent-package manifests)
+        entry: uv run python lib/tools/package_validate.py --allow-empty
+        language: system
+        pass_filenames: false
+        files: '^(agent-packages/|distribution/|plugin\.json$|schemas/agent-packages/|schemas/vendor/agent-plugins/|lib/tools/package_validate\.py$)'
