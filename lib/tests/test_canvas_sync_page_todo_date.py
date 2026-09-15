@@ -4,6 +4,11 @@ Confirmed on live course 425166 (2026-09-15, M119 Fall date migration, #L21 in
 canvas_api_lessons_learned.md): wiki_page[todo_date] alone returns 200 but
 Canvas does not persist it. wiki_page[todo_date] + wiki_page[student_todo_at]
 together does. _push_page_todo_date must always send both fields.
+
+Also confirmed the same day: clearing an existing todo_date requires an empty
+string, not a JSON null — a null PUT returns 200 but leaves the stale date in
+place (caught only by re-GET after a batch run, since the field's own response
+echoed as if it worked).
 """
 import importlib.util
 import json
@@ -62,14 +67,16 @@ def test_sets_both_fields_together(monkeypatch):
     }
 
 
-def test_clears_with_none(monkeypatch):
+def test_clears_with_empty_string_not_null(monkeypatch):
+    """A JSON null PUT returns 200 but Canvas leaves the stale date in place —
+    only an empty string actually clears it (confirmed live, 2026-09-15)."""
     fake = _install(monkeypatch)
 
     ok = canvas_sync._push_page_todo_date("w14-thursday-class-prep-reminder", None)
 
     assert ok is True
     payload = fake.calls[0][2]
-    assert payload == {"wiki_page": {"todo_date": None, "student_todo_at": None}}
+    assert payload == {"wiki_page": {"todo_date": "", "student_todo_at": ""}}
 
 
 def test_cmd_set_todo_dates_batches_a_mapping_file(monkeypatch, tmp_path):
