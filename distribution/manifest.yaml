@@ -44,6 +44,9 @@ entries:
   - path: .claude/skills
     kind: tree
     install: copy
+  - path: .agents/skills
+    kind: tree
+    install: copy
   - path: scaffold
     kind: tree
     install: copy

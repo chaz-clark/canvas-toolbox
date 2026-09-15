@@ -94,6 +94,9 @@ jobs:
       - name: Check agent-package registry/catalog is current
         run: uv run python lib/tools/package_catalog.py --check
 
+      - name: Check generated skill adapters are current
+        run: uv run python lib/tools/generate_adapters.py --check
+
       # ── Tier 2: ruff lint — bug-catching rules only, see [tool.ruff] in
       # pyproject.toml. v0.53.0 caught a real F821 in course_mirror.py
       # (referenced master_slug never defined). Stylistic rules (F541,

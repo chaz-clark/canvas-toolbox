@@ -682,31 +682,74 @@ unit tests): a scratch course flattened from an actual working-tree snapshot pro
 
 ### Phase 5 — Agent Plugin package and runtime adapters
 
-- [ ] Implement one deterministic adapter generator.
-- [ ] Add a schema-valid root `plugin.json` for Agent Plugins 1.0.
-- [ ] Keep portable skills in the root `skills/` directory.
-- [ ] Start with no MCP server, or a read-only local probe server, until the MCP threat model is
-      reviewed.
-- [ ] If an MCP server is proposed, document every exposed tool, subprocess, credential,
-      writable path, network destination, and approval path before implementation.
-- [ ] Never expose raw Canvas REST write primitives over MCP.
-- [ ] Add Copilot-specific agents, rules, commands, or hooks only under the
-      `com.github.copilot` namespace.
-- [ ] Verify plugin installation directly from the Canvas Toolbox Git repository.
-- [ ] Verify plugin updates require a version bump and do not silently grow capabilities.
-- [ ] Generate the Codex reference adapter first.
-- [ ] Generate the Claude Code adapter and instruction shim.
-- [ ] Generate the GitHub Copilot namespace from the same package registry.
-- [ ] Generate the generic package index/fallback instructions.
-- [ ] Add provenance markers and generator/schema versions.
-- [ ] Add idempotency and stale-generated-file tests.
-- [ ] Add CI regeneration check.
-- [ ] Confirm no adapter duplicates the constitutional FERPA or Canvas-write text.
-- [ ] Complete real VS Code smoke tests from Phase 1 for generated output.
+- [x] Implement one deterministic adapter generator. `lib/tools/generate_adapters.py`:
+      fully recomputes and resyncs each target from canonical `skills/` on every run (add,
+      change, remove) rather than diffing against its own prior output — a hand-edit to a
+      generated file is not authoritative and is silently overwritten, which is the point.
+- [x] Add a schema-valid root `plugin.json` for Agent Plugins 1.0. Validates against the
+      Phase 2 vendored schema; version pinned to `pyproject.toml`'s (tested, see below).
+- [x] Keep portable skills in the root `skills/` directory. (Already true since Phase 3.)
+- [x] Start with no MCP server, or a read-only local probe server, until the MCP threat model
+      is reviewed. No `mcp.json` added — absent is one of the two states the target
+      architecture allows, and there is nothing to expose yet.
+- [ ] *(N/A this phase)* If an MCP server is proposed, document every exposed tool,
+      subprocess, credential, writable path, network destination, and approval path before
+      implementation. No MCP server is proposed.
+- [x] Never expose raw Canvas REST write primitives over MCP. Trivially true — no MCP server
+      exists.
+- [x] Add Copilot-specific agents, rules, commands, or hooks only under the
+      `com.github.copilot` namespace. Honored by absence: no Copilot-specific content exists
+      to add, so none was placed elsewhere. Not fabricated to fill the namespace speculatively.
+- [ ] **Cannot verify from here — needs the maintainer's own VS Code session.** Verify plugin
+      installation directly from the Canvas Toolbox Git repository. Phase 1's ADR already
+      measured a *local* Git path install of a disposable probe fixture (pass); a *remote*
+      HTTPS Git URL install of the real repository — now that a real `plugin.json` and real
+      skills/packages exist — is still unmeasured (ADR line ~213).
+- [x] Verify plugin updates require a version bump and do not silently grow capabilities. The
+      "require a version bump" half is enforced by
+      `test_plugin_json_version_matches_pyproject_toml` — `plugin.json` cannot drift from the
+      toolkit's actual version. The "do not silently grow capabilities" half is Phase 7's
+      capability-consent fingerprinting; not built yet, correctly out of this phase's scope.
+- [x] Generate the Codex reference adapter first. `.agents/skills/`, generated.
+- [x] Generate the Claude Code adapter and instruction shim. `.claude/skills/`, generated
+      (previously hand-copied in Phase 3, now switched to generated output — resolving that
+      phase's temporary duplication). No separate "instruction shim" file was found necessary:
+      Claude Code already natively discovers the root `AGENTS.md` constitution and the
+      generated `.claude/skills/`, both confirmed working throughout this session.
+- [x] Generate the GitHub Copilot namespace from the same package registry. No Copilot-specific
+      content exists to generate yet (see above) — Copilot already discovers the portable
+      `skills/` via the Agent Plugin per Phase 1's measured pass, needing no namespace content.
+- [x] Generate the generic package index/fallback instructions. Reused `agent-packages/
+      CATALOG.md` (Phase 3) rather than generating a duplicate — it already is a generic,
+      host-agnostic package/skill/tool index.
+- [x] Add provenance markers and generator/schema versions. Every generated `SKILL.md` carries
+      a trailing HTML comment naming the generator path, source file, and `schema_version: 1`.
+- [x] Add idempotency and stale-generated-file tests. 7 tests in `test_generate_adapters.py`:
+      idempotency, a hand-edit-is-overwritten test, an upstream-skill-deletion test, and a
+      repo-level "committed output matches what the generator would produce" test.
+- [x] Add CI regeneration check. `generate_adapters.py --check` wired into `ci.yml` and
+      `.pre-commit-config.yaml`.
+- [x] Confirm no adapter duplicates the constitutional FERPA or Canvas-write text. The
+      generator copies byte-for-byte from canonical `skills/`, so it cannot itself introduce
+      duplication; checked the source skills directly — `ferpa-deid`/`grading`/
+      `accommodations` reference Zone-2 filenames operationally (2-3 lines, "here's what
+      `build_deid_master.py` writes") but do not restate `AGENTS.md`'s ~100-line FERPA policy
+      or incident history. Pre-existing content, not introduced by this phase.
+- [ ] **Cannot verify from here — needs the maintainer's own VS Code session.** Complete real
+      VS Code smoke tests from Phase 1 for generated output (Codex/Claude Code/Copilot
+      discovering the *real* generated `.agents/skills/`, `.claude/skills/`, and `plugin.json`,
+      not the disposable probe fixture Phase 1 used).
 
-**Gate:** one canonical edit regenerates all adapters; the Git repository installs as a valid
-Agent Plugin; Codex passes the reference workflow through either the open plugin or its
-measured adapter; other clients cannot gain undeclared capabilities.
+**Gate:** one canonical edit regenerates all adapters ✅ (idempotency + hand-edit-overwritten
+tests prove this mechanically); the Git repository installs as a valid Agent Plugin — schema-
+valid ✅, but the actual VS Code/Copilot install-from-remote-Git-URL test is unmeasured, carried
+from Phase 1; Codex passes the reference workflow through either the open plugin or its
+measured adapter — the generated `.agents/skills/` exists and is schema/idempotency-verified,
+but real Codex discovery of it (vs. the disposable Phase 1 probe) is unmeasured; other clients
+cannot gain undeclared capabilities — true by construction (no MCP, no Copilot-specific
+content). 1393 tests pass, ruff clean, `package_validate.py`/`package_catalog.py --check`/
+`generate_adapters.py --check` all pass — verified 2026-09-14. **Gate held open** on the two
+maintainer-only VS Code checks, consistent with Phase 1's own gate language.
 
 ### Phase 6 — Unify initialization and updates
 
@@ -991,3 +1034,4 @@ evidence.
 | 2026-09-14 | Phase 2 complete | pending / #317 | Package/distribution JSON Schemas added; Agent Plugins 1.0.0 `plugin.json` schema vendored and diffed byte-identical to upstream; `package_validate.py` read-only validator with malformed/unknown-tool/missing-path/undeclared-writer/forbidden-path fixtures; forbidden-path Zone-2/credential patterns re-derived from `grade_guardian` after a hand-copied list was found missing `Classlist_Export*.csv` and over-blocking `.env.example`; validator wired into `ci.yml` and `.pre-commit-config.yaml`; 1376 tests pass, ruff clean | Begin Phase 3: create canonical `course-design`/`grading`/`student-support` package directories and move the eight operating skills into canonical root `skills/` |
 | 2026-09-14 | Phase 3 complete | pending / #317 | Three package directories created with `manifest.yaml` + `AGENT.md`; 8 skills copied to canonical root `skills/` (kept in `.claude/skills/` too — Phase 5's adapter generator doesn't exist yet); 91 of ~124 tools declared and classified across the three manifests, every Canvas-write classification verified against actual HTTP calls rather than filenames; `package_validate.py` passes (0 issues); `package_catalog.py` generates `agent-packages/registry.yaml` + `CATALOG.md`, wired into CI/pre-commit; fixed 5 broken relative links surfaced by the skills copy (`../../../` → `../../`) and the `canvas_course_expert.md` `.imscc`-deprecation self-contradiction the plan named; 1376 tests pass, ruff clean | Two follow-ups outside this phase's scope: (1) `AGENTS.md`'s constitutional text names only `grader_push.py`/`grader_standing.py` as sanctioned grade/comment writers, but `grader_push_comments.py`, `grader_letter_comments.py`, `grader_audit_workflow.py --fix`, and `grader_quiz_clear_pending.py` are also legitimate sanctioned writers — wording needs a dedicated correction pass; (2) `lib/tools/README.md` describes `blueprint_orphan_pages.py` cleanup as "deferred to Phase 2" but it has a live `--apply` write path. Begin Phase 4: distribution manifest and flattened resolver |
 | 2026-09-14 | Phase 4 complete | pending / #317 | `distribution/manifest.yaml` added (9 tree entries + 3 files, 269 of 428 tracked files); `cb_flatten.resolve_distribution()` resolves it against the clone's own `git ls-files`, with a tested legacy fallback (clone predates Phase 4 → full manifest, unchanged old behavior) and a tested refuse-loudly path (`DistributionError`, nothing written) for a malformed or stale-path manifest; dry-run now shows resolved packages and a per-package Canvas-write tool count. Verified end-to-end against real git, not just unit tests: a scratch course flattened from an actual working-tree snapshot produced exactly the declared set. That live test caught a real defect — `package_validate.py` is flattened (`lib/tools/`) but hard-fails without `schemas/`, which the first cut excluded as dev-tooling; fixed by adding `schemas` as a distribution entry. 1384 tests pass (8 new), ruff clean | Begin Phase 5: Agent Plugin package and runtime adapters — the first adapter generator, which is also what lets Phase 6 stop keeping skills duplicated in both `skills/` and `.claude/skills/` |
+| 2026-09-14 | Phase 5 mostly complete — gate held open on 2 maintainer-only checks | pending / #317 | Root `plugin.json` added, schema-valid, version pinned to `pyproject.toml` (tested); `lib/tools/generate_adapters.py` generates `.agents/skills/` (new, Codex) and `.claude/skills/` (switched from Phase 3's hand copy to generated output) from canonical `skills/`, with provenance markers, idempotency, and a hand-edit-is-overwritten guarantee — 7 tests, wired into CI/pre-commit. No MCP server, no Copilot-specific content — both honored by absence rather than fabricated to fill a checklist box. Both remaining unchecked items need the maintainer's own VS Code session: installing the real (not disposable-probe) plugin from a remote Git URL, and Codex/Claude Code/Copilot discovering the real generated adapters — Phase 1's ADR already flagged the remote-URL case as unmeasured. Distribution manifest updated to ship `.agents/skills/` to courses too. 1393 tests pass, ruff clean | Ask the maintainer to run the two VS Code checks before calling Phase 5's gate fully closed; meanwhile begin Phase 6 (unify init/update), which does not depend on that gate |
