@@ -426,7 +426,7 @@ Every phase is separately reviewable and ends with tests. Stop at the first fail
 
 - [x] Create `feat/v2-agent-packaging` from working `main`.
 - [x] Add this plan without changing runtime behavior.
-- [ ] Push the branch and open a draft PR for continuous visibility.
+- [x] Push the branch and open draft PR #317 for continuous visibility.
 - [x] Record baseline test count and runtime: **1374 passed in 246.34 seconds** on
       2026-09-14.
 - [x] Run `uv run pytest lib/tests -q` on the unmodified product baseline plus this docs-only
@@ -815,4 +815,4 @@ evidence.
 
 | Date | Phase | Commit/PR | Evidence | Decision or follow-up |
 |---|---|---|---|---|
-| 2026-09-14 | Plan created | pending | Current code and flatten proposal reviewed; 1374 tests passed in 246.34s | Added Agent Plugins 1.0 as a measured, skills-first portable target; compare `life-pm` before schema freeze |
+| 2026-09-14 | Plan created | `d754cca` / #317 | Current code and flatten proposal reviewed; 1374 tests passed in 246.34s | Added Agent Plugins 1.0 as a measured, skills-first portable target; compare `life-pm` before schema freeze |
