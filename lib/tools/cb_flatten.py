@@ -108,6 +108,15 @@ from merge_cleanup import (
 # or a token/URL pair, not on the nested-vs-flat distinction).
 from cb_init import env_stub_content, smoke_test_canvas, stub_is_filled
 
+from capability_consent import (
+    capability_diff,
+    compute_fingerprint,
+    has_grown,
+    load_approvals,
+    record_approval,
+    render_install_summary,
+)
+
 try:
     from grade_guardian import ensure_hook as _ensure_guardian_hook
 except ImportError:
@@ -339,6 +348,51 @@ def _prune_empty_dirs(start: Path, stop: Path) -> None:
     while cur != stop and cur.is_dir() and not any(cur.iterdir()):
         cur.rmdir()
         cur = cur.parent
+
+
+# ---------------------------------------------------------------------------
+# Capability consent (v2, #317 Phase 7). See capability_consent.py for the
+# fingerprint/diff/approval design; this is only the orchestration glue that
+# decides, for THIS run, whether --apply may proceed.
+# ---------------------------------------------------------------------------
+
+def check_capability_consent(
+    clone: Path, root: Path, package_ids: list[str], approve: set[str], approve_all: bool,
+) -> tuple[bool, list[str], list[tuple[str, dict, str]]]:
+    """(ok, messages, pending_approvals).
+
+    ok=False means refuse --apply: unapproved capability growth exists and
+    neither `--approve <id>` nor `--approve-all` covers it. `pending_approvals`
+    is [(package_id, fingerprint, approved_by)] to persist via record_approval()
+    AFTER a successful apply — never before, so a refused/failed run records
+    nothing."""
+    approvals = load_approvals(root)
+    messages: list[str] = []
+    pending: list[tuple[str, dict, str]] = []
+    blocking = False
+    for pkg_id in package_ids:
+        pkg_path = clone / "agent-packages" / pkg_id / "manifest.yaml"
+        if not pkg_path.is_file():
+            continue
+        package = yaml.safe_load(pkg_path.read_text(encoding="utf-8"))
+        new_fp = compute_fingerprint(package)
+        old_entry = approvals.get(pkg_id)
+        old_fp = old_entry["fingerprint"] if isinstance(old_entry, dict) else None
+        diff = capability_diff(old_fp, new_fp)
+        if has_grown(diff):
+            if pkg_id in approve or approve_all:
+                messages.append(f"approved — {pkg_id}:\n" + render_install_summary(package, diff))
+                pending.append((pkg_id, new_fp, "operator (relayed via --approve)"))
+            else:
+                messages.append(f"NEEDS APPROVAL — {pkg_id}:\n" + render_install_summary(package, diff))
+                blocking = True
+        else:
+            # No growth: proceed without asking (checklist: "do not require
+            # special approval for wording-only or capability-reducing
+            # updates"), but still refresh the stored baseline so the NEXT
+            # diff is computed against current reality, not a stale one.
+            pending.append((pkg_id, new_fp, "auto (no capability growth)"))
+    return (not blocking), messages, pending
 
 
 # ---------------------------------------------------------------------------
@@ -654,6 +708,16 @@ def main() -> int:
     ap.add_argument("--pull", action="store_true",
                     help="git pull the hidden clone first, then re-sync")
     ap.add_argument("--apply", action="store_true", help="write (else dry-run)")
+    ap.add_argument(
+        "--approve", action="append", default=[], metavar="PACKAGE_ID",
+        help="approve capability growth for this package (repeatable). Relay the "
+             "printed summary to the instructor first — this flag is how an agent "
+             "records that consent, not a substitute for asking.",
+    )
+    ap.add_argument(
+        "--approve-all", action="store_true",
+        help="approve capability growth for every package this run touches.",
+    )
     args = ap.parse_args()
 
     root: Path = args.course_root
@@ -707,6 +771,24 @@ def main() -> int:
         canvas_writes = sum(1 for t in pkg.get("tools", []) if t.get("effect", "").startswith("canvas_"))
         print(f"  package {pkg_id}: {len(pkg.get('tools', []))} tools "
               f"({canvas_writes} touch Canvas, always-confirmed)")
+
+    consent_ok, consent_messages, pending_approvals = check_capability_consent(
+        clone, root, packages, set(args.approve), args.approve_all
+    )
+    if consent_messages:
+        print("\ncapability consent:")
+        for msg in consent_messages:
+            for line in msg.splitlines():
+                print(f"  {line}")
+    if not consent_ok:
+        print(
+            "\n🔴 capability growth needs approval before this can proceed — see "
+            "NEEDS APPROVAL above.\n   AGENT: relay each summary to the instructor in "
+            "chat. On their explicit yes, re-run with `--approve <package-id>` (or "
+            "`--approve-all`).\n   Nothing was written.",
+            file=sys.stderr,
+        )
+        return 2
 
     counts = apply_sync(clone, root, to_copy, to_delete, args.apply)
     verb = "wrote" if args.apply else "would write"
@@ -762,6 +844,12 @@ def main() -> int:
         print("\n🔴 update applied, but verification FAILED — see ✗ above. "
               "Not reporting this as complete.", file=sys.stderr)
         return 2
+
+    # Record approvals only now — after every write succeeded and verification
+    # passed. A refused or failed run must never persist an approval; the next
+    # attempt should see the same pending consent it saw this time.
+    for pkg_id, fingerprint, approved_by in pending_approvals:
+        record_approval(root, pkg_id, fingerprint, approved_by)
 
     if to_copy or to_delete:
         print(f"\n{RELOAD_NOTICE}")

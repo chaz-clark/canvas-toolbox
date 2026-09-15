@@ -855,18 +855,48 @@ verified 2026-09-15.
 
 ### Phase 7 — Capability consent and change detection
 
-- [ ] Render a concise install summary for each selected package.
-- [ ] Show Canvas-write tools, student-data classes, credential names, and network scope.
-- [ ] Persist the approved package/capability fingerprint without storing secrets.
-- [ ] Compare installed versus proposed capability sets during update.
-- [ ] Require explicit approval when capabilities grow.
-- [ ] Do not require special approval for wording-only or capability-reducing updates.
-- [ ] Ensure a package cannot approve itself or modify the stored approval.
-- [ ] Add tests for added writer, added data class, added connector/network scope, removal, and
-      wording-only changes.
-- [ ] Make clear that tool/hook enforcement remains authoritative.
+- [x] Render a concise install summary for each selected package.
+      `capability_consent.render_install_summary()`.
+- [x] Show Canvas-write tools, student-data classes, credential names, and network scope. Shown
+      by NAME, not just a count — the instructor approves specific capabilities. Verified in a
+      real run's actual output, not just a unit test.
+- [x] Persist the approved package/capability fingerprint without storing secrets.
+      `.canvas-toolbox-approvals.json` at the course root (plain JSON, git-tracked like
+      `AGENTS.md`); a fingerprint holds credential NAMES only (the schema never allows a value
+      there) — tested explicitly.
+- [x] Compare installed versus proposed capability sets during update.
+      `capability_diff(old, new)` against the LAST APPROVED fingerprint (not the last-
+      flattened one, so an unapproved growth from several versions back stays visible).
+- [x] Require explicit approval when capabilities grow. `cb_flatten.py` refuses `--apply`
+      (exit 2, nothing written) when any package's fingerprint gained a Canvas writer, effect,
+      data class, credential, or network scope since its last approval, unless covered by
+      `--approve <id>` / `--approve-all`.
+- [x] Do not require special approval for wording-only or capability-reducing updates. A
+      version bump or description change with no new capability-bearing entries proceeds
+      without asking; a REMOVED capability is likewise not growth.
+- [x] Ensure a package cannot approve itself or modify the stored approval. The schema doesn't
+      define an "approved" field; nothing in `capability_consent.py` reads manifest content to
+      decide consent. `record_approval()` is the ONLY function that writes approval state and
+      requires an explicit `approved_by` string the caller (a human-driven `--approve`
+      invocation) supplies — never inferred from the package. Tested directly: a manifest that
+      tries to declare `"approved": true` has zero effect.
+- [x] Add tests for added writer, added data class, added connector/network scope, removal, and
+      wording-only changes. All five present in `test_capability_consent.py` (19 tests total).
+- [x] Make clear that tool/hook enforcement remains authoritative. Stated explicitly in
+      `capability_consent.py`'s module docstring: this gates the INSTALL decision only and has
+      no relationship to `grade_guardian`/`canvas_course_guard`/HG-5, which it cannot weaken.
 
-**Gate:** capability growth cannot be installed silently.
+**Real end-to-end verification, not just unit tests:** a fresh flat install of all 3 real
+packages was refused (exit 2, confirmed nothing written down to `ls -a`) since nothing had
+ever been approved; `--approve-all` then let it proceed and recorded all 3 fingerprints; a
+no-change re-run proceeded silently; a real manifest edit adding a new Canvas-write tool to
+one package was caught and blocked on the next run, scoped correctly to ONLY that package
+(the other two, unchanged, needed no re-approval); `--approve student-support` (one package)
+resolved it and the new tool's id appeared in the recorded fingerprint.
+
+**Gate:** capability growth cannot be installed silently. ✅ Proven with a real manifest change
+routed through the actual CLI, not simulated. 1443 tests pass (19 new), ruff clean — verified
+2026-09-15.
 
 ### Phase 8 — Compatibility and migration tooling
 
@@ -1110,3 +1140,4 @@ evidence.
 | 2026-09-14 | Phase 4 complete | pending / #317 | `distribution/manifest.yaml` added (9 tree entries + 3 files, 269 of 428 tracked files); `cb_flatten.resolve_distribution()` resolves it against the clone's own `git ls-files`, with a tested legacy fallback (clone predates Phase 4 → full manifest, unchanged old behavior) and a tested refuse-loudly path (`DistributionError`, nothing written) for a malformed or stale-path manifest; dry-run now shows resolved packages and a per-package Canvas-write tool count. Verified end-to-end against real git, not just unit tests: a scratch course flattened from an actual working-tree snapshot produced exactly the declared set. That live test caught a real defect — `package_validate.py` is flattened (`lib/tools/`) but hard-fails without `schemas/`, which the first cut excluded as dev-tooling; fixed by adding `schemas` as a distribution entry. 1384 tests pass (8 new), ruff clean | Begin Phase 5: Agent Plugin package and runtime adapters — the first adapter generator, which is also what lets Phase 6 stop keeping skills duplicated in both `skills/` and `.claude/skills/` |
 | 2026-09-14 | Phase 5 mostly complete — gate held open on 2 maintainer-only checks | pending / #317 | Root `plugin.json` added, schema-valid, version pinned to `pyproject.toml` (tested); `lib/tools/generate_adapters.py` generates `.agents/skills/` (new, Codex) and `.claude/skills/` (switched from Phase 3's hand copy to generated output) from canonical `skills/`, with provenance markers, idempotency, and a hand-edit-is-overwritten guarantee — 7 tests, wired into CI/pre-commit. No MCP server, no Copilot-specific content — both honored by absence rather than fabricated to fill a checklist box. Both remaining unchecked items need the maintainer's own VS Code session: installing the real (not disposable-probe) plugin from a remote Git URL, and Codex/Claude Code/Copilot discovering the real generated adapters — Phase 1's ADR already flagged the remote-URL case as unmeasured. Distribution manifest updated to ship `.agents/skills/` to courses too. 1393 tests pass, ruff clean | Ask the maintainer to run the two VS Code checks before calling Phase 5's gate fully closed; meanwhile begin Phase 6 (unify init/update), which does not depend on that gate |
 | 2026-09-15 | Phase 6 complete, scoped to the flat orchestration only | pending / #317 | After reading `cb_init.py`/`cb_update.py` (1926 lines total) and finding both implement the OLD nested-subdirectory architecture, scope was narrowed (maintainer-approved) to building the new flat orchestration on `cb_flatten.py` rather than rewriting the nested tools or migrating the six existing repos — both explicitly deferred. Delivered: the AGENTS.md merge workflow (`plan_agents_md_merge`/`apply_agents_md_step`, deterministic backup+replace; `merge_cleanup.py` remains the separate correctness gate); fresh-install bootstrap (`.env` stub, guardian hook, read-only Canvas smoke test); a 6-check verification report gating `--apply`'s success on real evidence; the weekly fail-open staleness check in `_env_loader.load_env()`; one shared `RELOAD_NOTICE` constant. **A real safety bug was found and fixed along the way**: `grade_guardian.ensure_hook()` always hardcoded the nested `canvas-toolbox/` path prefix, so a flat-mode guardian hook would install into `.claude/settings.json` but reference a script path that never exists there — installed, but silently inert by the hook's own fail-open design. Proven both broken and then fixed with a real bypass script run through the actual flattened hook command (not just a unit test). Entire cycle (fresh install → course content added → upstream constitution changes → merge triggers → agent curates → `merge_cleanup` verifies and removes backup → re-run is idempotent) verified against real git and real files, not just synthetic fixtures. 1424 tests pass (68 new), ruff clean | `cb_init.py`/`cb_update.py` rewrite and the six-repo migration remain for a later phase, gated on pilot testing per `docs/V2_TESTING.md`; begin Phase 7 (capability consent and change detection) |
+| 2026-09-15 | Phase 7 complete | pending / #317 | `lib/tools/capability_consent.py` added: fingerprint/diff/render/persist for package capability growth, gated into `cb_flatten.py`'s `--apply` path via `check_capability_consent()`. Approval state persists at `.canvas-toolbox-approvals.json` (course root, git-tracked, no secrets — credential NAMES only). Self-approval is structurally impossible: the schema defines no "approved" field and `record_approval()` is the sole writer, requiring an explicit `approved_by` the caller supplies. Verified end-to-end against the real CLI, not simulated: a fresh install of all 3 real packages was refused (exit 2, confirmed nothing written); `--approve-all` let it proceed and recorded fingerprints; a real manifest edit adding a Canvas-write tool was caught and blocked on the next run, scoped to only the changed package; `--approve student-support` resolved it. 1443 tests pass (19 new), ruff clean | Begin Phase 8 (compatibility and migration tooling) — this is where the deferred `cb_init.py`/`cb_update.py` rewrite and the six nested-repo migrations belong, gated on `docs/V2_TESTING.md`'s pilot readiness |
