@@ -900,20 +900,69 @@ routed through the actual CLI, not simulated. 1443 tests pass (19 new), ruff cle
 
 ### Phase 8 — Compatibility and migration tooling
 
-- [ ] Detect standalone toolkit, nested 1.x consumer, already-flat consumer, and non-Canvas
-      consumer modes.
-- [ ] Add dry-run migrations for each supported source layout.
-- [ ] Preserve course-owned `AGENTS.md` learning through the merge gate.
-- [ ] Preserve course-owned skills and host configuration.
-- [ ] Rewrite old toolkit paths only inside toolkit-owned/generated content.
-- [ ] Never rewrite arbitrary course prose without an explicit reviewed plan.
-- [ ] Preserve `.env`, global Canvas credentials, course mirrors, grading data, and handoffs.
-- [ ] Keep old toolkit clone/content until all post-migration verification passes.
-- [ ] Provide a recoverable rollback to the previous hidden-clone commit and installed set.
-- [ ] Add migration fixtures for Windows copy fallback and symlink-free environments.
+- [x] Detect standalone toolkit, nested 1.x consumer, already-flat consumer, and non-Canvas
+      consumer modes. `migrate_nested_to_flat.detect_layout()`; flat wins over a stray leftover
+      nested directory (a half-finished `--finalize`) so re-running never re-migrates something
+      already migrated.
+- [x] Add dry-run migrations for each supported source layout. `plan_migration()` is read-only;
+      the CLI's default (no `--apply`) halts after the first step so nothing downstream is
+      planned against a clone that doesn't exist yet — same convention as `cb_flatten.py`.
+- [x] Preserve course-owned `AGENTS.md` learning through the merge gate. Delegates to Phase 6's
+      already-built `plan_agents_md_merge()`/`apply_agents_md_step()`/`merge_cleanup.py` rather
+      than reimplementing — verified real: a course-content marker survived backup → fresh
+      constitution → curation → `merge_cleanup` pass, byte for byte.
+- [x] Preserve course-owned skills and host configuration. `remove_stale_skill_links()` /
+      `remove_stale_claude_shim()` only ever remove a symlink or a `.cb_managed`-marked Windows
+      copy — a real, unmarked directory (a course's own same-named skill, or a hand-written
+      `CLAUDE.md`) is left untouched, tested directly.
+- [x] Rewrite old toolkit paths only inside toolkit-owned/generated content.
+      `fix_stale_guardian_hook()` replaces ONLY a `grade_guardian` hook whose path resolves
+      under the nested `canvas-toolbox/` subdirectory; a hook already at the flat path is left
+      alone (`already-flat`), and any other hook — including a genuine course customization —
+      is also left alone (`course-customized`). Distinguishing those two required a real fix
+      mid-build: the first cut folded "already correctly migrated" into the same label as "a
+      course's real customization," which would have misreported the common case.
+- [x] Never rewrite arbitrary course prose without an explicit reviewed plan. No function in
+      this tool touches course content — `.env`, `course/`, `grading/`, `handoffs/` are never
+      referenced anywhere in it.
+- [x] Preserve `.env`, global Canvas credentials, course mirrors, grading data, and handoffs.
+      None of these paths are in the distribution manifest this tool flattens against, so
+      they're untouched by construction — verified: `.env` byte-identical before/after in every
+      real fixture run.
+- [x] Keep old toolkit clone/content until all post-migration verification passes.
+      `relocate_nested_clone()` CLONES (never renames/moves) — the old `canvas-toolbox/` is
+      never touched until the separate, explicit `--finalize` step, which itself requires the
+      same 6-check `verification_report()` to pass first.
+- [x] Provide a recoverable rollback to the previous hidden-clone commit and installed set.
+      `rollback()` handles both pre-finalize (old clone untouched — just undo what this tool
+      wrote, restore `AGENTS.merge.md` → `AGENTS.md`) and post-finalize (reconstruct
+      `canvas-toolbox/` by cloning `.canvas-toolbox/`'s own history back out; the flattened
+      files are deliberately NOT removed post-finalize, since they're the only working copy by
+      then and removing them would leave the course broken rather than merely un-migrated).
+      Both paths verified against real fixtures.
+- [x] Add migration fixtures for Windows copy fallback and symlink-free environments.
+      `test_remove_stale_skill_links_removes_the_windows_copy_fallback` exercises the
+      `.cb_managed`-marked directory `cb_update.py` creates when a symlink can't be made.
+
+**A real, non-trivial gap was found and fixed by testing, not assumed away**: the first cut of
+`finalize_migration()` let `--finalize` remove the old nested clone even when an earlier
+`merge_cleanup.py` run had failed and correctly retained `AGENTS.merge.md` — nothing was
+actually lost (the pending merge doesn't depend on the nested clone's existence at all, since
+`merge_cleanup.py` reads from `.canvas-toolbox/`), but `finalize: finalized` gave no indication
+anything was still open. Added a distinct `finalized-merge-pending` status with an explicit
+next-step message, caught by deliberately reproducing the failure with a real
+`merge_cleanup.py` run rather than only unit-testing the happy path.
+
+**Verified end-to-end against real git and real fixtures repeatedly**, not just unit tests:
+full happy path (fresh migration → merge → finalize → clean no-op on re-run), pre-finalize
+rollback (constitution restored to its exact original content), post-finalize rollback
+(nested clone reconstructed with full git history), and finalize with a genuinely failed
+merge (the gap above, found this way).
 
 **Gate:** every supported 1.x layout migrates without losing course-owned content or exposing
-protected data.
+protected data. ✅ — verified against synthetic fixtures only; no real `*-master` repo was
+touched, per `docs/V2_TESTING.md`'s explicit gate. 1483 tests pass (34 new), ruff clean —
+verified 2026-09-15.
 
 ### Phase 9 — Safety regression suite
 
@@ -1141,3 +1190,4 @@ evidence.
 | 2026-09-14 | Phase 5 mostly complete — gate held open on 2 maintainer-only checks | pending / #317 | Root `plugin.json` added, schema-valid, version pinned to `pyproject.toml` (tested); `lib/tools/generate_adapters.py` generates `.agents/skills/` (new, Codex) and `.claude/skills/` (switched from Phase 3's hand copy to generated output) from canonical `skills/`, with provenance markers, idempotency, and a hand-edit-is-overwritten guarantee — 7 tests, wired into CI/pre-commit. No MCP server, no Copilot-specific content — both honored by absence rather than fabricated to fill a checklist box. Both remaining unchecked items need the maintainer's own VS Code session: installing the real (not disposable-probe) plugin from a remote Git URL, and Codex/Claude Code/Copilot discovering the real generated adapters — Phase 1's ADR already flagged the remote-URL case as unmeasured. Distribution manifest updated to ship `.agents/skills/` to courses too. 1393 tests pass, ruff clean | Ask the maintainer to run the two VS Code checks before calling Phase 5's gate fully closed; meanwhile begin Phase 6 (unify init/update), which does not depend on that gate |
 | 2026-09-15 | Phase 6 complete, scoped to the flat orchestration only | pending / #317 | After reading `cb_init.py`/`cb_update.py` (1926 lines total) and finding both implement the OLD nested-subdirectory architecture, scope was narrowed (maintainer-approved) to building the new flat orchestration on `cb_flatten.py` rather than rewriting the nested tools or migrating the six existing repos — both explicitly deferred. Delivered: the AGENTS.md merge workflow (`plan_agents_md_merge`/`apply_agents_md_step`, deterministic backup+replace; `merge_cleanup.py` remains the separate correctness gate); fresh-install bootstrap (`.env` stub, guardian hook, read-only Canvas smoke test); a 6-check verification report gating `--apply`'s success on real evidence; the weekly fail-open staleness check in `_env_loader.load_env()`; one shared `RELOAD_NOTICE` constant. **A real safety bug was found and fixed along the way**: `grade_guardian.ensure_hook()` always hardcoded the nested `canvas-toolbox/` path prefix, so a flat-mode guardian hook would install into `.claude/settings.json` but reference a script path that never exists there — installed, but silently inert by the hook's own fail-open design. Proven both broken and then fixed with a real bypass script run through the actual flattened hook command (not just a unit test). Entire cycle (fresh install → course content added → upstream constitution changes → merge triggers → agent curates → `merge_cleanup` verifies and removes backup → re-run is idempotent) verified against real git and real files, not just synthetic fixtures. 1424 tests pass (68 new), ruff clean | `cb_init.py`/`cb_update.py` rewrite and the six-repo migration remain for a later phase, gated on pilot testing per `docs/V2_TESTING.md`; begin Phase 7 (capability consent and change detection) |
 | 2026-09-15 | Phase 7 complete | pending / #317 | `lib/tools/capability_consent.py` added: fingerprint/diff/render/persist for package capability growth, gated into `cb_flatten.py`'s `--apply` path via `check_capability_consent()`. Approval state persists at `.canvas-toolbox-approvals.json` (course root, git-tracked, no secrets — credential NAMES only). Self-approval is structurally impossible: the schema defines no "approved" field and `record_approval()` is the sole writer, requiring an explicit `approved_by` the caller supplies. Verified end-to-end against the real CLI, not simulated: a fresh install of all 3 real packages was refused (exit 2, confirmed nothing written); `--approve-all` let it proceed and recorded fingerprints; a real manifest edit adding a Canvas-write tool was caught and blocked on the next run, scoped to only the changed package; `--approve student-support` resolved it. 1443 tests pass (19 new), ruff clean | Begin Phase 8 (compatibility and migration tooling) — this is where the deferred `cb_init.py`/`cb_update.py` rewrite and the six nested-repo migrations belong, gated on `docs/V2_TESTING.md`'s pilot readiness |
+| 2026-09-15 | Phase 8 complete | pending / #317 | `lib/tools/migrate_nested_to_flat.py` added: detect nested/flat/standalone/unknown layout; relocate the nested clone via a LOCAL git clone (never a rename — the old `canvas-toolbox/` stays untouched until a separate, explicit `--finalize`); remove stale skill symlinks and the Windows copy-fallback (never a course-owned real directory); delegate the actual flatten/merge/verify to Phase 4/6's already-built `cb_flatten.py` machinery rather than reimplementing it; replace ONLY a `grade_guardian` hook pointing at the nested subdirectory, leaving an already-flat or genuinely-customized hook alone; `--finalize` requires the same 6-check verification to pass; `rollback()` handles both pre- and post-finalize. A real gap was found and fixed by testing rather than assumed away: `--finalize` originally let the old clone be removed even when an earlier `merge_cleanup.py` run had failed and correctly retained `AGENTS.merge.md` — nothing was actually lost, but the status gave no indication anything was still open; added a distinct `finalized-merge-pending` status. Verified repeatedly against real git and real fixtures (never a real `*-master` repo, per `docs/V2_TESTING.md`): full happy path, pre- and post-finalize rollback, and finalize-with-a-failed-merge. 1483 tests pass (34 new), ruff clean | Begin Phase 9 (safety regression suite) — the deferred `cb_init.py`/`cb_update.py` rewrite and running this migration tool against a real `*-master` repo both remain pilot-gated, not part of this phase |
