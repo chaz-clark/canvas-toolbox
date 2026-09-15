@@ -475,30 +475,37 @@ Every phase is separately reviewable and ends with tests. Stop at the first fail
 
 ### Phase 1 — Runtime discovery spike and architecture decision record
 
-- [x] Verify root `AGENTS.md` loading in a fresh Codex session; complete the VS Code UI check
-      after portable plugin installation.
+- [x] Verify root `AGENTS.md` loading in fresh Codex CLI and VS Code sessions.
 - [x] Verify Codex project skill discovery: `.agents/skills/` and `.codex/skills/` pass; root
       `skills/` is filesystem fallback as an ordinary workspace, while plugin-based discovery
       remains a separate host test.
 - [x] Build a disposable, skills-only Agent Plugins 1.0 fixture with a root `plugin.json` and
       one harmless probe skill.
 - [ ] Install the fixture directly from a Git URL in VS Code.
-- [ ] Verify whether the Codex VS Code extension can discover and invoke its portable skill.
+- [x] Verify the Codex VS Code extension discovers and invokes the generated
+      `.agents/skills/` adapter.
+- [ ] Verify whether the Codex VS Code extension consumes a VS Code-installed portable plugin;
+      the measured installation lacks the Agent Plugins host UI without GitHub Copilot.
 - [ ] Verify the same fixture with GitHub Copilot in VS Code.
 - [ ] Compare direct Git installation, `chat.pluginLocations`, and flattened workspace-local
-      skill discovery.
+      skill discovery; workspace-local Codex and Claude paths pass, while the first two require
+      an approved Copilot-enabled profile.
 - [ ] Confirm plugin enable/disable and update behavior without relying on it for safety.
 - [x] Verify Claude Code CLI discovery for `.claude/skills/` and an Agent Plugins root loaded
       through `--plugin-dir`.
-- [ ] Repeat the VS Code discovery test for Claude Code and GitHub Copilot.
+- [x] Repeat workspace-local discovery in the Claude Code VS Code extension; `.claude/skills/`
+      passes and `.agents/skills/` is not discovered there.
+- [ ] Repeat portable-plugin discovery in Claude Code after the VS Code plugin host is available.
+- [ ] Repeat the VS Code discovery test for GitHub Copilot.
 - [ ] Record Continue.dev/Cline/Antigravity/Positron as tested, degraded, or unsupported.
 - [x] Test Codex project skills as flat real directories and in-repository symlinks on macOS.
 - [ ] Test generated pointer files where a runtime requires them and real copied directories on
       Windows.
 - [x] Verify root `AGENTS.md` loading after a fresh ephemeral session; repeat after a VS Code
       reload.
-- [ ] Verify toolkit skills appear in each host's visible skill/capability list when the host
-      exposes one.
+- [x] Verify generated workspace skills appear in Codex and Claude Code UI: Codex rendered named
+      skill context and Claude exposed the slash skill and reported its `.claude/skills/` source.
+- [ ] Verify the portable skill in GitHub Copilot's visible skills list.
 - [x] Create `docs/architecture/adr-001-runtime-neutral-agent-packages.md` and maintain its
       measured support matrix; finalize adapter paths when the remaining host tests pass.
 - [x] Review the completed `life-pm` OpenWorker/package plan before freezing shared conventions.
@@ -509,7 +516,9 @@ Every phase is separately reviewable and ends with tests. Stop at the first fail
 
 **Gate:** Codex, Claude Code, and Copilot adapter paths are based on observed behavior. Codex
 passes every required discovery check. The ADR explicitly decides whether Agent Plugins 1.0 is
-the primary VS Code package, an additional adapter, or Copilot-only in practice.
+the primary VS Code package, an additional adapter, or Copilot-only in practice. Current measured
+decision: it is an additional portable/Copilot-hosted output; Codex and Claude Code use generated
+workspace adapters. Copilot and Windows measurements still hold the gate open.
 
 ### Phase 2 — Manifest schemas and validator
 
@@ -865,3 +874,4 @@ evidence.
 | 2026-09-14 | Cross-repository alignment review | pending / #317 | Completed `life-pm` proposal read in full and compared against Canvas package, schema, adapter, distribution, consent, profile, and update decisions | Share the neutral architecture vocabulary without coupling releases; retain domain-specific safety schemas; carry final measured choices into the Phase 1 ADR |
 | 2026-09-14 | Phase 0 complete | pending / #317 | Branch and draft PR verified; 1374-test baseline green; fresh, nested, and flat structural fixtures recorded without reading course or Zone-2 data | Begin runtime discovery; product behavior remains unchanged |
 | 2026-09-14 | Runtime discovery spike (partial) | pending / #317 | Codex root constitution, project paths, real directories, and symlinks measured; Claude project/plugin paths measured; disposable Codex plugin validated; marketplace runtime path defect reproduced and cleaned up | Use root `skills/` as canonical, generate `.agents/skills/` and `.claude/skills/`, keep both plugin manifests thin, and hold Phase 2 until VS Code/Copilot measurements finish |
+| 2026-09-14 | VS Code extension discovery (partial) | pending / #317 | Codex invoked the generated `.agents/skills/` probe; Claude Code invoked and identified `.claude/skills/`; Agent Plugins commands/UI were absent without GitHub Copilot, so no portable plugin was installed | Keep workspace adapters as the subscription-extension baseline; treat Agent Plugins 1.0 as an additional portable/Copilot-hosted output pending an approved Copilot profile test |
