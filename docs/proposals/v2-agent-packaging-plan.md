@@ -753,31 +753,105 @@ maintainer-only VS Code checks, consistent with Phase 1's own gate language.
 
 ### Phase 6 — Unify initialization and updates
 
-- [ ] Make the flattened hidden-clone flow the default fresh-install path.
-- [ ] Integrate package validation before any flatten apply.
-- [ ] Integrate adapter generation/installation.
-- [ ] If Phase 1 proves Codex supports Agent Plugins 1.0, offer direct Git plugin installation
-      as a convenience while retaining the flattened safety-complete workspace.
-- [ ] If an agent does not support Agent Plugins 1.0, continue through the measured local
-      adapter path without reducing capability or safety.
-- [ ] Do not silently enable a plugin, MCP server, or executable hook merely because VS Code
-      supports workspace recommendations.
-- [ ] Integrate the AGENTS merge workflow and mandatory `merge_cleanup` gate.
-- [ ] Consolidate `cb_update` around `.canvas-toolbox/` and the distribution resolver.
-- [ ] Preserve dry-run output before changes.
-- [ ] Preserve Canvas credential resolution and token checks.
-- [ ] Preserve hook installation and FERPA pattern-count reporting.
-- [ ] Add the canonical reload notice after a successful update.
-- [ ] Add the weekly fail-open staleness check.
-- [ ] Remove obsolete nested/symlink branches only after migration tests pass.
-- [ ] Keep setup fully agent-operated; do not send faculty terminal commands.
+Scoped deliberately narrower than the full checklist below after reading `cb_init.py`
+(1125 lines) and `cb_update.py` (801 lines) in full: both implement the OLD nested
+`<course-root>/canvas-toolbox/` architecture (symlinked skills, a `CLAUDE.md` shim,
+sibling-repo credential consolidation assuming that layout) — genuinely different code
+from `cb_flatten.py`'s hidden-clone model, not a drop-in edit. Per
+`docs/proposals/flat-layout-and-agents-merge.md` (status: proposal, pre-dating this work
+and mapping directly onto this phase) and `docs/V2_TESTING.md`'s explicit gate ("existing
+`*-master` repositories should not be migrated" yet), rewriting `cb_init.py`/`cb_update.py`
+in place or migrating the six nested repos is out of scope here. What follows is the new
+flat orchestration, built on `cb_flatten.py`, with `cb_init.py`/`cb_update.py` left
+untouched serving the nested repos in the meantime.
+
+- [x] Integrate package validation before any flatten apply. *(Already true since Phase 2 —
+      `package_validate.py` runs independently in CI/pre-commit; no flatten-time coupling
+      was added or needed.)*
+- [x] Integrate adapter generation/installation. *(Already true since Phase 5 —
+      `.claude/skills/`/`.agents/skills/` are generated and flattened via the distribution
+      manifest; `cb_flatten.py` doesn't need to call the generator itself since the source
+      `skills/` tree is what gets flattened and regenerated independently.)*
+- [ ] *(Deferred — depends on Phase 1's still-open gate)* If Phase 1 proves Codex supports
+      Agent Plugins 1.0, offer direct Git plugin installation as a convenience.
+- [x] If an agent does not support Agent Plugins 1.0, continue through the measured local
+      adapter path without reducing capability or safety. True by construction — the flat
+      orchestration below never depends on plugin support.
+- [x] Do not silently enable a plugin, MCP server, or executable hook merely because VS Code
+      supports workspace recommendations. No plugin/MCP auto-enable exists anywhere in this
+      phase's code.
+- [x] Integrate the AGENTS merge workflow and mandatory `merge_cleanup` gate.
+      `plan_agents_md_merge()`/`apply_agents_md_step()` in `cb_flatten.py` do the
+      deterministic half (backup, then drop in the fresh constitution — verified real-file
+      end-to-end: backup preserves course content, fresh file has none yet, agent curates,
+      `merge_cleanup.py` verifies and removes the backup). The LLM-judgment half (curating
+      *which* course content survives) is correctly left to a session-level skill invocation,
+      not scripted — matching the design doc's own "the skill merges, the script decides
+      whether the result may be kept" split.
+- [ ] *(Deferred — see scope note above)* Consolidate `cb_update` around `.canvas-toolbox/`
+      and the distribution resolver. `cb_flatten.py` now IS that consolidated flow for fresh
+      flat installs and updates; `cb_update.py` itself (the nested-layout tool) is untouched.
+- [x] Preserve dry-run output before changes. Every new step (AGENTS.md merge, `.env` stub,
+      guardian hook, Canvas smoke test) has a dry-run branch; the Canvas smoke test
+      specifically does not touch the network in dry-run.
+- [x] Preserve Canvas credential resolution and token checks. `ensure_env_stub()`/
+      `credentials_resolve()` check environment → course `.env` → `~/.canvas/config`, reading
+      `course_root` explicitly rather than the CWD-anchored walk `cb_init.py` uses (cb_flatten
+      takes an explicit `--course-root` that need not be the process's CWD).
+- [x] Preserve hook installation and FERPA pattern-count reporting. Guardian hook installed
+      via `ensure_guardian_hook()`. **Real bug found and fixed here**: `grade_guardian.
+      ensure_hook()` always called `hook_command()` with no argument, hardcoding the nested
+      `canvas-toolbox/` path prefix — a flat-mode hook would install into
+      `.claude/settings.json` but reference a script path that never exists there, and
+      `hook_command()`'s own fail-open design (`[ -f "$f" ] || exit 0`) means it would run
+      and silently do nothing. `ensure_hook()` now takes `toolkit_subdir` (default unchanged,
+      preserving every nested-layout caller); `cb_flatten.py` passes `toolkit_subdir=""`.
+      `verify_guardian_hook()` was also strengthened to check the referenced script path
+      actually resolves, not just that some hook mentioning `grade_guardian` exists in
+      settings.json — the earlier version would have reported "wired" on exactly the broken
+      hook this bug produced. **Proven with a real bypass attempt**, not just a unit test: a
+      hand-written script calling `requests.put(...posted_grade...)` was actually run through
+      the flattened hook command end-to-end and blocked with exit 2, both before wiring the
+      fix (to confirm the failure mode: hook installed, script ran unblocked) and after
+      (correctly denied). FERPA pattern-count reporting (`print_zone2_coverage` /
+      `print_ignore_coverage` in `cb_update.py`) was not touched — it is nested-layout-only
+      and out of this phase's scope; flat courses have no equivalent reporting yet.
+- [x] Add the canonical reload notice after a successful update. Extracted `RELOAD_NOTICE` as
+      one shared constant in `merge_cleanup.py`, imported by `cb_flatten.py` — both now print
+      the identical string instead of each carrying its own copy.
+- [x] Add the weekly fail-open staleness check. `_env_loader._check_toolkit_staleness()`,
+      called from `load_env()` (so ~94 of ~120 tools get it automatically, tool-agnostic by
+      construction, matching the design doc's explicit "not a Claude-Code-only SessionStart
+      hook" requirement). `git ls-remote`, never `fetch`/`pull` — cannot conflict with the
+      pristine-clone guarantee. 8 tests, including one that asserts `subprocess.run` is never
+      called when the weekly marker is fresh.
+- [ ] *(Deferred — see scope note above)* Remove obsolete nested/symlink branches only after
+      migration tests pass. No nested-layout code was touched or removed.
+- [x] Keep setup fully agent-operated; do not send faculty terminal commands. Every new
+      message (`.env` stub instructions, merge instructions, verification failures) is
+      addressed to "AGENT:", matching `cb_init.py`'s existing `_print_credential_next_step()`
+      convention.
 - [x] Add `docs/V2_TESTING.md` as the readiness-controlled test ladder for automated fixtures,
       disposable installs, Canvas sandbox checks, and selected-course pilots.
-- [ ] Replace the root README's 1.x setup section with the verified v2 workflow only after fresh
-      installation and migration pass in disposable fixtures.
+- [ ] *(Deferred — see scope note above)* Replace the root README's 1.x setup section with the
+      verified v2 workflow.
 
-**Gate:** fresh install and update both finish with a deterministic verification report; no
-manual file placement is required.
+**New this phase, not in the original checklist:** a verification report
+(`verification_report()`, 6 checks: constitution intact, merge-pending status, token budget,
+skills present, guardian hook wired-and-resolving, no orphaned paths) that runs after every
+`--apply` and returns exit code 2 — refusing to report an update complete — if any check
+fails. Matches the design doc's Phase 5 ("An update that cannot verify its own result reports
+failed, not done") and this phase's own gate line below.
+
+**Gate:** fresh install and update both finish with a deterministic verification report ✅ —
+built and verified against real git + real files (rsync'd the actual working tree into a
+scratch course, ran `cb_flatten.py --apply` for real, including a full fresh-install →
+course-adds-content → upstream-constitution-changes → merge-triggers → agent-curates →
+`merge_cleanup` verifies-and-removes-backup → re-run-is-idempotent cycle); no manual file
+placement is required ✅ for a FLAT course reached via `cb_flatten.py`. Not yet true for the
+six existing nested repos, which this phase deliberately did not touch. 1424 tests pass (68
+new across `test_cb_flatten.py`, `test_env_loader.py`, `test_grade_guardian.py`), ruff clean —
+verified 2026-09-15.
 
 ### Phase 7 — Capability consent and change detection
 
@@ -1035,3 +1109,4 @@ evidence.
 | 2026-09-14 | Phase 3 complete | pending / #317 | Three package directories created with `manifest.yaml` + `AGENT.md`; 8 skills copied to canonical root `skills/` (kept in `.claude/skills/` too — Phase 5's adapter generator doesn't exist yet); 91 of ~124 tools declared and classified across the three manifests, every Canvas-write classification verified against actual HTTP calls rather than filenames; `package_validate.py` passes (0 issues); `package_catalog.py` generates `agent-packages/registry.yaml` + `CATALOG.md`, wired into CI/pre-commit; fixed 5 broken relative links surfaced by the skills copy (`../../../` → `../../`) and the `canvas_course_expert.md` `.imscc`-deprecation self-contradiction the plan named; 1376 tests pass, ruff clean | Two follow-ups outside this phase's scope: (1) `AGENTS.md`'s constitutional text names only `grader_push.py`/`grader_standing.py` as sanctioned grade/comment writers, but `grader_push_comments.py`, `grader_letter_comments.py`, `grader_audit_workflow.py --fix`, and `grader_quiz_clear_pending.py` are also legitimate sanctioned writers — wording needs a dedicated correction pass; (2) `lib/tools/README.md` describes `blueprint_orphan_pages.py` cleanup as "deferred to Phase 2" but it has a live `--apply` write path. Begin Phase 4: distribution manifest and flattened resolver |
 | 2026-09-14 | Phase 4 complete | pending / #317 | `distribution/manifest.yaml` added (9 tree entries + 3 files, 269 of 428 tracked files); `cb_flatten.resolve_distribution()` resolves it against the clone's own `git ls-files`, with a tested legacy fallback (clone predates Phase 4 → full manifest, unchanged old behavior) and a tested refuse-loudly path (`DistributionError`, nothing written) for a malformed or stale-path manifest; dry-run now shows resolved packages and a per-package Canvas-write tool count. Verified end-to-end against real git, not just unit tests: a scratch course flattened from an actual working-tree snapshot produced exactly the declared set. That live test caught a real defect — `package_validate.py` is flattened (`lib/tools/`) but hard-fails without `schemas/`, which the first cut excluded as dev-tooling; fixed by adding `schemas` as a distribution entry. 1384 tests pass (8 new), ruff clean | Begin Phase 5: Agent Plugin package and runtime adapters — the first adapter generator, which is also what lets Phase 6 stop keeping skills duplicated in both `skills/` and `.claude/skills/` |
 | 2026-09-14 | Phase 5 mostly complete — gate held open on 2 maintainer-only checks | pending / #317 | Root `plugin.json` added, schema-valid, version pinned to `pyproject.toml` (tested); `lib/tools/generate_adapters.py` generates `.agents/skills/` (new, Codex) and `.claude/skills/` (switched from Phase 3's hand copy to generated output) from canonical `skills/`, with provenance markers, idempotency, and a hand-edit-is-overwritten guarantee — 7 tests, wired into CI/pre-commit. No MCP server, no Copilot-specific content — both honored by absence rather than fabricated to fill a checklist box. Both remaining unchecked items need the maintainer's own VS Code session: installing the real (not disposable-probe) plugin from a remote Git URL, and Codex/Claude Code/Copilot discovering the real generated adapters — Phase 1's ADR already flagged the remote-URL case as unmeasured. Distribution manifest updated to ship `.agents/skills/` to courses too. 1393 tests pass, ruff clean | Ask the maintainer to run the two VS Code checks before calling Phase 5's gate fully closed; meanwhile begin Phase 6 (unify init/update), which does not depend on that gate |
+| 2026-09-15 | Phase 6 complete, scoped to the flat orchestration only | pending / #317 | After reading `cb_init.py`/`cb_update.py` (1926 lines total) and finding both implement the OLD nested-subdirectory architecture, scope was narrowed (maintainer-approved) to building the new flat orchestration on `cb_flatten.py` rather than rewriting the nested tools or migrating the six existing repos — both explicitly deferred. Delivered: the AGENTS.md merge workflow (`plan_agents_md_merge`/`apply_agents_md_step`, deterministic backup+replace; `merge_cleanup.py` remains the separate correctness gate); fresh-install bootstrap (`.env` stub, guardian hook, read-only Canvas smoke test); a 6-check verification report gating `--apply`'s success on real evidence; the weekly fail-open staleness check in `_env_loader.load_env()`; one shared `RELOAD_NOTICE` constant. **A real safety bug was found and fixed along the way**: `grade_guardian.ensure_hook()` always hardcoded the nested `canvas-toolbox/` path prefix, so a flat-mode guardian hook would install into `.claude/settings.json` but reference a script path that never exists there — installed, but silently inert by the hook's own fail-open design. Proven both broken and then fixed with a real bypass script run through the actual flattened hook command (not just a unit test). Entire cycle (fresh install → course content added → upstream constitution changes → merge triggers → agent curates → `merge_cleanup` verifies and removes backup → re-run is idempotent) verified against real git and real files, not just synthetic fixtures. 1424 tests pass (68 new), ruff clean | `cb_init.py`/`cb_update.py` rewrite and the six-repo migration remain for a later phase, gated on pilot testing per `docs/V2_TESTING.md`; begin Phase 7 (capability consent and change detection) |

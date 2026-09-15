@@ -64,6 +64,16 @@ BACKUP_NAME = "AGENTS.merge.md"
 TARGET_NAME = "AGENTS.md"
 DEFAULT_SOURCE = Path(".canvas-toolbox") / "AGENTS.md"
 
+# ONE canonical string (flat-layout-and-agents-merge.md Phase 6) — not a per-tool
+# if/else. cb_flatten.py prints this too, after any successful apply that changed
+# files, not only after a merge; both import this constant rather than each
+# carrying their own copy.
+RELOAD_NOTICE = (
+    "Restart your AI session (new chat, reload the extension, or restart the IDE) "
+    "for the update to take effect — AGENTS.md and skills are read once at "
+    "session start."
+)
+
 
 # ---------------------------------------------------------------------------
 # Pure helpers — no filesystem, no argv
@@ -240,8 +250,7 @@ def main() -> int:
 
     backup_path.unlink()
     print(f"\n✓ merge_cleanup: verified and {BACKUP_NAME} removed.")
-    print("  Restart your AI session (new chat, reload the extension, or restart the "
-          "IDE) — AGENTS.md is read once at session start.")
+    print(f"  {RELOAD_NOTICE}")
     return 0
 
 

@@ -178,7 +178,67 @@ def load_env() -> Path | None:
         if not os.environ.get(key) and allowed.get(key):
             os.environ[key] = allowed[key]
 
+    if loaded is not None:
+        _check_toolkit_staleness(loaded.parent)
+
     return loaded
+
+
+# ---------------------------------------------------------------------------
+# Weekly toolkit staleness check (v2, #317 Phase 6 / flat-layout-and-agents-
+# merge.md Phase 4). Deliberately NOT a Claude-Code-only SessionStart hook —
+# the supported surface is any host that runs these tools. Living here instead
+# means it fires below the agent layer, for every runtime, by construction:
+# ~94 of ~120 tools already call load_env().
+# ---------------------------------------------------------------------------
+
+_STALENESS_CHECK_INTERVAL_DAYS = 7
+_STALENESS_MARKER = ".update_check"
+
+
+def _check_toolkit_staleness(course_root: Path) -> None:
+    """A one-line, at-most-weekly nudge that the hidden `.canvas-toolbox/` clone
+    is behind its remote. FAILS OPEN, UNCONDITIONALLY: a staleness notice must
+    never become a reason a tool run breaks, hangs, or blocks — this can only
+    ever print an extra line or do nothing.
+
+    Cheap path first: a recent timestamp file means no network call at all, on
+    every run in between. `git ls-remote` (not `fetch` or `pull`) is
+    deliberately lighter — it never touches the clone's working tree or object
+    store, so it can't conflict with the pristine-clone guarantee `cb_flatten.py`
+    depends on (`git -C .canvas-toolbox status --porcelain` must stay empty)."""
+    clone = course_root / ".canvas-toolbox"
+    marker = clone / _STALENESS_MARKER
+    try:
+        if not clone.is_dir():
+            return
+        if marker.is_file():
+            import time
+            age_days = (time.time() - marker.stat().st_mtime) / 86400
+            if age_days < _STALENESS_CHECK_INTERVAL_DAYS:
+                return
+
+        import subprocess
+        local = subprocess.run(
+            ["git", "-C", str(clone), "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=3,
+        )
+        remote = subprocess.run(
+            ["git", "-C", str(clone), "ls-remote", "origin", "HEAD"],
+            capture_output=True, text=True, timeout=3,
+        )
+        marker.write_text("", encoding="utf-8")  # reset the clock either way
+        if local.returncode != 0 or remote.returncode != 0:
+            return
+        remote_sha = remote.stdout.split()[0] if remote.stdout.strip() else ""
+        if remote_sha and remote_sha != local.stdout.strip():
+            print(
+                "canvas-toolbox: an update is available — run `uv run python "
+                "lib/tools/cb_flatten.py --pull --apply` from the course root.",
+                file=sys.stderr,
+            )
+    except Exception:  # noqa: BLE001 — a staleness check must never break a tool run
+        pass
 
 
 def token_source() -> str:

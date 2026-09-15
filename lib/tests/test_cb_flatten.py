@@ -15,6 +15,7 @@ The properties that make a flatten safe, and what breaks if each is missing:
 
 Real git, real files. A pattern-only assertion cannot see the class of bug #277 was.
 """
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -31,14 +32,23 @@ from cb_flatten import (  # noqa: E402
     GI_END,
     GI_START,
     HYBRID,
+    apply_agents_md_step,
     apply_sync,
     clone_is_pristine,
     ensure_clone,
     manifest,
+    plan_agents_md_merge,
     plan_sync,
     render_gitignore_block,
     resolve_distribution,
     splice_gitignore,
+    verify_agents_md,
+    verify_course_learning,
+    verify_guardian_hook,
+    verify_manifest_clean,
+    verify_skills_present,
+    verify_token_budget,
+    verification_report,
 )
 
 
@@ -493,6 +503,223 @@ def test_this_repos_distribution_excludes_developer_only_paths():
     assert not any(p.startswith("docs/proposals/") for p in resolved)
     assert not any(p.startswith("docs/research/") for p in resolved)
     assert not any(p.startswith(".github/") for p in resolved)
+
+
+# ---------------------------------------------------------------------------
+# verification_report — v2, #317 Phase 6: "the operation is not reported as
+# complete if a required verification fails" needs evidence, not an assumption
+# that the copy loop above succeeded.
+# ---------------------------------------------------------------------------
+
+def test_verify_agents_md_ok_when_no_course_agents_md_yet(tmp_path):
+    ok, _ = verify_agents_md(tmp_path, tmp_path / "clone")
+    assert ok
+
+
+def test_verify_agents_md_passes_when_toolkit_half_matches(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    ok, _ = verify_agents_md(tmp_path, clone)
+    assert ok
+
+
+def test_verify_agents_md_fails_when_toolkit_half_altered(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("ALTERED", encoding="utf-8")
+    ok, msg = verify_agents_md(tmp_path, clone)
+    assert not ok and "ALTERED" in msg
+
+
+def test_verify_course_learning_ok_with_no_pending_merge(tmp_path):
+    ok, msg = verify_course_learning(tmp_path, tmp_path / "clone")
+    assert ok and "no pending merge" in msg
+
+
+def test_verify_course_learning_reports_pending_but_never_fails(tmp_path):
+    """The correctness gate is merge_cleanup.py's job, invoked separately once
+    the merge skill finishes — this report can only ever say a merge IS pending,
+    never judge whether it was done right. A pending backup right after
+    apply_agents_md_step() ran is the expected, normal outcome of that step, not
+    a defect of this update."""
+    (tmp_path / "AGENTS.merge.md").write_text("CONSTITUTION\nCOURSE LINE\n",
+                                              encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("CONSTITUTION\n", encoding="utf-8")
+    ok, msg = verify_course_learning(tmp_path, tmp_path / "clone")
+    assert ok and "merge pending" in msg
+    assert ok
+
+
+def test_verify_token_budget_flags_over_the_hard_limit(tmp_path):
+    (tmp_path / "AGENTS.md").write_text("\n" * 1300, encoding="utf-8")
+    ok, msg = verify_token_budget(tmp_path)
+    assert not ok and "OVER AUTO-INCLUDE LIMIT" in msg
+
+
+def test_verify_token_budget_passes_within_budget(tmp_path):
+    (tmp_path / "AGENTS.md").write_text("line\n" * 50, encoding="utf-8")
+    ok, _ = verify_token_budget(tmp_path)
+    assert ok
+
+
+def test_verify_skills_present_ok_when_clone_ships_none(tmp_path):
+    ok, _ = verify_skills_present(tmp_path, tmp_path / "clone")
+    assert ok
+
+
+def test_verify_skills_present_fails_on_a_missing_skill(tmp_path):
+    clone = tmp_path / "clone"
+    (clone / "skills" / "audit").mkdir(parents=True)
+    ok, msg = verify_skills_present(tmp_path, clone)
+    assert not ok and "audit" in msg
+
+
+def test_verify_skills_present_passes_when_all_resolve(tmp_path):
+    clone = tmp_path / "clone"
+    (clone / "skills" / "audit").mkdir(parents=True)
+    course_skill = tmp_path / ".claude" / "skills" / "audit"
+    course_skill.mkdir(parents=True)
+    (course_skill / "SKILL.md").write_text("x", encoding="utf-8")
+    ok, _ = verify_skills_present(tmp_path, clone)
+    assert ok
+
+
+def test_verify_guardian_hook_fails_when_absent(tmp_path):
+    ok, msg = verify_guardian_hook(tmp_path)
+    assert not ok and "NOT wired" in msg
+
+
+def test_verify_guardian_hook_passes_when_present_and_path_resolves(tmp_path):
+    from grade_guardian import hook_command
+    (tmp_path / "lib" / "tools").mkdir(parents=True)
+    (tmp_path / "lib" / "tools" / "grade_guardian.py").write_text("x", encoding="utf-8")
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(json.dumps({"hooks": {"PreToolUse": [
+        {"hooks": [{"command": hook_command(toolkit_subdir="")}]}
+    ]}}), encoding="utf-8")
+    ok, _ = verify_guardian_hook(tmp_path)
+    assert ok
+
+
+def test_verify_guardian_hook_fails_when_path_does_not_resolve(tmp_path):
+    """The exact bug this check exists to catch: a hook wired for the NESTED
+    layout's canvas-toolbox/ subdirectory, installed into a FLAT course that
+    has no such subdirectory — present in settings.json, but inert."""
+    (tmp_path / "lib" / "tools").mkdir(parents=True)
+    (tmp_path / "lib" / "tools" / "grade_guardian.py").write_text("x", encoding="utf-8")
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir(parents=True)
+    nested_command = (
+        "sh -c 'f=\"$CLAUDE_PROJECT_DIR/canvas-toolbox/lib/tools/grade_guardian.py\"; "
+        "[ -f \"$f\" ] || exit 0; exec python3 \"$f\"'"
+    )
+    settings.write_text(json.dumps({"hooks": {"PreToolUse": [
+        {"hooks": [{"command": nested_command}]}
+    ]}}), encoding="utf-8")
+    ok, msg = verify_guardian_hook(tmp_path)
+    assert not ok and "inert" in msg
+
+
+def test_verify_manifest_clean_fails_on_a_surviving_orphan(tmp_path):
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib" / "gone.py").write_text("x", encoding="utf-8")
+    ok, msg = verify_manifest_clean(tmp_path, ["lib/gone.py"])
+    assert not ok and "lib/gone.py" in msg
+
+
+def test_verify_manifest_clean_passes_when_all_removed(tmp_path):
+    ok, _ = verify_manifest_clean(tmp_path, ["lib/gone.py"])
+    assert ok
+
+
+def test_verification_report_returns_all_six_checks(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    results = verification_report(tmp_path, clone, [])
+    assert len(results) == 6
+    assert all(isinstance(ok, bool) and isinstance(msg, str) for ok, msg in results)
+
+
+# ---------------------------------------------------------------------------
+# AGENTS.md merge orchestration — v2, #317 Phase 6. THIS does backup+replace
+# only (deterministic); merge_cleanup.py is the separate, mandatory correctness
+# gate invoked once the merge skill (an LLM, not this function) finishes.
+# ---------------------------------------------------------------------------
+
+def test_plan_agents_md_merge_no_clone_agents_md(tmp_path):
+    assert plan_agents_md_merge(tmp_path, tmp_path / "clone") == "no-clone-agents-md"
+
+
+def test_plan_agents_md_merge_fresh_when_course_has_none_yet(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    assert plan_agents_md_merge(tmp_path, clone) == "fresh"
+
+
+def test_plan_agents_md_merge_up_to_date_when_matching(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    assert plan_agents_md_merge(tmp_path, clone) == "up-to-date"
+
+
+def test_plan_agents_md_merge_needed_when_toolkit_half_differs(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "AGENTS.md").write_text("NEW CONSTITUTION", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("OLD CONSTITUTION + course stuff",
+                                        encoding="utf-8")
+    assert plan_agents_md_merge(tmp_path, clone) == "merge-needed"
+
+
+def test_plan_agents_md_merge_pending_when_backup_already_exists(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    (tmp_path / "AGENTS.merge.md").write_text("old backup", encoding="utf-8")
+    assert plan_agents_md_merge(tmp_path, clone) == "merge-pending"
+
+
+def test_apply_agents_md_step_dry_run_writes_nothing(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    status = apply_agents_md_step(tmp_path, clone, apply=False)
+    assert status == "would-fresh"
+    assert not (tmp_path / "AGENTS.md").exists()
+
+
+def test_apply_agents_md_step_writes_fresh_constitution(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    status = apply_agents_md_step(tmp_path, clone, apply=True)
+    assert status == "fresh"
+    assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == "CONSTITUTION"
+
+
+def test_apply_agents_md_step_backs_up_before_overwriting(tmp_path):
+    """Order matters: backup THEN overwrite. A crash between the two must never
+    be able to lose the course's only copy of its own learning."""
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "AGENTS.md").write_text("NEW CONSTITUTION", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("OLD CONSTITUTION + course stuff",
+                                        encoding="utf-8")
+    status = apply_agents_md_step(tmp_path, clone, apply=True)
+    assert status == "merge-needed"
+    assert (tmp_path / "AGENTS.merge.md").read_text(encoding="utf-8") == \
+        "OLD CONSTITUTION + course stuff"
+    assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == "NEW CONSTITUTION"
+
+
+def test_apply_agents_md_step_never_creates_a_second_backup(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
+    (tmp_path / "AGENTS.merge.md").write_text("earlier unfinished merge",
+                                              encoding="utf-8")
+    status = apply_agents_md_step(tmp_path, clone, apply=True)
+    assert status == "merge-pending"
+    assert (tmp_path / "AGENTS.merge.md").read_text(encoding="utf-8") == \
+        "earlier unfinished merge"
 
 
 def test_only_the_known_negation_escapes_the_ignore_block(tmp_path):
