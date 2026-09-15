@@ -1649,10 +1649,13 @@ def _push_page_todo_date(page_url: str, todo_date: Optional[str]) -> bool:
     Canvas silently ignores wiki_page[todo_date] unless student_todo_at is
     sent in the same PUT — confirmed by testing (2026-09-15): sending
     todo_date alone returns 200 but does not persist. Pass todo_date=None
-    to clear an existing to-do date.
+    to clear an existing to-do date — Canvas also ignores an explicit JSON
+    null for clearing (the field is simply left unchanged); an empty string
+    is what actually clears it, confirmed by testing the same day.
     """
+    value = todo_date if todo_date is not None else ""
     result = _put(f"/courses/{CANVAS_COURSE_ID}/pages/{page_url}", {
-        "wiki_page": {"todo_date": todo_date, "student_todo_at": todo_date}
+        "wiki_page": {"todo_date": value, "student_todo_at": value}
     })
     if result.get("error"):
         print(f"    ERROR: {result['error']}")
