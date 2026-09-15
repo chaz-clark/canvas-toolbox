@@ -1740,6 +1740,45 @@ def _push_assignment(filepath: Path, meta: dict) -> bool:
     return True
 
 
+def _push_newquiz_dates(filepath: Path, meta: dict) -> bool:
+    """Push ONLY due_at/lock_at/unlock_at for a New-Quiz-backed assignment shell
+    (issue #318).
+
+    New Quizzes are LTI-delivered (`submission_types == ["external_tool"]`) and
+    their content/settings genuinely have no write support via the standard
+    Assignment API — Canvas-only, edit in the UI. But due_at/lock_at/unlock_at
+    live on the Assignment object itself and ARE writable regardless of quiz
+    engine: confirmed empirically against a real course, not assumed — a PUT
+    with only these three fields returned a clean 200 for 25/25 dated New-Quiz
+    assignments in the course that reported #318 (0/51 pushed before this fix,
+    because the old code unconditionally skipped every field for `NewQuiz`).
+
+    Deliberately narrower than `_push_assignment()`: no `description`,
+    `submission_types`, or `grading_type` here. Those weren't part of what was
+    tested, and touching `submission_types` on a New-Quiz assignment shell
+    risks breaking its LTI linkage. If dates alone stop being enough, that is a
+    new, separately-tested change — not an assumption to extend on."""
+    canvas_id = meta.get("canvas_id")
+    if not canvas_id:
+        print(f"    ERROR: no canvas_id in index for {filepath}")
+        return False
+    data = json.loads(filepath.read_text(encoding="utf-8"))
+    payload: dict = {}
+    for date_field in ["due_at", "lock_at", "unlock_at"]:
+        if date_field in data:
+            payload[date_field] = data[date_field]
+    if not payload:
+        return True  # nothing date-related to push
+    result = _put(f"/courses/{CANVAS_COURSE_ID}/assignments/{canvas_id}", {
+        "assignment": payload
+    })
+    if result.get("error"):
+        print(f"    ERROR: {result['error']}")
+        _hint_rebind(result["error"])
+        return False
+    return True
+
+
 def _push_quiz(filepath: Path, meta: dict) -> bool:
     """Push classic quiz metadata via quizzes endpoint; dates via linked assignment endpoint."""
     canvas_id = meta.get("canvas_id")
@@ -1940,11 +1979,9 @@ def cmd_push(target: Optional[str] = None):
         elif item_type == "Quiz":
             ok = _push_quiz(path, meta)
         elif item_type == "NewQuiz":
-            print(f"    Canvas-only: NewQuiz descriptions must be edited in Canvas UI (API not supported)")
-            # Acknowledge current state so it doesn't reappear on every push
-            index["files"][filepath_str]["hash"] = _file_hash(path)
-            _save_index(index)
-            continue
+            print(f"    NewQuiz: pushing due/unlock/lock dates only "
+                  f"(content/description is Canvas-only — edit in the UI, API not supported)")
+            ok = _push_newquiz_dates(path, meta)
         elif item_type in METADATA_ONLY_TYPES:
             print(f"    SKIP: {item_type} is metadata-only (manage in Canvas directly)")
             continue
