@@ -637,6 +637,10 @@ measured adapter; other clients cannot gain undeclared capabilities.
 - [ ] Add the weekly fail-open staleness check.
 - [ ] Remove obsolete nested/symlink branches only after migration tests pass.
 - [ ] Keep setup fully agent-operated; do not send faculty terminal commands.
+- [x] Add `docs/V2_TESTING.md` as the readiness-controlled test ladder for automated fixtures,
+      disposable installs, Canvas sandbox checks, and selected-course pilots.
+- [ ] Replace the root README's 1.x setup section with the verified v2 workflow only after fresh
+      installation and migration pass in disposable fixtures.
 
 **Gate:** fresh install and update both finish with a deterministic verification report; no
 manual file placement is required.
@@ -691,6 +695,7 @@ protected data.
 
 ### Phase 10 — Faculty-facing acceptance tests
 
+- [ ] Update the readiness table in `docs/V2_TESTING.md` as each test stage becomes available.
 - [ ] Fresh macOS setup in VS Code + Codex using ChatGPT/CES sign-in.
 - [ ] Fresh Windows setup in VS Code + Codex using ChatGPT/CES sign-in.
 - [ ] Repeat the core setup/audit flow with Claude Code.
@@ -702,6 +707,11 @@ protected data.
 - [ ] Test direct Git installation and update of the Canvas Toolbox Agent Plugin.
 - [ ] Test disabling the plugin and confirm the flattened toolkit still gives the agent the
       constitution and safe deterministic commands.
+- [ ] Migrate one maintainer-selected `*-master` repository on a dedicated branch after a reviewed
+      dry run; perform no Canvas writes and retain a documented rollback point.
+- [ ] Convert every layout difference found in that pilot into a synthetic migration fixture
+      before selecting another course repository.
+- [ ] Migrate additional `*-master` repositories one at a time only after the first pilot passes.
 - [ ] Decide whether an optional `.code-profile` materially reduces onboarding steps; reject it
       if it duplicates plugin/adapter state or overwrites user preferences.
 - [ ] Test: initialize, restart session, pull course, run read-only audit, edit locally, review a
@@ -886,3 +896,4 @@ evidence.
 | 2026-09-14 | VS Code extension discovery (partial) | pending / #317 | Codex invoked the generated `.agents/skills/` probe; Claude Code invoked and identified `.claude/skills/`; Agent Plugins commands/UI were absent without GitHub Copilot, so no portable plugin was installed | Keep workspace adapters as the subscription-extension baseline; treat Agent Plugins 1.0 as an additional portable/Copilot-hosted output pending an approved Copilot profile test |
 | 2026-09-14 | Copilot Agent Plugin discovery (partial) | pending / #317 | A temporary profile activated the built-in Copilot host; local source installation passed; the plugin and its one skill were visible; `/canvas-toolbox-packaging-probe` returned the expected marker; root `AGENTS.md` remained active | Agent Plugins 1.0 has measured Copilot support but remains an additional output; retain Codex and Claude workspace adapters and finish remote-source, lifecycle, cross-extension, and Windows checks |
 | 2026-09-14 | Copilot Agent Plugin lifecycle (partial) | pending / #317 | Disable changed the visible Skills count from 25 to 24 and removed the Plugins group; re-enable restored both; uninstall changed Installed to zero; all four exact disposable probe/profile paths were removed | Enable, disable, and uninstall are measured passes; update and capability-change presentation remain release-gate measurements |
+| 2026-09-14 | Maintainer test track | pending / #317 | Root README now identifies the v2 branch as pre-beta; `docs/V2_TESTING.md` defines readiness gates from automated fixtures through one-at-a-time `*-master` pilots | Do not migrate a real course until schemas, packages, setup/update, disposable migration, and the testing guide's readiness gate pass |
