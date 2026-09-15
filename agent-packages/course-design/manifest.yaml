@@ -1,0 +1,232 @@
+schema_version: 1
+id: course-design
+version: 2.0.0
+name: Course Design
+description: Course construction, synchronization, quality audits, instructional-design analysis, and
+  improvement tracking.
+entry_prompt: agent-packages/course-design/AGENT.md
+requires_course_folder: true
+skills:
+- id: audit
+  path: skills/audit
+- id: course-build
+  path: skills/course-build
+- id: improve
+  path: skills/improve
+tools:
+- id: blueprint-sync
+  command: lib/tools/blueprint_sync.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: canvas-sync
+  command: lib/tools/canvas_sync.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: course-mirror
+  command: lib/tools/course_mirror.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: course-homepage-build
+  command: lib/tools/course_homepage_build.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: canvas-pages
+  command: lib/tools/canvas_pages.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: canvas-quiz-questions
+  command: lib/tools/canvas_quiz_questions.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: clo-catalog-import
+  command: lib/tools/clo_catalog_import.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: blueprint-orphan-pages
+  command: lib/tools/blueprint_orphan_pages.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: rubric-recommender
+  command: lib/tools/rubric_recommender.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: sandbox-rubric-fixtures
+  command: lib/tools/sandbox_rubric_fixtures.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: export-imscc
+  command: lib/tools/export_imscc.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: sync-to-new
+  command: lib/tools/sync_to_new.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: grader-quiz-mirror
+  command: lib/tools/grader_quiz_mirror.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: course-quality-check
+  command: lib/tools/course_quality_check.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: module-settings-sync
+  command: lib/tools/module_settings_sync.py
+  effect: canvas_content_write
+  data_class: course_configuration
+  approval: always
+- id: grading-scheme-setup
+  command: lib/tools/grading_scheme_setup.py
+  effect: canvas_content_write
+  data_class: course_configuration
+  approval: always
+- id: course-audit
+  command: lib/tools/course_audit.py
+  effect: read
+  data_class: course_metadata
+  approval: none
+- id: workload-audit
+  command: lib/tools/workload_audit.py
+  effect: read
+  data_class: course_metadata
+  approval: none
+- id: syllabus-audit
+  command: lib/tools/syllabus_audit.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: clo-quality-audit
+  command: lib/tools/clo_quality_audit.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: rubric-coverage-audit
+  command: lib/tools/rubric_coverage_audit.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: rubric-quality-audit
+  command: lib/tools/rubric_quality_audit.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: accessibility-audit
+  command: lib/tools/accessibility_audit.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: content-representation-audit
+  command: lib/tools/content_representation_audit.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: course-alignment-audit
+  command: lib/tools/course_alignment_audit.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: formative-variety-audit
+  command: lib/tools/formative_variety_audit.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: learning-model-audit
+  command: lib/tools/learning_model_audit.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: blueprint-exception-report
+  command: lib/tools/blueprint_exception_report.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: blueprint-presync-check
+  command: lib/tools/blueprint_presync_check.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: validate-blueprint-sync
+  command: lib/tools/validate_blueprint_sync.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: content-fetch
+  command: lib/tools/content_fetch.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: validate-imscc
+  command: lib/tools/validate_imscc.py
+  effect: read
+  data_class: course_content
+  approval: none
+- id: grading-load-audit
+  command: lib/tools/grading_load_audit.py
+  effect: read
+  data_class: course_configuration
+  approval: none
+- id: grading-structure-audit
+  command: lib/tools/grading_structure_audit.py
+  effect: read
+  data_class: course_configuration
+  approval: none
+- id: module-structure-diff
+  command: lib/tools/module_structure_diff.py
+  effect: read
+  data_class: course_configuration
+  approval: none
+- id: offline-import
+  command: lib/tools/offline_import.py
+  effect: local_write
+  data_class: course_content
+  approval: none
+- id: imscc-record
+  command: lib/tools/imscc_record.py
+  effect: local_write
+  data_class: course_content
+  approval: none
+- id: imscc-adjust-dates
+  command: lib/tools/imscc_adjust_dates.py
+  effect: local_write
+  data_class: course_content
+  approval: none
+- id: course-map-build
+  command: lib/tools/course_map_build.py
+  effect: local_write
+  data_class: course_content
+  approval: none
+data_access:
+  classes:
+  - course_configuration
+  - course_content
+  - course_metadata
+  ferpa_zone_2: deny
+  student_names_in_evaluations: deny
+  deidentified_submissions: deny
+credentials:
+- CANVAS_API_TOKEN
+- CANVAS_BASE_URL
+- CANVAS_COURSE_ID
+- MASTER_COURSE_ID
+- BLUEPRINT_COURSE_ID
+- S1_COURSE_ID
+- S2_COURSE_ID
+- S3_COURSE_ID
+- CANVAS_SANDBOX_ID
+network:
+- canvas_base_url_only
+ships: true

@@ -559,25 +559,74 @@ pass, ruff clean, validator wired into `ci.yml` and `.pre-commit-config.yaml` on
 
 ### Phase 3 — Create canonical agent packages
 
-- [ ] Create `course-design`, `grading`, and `student-support` package directories.
-- [ ] Move/copy the eight operating skills into the canonical root `skills/` location required
-      by Agent Plugins 1.0.
-- [ ] Ensure every skill directory name exactly matches its `SKILL.md` frontmatter name.
-- [ ] Consolidate the useful content from historical `lib/agents/*.md` files into package
-      `AGENT.md` files.
-- [ ] Remove deprecated export-era instructions and self-references.
-- [ ] Move shared knowledge and templates to their final single-source location, or document
-      a deliberate compatibility location if moving them creates unnecessary risk.
-- [ ] Declare every deterministic tool used by each package.
-- [ ] Classify every declared tool as read, local write, Canvas content write, grade/comment
-      write, or per-student intervention.
-- [ ] Declare FERPA/data boundaries for every package.
-- [ ] Add a generated package registry and human-readable package catalog.
-- [ ] Preserve temporary compatibility pointers from old paths for the migration window.
-- [ ] Update all internal links and test them.
+- [x] Create `course-design`, `grading`, and `student-support` package directories.
+- [x] Move/copy the eight operating skills into the canonical root `skills/` location required
+      by Agent Plugins 1.0. **Copied, not moved**: root `skills/` is canonical per the target
+      architecture, but Phase 5's adapter generator (which is meant to regenerate
+      `.claude/skills/`) doesn't exist yet — moving now would empty the path this and every
+      other session actually uses for live discovery. `.claude/skills/` stays the working
+      copy until Phase 5 ships the generator; Phase 6 removes the manual duplication.
+- [x] Ensure every skill directory name exactly matches its `SKILL.md` frontmatter name.
+      (all 8 already matched.)
+- [x] Consolidate the useful content from historical `lib/agents/*.md` files into package
+      `AGENT.md` files. **Design decision**: `AGENT.md` is a short mission/boundary statement
+      that points to the package's skills (which already carry the full playbook) rather than
+      a content merge of the 9 legacy `lib/agents/*.md` specs (up to 70K chars each) — inlining
+      that content into AGENT.md would recreate the exact single-source-of-truth problem fixed
+      in Phase 2 (two copies of the same guidance drifting apart). Each AGENT.md lists which
+      legacy files it supersedes.
+- [x] Remove deprecated export-era instructions and self-references. Fixed the specific
+      contradiction the plan named: `canvas_course_expert.md` said `.imscc` export parsing is
+      deprecated (line 21) and then instructed loading a course export ZIP and calling
+      `parse_course_export()` a few lines later (Quickstart) — corrected the Quickstart to
+      match the deprecation. The file's deeper structured tool-definitions section (~line 721+)
+      still references the deprecated flow; not rewritten, since the file is already marked
+      superseded by the current skills in its new `AGENT.md` pointer.
+- [x] Move shared knowledge and templates to their final single-source location, or document
+      a deliberate compatibility location if moving them creates unnecessary risk. Kept
+      `lib/agents/knowledge/` and `lib/agents/templates/` in place — moving them is deferred to
+      when the legacy `lib/agents/*.md` specs are actually removed (Phase 6+), since skills
+      already reference them correctly. Fixed a real defect surfaced by the copy: 5 links in 3
+      skills (`audit`, `course-build`, `grading`) used `../../../lib/agents/knowledge/...`,
+      correct from `.claude/skills/<id>/` (3 levels deep) but one level too many from the new
+      `skills/<id>/` (2 levels deep) — silently pointing above the repo root. Fixed and verified
+      all 5 resolve.
+- [x] Declare every deterministic tool used by each package. 91 tools declared (39 course-design,
+      44 grading, 8 student-support) out of ~124 CLI tools in `lib/tools/`; the remainder are
+      shared non-CLI modules (`bloom_verbs.py`, `syllabus_outcomes.py`, `canvas_api_tool.py`),
+      private `_`-prefixed helpers, and constitutional meta/lifecycle tools already carved out
+      of the skill system by `AGENTS.md` (`cb_init`, `cb_update`, `cb_flatten`, `cb_report_bug`,
+      `vote_feature`, `add_roadmap_feature`, `update_roadmap_votes`, `merge_cleanup`,
+      `ferpa_pre_push`, `grade_guardian`, `package_validate`, `package_catalog`).
+- [x] Classify every declared tool as read, local write, Canvas content write, grade/comment
+      write, or per-student intervention. Every Canvas-write classification was verified against
+      the tool's actual HTTP calls (grep for `requests.put/post/delete`), not guessed from the
+      filename — this surfaced two real findings: `course_quality_check.py` and
+      `blueprint_orphan_pages.py` both have live (non-dry-run) Canvas write paths despite
+      `lib/tools/README.md` describing one of them as read-only/deferred; and three additional
+      tools (`grader_push_comments.py`, `grader_letter_comments.py`,
+      `grader_audit_workflow.py --fix`, `grader_quiz_clear_pending.py`) write grades/comments to
+      Canvas directly and are legitimate, deliberately sanctioned writers — but `AGENTS.md`'s
+      constitutional text currently names only `grader_push.py` and `grader_standing.py` as the
+      sanctioned set. All are declared `canvas_grade_comment_write`/`approval: always` here;
+      `AGENTS.md`'s wording is narrower than the actual sanctioned surface and should be
+      corrected in a dedicated pass, not mid-phase.
+- [x] Declare FERPA/data boundaries for every package (`data_access` block: `ferpa_zone_2: deny`
+      and `student_names_in_evaluations: deny` on all three; `deidentified_submissions: allow`
+      only on `grading`).
+- [x] Add a generated package registry and human-readable package catalog.
+      `lib/tools/package_catalog.py` generates `agent-packages/registry.yaml` and
+      `agent-packages/CATALOG.md` from the manifests; `--check` mode wired into CI and
+      pre-commit so a manifest change without a regenerated catalog fails loudly.
+- [x] Preserve temporary compatibility pointers from old paths for the migration window.
+      `.claude/skills/` kept fully intact (see above); `lib/agents/*.md` kept in place with
+      each superseding package's `AGENT.md` naming what it replaces.
+- [x] Update all internal links and test them. The 5 broken relative links found above are
+      fixed and each target verified to exist on disk.
 
 **Gate:** manifests validate; package content is single-sourced; no tool behavior changes; all
-existing tests pass.
+existing tests pass. ✅ `package_validate.py` passes (3 packages, 0 issues); `package_catalog.py
+--check` passes; 1376 tests pass; ruff clean — verified 2026-09-14.
 
 ### Phase 4 — Distribution manifest and flattened resolver
 
@@ -904,3 +953,4 @@ evidence.
 | 2026-09-14 | Copilot Agent Plugin lifecycle (partial) | pending / #317 | Disable changed the visible Skills count from 25 to 24 and removed the Plugins group; re-enable restored both; uninstall changed Installed to zero; all four exact disposable probe/profile paths were removed | Enable, disable, and uninstall are measured passes; update and capability-change presentation remain release-gate measurements |
 | 2026-09-14 | Maintainer test track | pending / #317 | Root README now identifies the v2 branch as pre-beta; `docs/V2_TESTING.md` defines readiness gates from automated fixtures through one-at-a-time `*-master` pilots | Do not migrate a real course until schemas, packages, setup/update, disposable migration, and the testing guide's readiness gate pass |
 | 2026-09-14 | Phase 2 complete | pending / #317 | Package/distribution JSON Schemas added; Agent Plugins 1.0.0 `plugin.json` schema vendored and diffed byte-identical to upstream; `package_validate.py` read-only validator with malformed/unknown-tool/missing-path/undeclared-writer/forbidden-path fixtures; forbidden-path Zone-2/credential patterns re-derived from `grade_guardian` after a hand-copied list was found missing `Classlist_Export*.csv` and over-blocking `.env.example`; validator wired into `ci.yml` and `.pre-commit-config.yaml`; 1376 tests pass, ruff clean | Begin Phase 3: create canonical `course-design`/`grading`/`student-support` package directories and move the eight operating skills into canonical root `skills/` |
+| 2026-09-14 | Phase 3 complete | pending / #317 | Three package directories created with `manifest.yaml` + `AGENT.md`; 8 skills copied to canonical root `skills/` (kept in `.claude/skills/` too — Phase 5's adapter generator doesn't exist yet); 91 of ~124 tools declared and classified across the three manifests, every Canvas-write classification verified against actual HTTP calls rather than filenames; `package_validate.py` passes (0 issues); `package_catalog.py` generates `agent-packages/registry.yaml` + `CATALOG.md`, wired into CI/pre-commit; fixed 5 broken relative links surfaced by the skills copy (`../../../` → `../../`) and the `canvas_course_expert.md` `.imscc`-deprecation self-contradiction the plan named; 1376 tests pass, ruff clean | Two follow-ups outside this phase's scope: (1) `AGENTS.md`'s constitutional text names only `grader_push.py`/`grader_standing.py` as sanctioned grade/comment writers, but `grader_push_comments.py`, `grader_letter_comments.py`, `grader_audit_workflow.py --fix`, and `grader_quiz_clear_pending.py` are also legitimate sanctioned writers — wording needs a dedicated correction pass; (2) `lib/tools/README.md` describes `blueprint_orphan_pages.py` cleanup as "deferred to Phase 2" but it has a live `--apply` write path. Begin Phase 4: distribution manifest and flattened resolver |

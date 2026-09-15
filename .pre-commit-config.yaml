@@ -10,6 +10,8 @@
 #   3. package-validate — read-only agent-package/distribution/plugin manifest
 #                       validation (v2, #317 Phase 2); fast and deterministic,
 #                       so it runs here rather than waiting for CI.
+#   4. package-catalog  — fails if agent-packages/{registry.yaml,CATALOG.md} are
+#                       stale relative to the manifests (v2, #317 Phase 3).
 #
 # What does NOT run here (deliberate):
 #   - ruff format     — would reformat ~84 existing files on first run. Deferred
@@ -57,3 +59,10 @@ repos:
         language: system
         pass_filenames: false
         files: '^(agent-packages/|distribution/|plugin\.json$|schemas/agent-packages/|schemas/vendor/agent-plugins/|lib/tools/package_validate\.py$)'
+
+      - id: package-catalog
+        name: package-catalog (registry/catalog freshness)
+        entry: uv run python lib/tools/package_catalog.py --check
+        language: system
+        pass_filenames: false
+        files: '^agent-packages/.*/manifest\.yaml$'

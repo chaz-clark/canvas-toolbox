@@ -1,0 +1,29 @@
+schema_version: 1
+generated_by: lib/tools/package_catalog.py
+packages:
+- id: course-design
+  version: 2.0.0
+  name: Course Design
+  ships: true
+  skills:
+  - audit
+  - course-build
+  - improve
+  tool_count: 39
+- id: grading
+  version: 2.0.0
+  name: Grading
+  ships: true
+  skills:
+  - grading
+  - ferpa-deid
+  - voicing
+  tool_count: 44
+- id: student-support
+  version: 2.0.0
+  name: Student Support
+  ships: true
+  skills:
+  - accommodations
+  - title-iv
+  tool_count: 8
