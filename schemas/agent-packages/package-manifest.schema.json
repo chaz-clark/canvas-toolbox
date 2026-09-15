@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chaz-clark/canvas-toolbox/schemas/agent-packages/package-manifest.schema.json",
+  "title": "Canvas Toolbox Agent Package Manifest",
+  "description": "Runtime-neutral package metadata. Provider-specific fields do not belong here.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "#/$defs/id"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entry_prompt": {
+      "$ref": "#/$defs/path"
+    },
+    "requires_course_folder": {
+      "type": "boolean"
+    },
+    "skills": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "path": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "required": ["id", "path"]
+      }
+    },
+    "prompts": {
+      "$ref": "#/$defs/pathList"
+    },
+    "references": {
+      "$ref": "#/$defs/pathList"
+    },
+    "assets": {
+      "$ref": "#/$defs/pathList"
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "command": {
+            "$ref": "#/$defs/path"
+          },
+          "effect": {
+            "$ref": "#/$defs/effect"
+          },
+          "data_class": {
+            "$ref": "#/$defs/dataClass"
+          },
+          "approval": {
+            "$ref": "#/$defs/approval"
+          }
+        },
+        "required": ["id", "command", "effect", "data_class", "approval"]
+      }
+    },
+    "data_access": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "classes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/dataClass"
+          }
+        },
+        "ferpa_zone_2": {
+          "const": "deny"
+        },
+        "student_names_in_evaluations": {
+          "const": "deny"
+        },
+        "deidentified_submissions": {
+          "enum": ["allow", "deny"]
+        }
+      },
+      "required": ["classes", "ferpa_zone_2", "student_names_in_evaluations"]
+    },
+    "credentials": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/credential"
+      }
+    },
+    "network": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "none",
+          "canvas_base_url_only",
+          "github_repository_only",
+          "maintainer_service_only"
+        ]
+      }
+    },
+    "ships": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "name",
+    "description",
+    "entry_prompt",
+    "requires_course_folder",
+    "skills",
+    "tools",
+    "data_access",
+    "credentials",
+    "network",
+    "ships"
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "pathList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/path"
+      }
+    },
+    "effect": {
+      "enum": [
+        "read",
+        "local_write",
+        "canvas_content_write",
+        "canvas_grade_comment_write",
+        "canvas_student_intervention"
+      ]
+    },
+    "dataClass": {
+      "enum": [
+        "none",
+        "course_content",
+        "course_configuration",
+        "course_metadata",
+        "student_roster",
+        "student_submission",
+        "student_evaluation",
+        "student_accommodation",
+        "student_engagement",
+        "deidentified_student_work"
+      ]
+    },
+    "approval": {
+      "enum": ["none", "review", "confirm", "always"]
+    },
+    "credential": {
+      "enum": [
+        "CANVAS_API_TOKEN",
+        "CANVAS_BASE_URL",
+        "CANVAS_COURSE_ID",
+        "CANVAS_TIMEZONE",
+        "CANVAS_MODE",
+        "MASTER_COURSE_ID",
+        "BLUEPRINT_COURSE_ID",
+        "S1_COURSE_ID",
+        "S2_COURSE_ID",
+        "S3_COURSE_ID",
+        "CANVAS_SANDBOX_ID",
+        "PROTECTED_COURSE_IDS"
+      ]
+    }
+  }
+}

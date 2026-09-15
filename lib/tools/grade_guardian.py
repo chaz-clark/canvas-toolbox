@@ -82,9 +82,18 @@ _WRITE_VERB = re.compile(
 # COMMENT instead" — documentation of what the script deliberately does NOT do,
 # read as evidence that it does (#297). The endpoint pattern below covers the real
 # cases it was there for, without matching English.
+#
+# `/quizzes/<anything>/submissions` (v2, #317 Phase 9): a Classic Quiz grade can
+# be changed WITHOUT ever touching posted_grade or an /assignments/.../submissions
+# URL — grader_quiz_clear_pending.py zeroes a pending question's score via
+# PUT .../quizzes/{qid}/submissions/{id} with {"quiz_submissions": [{"questions":
+# {q: {"score": 0}}}]}. Found by a cross-check that every sanctioned grade/comment
+# writer's actual payload matches what this pattern would flag (#317 Phase 9) — a
+# hand-written bypass mimicking that exact shape would have gone undetected.
 _CANVAS_CTX = re.compile(
     r"/api/v1/courses/\d+/assignments/\d+/submissions"
     r"|/assignments/[^/\s\"']+/submissions"
+    r"|/quizzes/[^/\s\"']+/submissions"
     r"|/submissions/\d+"
     r"|posted_grade"
     r"|submission\[submission\]"
@@ -543,7 +552,12 @@ HOOK_MATCHER = "Bash|Write|Edit|Read"
 
 def hook_command(toolkit_subdir: str = "canvas-toolbox") -> str:
     """The PreToolUse `command` for a course repo. ${CLAUDE_PROJECT_DIR} is the
-    course root; the toolkit is vendored under it at <toolkit_subdir>/.
+    course root; the toolkit is vendored under it at <toolkit_subdir>/ — the
+    nested layout's default. Pass `toolkit_subdir=""` for the flat layout
+    (v2, #317 Phase 6), where grade_guardian.py is flattened directly at
+    lib/tools/, with no subdirectory: `f"{...}/{''}/lib/..."` would double a
+    slash, harmless to `sh`/`[ -f ]` on POSIX but needless, so the empty case
+    is joined explicitly instead.
 
     FAILS OPEN if the guardian script is missing (a wrong path, a rename, an
     uninstalled toolkit): a guardrail must NEVER brick a session because it can't
@@ -553,15 +567,22 @@ def hook_command(toolkit_subdir: str = "canvas-toolbox") -> str:
     if present, `exec` hands off so the guardian's own exit code (2 = deny)
     propagates unchanged.
     """
-    path = f'$CLAUDE_PROJECT_DIR/{toolkit_subdir}/lib/tools/grade_guardian.py'
+    prefix = f"{toolkit_subdir}/" if toolkit_subdir else ""
+    path = f'$CLAUDE_PROJECT_DIR/{prefix}lib/tools/grade_guardian.py'
     return f'sh -c \'f="{path}"; [ -f "$f" ] || exit 0; exec python3 "$f"\''
 
 
-def ensure_hook(settings: dict) -> tuple:
+def ensure_hook(settings: dict, toolkit_subdir: str = "canvas-toolbox") -> tuple:
     """Idempotently add the grade_guardian PreToolUse hook to a settings dict.
 
+    `toolkit_subdir` is threaded through to `hook_command()` — see there. Default
+    unchanged so every existing nested-layout caller is unaffected; flat-layout
+    callers (cb_flatten.py) pass `toolkit_subdir=""`.
+
     Returns (new_settings, changed). If any PreToolUse hook already references
-    grade_guardian, returns the settings unchanged. Never mutates the input.
+    grade_guardian, returns the settings unchanged (its path is NOT rewritten —
+    an existing hook, however it got there, is left alone; this only ever adds
+    a first hook, never edits one). Never mutates the input.
     """
     import copy
     settings = copy.deepcopy(settings) if settings else {}
@@ -572,7 +593,7 @@ def ensure_hook(settings: dict) -> tuple:
                 return settings, False
     pre.append({
         "matcher": HOOK_MATCHER,
-        "hooks": [{"type": "command", "command": hook_command()}],
+        "hooks": [{"type": "command", "command": hook_command(toolkit_subdir)}],
     })
     return settings, True
 

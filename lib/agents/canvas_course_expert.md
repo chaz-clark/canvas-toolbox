@@ -30,14 +30,14 @@ runtime_data:
 
 **Who uses it**: BYU-Idaho instructors and instructional designers who want to improve an existing Canvas course or validate a new one before it goes live.
 
-**Example**: "I uploaded my STAT 310 export. The agent found that Sprint 3 had no overview page (extraneous load, Surface phase gap) and no transfer-level assessment (Deep→Transfer gap). Using Toyota gap analysis, it traced both to a missing module template. It proposed a consolidation plan, I approved it, and it applied all 11 changes via the API in one pass."
+**Example**: "I ran the audit on my STAT 310 course. The agent found that Sprint 3 had no overview page (extraneous load, Surface phase gap) and no transfer-level assessment (Deep→Transfer gap). Using Toyota gap analysis, it traced both to a missing module template. It proposed a consolidation plan, I approved it, and it applied all 11 changes via the API in one pass."
 
 ---
 
 ## Agent Quickstart
 
-1. **Load**: Provide the Canvas course export ZIP path and your Canvas API token + course ID via environment variables.
-2. **Parse**: Agent calls `parse_course_export(zip_path)` — extracts the IMSCC manifest and builds a structured map of all modules, pages, assignments, quizzes, and discussions.
+1. **Load**: Provide your Canvas API token + course ID via environment variables.
+2. **Parse**: Agent runs `canvas_sync.py` to mirror the live course into `course/`, then builds a structured map of all modules, pages, assignments, quizzes, and discussions from that mirror. `.imscc` export parsing is deprecated (see Agent Instructions above) — the course mirror is the only supported way to read course content.
 3. **Audit**: Agent calls `analyze_cognitive_load(course_data)` — scores the course and returns a prioritized list of issues tagged by cognitive load type, Hattie phase gap, and severity.
 4. **Gap Analysis**: For each issue, agent frames the finding as a Toyota A3 gap: current state → target state → gap → root cause → countermeasure. This is the change plan format.
 5. **Research**: For each flagged issue, agent optionally calls `fetch_byui_resources(topic)` to pull relevant guidance from teach.byui.edu.

@@ -1,0 +1,18 @@
+schema_version: 1
+id: forbidden-path
+version: "2.0.0"
+name: Forbidden Path Fixture
+description: A visibly synthetic invalid package.
+entry_prompt: grading/.deid_master.csv
+requires_course_folder: true
+skills:
+  - id: fixture-skill
+    path: fixtures/skills/fixture-skill
+tools: []
+data_access:
+  classes: [student_roster]
+  ferpa_zone_2: deny
+  student_names_in_evaluations: deny
+credentials: []
+network: [none]
+ships: false
