@@ -106,7 +106,7 @@ from merge_cleanup import (
 
 # Reused rather than reimplemented — architecture-agnostic (operate on .env text
 # or a token/URL pair, not on the nested-vs-flat distinction).
-from cb_init import env_stub_content, smoke_test_canvas, stub_is_filled
+from cb_init import env_stub_content, smoke_test_canvas
 
 from capability_consent import (
     capability_diff,
@@ -413,9 +413,36 @@ def check_capability_consent(
 #     dev-only. There is no course-repo equivalent of "lint the toolkit."
 # ---------------------------------------------------------------------------
 
-def credentials_resolve(course_root: Path) -> tuple[bool, str]:
-    """(resolved, where) — does CANVAS_API_TOKEN + CANVAS_BASE_URL resolve from
-    the environment, this course's .env, or ~/.canvas/config?
+def _parse_env_file(env_path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not env_path.is_file():
+        return values
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        values[k.strip()] = v.strip().strip('"').strip("'")
+    return values
+
+
+def _resolve_credentials(course_root: Path) -> tuple[dict[str, str], dict[str, str]]:
+    """(values, sources) for CANVAS_API_TOKEN/CANVAS_BASE_URL — the ONE place
+    this per-key merge happens. `credentials_resolve()`, `ensure_env_stub()`,
+    and `canvas_smoke_test()` all need this same answer; before this they
+    each read it their own way, and `canvas_smoke_test()`'s version never
+    checked ~/.canvas/config at all — found by a real rehearsal against a
+    live sandbox where the token lived there and the smoke test reported
+    "not set" for a course that had just been audited successfully.
+
+    PER-KEY merge across environment -> this course's .env -> ~/.canvas/config
+    (the same precedence and per-key semantics `_env_loader.load_env()` uses,
+    documented there as "Applied key-by-key rather than via load_dotenv() on
+    the file") — NOT a per-SOURCE check (does source X have both keys?).
+    CANVAS_BASE_URL in the course's own .env and CANVAS_API_TOKEN in the
+    global config is a legitimate, common split (the whole point of the
+    global file is holding the token ONCE for every course); a per-source
+    check misses it entirely.
 
     Deliberately reads course_root directly rather than reusing cb_init's
     credentials_already_resolve(), which resolves via _env_loader.load_env()'s
@@ -423,28 +450,54 @@ def credentials_resolve(course_root: Path) -> tuple[bool, str]:
     need not be the process's CWD, so a CWD-based check could silently answer
     for the wrong repo."""
     import os
-    if os.environ.get("CANVAS_API_TOKEN") and os.environ.get("CANVAS_BASE_URL"):
-        return True, "environment"
-    env_path = course_root / ".env"
-    if env_path.is_file() and stub_is_filled(env_path.read_text(encoding="utf-8")):
-        return True, str(env_path)
+    file_values = _parse_env_file(course_root / ".env")
+    global_values: dict[str, str] = {}
     if _global_credential_values is not None:
-        allowed, _ = _global_credential_values()
-        if allowed.get("CANVAS_API_TOKEN") and allowed.get("CANVAS_BASE_URL"):
-            return True, str(Path.home() / ".canvas" / "config")
-    return False, ""
+        global_values, _ = _global_credential_values()
+
+    values: dict[str, str] = {}
+    sources: dict[str, str] = {}
+    for required in ("CANVAS_API_TOKEN", "CANVAS_BASE_URL"):
+        if os.environ.get(required):
+            values[required], sources[required] = os.environ[required], "environment"
+        elif file_values.get(required):
+            values[required] = file_values[required]
+            sources[required] = str(course_root / ".env")
+        elif global_values.get(required):
+            values[required] = global_values[required]
+            sources[required] = str(Path.home() / ".canvas" / "config")
+    return values, sources
+
+
+def credentials_resolve(course_root: Path) -> tuple[bool, str]:
+    """(resolved, where) — does CANVAS_API_TOKEN + CANVAS_BASE_URL resolve via
+    _resolve_credentials()'s per-key merge?"""
+    values, sources = _resolve_credentials(course_root)
+    if "CANVAS_API_TOKEN" not in values or "CANVAS_BASE_URL" not in values:
+        return False, ""
+    token_src, url_src = sources["CANVAS_API_TOKEN"], sources["CANVAS_BASE_URL"]
+    where = token_src if token_src == url_src else f"{token_src} + {url_src}"
+    return True, where
 
 
 def ensure_env_stub(course_root: Path, apply: bool) -> str:
-    """present/resolved-elsewhere/blank/would-write/written."""
+    """present/resolved-elsewhere/blank/would-write/written.
+
+    Checks `credentials_resolve()` (the per-key merge) FIRST, regardless of
+    whether a .env file exists — a course whose .env holds CANVAS_BASE_URL
+    while CANVAS_API_TOKEN comes from ~/.canvas/config is fully resolved and
+    must not be reported as blank just because neither source alone has both
+    keys."""
     env_path = course_root / ".env"
     resolved, where = credentials_resolve(course_root)
-    if resolved and not env_path.is_file():
+    if resolved:
+        if env_path.is_file():
+            return f"credentials resolve ({where}) — .env present, nothing to add"
         return f"credentials already resolve from {where} — no .env needed"
     if env_path.is_file():
-        if stub_is_filled(env_path.read_text(encoding="utf-8")):
-            return "present and filled"
-        return "exists but CANVAS_API_TOKEN/CANVAS_BASE_URL are blank — fill them in"
+        return ("exists, but CANVAS_API_TOKEN/CANVAS_BASE_URL don't fully resolve from "
+                "any source (environment, this .env, or ~/.canvas/config) — fill in "
+                "whichever is missing")
     if not apply:
         return f"would write a stub to {env_path}"
     # scaffold/.env.example, not cb_init's own default (REPO_ROOT/.env.example) —
@@ -459,19 +512,14 @@ def ensure_env_stub(course_root: Path, apply: bool) -> str:
 
 def canvas_smoke_test(course_root: Path) -> tuple[bool, str]:
     """Read-only GET /users/self. (True, msg) even when skipped — a course with
-    no Canvas configured yet (or on another LMS entirely) is not a failure."""
-    import os
-    env_path = course_root / ".env"
-    env_vars: dict[str, str] = {}
-    if env_path.is_file():
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, _, v = line.partition("=")
-            env_vars[k.strip()] = v.strip().strip('"').strip("'")
-    token = env_vars.get("CANVAS_API_TOKEN") or os.environ.get("CANVAS_API_TOKEN", "")
-    base_url = env_vars.get("CANVAS_BASE_URL") or os.environ.get("CANVAS_BASE_URL", "")
+    no Canvas configured yet (or on another LMS entirely) is not a failure.
+
+    Uses the same _resolve_credentials() merge ensure_env_stub() does — this
+    used to check only the .env file and the environment, never
+    ~/.canvas/config, so a token that resolved everywhere else in the toolkit
+    still reported "not set" here."""
+    values, _ = _resolve_credentials(course_root)
+    token, base_url = values.get("CANVAS_API_TOKEN", ""), values.get("CANVAS_BASE_URL", "")
     if not token or not base_url:
         return True, "CANVAS_API_TOKEN or CANVAS_BASE_URL not set — skipped"
     if not base_url.startswith("http"):

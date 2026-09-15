@@ -28,6 +28,8 @@ if str(_TOOLS_DIR) not in sys.path:
 
 import cb_flatten as cf  # noqa: E402
 from cb_flatten import (  # noqa: E402
+    credentials_resolve,
+    ensure_env_stub,
     DistributionError,
     GI_END,
     GI_START,
@@ -720,6 +722,108 @@ def test_apply_agents_md_step_never_creates_a_second_backup(tmp_path):
     assert status == "merge-pending"
     assert (tmp_path / "AGENTS.merge.md").read_text(encoding="utf-8") == \
         "earlier unfinished merge"
+
+
+# ---------------------------------------------------------------------------
+# credentials_resolve / ensure_env_stub — per-key merge across environment,
+# this course's .env, and ~/.canvas/config. Found by a real rehearsal against
+# a live sandbox: neither had unit tests before, and a per-SOURCE check (does
+# ONE source have both keys?) silently misreported a real, working, split
+# configuration as unresolved.
+# ---------------------------------------------------------------------------
+
+def test_credentials_resolve_from_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("CANVAS_API_TOKEN", "tok")
+    monkeypatch.setenv("CANVAS_BASE_URL", "x.instructure.com")
+    resolved, where = credentials_resolve(tmp_path)
+    assert resolved and where == "environment"
+
+
+def test_credentials_resolve_from_env_file_alone(tmp_path, monkeypatch):
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.delenv("CANVAS_BASE_URL", raising=False)
+    (tmp_path / ".env").write_text(
+        "CANVAS_API_TOKEN=tok\nCANVAS_BASE_URL=x.instructure.com\n", encoding="utf-8")
+    resolved, where = credentials_resolve(tmp_path)
+    assert resolved and where == str(tmp_path / ".env")
+
+
+def test_credentials_resolve_merges_across_env_file_and_global_config(tmp_path, monkeypatch):
+    """THE REAL BUG. CANVAS_BASE_URL in the course's own .env, CANVAS_API_TOKEN
+    in ~/.canvas/config — a legitimate, common split (the whole point of the
+    global file is holding the token once for every course) that a per-source
+    check misses. A real sandbox rehearsal hit this exact configuration: the
+    actual tools worked (they use _env_loader's own per-key merge), but
+    ensure_env_stub() reported "blank, fill them in" on a working setup."""
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.delenv("CANVAS_BASE_URL", raising=False)
+    (tmp_path / ".env").write_text("CANVAS_BASE_URL=x.instructure.com\n", encoding="utf-8")
+    monkeypatch.setattr(
+        cf, "_global_credential_values", lambda: ({"CANVAS_API_TOKEN": "tok"}, [])
+    )
+    resolved, where = credentials_resolve(tmp_path)
+    assert resolved is True
+    assert str(tmp_path / ".env") in where and "canvas/config" in where
+
+
+def test_credentials_resolve_false_when_a_key_is_missing_everywhere(tmp_path, monkeypatch):
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.delenv("CANVAS_BASE_URL", raising=False)
+    (tmp_path / ".env").write_text("CANVAS_BASE_URL=x.instructure.com\n", encoding="utf-8")
+    monkeypatch.setattr(cf, "_global_credential_values", lambda: ({}, []))
+    resolved, _ = credentials_resolve(tmp_path)
+    assert resolved is False
+
+
+def test_ensure_env_stub_reports_resolved_even_with_a_partial_env_file(tmp_path, monkeypatch):
+    """The actual regression: a .env that exists but only has HALF the
+    required keys must not be reported as blank if the other half resolves
+    from the global config."""
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.delenv("CANVAS_BASE_URL", raising=False)
+    (tmp_path / ".env").write_text("CANVAS_BASE_URL=x.instructure.com\n", encoding="utf-8")
+    monkeypatch.setattr(
+        cf, "_global_credential_values", lambda: ({"CANVAS_API_TOKEN": "tok"}, [])
+    )
+    status = ensure_env_stub(tmp_path, apply=True)
+    assert "resolve" in status and "blank" not in status
+
+
+def test_ensure_env_stub_still_reports_blank_when_truly_unresolved(tmp_path, monkeypatch):
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.delenv("CANVAS_BASE_URL", raising=False)
+    (tmp_path / ".env").write_text("CANVAS_COURSE_ID=1\n", encoding="utf-8")
+    monkeypatch.setattr(cf, "_global_credential_values", lambda: ({}, []))
+    status = ensure_env_stub(tmp_path, apply=True)
+    assert "don't fully resolve" in status
+
+
+def test_canvas_smoke_test_skips_when_truly_unresolved(tmp_path, monkeypatch):
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.delenv("CANVAS_BASE_URL", raising=False)
+    monkeypatch.setattr(cf, "_global_credential_values", lambda: ({}, []))
+    ok, msg = cf.canvas_smoke_test(tmp_path)
+    assert ok is True and "not set" in msg
+
+
+def test_canvas_smoke_test_finds_a_token_split_across_env_file_and_global_config(
+    tmp_path, monkeypatch
+):
+    """The exact bug: canvas_smoke_test() used to check only the .env file and
+    the environment, never ~/.canvas/config — a token that every other part of
+    the toolkit resolved fine still reported "not set" here."""
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.delenv("CANVAS_BASE_URL", raising=False)
+    (tmp_path / ".env").write_text("CANVAS_BASE_URL=x.instructure.com\n", encoding="utf-8")
+    monkeypatch.setattr(
+        cf, "_global_credential_values", lambda: ({"CANVAS_API_TOKEN": "tok"}, [])
+    )
+    calls = {}
+    monkeypatch.setattr(cf, "smoke_test_canvas",
+                        lambda token, url: calls.update(token=token, url=url) or (True, "ok"))
+    ok, _ = cf.canvas_smoke_test(tmp_path)
+    assert ok is True
+    assert calls == {"token": "tok", "url": "https://x.instructure.com"}
 
 
 def test_only_the_known_negation_escapes_the_ignore_block(tmp_path):
