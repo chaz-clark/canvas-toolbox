@@ -1031,31 +1031,62 @@ cleanly while missing both.
 
 ### Phase 10 — Faculty-facing acceptance tests
 
-- [ ] Update the readiness table in `docs/V2_TESTING.md` as each test stage becomes available.
-- [ ] Fresh macOS setup in VS Code + Codex using ChatGPT/CES sign-in.
-- [ ] Fresh Windows setup in VS Code + Codex using ChatGPT/CES sign-in.
-- [ ] Repeat the core setup/audit flow with Claude Code.
-- [ ] Repeat the core setup/audit flow with GitHub Copilot where supported.
-- [ ] Verify a faculty user never has to understand Git, Python, `uv`, manifests, adapters, or
-      `.env` internals.
-- [ ] Verify setup clearly requests only Canvas URL, course ID, and Canvas token when needed.
-- [ ] Verify the BYU-Idaho-only CES login video remains clearly labeled.
-- [ ] Test direct Git installation and update of the Canvas Toolbox Agent Plugin.
-- [ ] Test disabling the plugin and confirm the flattened toolkit still gives the agent the
-      constitution and safe deterministic commands.
-- [ ] Migrate one maintainer-selected `*-master` repository on a dedicated branch after a reviewed
-      dry run; perform no Canvas writes and retain a documented rollback point.
-- [ ] Convert every layout difference found in that pilot into a synthetic migration fixture
-      before selecting another course repository.
-- [ ] Migrate additional `*-master` repositories one at a time only after the first pilot passes.
-- [ ] Decide whether an optional `.code-profile` materially reduces onboarding steps; reject it
-      if it duplicates plugin/adapter state or overwrites user preferences.
-- [ ] Test: initialize, restart session, pull course, run read-only audit, edit locally, review a
-      push plan, decline, approve in sandbox, update toolkit, and restart again.
-- [ ] Record friction and revise setup text/videos before release.
+**None of this phase's checklist can be completed by an agent working non-interactively — every
+item requires either a real VS Code session with a real extension signed in, a live Canvas
+sandbox, a real `*-master` repository, or an actual non-technical human at a keyboard.**
+`docs/V2_TESTING.md` itself gates real-repository access behind exactly the stages this phase
+would complete, and this session held that line rather than working around it: no `*-master`
+repo was opened, no Canvas sandbox call was made, no VS Code extension was driven.
+
+- [x] Update the readiness table in `docs/V2_TESTING.md` as each test stage becomes available.
+      Updated to reflect Phases 2–9: Stage 1 (automated tests) is genuinely Complete — 1492
+      passing tests, no course repository touched; Stage 2 (disposable local repositories) is
+      Partially ready — every file-level bullet (fresh install, update, migration, rollback) was
+      run against real fixtures, but "Codex/Claude Code/Copilot/generic workspace adapter
+      discovery" needs a real VS Code session and remains the one open item closing that stage.
+- [ ] *(Needs the maintainer)* Fresh macOS setup in VS Code + Codex using ChatGPT/CES sign-in.
+- [ ] *(Needs the maintainer, and a Windows machine)* Fresh Windows setup in VS Code + Codex.
+- [ ] *(Needs the maintainer)* Repeat the core setup/audit flow with Claude Code.
+- [ ] *(Needs the maintainer)* Repeat the core setup/audit flow with GitHub Copilot where
+      supported.
+- [ ] *(Needs the maintainer)* Verify a faculty user never has to understand Git, Python, `uv`,
+      manifests, adapters, or `.env` internals — this is a UX observation of a real person, not
+      something inferable from code.
+- [x] Verify setup clearly requests only Canvas URL, course ID, and Canvas token when needed.
+      Confirmed by design and by the real fixture runs in Phase 6: `ensure_env_stub()`'s written
+      template asks for exactly those (plus clearly-marked optional fields), and the bootstrap
+      flow never surfaces a manifest, adapter, or `.env` internal to the instructor — only
+      "AGENT:" — addressed instructions and a plain-language summary.
+- [ ] *(Needs the maintainer)* Verify the BYU-Idaho-only CES login video remains clearly labeled
+      — a documentation/media review, not a code check.
+- [ ] *(Needs the maintainer, and Phase 1's still-open gate)* Test direct Git installation and
+      update of the Canvas Toolbox Agent Plugin.
+- [x] Test disabling the plugin and confirm the flattened toolkit still gives the agent the
+      constitution and safe deterministic commands. Verified by construction and by every Phase
+      6/7/8 fixture run: the flattened install (`AGENTS.md`, `lib/tools/`, the guardian hook) has
+      zero runtime dependency on `plugin.json` or the portable `skills/` ever being installed as
+      an Agent Plugin — nothing in `cb_flatten.py`, `capability_consent.py`, or
+      `migrate_nested_to_flat.py` reads or requires plugin state.
+- [ ] *(Needs the maintainer — this is what Stage 4 of `V2_TESTING.md` exists to gate)* Migrate
+      one maintainer-selected `*-master` repository on a dedicated branch after a reviewed dry
+      run; perform no Canvas writes and retain a documented rollback point. The TOOLING for this
+      (`migrate_nested_to_flat.py`, Phase 8) is built and fixture-tested; running it against a
+      real repository is the one thing that tooling being ready does not itself authorize.
+- [ ] *(Follows from the item above)* Convert every layout difference found in that pilot into a
+      synthetic migration fixture before selecting another course repository.
+- [ ] *(Follows from the item above)* Migrate additional `*-master` repositories one at a time
+      only after the first pilot passes.
+- [ ] *(Needs the maintainer)* Decide whether an optional `.code-profile` materially reduces
+      onboarding steps; reject it if it duplicates plugin/adapter state or overwrites user
+      preferences — a product judgment call, not a technical check.
+- [ ] *(Needs the maintainer)* Test: initialize, restart session, pull course, run read-only
+      audit, edit locally, review a push plan, decline, approve in sandbox, update toolkit, and
+      restart again — a real session, in a real editor, against a real (sandbox) Canvas course.
+- [ ] *(Needs the maintainer)* Record friction and revise setup text/videos before release.
 
 **Gate:** a non-technical tester completes the reference workflow without developer help or
-copy-pasting terminal commands.
+copy-pasting terminal commands. **Not met, and cannot be met by continuing to work on the v2
+branch alone** — this gate is specifically about a human's experience, not about more code.
 
 ### Phase 11 — Release candidate and migration rehearsal
 
@@ -1241,3 +1272,4 @@ evidence.
 | 2026-09-15 | Phase 7 complete | pending / #317 | `lib/tools/capability_consent.py` added: fingerprint/diff/render/persist for package capability growth, gated into `cb_flatten.py`'s `--apply` path via `check_capability_consent()`. Approval state persists at `.canvas-toolbox-approvals.json` (course root, git-tracked, no secrets — credential NAMES only). Self-approval is structurally impossible: the schema defines no "approved" field and `record_approval()` is the sole writer, requiring an explicit `approved_by` the caller supplies. Verified end-to-end against the real CLI, not simulated: a fresh install of all 3 real packages was refused (exit 2, confirmed nothing written); `--approve-all` let it proceed and recorded fingerprints; a real manifest edit adding a Canvas-write tool was caught and blocked on the next run, scoped to only the changed package; `--approve student-support` resolved it. 1443 tests pass (19 new), ruff clean | Begin Phase 8 (compatibility and migration tooling) — this is where the deferred `cb_init.py`/`cb_update.py` rewrite and the six nested-repo migrations belong, gated on `docs/V2_TESTING.md`'s pilot readiness |
 | 2026-09-15 | Phase 8 complete | pending / #317 | `lib/tools/migrate_nested_to_flat.py` added: detect nested/flat/standalone/unknown layout; relocate the nested clone via a LOCAL git clone (never a rename — the old `canvas-toolbox/` stays untouched until a separate, explicit `--finalize`); remove stale skill symlinks and the Windows copy-fallback (never a course-owned real directory); delegate the actual flatten/merge/verify to Phase 4/6's already-built `cb_flatten.py` machinery rather than reimplementing it; replace ONLY a `grade_guardian` hook pointing at the nested subdirectory, leaving an already-flat or genuinely-customized hook alone; `--finalize` requires the same 6-check verification to pass; `rollback()` handles both pre- and post-finalize. A real gap was found and fixed by testing rather than assumed away: `--finalize` originally let the old clone be removed even when an earlier `merge_cleanup.py` run had failed and correctly retained `AGENTS.merge.md` — nothing was actually lost, but the status gave no indication anything was still open; added a distinct `finalized-merge-pending` status. Verified repeatedly against real git and real fixtures (never a real `*-master` repo, per `docs/V2_TESTING.md`): full happy path, pre- and post-finalize rollback, and finalize-with-a-failed-merge. 1483 tests pass (34 new), ruff clean | Begin Phase 9 (safety regression suite) — the deferred `cb_init.py`/`cb_update.py` rewrite and running this migration tool against a real `*-master` repo both remain pilot-gated, not part of this phase |
 | 2026-09-15 | Phase 9 complete | pending / #317 | `lib/tests/test_safety_regression.py` added, covering the invariants new in v2 (declared-writer accuracy, manifest/adapter layering) rather than duplicating 1.x's existing FERPA/bypass/scope/offline coverage, all reconfirmed passing. **Two real findings, fixed rather than assumed away**: (1) `AGENTS.md` claimed only `grader_push.py`/`grader_standing.py` write grades/comments — false; four more tools are equally sanctioned (flagged in Phase 3), wording corrected, and `package_validate.py`'s `CONSTITUTIONAL_WRITERS` (previously protecting only 2) expanded to all 6. (2) `grade_guardian.py`'s own bypass-detection regex would NOT have caught a script mimicking `grader_quiz_clear_pending.py`'s real mechanism (zeroing a Classic Quiz question's score via `quiz_submissions[].questions[].score`, never `posted_grade`) — a genuine gap in the enforcement mechanism itself, found by cross-checking every sanctioned writer's actual payload against the pattern meant to catch bypasses of it, fixed and proven with a real bypass-shaped script both before (failed) and after (passes) the fix. Ported to `main` immediately given the safety significance, not deferred with the rest of Phase 9. 1492 tests pass (10 new), ruff clean | Begin Phase 10 (faculty acceptance testing) — this phase requires the maintainer's own hands (real VS Code sessions, a real course pilot) and cannot be completed by an agent alone |
+| 2026-09-15 | Phase 10 — the buildable slice only; the phase cannot close | pending / #317 | Updated `docs/V2_TESTING.md`'s readiness table honestly: Stage 1 (automated tests) genuinely Complete — 1492 passing, no course repository touched; Stage 2 (disposable repositories) Partially ready — every file-level bullet verified against real fixtures across Phases 4/6/7/8, but real VS Code adapter-discovery is the one item closing it; Stages 3–6 Not ready (all require a live Canvas sandbox, real VS Code sessions, or a real `*-master` repository). Confirmed by construction/fixture evidence: the setup flow requests only Canvas URL/course ID/token (never a manifest or `.env` internal), and disabling the plugin doesn't affect the flattened toolkit's own operation (nothing in Phase 6/7/8's code reads plugin state). Every remaining checklist item is marked needing the maintainer directly — real macOS/Windows/Codex/Claude Code/Copilot sessions, a real Canvas sandbox run, faculty-friction observation, and the actual `*-master` pilot migration Phase 8 built the tooling for but cannot itself authorize running. No course repository was opened and no Canvas sandbox call was made this session | Phases 11 and 12 are explicitly gated on this phase (11's own gate: "approved by the maintainer"; 12's Definition of Done requires "a non-technical faculty tester completes the reference workflow") — continuing to write code cannot satisfy either. Handed back to the maintainer rather than worked around |

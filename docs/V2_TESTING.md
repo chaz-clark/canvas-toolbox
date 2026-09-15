@@ -11,19 +11,46 @@ behavior is recorded in
 
 ## Current readiness
 
+_Last updated: 2026-09-15, after Phase 9 (safety regression suite)._
+
 | Test stage | Status | May use an existing `*-master` repository? |
 |---|---|---|
 | Runtime discovery and architecture review | Complete | No course repository is needed. |
-| Package schemas and validator | Not ready | No. |
-| Canonical packages and generated adapters | Not ready | No. |
-| Disposable fresh installation | Not ready | No. |
-| Disposable 1.x-to-2.0 migration | Not ready | No. |
-| Selected `*-master` pilot | Not ready | No. |
-| General faculty beta | Not ready | No. |
+| **Stage 1** — Automated repository tests | **Complete** | No. |
+| **Stage 2** — Disposable local repositories | **Partially ready** — see note | No. |
+| **Stage 3** — Canvas sandbox, read-only first | Not ready | No — needs a Canvas sandbox connection, not yet run. |
+| **Stage 4** — One selected `*-master` pilot | Not ready | No. |
+| **Stage 5** — Additional master repositories | Not ready | No. |
+| **Stage 6** — Faculty beta and release | Not ready | No. |
 
-**Do not migrate a real course while its stage says “Not ready.”** A checked implementation task is
+**Do not migrate a real course while its stage says "Not ready."** A checked implementation task is
 not enough by itself; the preceding gate must pass and this table must be updated in the same pull
 request.
+
+**Stage 1, in full:** schema/validator (Phase 2), package classification (Phase 3), the
+distribution resolver (Phase 4), Agent Plugin + generated adapters (Phase 5), flat init/update
+orchestration (Phase 6), capability consent (Phase 7), nested-to-flat migration tooling (Phase 8),
+and the cross-cutting safety regression suite (Phase 9) — 1492 automated tests, all passing, no
+course repository touched. Two real, previously-undetected safety gaps were found and fixed along
+the way (a flat-mode guardian hook silently inert due to a hardcoded nested path — Phase 6; a
+bypass-detection regex blind to the quiz-score write mechanism — Phase 9, also ported to `main`).
+
+**Stage 2, what's done vs. outstanding:** every item in this stage's own bullet list was run
+against real git and real synthetic fixtures — fresh installation, repeat installation and update,
+migration from nested and already-flattened layouts, course-owned-file preservation, stale-file
+removal, and rollback after an interrupted or invalid update — repeatedly, with defects found and
+fixed by the fixtures themselves rather than assumed away (see the Phase 4, 6, 7, and 8 progress
+log entries). The one bullet NOT done: **"Codex, Claude Code, Copilot, and generic workspace
+adapter discovery where available"** — this requires an actual VS Code session with each extension
+installed and cannot be performed by an agent working non-interactively. Phase 1's ADR already
+carries the closest available evidence (a disposable probe fixture, not the real package). Stage 2
+cannot close until this one item is run by the maintainer.
+
+**Stage 3 onward are entirely gated on human hands** — a live Canvas sandbox connection, real VS
+Code + Codex/Claude Code/Copilot sessions on macOS and Windows, and a maintainer-selected pilot
+repository. None of these can be completed or simulated by an agent alone; this file's own Stage 4
+rollback/approval design (Phase 8's `migrate_nested_to_flat.py`) is ready and tested, but running it
+against a real repository is exactly what these stages exist to gate.
 
 ## Testing ladder
 
