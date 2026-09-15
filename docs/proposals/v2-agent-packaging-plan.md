@@ -966,19 +966,68 @@ verified 2026-09-15.
 
 ### Phase 9 — Safety regression suite
 
-- [ ] Run all FERPA Zone-2 read-block fixtures.
-- [ ] Run pre-push FERPA path and optional content-scan fixtures.
-- [ ] Verify `grader_push.py` and `grader_standing.py` remain the only grade/comment writers.
-- [ ] Verify direct Canvas write bypass scripts remain blocked.
-- [ ] Verify Test Student exclusion and duplicate-comment gates.
-- [ ] Verify master/blueprint/section scope confirmation.
-- [ ] Verify manifest declarations cannot weaken deterministic enforcement.
-- [ ] Verify adapters cannot enable undeclared writes.
-- [ ] Verify an unrecognized package/tool fails closed.
-- [ ] Verify offline/local audits still run without network access.
-- [ ] Run `uv run pytest lib/tests -q` and stop on the first failure.
+Most invariants already had fixtures scattered across the 1.x suite; this phase's real
+work was the invariants that were NEW in v2 and had no home yet (declared-writer
+accuracy, manifest/adapter layering) — confirmed below, not duplicated.
 
-**Gate:** every constitutional safety invariant has an automated passing test.
+- [x] Run all FERPA Zone-2 read-block fixtures. Existing (`test_grade_guardian.py`),
+      confirmed passing in the full 1492-test run.
+- [x] Run pre-push FERPA path and optional content-scan fixtures. Existing
+      (`test_ferpa_pre_push.py` and related), confirmed passing.
+- [x] Verify `grader_push.py` and `grader_standing.py` remain the only grade/comment
+      writers. **They aren't, and the constitution was wrong to say so** — corrected
+      instead of testing a false invariant. `AGENTS.md` named only these two;
+      `grader_push_comments.py`, `grader_letter_comments.py`,
+      `grader_audit_workflow.py --fix`, and `grader_quiz_clear_pending.py` are equally
+      sanctioned (flagged in Phase 3, fixed now). `package_validate.py`'s
+      `CONSTITUTIONAL_WRITERS` only protected the original two; expanded to all six.
+      `test_every_grade_write_signature_in_lib_tools_is_declared` /
+      `test_every_declared_grade_comment_writer_actually_writes_grades` now hold the
+      real invariant: the declared set matches code reality in both directions.
+- [x] Verify direct Canvas write bypass scripts remain blocked. Existing coverage
+      confirmed, PLUS a real gap found and fixed: `grade_guardian.py`'s own
+      `_CANVAS_CTX` bypass-detection regex would NOT have caught a script mimicking
+      `grader_quiz_clear_pending.py`'s actual mechanism (it zeroes a Classic Quiz
+      question's score via `quiz_submissions[].questions[].score` — never
+      `posted_grade` or an `/assignments/.../submissions` URL, the shape every other
+      sanctioned writer uses). Found by `test_grade_guardian_would_catch_a_bypass_
+      mimicking_every_sanctioned_writer`, which runs each of the 6 real writers'
+      actual source through `evaluate()` — not asserted, proven with a real bypass-
+      shaped script both before the fix (failed) and after (`test_denies_a_bypass_
+      that_zeroes_quiz_scores_without_posted_grade`, passes).
+- [x] Verify Test Student exclusion and duplicate-comment gates. Existing
+      (`test_grader_push_helpers.py` and others), confirmed passing.
+- [x] Verify master/blueprint/section scope confirmation. Existing
+      (`test_canvas_course_guard.py`), confirmed passing.
+- [x] Verify manifest declarations cannot weaken deterministic enforcement.
+      `test_capability_consent_approval_never_weakens_grade_guardian` — approving a
+      package's capabilities has zero effect on `grade_guardian.evaluate()`'s
+      decision; a hand-written bypass is still blocked regardless of approval state.
+- [x] Verify adapters cannot enable undeclared writes.
+      `test_generate_adapters_never_touches_hooks_or_settings` — running the
+      generator never creates or modifies `.claude/settings.json`, the only place a
+      Canvas-write capability is actually granted at the harness level.
+- [x] Verify an unrecognized package/tool fails closed. Existing Phase 2 coverage
+      (`unknown-tool`/`unknown-package` fixtures) confirmed, plus a direct
+      confirmation in `test_safety_regression.py` itself.
+- [x] Verify offline/local audits still run without network access. Existing
+      (`--local`-flag tests across several audit test files), confirmed passing.
+- [x] Run `uv run pytest lib/tests -q` and stop on the first failure. What `ci.yml`
+      already does on every push, before ruff, before actionlint; encoded as
+      `test_full_suite_baseline_is_recorded_and_run_in_ci` so a future edit that
+      drops the step gets caught by the suite it would otherwise stop protecting.
+
+**A note on how the two real findings were found**: not by writing tests that assert
+what the constitution already claimed, but by writing tests that check the CLAIM
+against the CODE — every sanctioned writer's actual payload against the declared
+label, and every sanctioned writer's actual payload against the detector meant to
+catch bypasses of it. Both directions caught a real, previously-unverified gap; a
+test that only re-asserted the existing (wrong) two-writer claim would have passed
+cleanly while missing both.
+
+**Gate:** every constitutional safety invariant has an automated passing test. ✅
+1492 tests pass (10 new: 9 in `test_safety_regression.py` + 1 in
+`test_grade_guardian.py`), ruff clean — verified 2026-09-15.
 
 ### Phase 10 — Faculty-facing acceptance tests
 
@@ -1191,3 +1240,4 @@ evidence.
 | 2026-09-15 | Phase 6 complete, scoped to the flat orchestration only | pending / #317 | After reading `cb_init.py`/`cb_update.py` (1926 lines total) and finding both implement the OLD nested-subdirectory architecture, scope was narrowed (maintainer-approved) to building the new flat orchestration on `cb_flatten.py` rather than rewriting the nested tools or migrating the six existing repos — both explicitly deferred. Delivered: the AGENTS.md merge workflow (`plan_agents_md_merge`/`apply_agents_md_step`, deterministic backup+replace; `merge_cleanup.py` remains the separate correctness gate); fresh-install bootstrap (`.env` stub, guardian hook, read-only Canvas smoke test); a 6-check verification report gating `--apply`'s success on real evidence; the weekly fail-open staleness check in `_env_loader.load_env()`; one shared `RELOAD_NOTICE` constant. **A real safety bug was found and fixed along the way**: `grade_guardian.ensure_hook()` always hardcoded the nested `canvas-toolbox/` path prefix, so a flat-mode guardian hook would install into `.claude/settings.json` but reference a script path that never exists there — installed, but silently inert by the hook's own fail-open design. Proven both broken and then fixed with a real bypass script run through the actual flattened hook command (not just a unit test). Entire cycle (fresh install → course content added → upstream constitution changes → merge triggers → agent curates → `merge_cleanup` verifies and removes backup → re-run is idempotent) verified against real git and real files, not just synthetic fixtures. 1424 tests pass (68 new), ruff clean | `cb_init.py`/`cb_update.py` rewrite and the six-repo migration remain for a later phase, gated on pilot testing per `docs/V2_TESTING.md`; begin Phase 7 (capability consent and change detection) |
 | 2026-09-15 | Phase 7 complete | pending / #317 | `lib/tools/capability_consent.py` added: fingerprint/diff/render/persist for package capability growth, gated into `cb_flatten.py`'s `--apply` path via `check_capability_consent()`. Approval state persists at `.canvas-toolbox-approvals.json` (course root, git-tracked, no secrets — credential NAMES only). Self-approval is structurally impossible: the schema defines no "approved" field and `record_approval()` is the sole writer, requiring an explicit `approved_by` the caller supplies. Verified end-to-end against the real CLI, not simulated: a fresh install of all 3 real packages was refused (exit 2, confirmed nothing written); `--approve-all` let it proceed and recorded fingerprints; a real manifest edit adding a Canvas-write tool was caught and blocked on the next run, scoped to only the changed package; `--approve student-support` resolved it. 1443 tests pass (19 new), ruff clean | Begin Phase 8 (compatibility and migration tooling) — this is where the deferred `cb_init.py`/`cb_update.py` rewrite and the six nested-repo migrations belong, gated on `docs/V2_TESTING.md`'s pilot readiness |
 | 2026-09-15 | Phase 8 complete | pending / #317 | `lib/tools/migrate_nested_to_flat.py` added: detect nested/flat/standalone/unknown layout; relocate the nested clone via a LOCAL git clone (never a rename — the old `canvas-toolbox/` stays untouched until a separate, explicit `--finalize`); remove stale skill symlinks and the Windows copy-fallback (never a course-owned real directory); delegate the actual flatten/merge/verify to Phase 4/6's already-built `cb_flatten.py` machinery rather than reimplementing it; replace ONLY a `grade_guardian` hook pointing at the nested subdirectory, leaving an already-flat or genuinely-customized hook alone; `--finalize` requires the same 6-check verification to pass; `rollback()` handles both pre- and post-finalize. A real gap was found and fixed by testing rather than assumed away: `--finalize` originally let the old clone be removed even when an earlier `merge_cleanup.py` run had failed and correctly retained `AGENTS.merge.md` — nothing was actually lost, but the status gave no indication anything was still open; added a distinct `finalized-merge-pending` status. Verified repeatedly against real git and real fixtures (never a real `*-master` repo, per `docs/V2_TESTING.md`): full happy path, pre- and post-finalize rollback, and finalize-with-a-failed-merge. 1483 tests pass (34 new), ruff clean | Begin Phase 9 (safety regression suite) — the deferred `cb_init.py`/`cb_update.py` rewrite and running this migration tool against a real `*-master` repo both remain pilot-gated, not part of this phase |
+| 2026-09-15 | Phase 9 complete | pending / #317 | `lib/tests/test_safety_regression.py` added, covering the invariants new in v2 (declared-writer accuracy, manifest/adapter layering) rather than duplicating 1.x's existing FERPA/bypass/scope/offline coverage, all reconfirmed passing. **Two real findings, fixed rather than assumed away**: (1) `AGENTS.md` claimed only `grader_push.py`/`grader_standing.py` write grades/comments — false; four more tools are equally sanctioned (flagged in Phase 3), wording corrected, and `package_validate.py`'s `CONSTITUTIONAL_WRITERS` (previously protecting only 2) expanded to all 6. (2) `grade_guardian.py`'s own bypass-detection regex would NOT have caught a script mimicking `grader_quiz_clear_pending.py`'s real mechanism (zeroing a Classic Quiz question's score via `quiz_submissions[].questions[].score`, never `posted_grade`) — a genuine gap in the enforcement mechanism itself, found by cross-checking every sanctioned writer's actual payload against the pattern meant to catch bypasses of it, fixed and proven with a real bypass-shaped script both before (failed) and after (passes) the fix. Ported to `main` immediately given the safety significance, not deferred with the rest of Phase 9. 1492 tests pass (10 new), ruff clean | Begin Phase 10 (faculty acceptance testing) — this phase requires the maintainer's own hands (real VS Code sessions, a real course pilot) and cannot be completed by an agent alone |

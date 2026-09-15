@@ -82,9 +82,18 @@ _WRITE_VERB = re.compile(
 # COMMENT instead" — documentation of what the script deliberately does NOT do,
 # read as evidence that it does (#297). The endpoint pattern below covers the real
 # cases it was there for, without matching English.
+#
+# `/quizzes/<anything>/submissions` (v2, #317 Phase 9): a Classic Quiz grade can
+# be changed WITHOUT ever touching posted_grade or an /assignments/.../submissions
+# URL — grader_quiz_clear_pending.py zeroes a pending question's score via
+# PUT .../quizzes/{qid}/submissions/{id} with {"quiz_submissions": [{"questions":
+# {q: {"score": 0}}}]}. Found by a cross-check that every sanctioned grade/comment
+# writer's actual payload matches what this pattern would flag (#317 Phase 9) — a
+# hand-written bypass mimicking that exact shape would have gone undetected.
 _CANVAS_CTX = re.compile(
     r"/api/v1/courses/\d+/assignments/\d+/submissions"
     r"|/assignments/[^/\s\"']+/submissions"
+    r"|/quizzes/[^/\s\"']+/submissions"
     r"|/submissions/\d+"
     r"|posted_grade"
     r"|submission\[submission\]"

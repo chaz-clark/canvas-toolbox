@@ -58,6 +58,14 @@ CANVAS_EFFECTS = frozenset(
 CONSTITUTIONAL_WRITERS = {
     "lib/tools/grader_push.py": "canvas_grade_comment_write",
     "lib/tools/grader_standing.py": "canvas_grade_comment_write",
+    # Verified by reading each tool's actual Canvas write calls (v2, #317 Phase 3) —
+    # AGENTS.md previously named only the two above; these four are equally
+    # sanctioned grade/comment writers and belong under the same protection, or a
+    # manifest could mis-declare one as effect: read and this validator would miss it.
+    "lib/tools/grader_push_comments.py": "canvas_grade_comment_write",
+    "lib/tools/grader_letter_comments.py": "canvas_grade_comment_write",
+    "lib/tools/grader_audit_workflow.py": "canvas_grade_comment_write",
+    "lib/tools/grader_quiz_clear_pending.py": "canvas_grade_comment_write",
 }
 
 # FERPA Zone 2 (never read) plus the credential-store patterns, both derived from
