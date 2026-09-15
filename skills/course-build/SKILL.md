@@ -47,7 +47,7 @@ items, and date-window problems the write may have introduced.
 
 ## Canvas API write lessons that bite content sync
 
-The full catalog is [`lib/agents/knowledge/canvas_api_lessons_learned.md`](../../../lib/agents/knowledge/canvas_api_lessons_learned.md).
+The full catalog is [`lib/agents/knowledge/canvas_api_lessons_learned.md`](../../lib/agents/knowledge/canvas_api_lessons_learned.md).
 The ones that matter here:
 
 - **Module prerequisites & published state are FORM-ENCODED, not JSON** (L1, L2) —

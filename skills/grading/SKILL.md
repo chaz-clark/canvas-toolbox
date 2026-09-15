@@ -49,7 +49,7 @@ asked for a **C**, and it reached them before anyone caught it.
 
 ## HG-5 — the instructor is the top layer
 
-Principle **HG-5** of the [hybrid grading architecture](../../../lib/agents/knowledge/grader_hybrid_architecture.md):
+Principle **HG-5** of the [hybrid grading architecture](../../lib/agents/knowledge/grader_hybrid_architecture.md):
 the agent drafts; the instructor reviews and confirms; only then does anything post.
 
 ### The push protocol — you run all of it; the human clicks to approve, twice
@@ -235,5 +235,5 @@ questions. If the pending question is worth points, that's real grading → Spee
 | Mirror the live gradebook locally (feeds standing/reconcile) | `grader_fetch_gradebook.py` |
 | Clear an auto-scored quiz stuck on a 0-point manual question | `grader_quiz_clear_pending.py --assignment-id <id> --apply` |
 
-Full grading knowledge: [`lib/agents/knowledge/grader_hybrid_architecture.md`](../../../lib/agents/knowledge/grader_hybrid_architecture.md)
-and [`lib/agents/knowledge/toolkit_reuse_knowledge.md`](../../../lib/agents/knowledge/toolkit_reuse_knowledge.md).
+Full grading knowledge: [`lib/agents/knowledge/grader_hybrid_architecture.md`](../../lib/agents/knowledge/grader_hybrid_architecture.md)
+and [`lib/agents/knowledge/toolkit_reuse_knowledge.md`](../../lib/agents/knowledge/toolkit_reuse_knowledge.md).

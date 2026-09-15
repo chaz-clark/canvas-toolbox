@@ -630,19 +630,55 @@ existing tests pass. ✅ `package_validate.py` passes (3 packages, 0 issues); `p
 
 ### Phase 4 — Distribution manifest and flattened resolver
 
-- [ ] Add `distribution/manifest.yaml` covering the course-facing payload.
-- [ ] Implement deterministic resolution to an exact sorted path set.
-- [ ] Change `cb_flatten` to copy the resolved distribution set instead of every tracked file.
-- [ ] Keep the prior `.gitignore` block as the before-state for deletion tracking.
-- [ ] Show added/removed packages, paths, and capabilities in dry-run output.
-- [ ] Verify that developer-only tests, research sources, and internal proposal files are not
-      installed unless deliberately listed.
-- [ ] Preserve `AGENTS.md` and `.gitignore` hybrid handling.
-- [ ] Add recovery behavior for invalid manifests and interrupted updates.
-- [ ] Add an explicit legacy-full-manifest migration test.
+- [x] Add `distribution/manifest.yaml` covering the course-facing payload. 11 entries
+      (`bin`, `lib/agents`, `lib/tools`, `agent-packages`, `skills`, `.claude/skills`,
+      `scaffold`, `knowledge`, `schemas`, plus `pyproject.toml`/`uv.lock`/`.python-version`
+      files) resolving to 269 of 428 tracked files. Excludes `lib/tests/`, `docs/`
+      (proposals/research/architecture/ROADMAP/UPGRADING), `.github/`, `examples/`,
+      `.claude-plugin/`, `.devcontainer/`, `scripts/` (bootstrap installers), and toolkit-
+      repo-root files (README/CHANGELOG/LICENSE/llms.txt/.pre-commit-config.yaml).
+- [x] Implement deterministic resolution to an exact sorted path set.
+      `cb_flatten.resolve_distribution()`: `tree` entries expand against the clone's own
+      `git ls-files`, `file` entries match exactly — nothing is invented, every resolved
+      path is verified tracked.
+- [x] Change `cb_flatten` to copy the resolved distribution set instead of every tracked
+      file. `main()` now calls `resolve_distribution(clone)` in place of raw `manifest(clone)`.
+- [x] Keep the prior `.gitignore` block as the before-state for deletion tracking. Unchanged
+      — `plan_sync(old, new)` still diffs against the ignore-block record; only what `new`
+      means changed.
+- [x] Show added/removed packages, paths, and capabilities in dry-run output. Dry-run now
+      prints the resolved package list plus a per-package Canvas-write tool count read
+      from each package's own `manifest.yaml` in the clone.
+- [x] Verify that developer-only tests, research sources, and internal proposal files are
+      not installed unless deliberately listed. Verified two ways: a unit test against this
+      repo's real distribution manifest, and a live end-to-end smoke test (real `cb_flatten.py
+      --apply` into a scratch course root) confirming `lib/tests/`, `docs/proposals/`,
+      `.github/`, `schemas` (before the fix below)... — see the finding.
+- [x] Preserve `AGENTS.md` and `.gitignore` hybrid handling. Unchanged; all existing hybrid
+      tests still pass.
+- [x] Add recovery behavior for invalid manifests and interrupted updates. A distribution
+      manifest that is malformed, has an unknown `kind`, or has an entry resolving to zero
+      tracked files raises `DistributionError`; `main()` catches it, prints to stderr, and
+      returns non-zero **before calling `apply_sync` at all** — nothing is written, the prior
+      install and the hidden clone are both untouched. A manifest that is simply *absent*
+      (a clone at a pre-Phase-4 commit) is not an error — see the legacy test below.
+- [x] Add an explicit legacy-full-manifest migration test.
+      `test_legacy_full_manifest_migration_removes_now_excluded_paths` simulates a course
+      flattened under the old "everything tracked" behavior and confirms the first sync
+      against a distribution-manifest-bearing clone removes exactly the newly-excluded paths
+      via the same `plan_sync()` diff used for upstream deletions — no special case needed.
+
+**Finding, fixed before closing the gate:** the real end-to-end smoke test caught that
+`package_validate.py` — itself flattened, since it lives under `lib/tools/` — hard-fails in
+a course repo without `schemas/`, which the first cut of the distribution manifest excluded
+as "dev-tooling." Added `schemas` as a 9th tree entry: a distribution entry is about what a
+*shipped tool* needs at runtime, not a file's category. Re-verified end-to-end after the fix.
 
 **Gate:** a fresh flattened install contains exactly the declared distribution; upstream
-deletions are removed; course-owned files survive.
+deletions are removed; course-owned files survive. ✅ Verified against real git (not just
+unit tests): a scratch course flattened from an actual working-tree snapshot produced exactly
+269 files, `package_validate.py` ran correctly inside it post-fix, and 1384 tests pass (37 in
+`test_cb_flatten.py`, 8 new), ruff clean — verified 2026-09-14.
 
 ### Phase 5 — Agent Plugin package and runtime adapters
 
@@ -954,3 +990,4 @@ evidence.
 | 2026-09-14 | Maintainer test track | pending / #317 | Root README now identifies the v2 branch as pre-beta; `docs/V2_TESTING.md` defines readiness gates from automated fixtures through one-at-a-time `*-master` pilots | Do not migrate a real course until schemas, packages, setup/update, disposable migration, and the testing guide's readiness gate pass |
 | 2026-09-14 | Phase 2 complete | pending / #317 | Package/distribution JSON Schemas added; Agent Plugins 1.0.0 `plugin.json` schema vendored and diffed byte-identical to upstream; `package_validate.py` read-only validator with malformed/unknown-tool/missing-path/undeclared-writer/forbidden-path fixtures; forbidden-path Zone-2/credential patterns re-derived from `grade_guardian` after a hand-copied list was found missing `Classlist_Export*.csv` and over-blocking `.env.example`; validator wired into `ci.yml` and `.pre-commit-config.yaml`; 1376 tests pass, ruff clean | Begin Phase 3: create canonical `course-design`/`grading`/`student-support` package directories and move the eight operating skills into canonical root `skills/` |
 | 2026-09-14 | Phase 3 complete | pending / #317 | Three package directories created with `manifest.yaml` + `AGENT.md`; 8 skills copied to canonical root `skills/` (kept in `.claude/skills/` too — Phase 5's adapter generator doesn't exist yet); 91 of ~124 tools declared and classified across the three manifests, every Canvas-write classification verified against actual HTTP calls rather than filenames; `package_validate.py` passes (0 issues); `package_catalog.py` generates `agent-packages/registry.yaml` + `CATALOG.md`, wired into CI/pre-commit; fixed 5 broken relative links surfaced by the skills copy (`../../../` → `../../`) and the `canvas_course_expert.md` `.imscc`-deprecation self-contradiction the plan named; 1376 tests pass, ruff clean | Two follow-ups outside this phase's scope: (1) `AGENTS.md`'s constitutional text names only `grader_push.py`/`grader_standing.py` as sanctioned grade/comment writers, but `grader_push_comments.py`, `grader_letter_comments.py`, `grader_audit_workflow.py --fix`, and `grader_quiz_clear_pending.py` are also legitimate sanctioned writers — wording needs a dedicated correction pass; (2) `lib/tools/README.md` describes `blueprint_orphan_pages.py` cleanup as "deferred to Phase 2" but it has a live `--apply` write path. Begin Phase 4: distribution manifest and flattened resolver |
+| 2026-09-14 | Phase 4 complete | pending / #317 | `distribution/manifest.yaml` added (9 tree entries + 3 files, 269 of 428 tracked files); `cb_flatten.resolve_distribution()` resolves it against the clone's own `git ls-files`, with a tested legacy fallback (clone predates Phase 4 → full manifest, unchanged old behavior) and a tested refuse-loudly path (`DistributionError`, nothing written) for a malformed or stale-path manifest; dry-run now shows resolved packages and a per-package Canvas-write tool count. Verified end-to-end against real git, not just unit tests: a scratch course flattened from an actual working-tree snapshot produced exactly the declared set. That live test caught a real defect — `package_validate.py` is flattened (`lib/tools/`) but hard-fails without `schemas/`, which the first cut excluded as dev-tooling; fixed by adding `schemas` as a distribution entry. 1384 tests pass (8 new), ruff clean | Begin Phase 5: Agent Plugin package and runtime adapters — the first adapter generator, which is also what lets Phase 6 stop keeping skills duplicated in both `skills/` and `.claude/skills/` |

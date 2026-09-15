@@ -27,6 +27,7 @@ if str(_TOOLS_DIR) not in sys.path:
 
 import cb_flatten as cf  # noqa: E402
 from cb_flatten import (  # noqa: E402
+    DistributionError,
     GI_END,
     GI_START,
     HYBRID,
@@ -36,6 +37,7 @@ from cb_flatten import (  # noqa: E402
     manifest,
     plan_sync,
     render_gitignore_block,
+    resolve_distribution,
     splice_gitignore,
 )
 
@@ -347,6 +349,150 @@ def test_deletion_is_detected_without_a_pull_in_the_same_run(tmp_path):
     assert to_delete == ["lib/drop.py"]
     apply_sync(clone, root, to_copy, to_delete, apply=True)
     assert not (root / "lib" / "drop.py").exists()
+
+
+# ---------------------------------------------------------------------------
+# resolve_distribution — v2, #317 Phase 4: ownership (git ls-files) vs.
+# distribution (what actually lands in a course repo) are different questions.
+# ---------------------------------------------------------------------------
+
+_DIST_MANIFEST = """\
+schema_version: 1
+version: "2.0.0"
+packages: [course-design]
+entries:
+  - path: lib/tools
+    kind: tree
+    install: copy
+  - path: pyproject.toml
+    kind: file
+    install: copy
+"""
+
+
+def test_resolve_distribution_absent_is_the_legacy_full_manifest(tmp_path):
+    """THE MIGRATION CASE. A clone at a commit before Phase 4 has no
+    distribution/manifest.yaml — that must not be treated as an error, or every
+    course cloning an old toolkit commit would flatten nothing. Falls back to the
+    full tracked-file set, reproducing the pre-Phase-4 behavior."""
+    src = _toolkit(tmp_path, {"lib/tools/a.py": "x", "lib/tests/t.py": "y"})
+    resolved, packages = resolve_distribution(src)
+    assert resolved == manifest(src)
+    assert packages == []
+
+
+def test_resolve_distribution_scopes_to_declared_entries(tmp_path):
+    src = _toolkit(tmp_path, {
+        "lib/tools/a.py": "x",
+        "lib/tools/b.py": "x",
+        "lib/tests/t.py": "y",          # dev-only, NOT in any entry
+        "docs/proposals/plan.md": "z",  # dev-only, NOT in any entry
+        "pyproject.toml": "[project]",
+        "distribution/manifest.yaml": _DIST_MANIFEST,
+    })
+    resolved, packages = resolve_distribution(src)
+    assert resolved == {"lib/tools/a.py", "lib/tools/b.py", "pyproject.toml"}
+    assert packages == ["course-design"]
+
+
+def test_resolve_distribution_raises_on_malformed_yaml(tmp_path):
+    src = _toolkit(tmp_path, {"distribution/manifest.yaml": "entries: [\n"})
+    with pytest.raises(DistributionError):
+        resolve_distribution(src)
+
+
+def test_resolve_distribution_raises_on_stale_entry(tmp_path):
+    """A misspelled or removed path must fail loudly, not silently ship less than
+    the manifest declares."""
+    src = _toolkit(tmp_path, {
+        "lib/tools/a.py": "x",
+        "distribution/manifest.yaml": (
+            "schema_version: 1\nversion: \"2.0.0\"\npackages: []\n"
+            "entries:\n  - path: lib/does-not-exist\n    kind: tree\n    install: copy\n"
+        ),
+    })
+    with pytest.raises(DistributionError):
+        resolve_distribution(src)
+
+
+def test_resolve_distribution_raises_on_unknown_kind(tmp_path):
+    src = _toolkit(tmp_path, {
+        "lib/tools/a.py": "x",
+        "distribution/manifest.yaml": (
+            "schema_version: 1\nversion: \"2.0.0\"\npackages: []\n"
+            "entries:\n  - path: lib/tools\n    kind: symlink\n    install: copy\n"
+        ),
+    })
+    with pytest.raises(DistributionError):
+        resolve_distribution(src)
+
+
+def test_main_refuses_to_write_anything_on_a_broken_distribution_manifest(tmp_path, capsys, monkeypatch):
+    """A broken manifest must leave the prior install and the clone untouched —
+    never a partial flatten."""
+    src = _toolkit(tmp_path, {"distribution/manifest.yaml": "entries: [\n"})
+    root = tmp_path / "course"
+    root.mkdir()
+    subprocess.run(["git", "clone", "-q", str(src), str(root / cf.CLONE_DIR)],
+                   check=True, capture_output=True)
+    monkeypatch.chdir(root)
+    monkeypatch.setattr(sys, "argv", ["cb_flatten.py", "--apply"])
+    rc = cf.main()
+    assert rc != 0
+    assert not (root / "lib").exists()
+
+
+def test_legacy_full_manifest_migration_removes_now_excluded_paths(tmp_path):
+    """THE EXPLICIT MIGRATION TEST. A course flattened under the pre-Phase-4
+    "everything tracked" behavior has lib/tests/ and docs/proposals/ sitting at its
+    root. The first sync against a toolkit commit that now ships a distribution
+    manifest must remove exactly those newly-excluded paths and keep the narrower
+    set — the same plan_sync() diff mechanism as an upstream deletion, no special
+    case needed."""
+    src = _toolkit(tmp_path, {
+        "lib/tools/a.py": "x",
+        "lib/tests/t.py": "y",
+        "docs/proposals/plan.md": "z",
+        "pyproject.toml": "[project]",
+        "distribution/manifest.yaml": _DIST_MANIFEST,
+    })
+    root = tmp_path / "course"
+    root.mkdir()
+    # Simulate the old, fully-flattened install: everything was once tracked and
+    # copied under the pre-Phase-4 "git ls-files == distribution" behavior.
+    legacy_old = {"lib/tools/a.py", "lib/tests/t.py", "docs/proposals/plan.md",
+                  "pyproject.toml"}
+    for rel in legacy_old:
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("stale", encoding="utf-8")
+
+    new, packages = resolve_distribution(src)
+    to_copy, to_delete = plan_sync(legacy_old, new)
+    assert sorted(to_delete) == ["docs/proposals/plan.md", "lib/tests/t.py"]
+    assert sorted(to_copy) == ["lib/tools/a.py", "pyproject.toml"]
+    apply_sync(src, root, to_copy, to_delete, apply=True)
+    assert not (root / "lib" / "tests" / "t.py").exists()
+    assert not (root / "docs" / "proposals" / "plan.md").exists()
+    assert (root / "lib" / "tools" / "a.py").is_file()
+
+
+# ---------------------------------------------------------------------------
+# This repo's own distribution manifest
+# ---------------------------------------------------------------------------
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def test_this_repos_distribution_excludes_developer_only_paths():
+    """Distribution safety rule: developer-only tests, research sources, and
+    internal proposal files are not installed unless deliberately listed."""
+    resolved, packages = resolve_distribution(_REPO_ROOT)
+    assert packages, "expected this repo's real distribution/manifest.yaml to be found"
+    assert not any(p.startswith("lib/tests/") for p in resolved)
+    assert not any(p.startswith("docs/proposals/") for p in resolved)
+    assert not any(p.startswith("docs/research/") for p in resolved)
+    assert not any(p.startswith(".github/") for p in resolved)
 
 
 def test_only_the_known_negation_escapes_the_ignore_block(tmp_path):

@@ -23,6 +23,22 @@ WHY A HIDDEN CLONE RATHER THAN JUST COPYING FILES
                                   manifest now, is exactly the set removed
                                   upstream. A set difference, not a diff engine.
 
+WHAT GETS FLATTENED — OWNERSHIP VS. DISTRIBUTION (v2, #317 Phase 4)
+
+  `git ls-files` answers "is this toolkit-owned?" — every tracked file, including
+  lib/tests/, docs/proposals/, .github/, and the rest of the toolkit's own
+  development surface. That is a different question from "should this land in
+  every course repo?" `resolve_distribution()` answers the second, narrower
+  question from `distribution/manifest.yaml` in the clone — an explicit,
+  schema-validated allowlist (docs/proposals/v2-agent-packaging-plan.md section 8).
+
+  A clone at a commit before Phase 4 has no distribution manifest — that is the
+  LEGACY case, not an error: `resolve_distribution()` falls back to the full
+  `git ls-files` set, reproducing the old (wasteful, but not broken) behavior. A
+  manifest that EXISTS but is malformed, or whose declared paths resolve to zero
+  tracked files, IS an error: refuse loudly and write nothing, rather than
+  silently flattening less than the manifest intended.
+
   The "before" side is read from the .gitignore block this tool writes, NOT
   re-derived from the clone. Reading both sides off the clone only holds if our
   own --pull is the sole way it ever changes; it isn't (someone pulls by hand, a
@@ -78,6 +94,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 try:
     from _env_loader import force_utf8_console
 except ImportError:
@@ -86,6 +104,7 @@ except ImportError:
 
 CLONE_DIR = ".canvas-toolbox"
 DEFAULT_REMOTE = "https://github.com/chaz-clark/canvas-toolbox.git"
+DISTRIBUTION_MANIFEST = "distribution/manifest.yaml"
 
 #: Paths the flatten never writes. AGENTS.md and .gitignore are HYBRID — the
 #: course owns part of each — so copying them over would destroy course content.
@@ -181,6 +200,68 @@ def manifest(clone: Path) -> set[str]:
     ownership boundary. A path in here is toolkit-owned and replaceable; a path
     at the course root that is not is course-owned and never touched."""
     return {ln for ln in _git(clone, "ls-files").splitlines() if ln.strip()}
+
+
+class DistributionError(Exception):
+    """distribution/manifest.yaml exists but cannot be resolved. Raised rather than
+    silently falling back — a broken manifest must refuse loudly, not quietly
+    flatten a smaller-than-intended (or empty) set. Never raised for an ABSENT
+    manifest; that is the legacy pre-Phase-4 case and falls back to the full
+    tracked-file set instead."""
+
+
+def resolve_distribution(clone: Path) -> tuple[set[str], list[str]]:
+    """(course-facing file set, package ids) resolved from
+    `distribution/manifest.yaml` against the clone's tracked files.
+
+    `git ls-files` answers "is this toolkit-owned?" — every tracked file, including
+    lib/tests/, docs/proposals/, .github/, and the rest of the toolkit's own
+    development surface. That is NOT the same question as "should this land in
+    every course repo?" (docs/proposals/v2-agent-packaging-plan.md section 8). This
+    resolves the second, narrower question from the distribution manifest.
+
+    LEGACY FALLBACK: a clone at a commit before Phase 4 has no
+    distribution/manifest.yaml. That is not an error — it is the pre-Phase-4
+    toolkit, which never drew this distinction, so falling back to the full
+    tracked-file set reproduces its old (if wasteful) behavior instead of flattening
+    nothing. A manifest that EXISTS but is malformed or resolves an entry to zero
+    files IS an error (DistributionError) — a broken manifest never silently
+    installs less than intended."""
+    path = clone / DISTRIBUTION_MANIFEST
+    if not path.is_file():
+        return manifest(clone), []
+
+    try:
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise DistributionError(f"{DISTRIBUTION_MANIFEST}: cannot read/parse: {exc}") from exc
+    if not isinstance(doc, dict):
+        raise DistributionError(f"{DISTRIBUTION_MANIFEST}: must be a YAML mapping")
+
+    tracked = manifest(clone)
+    resolved: set[str] = set()
+    for i, entry in enumerate(doc.get("entries") or []):
+        if not isinstance(entry, dict) or "path" not in entry or "kind" not in entry:
+            raise DistributionError(f"{DISTRIBUTION_MANIFEST}: entries[{i}] missing path/kind")
+        entry_path, kind = entry["path"], entry["kind"]
+        if kind == "file":
+            matches = {entry_path} if entry_path in tracked else set()
+        elif kind == "tree":
+            prefix = entry_path.rstrip("/") + "/"
+            matches = {p for p in tracked if p.startswith(prefix)}
+        else:
+            raise DistributionError(f"{DISTRIBUTION_MANIFEST}: entries[{i}] unknown kind {kind!r}")
+        if not matches:
+            raise DistributionError(
+                f"{DISTRIBUTION_MANIFEST}: entries[{i}] ({entry_path!r}) resolved to "
+                f"zero tracked files — stale or misspelled path"
+            )
+        resolved |= matches
+
+    packages = doc.get("packages") or []
+    if not isinstance(packages, list):
+        raise DistributionError(f"{DISTRIBUTION_MANIFEST}: 'packages' must be a list")
+    return resolved, packages
 
 
 def clone_is_pristine(clone: Path) -> bool:
@@ -280,14 +361,30 @@ def main() -> int:
     # The "before" side is what we flattened LAST time, read from the ignore
     # block — not re-derived from the clone, which may have moved underneath us.
     old = parse_gitignore_block(existing)
-    new = manifest(clone)
+    try:
+        new, packages = resolve_distribution(clone)
+    except DistributionError as exc:
+        # Refuse loudly and write nothing — the prior install and the hidden clone
+        # both stay exactly as they were. A broken distribution manifest must never
+        # result in a partial or empty flatten.
+        print(f"  🔴 {exc}", file=sys.stderr)
+        return 2
 
     to_copy, to_delete = plan_sync(old, new)
-    print(f"\nplan: {len(to_copy)} to copy, {len(to_delete)} to remove "
+    print(f"\npackages: {', '.join(packages) if packages else '(legacy full manifest — no distribution/manifest.yaml in clone)'}")
+    print(f"plan: {len(to_copy)} to copy, {len(to_delete)} to remove "
           f"(upstream deletions), {len(HYBRID)} hybrid files skipped "
           f"({', '.join(sorted(HYBRID))})")
     for rel in to_delete:
         print(f"  remove  {rel}")
+    for pkg_id in packages:
+        pkg_path = clone / "agent-packages" / pkg_id / "manifest.yaml"
+        if not pkg_path.is_file():
+            continue
+        pkg = yaml.safe_load(pkg_path.read_text(encoding="utf-8"))
+        canvas_writes = sum(1 for t in pkg.get("tools", []) if t.get("effect", "").startswith("canvas_"))
+        print(f"  package {pkg_id}: {len(pkg.get('tools', []))} tools "
+              f"({canvas_writes} touch Canvas, always-confirmed)")
 
     counts = apply_sync(clone, root, to_copy, to_delete, args.apply)
     verb = "wrote" if args.apply else "would write"

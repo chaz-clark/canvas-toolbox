@@ -33,7 +33,7 @@ base and cite the framework used.
 
 Audits score against: Cognitive Load, Hattie 3-Phase, Three Domains, BYUI Taxonomy
 Explorer, Experiential Learning, Designer Thinking, Course Design Language, and the
-Toyota A3. References live in [`lib/agents/knowledge/README.md`](../../../lib/agents/knowledge/README.md).
+Toyota A3. References live in [`lib/agents/knowledge/README.md`](../../lib/agents/knowledge/README.md).
 
 ## Title IV engagement → a separate skill
 
