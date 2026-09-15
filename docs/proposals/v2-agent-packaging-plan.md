@@ -118,20 +118,50 @@ Code treats plugin MCP servers as trusted with the plugin installation. Therefor
 - Codex compatibility is measured in the actual Codex VS Code extension rather than inferred
   from VS Code's Copilot-focused documentation.
 
-### Cross-repository alignment hold
+### Cross-repository alignment review
 
-`life-pm` is independently planning changes informed by OpenWorker. Before Phase 2 freezes the
-Canvas Toolbox package schema:
+The completed `life-pm` proposal at
+`docs/proposals/vscode-agent-packaging-plan.md` was reviewed on 2026-09-14. It independently
+reached the same skills-first hybrid architecture. The repositories will share neutral
+conventions, but neither repository will depend on, import from, or release-lock the other.
 
-- [ ] Obtain the completed `life-pm` plan or a delivered cross-repo handoff.
-- [ ] Compare package names, manifest fields, skill layout, adapter generation, provenance,
+- [x] Obtain and read the completed `life-pm` plan.
+- [x] Compare package names, manifest fields, skill layout, adapter generation, provenance,
       update semantics, and capability-consent behavior.
-- [ ] Reuse genuinely domain-neutral conventions where they fit both repositories.
-- [ ] Keep FERPA, Canvas-write, grading, and per-student fields Canvas-specific.
-- [ ] Record adopted and rejected shared conventions in the Phase 1 ADR.
+- [x] Reuse genuinely domain-neutral conventions where they fit both repositories.
+- [x] Keep FERPA, Canvas-write, grading, and per-student fields Canvas-specific.
+- [ ] Preserve the accepted and deliberately different conventions in the Phase 1 ADR after
+      runtime discovery measurements are complete.
 
-Do not infer the unfinished `life-pm` design. If it arrives as a handoff, act only after its
-status is `delivered` and review each proposed shared decision before applying it.
+Shared conventions:
+
+| Concern | Shared convention |
+|---|---|
+| Canonical policy | Root `AGENTS.md` is the always-on constitution; local overlays may add context but never weaken it. |
+| Portable plugin surface | Root `plugin.json` plus canonical root `skills/`; root `mcp.json` contains only reviewed, intentionally shipped servers. |
+| Internal packages | `agent-packages/registry.yaml`, a versioned schema, and one `manifest.yaml` per trust-boundary package. Package ids remain domain-specific. |
+| Common manifest core | `schema_version`, stable `id`, package `version`, `name`, `description`, `entry_prompt`, `skills`, declared effects/approvals, `data_access`, and credential names without values. Domain schemas extend this core instead of pretending Agent Plugins defines it. |
+| Host support | Codex in VS Code is the reference adapter; Claude Code and GitHub Copilot are measured next; a generic constitution/deterministic path remains available. |
+| Adapter generation | Host files are generated from canonical content, carry source/schema provenance, regenerate idempotently, and fail CI on drift. |
+| Distribution | A schema-validated exact allowlist decides the install/release payload; `git ls-files` proves ownership but does not choose the payload. |
+| Consent and updates | Installation is a trust event; added or broadened MCP/write/data capability is a capability change that must be shown and re-consented to before enablement. |
+| Profiles | VS Code profiles are optional, minimal onboarding aids only; they are not policy, authentication, distribution, or safety boundaries. |
+| Enforcement | Manifests describe and validate intent; deterministic tools, hooks, tests, and host gates enforce it. |
+
+Deliberate differences:
+
+| Canvas Toolbox | `life-pm` | Reason |
+|---|---|---|
+| Flat course-root install backed by a pristine `.canvas-toolbox/` clone is the baseline. | Public/private payload separation and preservation of a private operator overlay are central. | Canvas Toolbox is installed into many course repositories; `life-pm` is separating a personal operating system from a public package. |
+| Packages are `course-design`, `grading`, and `student-support`. | Packages are `core`, `research-memory`, `work-home-bridge`, and `scheduled-routines`. | Package names follow each domain's trust boundaries, not a shared taxonomy. |
+| Schema extends the common core with FERPA zones, student-data classes, sanctioned Canvas writers, and course scope. | Schema extends it with connectors, account attribution, OAuth classes, schedules, and public/private data boundaries. | These controls are meaningful only in their source domain. |
+| The first plugin prototype is skills-only; Canvas-write MCP is excluded until a separate threat model and approval design pass. | Reviewed connectors may enter `mcp.json` after install-time trust and capability-consent review. | Canvas writes and student records require the stricter existing sanctioned-tool boundary. |
+| A profile remains optional because the flattened initializer already provides the supported setup path. | Profile value is evaluated after the canonical package works and may be retained if it materially reduces setup friction. | Both are non-canonical, but the current onboarding baselines differ. |
+| Release ends in a tested `2.0.0` migration from supported 1.x layouts. | Release proceeds through private alpha and a separate public publication decision. | Canvas Toolbox is an existing public toolkit; `life-pm` is preparing a private system for possible public distribution. |
+
+No cross-repository handoff is required for this comparison because the maintainer supplied the
+completed proposal directly. A later implementation handoff still follows the repository's
+handoff lifecycle rules.
 
 ---
 
@@ -457,8 +487,9 @@ Every phase is separately reviewable and ends with tests. Stop at the first fail
       exposes one.
 - [ ] Write `docs/architecture/adr-001-runtime-neutral-agent-packages.md` with the measured
       support matrix and final adapter paths.
-- [ ] Review the completed `life-pm` OpenWorker/package plan before freezing shared conventions.
-- [ ] Record which cross-repository conventions are shared and which remain domain-specific.
+- [x] Review the completed `life-pm` OpenWorker/package plan before freezing shared conventions.
+- [x] Record preliminary shared and domain-specific conventions in this plan; preserve the
+      final measured decisions in the Phase 1 ADR.
 - [ ] Update this plan if measurements disprove any proposed path.
 
 **Gate:** Codex, Claude Code, and Copilot adapter paths are based on observed behavior. Codex
@@ -816,3 +847,4 @@ evidence.
 | Date | Phase | Commit/PR | Evidence | Decision or follow-up |
 |---|---|---|---|---|
 | 2026-09-14 | Plan created | `d754cca` / #317 | Current code and flatten proposal reviewed; 1374 tests passed in 246.34s | Added Agent Plugins 1.0 as a measured, skills-first portable target; compare `life-pm` before schema freeze |
+| 2026-09-14 | Cross-repository alignment review | pending / #317 | Completed `life-pm` proposal read in full and compared against Canvas package, schema, adapter, distribution, consent, profile, and update decisions | Share the neutral architecture vocabulary without coupling releases; retain domain-specific safety schemas; carry final measured choices into the Phase 1 ADR |
