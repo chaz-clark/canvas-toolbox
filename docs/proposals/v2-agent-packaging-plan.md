@@ -492,9 +492,13 @@ Every phase is separately reviewable and ends with tests. Stop at the first fail
 - [x] Verify the same fixture with GitHub Copilot in VS Code: the skill appeared in the Plugins
       skill group, was offered as `/canvas-toolbox-packaging-probe`, and returned its marker.
 - [ ] Compare direct Git installation, `chat.pluginLocations`, and flattened workspace-local
-      skill discovery; workspace-local Codex and Claude paths pass, while the first two require
-      an approved Copilot-enabled profile.
-- [ ] Confirm plugin enable/disable and update behavior without relying on it for safety.
+      skill discovery; the local Git path and workspace-local Codex and Claude paths pass, while
+      the remote Git URL and `chat.pluginLocations` remain unmeasured.
+- [x] Confirm plugin enable/disable and uninstall behavior without relying on it for safety; the
+      visible Skills count and Plugins group changed immediately with enablement, and uninstall
+      removed the package from the installed list.
+- [ ] Confirm plugin update behavior and capability-change presentation without relying on it for
+      safety.
 - [x] Verify Claude Code CLI discovery for `.claude/skills/` and an Agent Plugins root loaded
       through `--plugin-dir`.
 - [x] Repeat workspace-local discovery in the Claude Code VS Code extension; `.claude/skills/`
@@ -522,8 +526,8 @@ Every phase is separately reviewable and ends with tests. Stop at the first fail
 passes every required discovery check. The ADR explicitly decides whether Agent Plugins 1.0 is
 the primary VS Code package, an additional adapter, or Copilot-only in practice. Current measured
 decision: it is an additional portable output with measured Copilot support; Codex and Claude Code
-use generated workspace adapters. Remote-URL, cross-extension, lifecycle, and Windows measurements
-still hold the gate open.
+use generated workspace adapters. Remote-URL, `chat.pluginLocations`, update, cross-extension, and
+Windows measurements still hold the gate open.
 
 ### Phase 2 — Manifest schemas and validator
 
@@ -881,3 +885,4 @@ evidence.
 | 2026-09-14 | Runtime discovery spike (partial) | pending / #317 | Codex root constitution, project paths, real directories, and symlinks measured; Claude project/plugin paths measured; disposable Codex plugin validated; marketplace runtime path defect reproduced and cleaned up | Use root `skills/` as canonical, generate `.agents/skills/` and `.claude/skills/`, keep both plugin manifests thin, and hold Phase 2 until VS Code/Copilot measurements finish |
 | 2026-09-14 | VS Code extension discovery (partial) | pending / #317 | Codex invoked the generated `.agents/skills/` probe; Claude Code invoked and identified `.claude/skills/`; Agent Plugins commands/UI were absent without GitHub Copilot, so no portable plugin was installed | Keep workspace adapters as the subscription-extension baseline; treat Agent Plugins 1.0 as an additional portable/Copilot-hosted output pending an approved Copilot profile test |
 | 2026-09-14 | Copilot Agent Plugin discovery (partial) | pending / #317 | A temporary profile activated the built-in Copilot host; local source installation passed; the plugin and its one skill were visible; `/canvas-toolbox-packaging-probe` returned the expected marker; root `AGENTS.md` remained active | Agent Plugins 1.0 has measured Copilot support but remains an additional output; retain Codex and Claude workspace adapters and finish remote-source, lifecycle, cross-extension, and Windows checks |
+| 2026-09-14 | Copilot Agent Plugin lifecycle (partial) | pending / #317 | Disable changed the visible Skills count from 25 to 24 and removed the Plugins group; re-enable restored both; uninstall changed Installed to zero; all four exact disposable probe/profile paths were removed | Enable, disable, and uninstall are measured passes; update and capability-change presentation remain release-gate measurements |

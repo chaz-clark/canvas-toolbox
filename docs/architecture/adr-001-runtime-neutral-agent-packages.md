@@ -99,6 +99,8 @@ data reads, and file changes.
 | VS Code Agent Plugins local source install | pass | In a temporary profile with the built-in Copilot host active, `Chat: Install Plugin from Source` accepted a local Git repository path. Agent Customizations showed the package as `Local`, enabled, with one skill. The `file://` form was inconclusive because the Extensions view remained stale; the plain local path is the measured pass. |
 | GitHub Copilot portable skill list | pass | Agent Customizations listed `canvas-toolbox-packaging-probe` under the read-only Plugins skill group with the manifest description. |
 | GitHub Copilot portable skill invocation | pass | Chat suggested `/canvas-toolbox-packaging-probe`; direct slash invocation returned the inert plugin marker with no tools. A natural-language request instead followed the root `AGENTS.md` marker, confirming the constitution remained active but not proving automatic skill selection. |
+| VS Code Agent Plugins enable/disable | pass | Disabling the installed probe immediately reduced the visible Skills count from 25 to 24 and removed the Plugins skill group. Re-enabling it restored the count and the plugin skill group. |
+| VS Code Agent Plugins uninstall | pass | The plugin action menu uninstalled the probe, the Installed count changed to zero, and the Skills count returned to 24. The disposable VS Code windows and all four exact temporary probe/profile directories were then removed. |
 | VS Code visible skill evidence | pass for local adapters | Codex rendered the `.agents` skill as skill context; Claude exposed and invoked the `.claude` slash skill. This does not establish portable-plugin sharing between extension webviews. |
 | GitHub Copilot workspace skill discovery | mixed | Its Skills UI discovered `.agents/skills/` and `.claude/skills/` as workspace skills, but not `.codex/skills/`. Plugin invocation was tested through the separate portable root skill. |
 
@@ -210,7 +212,7 @@ Pending the remaining cross-extension and Windows measurements:
 
 - Repeat installation from a remote HTTPS Git URL; the local Git repository path passed.
 - Compare source installation with `chat.pluginLocations` registration in the Copilot host.
-- Test enable, disable, update, and uninstall behavior in the temporary profile.
+- Test update behavior and capability-change presentation; enable, disable, and uninstall passed.
 - Test whether Codex and Claude Code extension webviews consume the installed portable plugin, or
   confirm that only Copilot chat does.
 - Record Continue.dev, Cline, Antigravity, and Positron only where an extension is actually
