@@ -39,14 +39,16 @@ so implementation does not silently turn documentation assumptions into architec
 | Codex CLI | `0.153.4` |
 | Codex VS Code extension | `openai.chatgpt@26.908.40401` |
 | Claude Code | `2.1.270` from the installed VS Code extension |
-| GitHub Copilot | not installed; its VS Code chat/plugin host is unavailable |
+| GitHub Copilot chat host | VS Code `1.137.0` built-in host, activated in temporary profile |
 | Agent Plugins specification | `1.0.0`, rechecked 2026-09-14 |
 
 Official OpenAI documentation did not establish whether the Codex VS Code extension consumes VS
 Code-installed Agent Plugins 1.0 packages. The installed Codex runtime exposes a separate Codex
-plugin format and project-level skill discovery. In the measured VS Code installation, the Agent
-Plugins command and customization UI were absent without GitHub Copilot, so a VS Code-installed
-portable plugin could not be presented to Codex or Claude Code for an honest consumption test.
+plugin format and project-level skill discovery. In the ordinary VS Code profile, Agent Plugins
+commands and the customization UI were absent because the Copilot chat host was not active. A
+temporary profile activated VS Code's built-in Copilot host and exposed the documented plugin UI.
+That profile did not include the Codex or Claude Code extensions, so it establishes Copilot
+consumption of the portable package, not cross-extension sharing.
 
 ## Disposable probe
 
@@ -93,9 +95,12 @@ data reads, and file changes.
 | Claude `.claude/skills/` | pass | Direct `/claude-discovery-probe` invocation succeeded with tools disabled. |
 | Claude Agent Plugins root `skills/` through `--plugin-dir` | pass | Direct `/canvas-toolbox-packaging-probe` invocation succeeded with tools disabled. This establishes CLI session loading, not VS Code source-install behavior. |
 | Claude Code VS Code `.claude/skills/` adapter | pass | A fresh session invoked `/claude-discovery-probe` and identified `.claude/skills/` as its loaded source while rejecting `.agents/skills/` as undiscovered. |
-| VS Code Agent Plugins direct source install | host unavailable | `Chat: Install Plugin From Source`, `Chat: Open Customizations`, and all plugin commands were absent in VS Code 1.137.0 without GitHub Copilot installed. No plugin was installed and no cleanup is required. |
+| VS Code Agent Plugins UI in ordinary profile | host inactive | `Chat: Install Plugin From Source`, `Chat: Open Customizations`, and all plugin commands were absent when the Copilot chat host was not active. |
+| VS Code Agent Plugins local source install | pass | In a temporary profile with the built-in Copilot host active, `Chat: Install Plugin from Source` accepted a local Git repository path. Agent Customizations showed the package as `Local`, enabled, with one skill. The `file://` form was inconclusive because the Extensions view remained stale; the plain local path is the measured pass. |
+| GitHub Copilot portable skill list | pass | Agent Customizations listed `canvas-toolbox-packaging-probe` under the read-only Plugins skill group with the manifest description. |
+| GitHub Copilot portable skill invocation | pass | Chat suggested `/canvas-toolbox-packaging-probe`; direct slash invocation returned the inert plugin marker with no tools. A natural-language request instead followed the root `AGENTS.md` marker, confirming the constitution remained active but not proving automatic skill selection. |
 | VS Code visible skill evidence | pass for local adapters | Codex rendered the `.agents` skill as skill context; Claude exposed and invoked the `.claude` slash skill. This does not establish portable-plugin sharing between extension webviews. |
-| GitHub Copilot | unavailable | The extension is not installed in this environment. Test on a disposable profile or another approved machine before claiming Copilot support. |
+| GitHub Copilot workspace skill discovery | mixed | Its Skills UI discovered `.agents/skills/` and `.claude/skills/` as workspace skills, but not `.codex/skills/`. Plugin invocation was tested through the separate portable root skill. |
 
 ### Codex plugin defect
 
@@ -172,7 +177,7 @@ FERPA Zone-2 files.
 
 ## Provisional decision
 
-Pending the remaining Copilot and Windows measurements:
+Pending the remaining cross-extension and Windows measurements:
 
 1. Keep root `skills/` as the canonical Agent Skills source and Agent Plugins 1.0 component path.
 2. Keep root `plugin.json` as the portable, closed-schema plugin manifest.
@@ -184,9 +189,10 @@ Pending the remaining Copilot and Windows measurements:
 6. Keep root `AGENTS.md` and deterministic tools in the flattened course payload for every host.
 7. Keep the first portable plugin skills-only. Omit `mcp.json` entirely until a separate MCP
    threat model and approval design pass.
-8. Treat Agent Plugins 1.0 as an additional portable/Copilot-hosted distribution output, not the
-   subscription-extension baseline. Codex and Claude Code retain their generated workspace
-   adapters until those extensions are observed consuming VS Code-installed portable plugins.
+8. Treat Agent Plugins 1.0 as an additional portable distribution output with measured Copilot
+   support, not the subscription-extension baseline. Codex and Claude Code retain their generated
+   workspace adapters until those extensions are observed consuming VS Code-installed portable
+   plugins.
 9. Treat VS Code profiles as optional onboarding aids after packaging works without them.
 
 ## Consequences
@@ -202,13 +208,11 @@ Pending the remaining Copilot and Windows measurements:
 
 ## Remaining gate measurements
 
-- Install the portable probe from a Git URL after GitHub Copilot is available in an approved
-  disposable profile, then inspect which chat hosts see it.
-- Compare source installation with `chat.pluginLocations` registration in that host.
-- Test enable, disable, update, and uninstall behavior in that host.
+- Repeat installation from a remote HTTPS Git URL; the local Git repository path passed.
+- Compare source installation with `chat.pluginLocations` registration in the Copilot host.
+- Test enable, disable, update, and uninstall behavior in the temporary profile.
 - Test whether Codex and Claude Code extension webviews consume the installed portable plugin, or
   confirm that only Copilot chat does.
-- Test GitHub Copilot on an approved disposable profile or machine.
 - Record Continue.dev, Cline, Antigravity, and Positron only where an extension is actually
   available.
 - Retest Codex-specific marketplace installation on a newer Codex build before release.
