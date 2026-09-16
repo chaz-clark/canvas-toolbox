@@ -714,7 +714,7 @@ def verify_guardian_hook(course_root: Path) -> tuple[bool, str]:
 
     import re
     for command in commands:
-        match = re.search(r'\$CLAUDE_PROJECT_DIR/([^"]*grade_guardian\.py)', command)
+        match = re.search(r'\$\{?CLAUDE_PROJECT_DIR\}?/([^"]*grade_guardian\.py)', command)
         if match and (course_root / match.group(1)).is_file():
             return True, "grade_guardian hook wired and its script path resolves"
     return False, ("grade_guardian hook is wired but its script path does not "

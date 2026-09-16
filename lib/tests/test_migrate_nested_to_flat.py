@@ -254,6 +254,25 @@ def test_fix_stale_guardian_hook_replaces_the_nested_path(tmp_path):
     assert any("canvas-toolbox/" not in c and "grade_guardian" in c for c in commands)
 
 
+def test_fix_stale_guardian_hook_replaces_the_braced_nested_path(tmp_path):
+    """THE BUG A REAL PILOT FOUND. `$CLAUDE_PROJECT_DIR/...` and
+    `${CLAUDE_PROJECT_DIR}/...` are both valid, equivalent bash — the toolkit's
+    own generator only ever writes the unbraced form, but a real course repo's
+    hook used the braced one anyway. The detection regex only matched the
+    unbraced form, so this fell through to "course-customized" (left alone)
+    instead of being recognized as pointing at the nested path about to be
+    deleted — verification then correctly failed with the hook installed but
+    inert, exactly like the flat-mode bug Phase 6 fixed, on a real repo."""
+    (tmp_path / "lib" / "tools").mkdir(parents=True)
+    (tmp_path / "lib" / "tools" / "grade_guardian.py").write_text("x", encoding="utf-8")
+    nested_cmd = 'python3 "${CLAUDE_PROJECT_DIR}/canvas-toolbox/lib/tools/grade_guardian.py"'
+    _settings_with_hook(tmp_path, nested_cmd)
+    assert mig.fix_stale_guardian_hook(tmp_path, apply=True) == "fixed"
+    new_settings = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    commands = [h["command"] for e in new_settings["hooks"]["PreToolUse"] for h in e["hooks"]]
+    assert any("canvas-toolbox/" not in c and "grade_guardian" in c for c in commands)
+
+
 def test_fix_stale_guardian_hook_dry_run_writes_nothing(tmp_path):
     nested_cmd = ('sh -c \'f="$CLAUDE_PROJECT_DIR/canvas-toolbox/lib/tools/grade_guardian.py"; '
                  '[ -f "$f" ] || exit 0; exec python3 "$f"\'')

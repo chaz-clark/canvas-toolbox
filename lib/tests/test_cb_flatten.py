@@ -624,6 +624,23 @@ def test_verify_guardian_hook_fails_when_path_does_not_resolve(tmp_path):
     assert not ok and "inert" in msg
 
 
+def test_verify_guardian_hook_passes_with_the_braced_variable_form(tmp_path):
+    """THE BUG A REAL PILOT FOUND. `$CLAUDE_PROJECT_DIR/x` and
+    `${CLAUDE_PROJECT_DIR}/x` are both valid, equivalent bash, but the
+    detection regex only matched the unbraced form. A real course repo's hook
+    used the braced one and was reported as inert even though its path
+    resolved fine."""
+    (tmp_path / "lib" / "tools").mkdir(parents=True)
+    (tmp_path / "lib" / "tools" / "grade_guardian.py").write_text("x", encoding="utf-8")
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(json.dumps({"hooks": {"PreToolUse": [
+        {"hooks": [{"command": 'python3 "${CLAUDE_PROJECT_DIR}/lib/tools/grade_guardian.py"'}]}
+    ]}}), encoding="utf-8")
+    ok, _ = verify_guardian_hook(tmp_path)
+    assert ok
+
+
 def test_verify_manifest_clean_fails_on_a_surviving_orphan(tmp_path):
     (tmp_path / "lib").mkdir()
     (tmp_path / "lib" / "gone.py").write_text("x", encoding="utf-8")

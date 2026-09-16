@@ -256,7 +256,7 @@ def remove_stale_claude_shim(course_root: Path, apply: bool) -> str:
 # Step 4 — replace a stale nested-path guardian hook
 # ---------------------------------------------------------------------------
 
-_HOOK_PATH_RE = re.compile(r"\$CLAUDE_PROJECT_DIR/([^\"]*grade_guardian\.py)")
+_HOOK_PATH_RE = re.compile(r"\$\{?CLAUDE_PROJECT_DIR\}?/([^\"]*grade_guardian\.py)")
 
 
 def fix_stale_guardian_hook(course_root: Path, apply: bool) -> str:
