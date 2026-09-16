@@ -11,15 +11,15 @@ behavior is recorded in
 
 ## Current readiness
 
-_Last updated: 2026-09-15, after Phase 9 (safety regression suite)._
+_Last updated: 2026-09-15, after a real rehearsal against a live, verified-empty Canvas sandbox._
 
 | Test stage | Status | May use an existing `*-master` repository? |
 |---|---|---|
 | Runtime discovery and architecture review | Complete | No course repository is needed. |
 | **Stage 1** — Automated repository tests | **Complete** | No. |
 | **Stage 2** — Disposable local repositories | **Partially ready** — see note | No. |
-| **Stage 3** — Canvas sandbox, read-only first | Not ready | No — needs a Canvas sandbox connection, not yet run. |
-| **Stage 4** — One selected `*-master` pilot | Not ready | No. |
+| **Stage 3** — Canvas sandbox, read-only first | **Rehearsed — real evidence, not a fixture** — see note | No — ran against a disposable `demo-master` repo, not an existing `*-master`. |
+| **Stage 4** — One selected `*-master` pilot | Not ready — mechanics rehearsed, not on a real repo | No. |
 | **Stage 5** — Additional master repositories | Not ready | No. |
 | **Stage 6** — Faculty beta and release | Not ready | No. |
 
@@ -30,7 +30,7 @@ request.
 **Stage 1, in full:** schema/validator (Phase 2), package classification (Phase 3), the
 distribution resolver (Phase 4), Agent Plugin + generated adapters (Phase 5), flat init/update
 orchestration (Phase 6), capability consent (Phase 7), nested-to-flat migration tooling (Phase 8),
-and the cross-cutting safety regression suite (Phase 9) — 1492 automated tests, all passing, no
+and the cross-cutting safety regression suite (Phase 9) — 1500 automated tests, all passing, no
 course repository touched. Two real, previously-undetected safety gaps were found and fixed along
 the way (a flat-mode guardian hook silently inert due to a hardcoded nested path — Phase 6; a
 bypass-detection regex blind to the quiz-score write mechanism — Phase 9, also ported to `main`).
@@ -39,18 +39,44 @@ bypass-detection regex blind to the quiz-score write mechanism — Phase 9, also
 against real git and real synthetic fixtures — fresh installation, repeat installation and update,
 migration from nested and already-flattened layouts, course-owned-file preservation, stale-file
 removal, and rollback after an interrupted or invalid update — repeatedly, with defects found and
-fixed by the fixtures themselves rather than assumed away (see the Phase 4, 6, 7, and 8 progress
-log entries). The one bullet NOT done: **"Codex, Claude Code, Copilot, and generic workspace
-adapter discovery where available"** — this requires an actual VS Code session with each extension
-installed and cannot be performed by an agent working non-interactively. Phase 1's ADR already
-carries the closest available evidence (a disposable probe fixture, not the real package). Stage 2
-cannot close until this one item is run by the maintainer.
+fixed by the fixtures themselves rather than assumed away. The one bullet NOT done: **"Codex, Claude
+Code, Copilot, and generic workspace adapter discovery where available"** — this requires an actual
+VS Code session with each extension installed and cannot be performed by an agent working
+non-interactively. Stage 2 cannot close until this one item is run by the maintainer.
 
-**Stage 3 onward are entirely gated on human hands** — a live Canvas sandbox connection, real VS
-Code + Codex/Claude Code/Copilot sessions on macOS and Windows, and a maintainer-selected pilot
-repository. None of these can be completed or simulated by an agent alone; this file's own Stage 4
-rollback/approval design (Phase 8's `migrate_nested_to_flat.py`) is ready and tested, but running it
-against a real repository is exactly what these stages exist to gate.
+**Stage 3 — what actually happened, not a simulation.** The maintainer confirmed a real Canvas
+sandbox course (427808), verified with real evidence — not just its name — as carrying 0 enrolled
+students via `canvas_course_guard.check_course_safety()` (an actual, read-only `GET /courses/:id`
+call) before it was used for anything. A disposable `demo-master` repository was built as a nested
+1.x layout (a real local clone of `canvas-toolbox` at `main`, matching what an actual course repo
+has today) and pointed at that sandbox. Then, for real, not simulated:
+
+- `migrate_nested_to_flat.py` ran end to end against it — dry run, apply, the AGENTS.md merge and
+  `merge_cleanup.py` gate, `--finalize` — while `main` still lacks `distribution/manifest.yaml`, so
+  this also proved the documented legacy-fallback behavior for real (385 files copied, not the
+  curated ~280 — expected, and a genuine finding about what a pilot run *today*, before this branch
+  merges, would actually get).
+- The hidden clone was then switched to `feat/v2-agent-packaging` and re-flattened — a real
+  first-time capability-consent prompt fired (all three packages, correctly listing every
+  Canvas-write tool by name), was approved, and recorded to `.canvas-toolbox-approvals.json`.
+- `course_audit.py` ran twice against the live sandbox — a real authenticated API call, a real
+  audit artifact, real findings (missing rubrics, an incomplete syllabus) — and the weekly
+  staleness check fired correctly against a real `git ls-remote`.
+
+**This rehearsal found and fixed a real bug that no synthetic fixture had exercised**:
+`credentials_resolve()` and `canvas_smoke_test()` each checked one credential source at a time for
+both required keys, so a real, legitimate, common split (`CANVAS_BASE_URL` in the course's own
+`.env`, `CANVAS_API_TOKEN` in `~/.canvas/config`) was reported as unresolved even though
+`_env_loader.load_env()` — and every actual tool — handled it correctly. Fixed with one shared
+per-key merge helper, both functions now use it, and the real sandbox call succeeded after the fix.
+
+**What this does and does not close:** this is real Canvas-sandbox evidence, not a fixture — Stage
+3's read-only acceptance criteria were genuinely exercised. It is **not** Stage 4, because
+`demo-master` is a disposable rehearsal repo, not one of the six real `*-master` repositories — the
+mechanics are now proven, but "one maintainer-selected `*-master` repository" still means an actual
+one. Stages 5–6 remain entirely gated on real VS Code sessions (macOS and Windows), real
+non-technical faculty, and real additional repositories — none of which an agent can perform or
+substitute for.
 
 ## Testing ladder
 

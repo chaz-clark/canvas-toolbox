@@ -1031,19 +1031,17 @@ cleanly while missing both.
 
 ### Phase 10 — Faculty-facing acceptance tests
 
-**None of this phase's checklist can be completed by an agent working non-interactively — every
-item requires either a real VS Code session with a real extension signed in, a live Canvas
-sandbox, a real `*-master` repository, or an actual non-technical human at a keyboard.**
-`docs/V2_TESTING.md` itself gates real-repository access behind exactly the stages this phase
-would complete, and this session held that line rather than working around it: no `*-master`
-repo was opened, no Canvas sandbox call was made, no VS Code extension was driven.
+**Most of this phase's checklist still cannot be completed by an agent working non-interactively**
+— real VS Code sessions with a signed-in extension, a Windows machine, an actual non-technical
+human's observed friction. But with the maintainer's explicit authorization and a verified-empty
+Canvas sandbox, one real slice of this phase — Stage 3 of `docs/V2_TESTING.md` — was genuinely
+exercised, not simulated: see the progress log entry below for the full account. No existing
+`*-master` repository was touched; the rehearsal used a disposable `demo-master` repo built for
+this purpose.
 
 - [x] Update the readiness table in `docs/V2_TESTING.md` as each test stage becomes available.
-      Updated to reflect Phases 2–9: Stage 1 (automated tests) is genuinely Complete — 1492
-      passing tests, no course repository touched; Stage 2 (disposable local repositories) is
-      Partially ready — every file-level bullet (fresh install, update, migration, rollback) was
-      run against real fixtures, but "Codex/Claude Code/Copilot/generic workspace adapter
-      discovery" needs a real VS Code session and remains the one open item closing that stage.
+      Updated twice: after Phase 9 (Stage 1 Complete, Stage 2 Partially ready), and again after the
+      real sandbox rehearsal (Stage 3: real evidence, not a fixture — see progress log).
 - [ ] *(Needs the maintainer)* Fresh macOS setup in VS Code + Codex using ChatGPT/CES sign-in.
 - [ ] *(Needs the maintainer, and a Windows machine)* Fresh Windows setup in VS Code + Codex.
 - [ ] *(Needs the maintainer)* Repeat the core setup/audit flow with Claude Code.
@@ -1052,11 +1050,14 @@ repo was opened, no Canvas sandbox call was made, no VS Code extension was drive
 - [ ] *(Needs the maintainer)* Verify a faculty user never has to understand Git, Python, `uv`,
       manifests, adapters, or `.env` internals — this is a UX observation of a real person, not
       something inferable from code.
-- [x] Verify setup clearly requests only Canvas URL, course ID, and Canvas token when needed.
-      Confirmed by design and by the real fixture runs in Phase 6: `ensure_env_stub()`'s written
-      template asks for exactly those (plus clearly-marked optional fields), and the bootstrap
-      flow never surfaces a manifest, adapter, or `.env` internal to the instructor — only
-      "AGENT:" — addressed instructions and a plain-language summary.
+- [x] Verify setup clearly requests only Canvas URL, course ID, and Canvas token when needed, and
+      that a real Canvas connection actually works end to end. Confirmed by design (`ensure_env_stub()`'s
+      written template asks for exactly those; the bootstrap flow never surfaces a manifest,
+      adapter, or `.env` internal — only "AGENT:"-addressed instructions) and, going further than a
+      fixture, by a real sandbox connection: a genuine credential-resolution bug was found and
+      fixed here — a legitimate split (base URL in the course `.env`, token in
+      `~/.canvas/config`) was reported as unresolved despite every actual tool handling it
+      correctly — see the progress log.
 - [ ] *(Needs the maintainer)* Verify the BYU-Idaho-only CES login video remains clearly labeled
       — a documentation/media review, not a code check.
 - [ ] *(Needs the maintainer, and Phase 1's still-open gate)* Test direct Git installation and
@@ -1069,9 +1070,11 @@ repo was opened, no Canvas sandbox call was made, no VS Code extension was drive
       `migrate_nested_to_flat.py` reads or requires plugin state.
 - [ ] *(Needs the maintainer — this is what Stage 4 of `V2_TESTING.md` exists to gate)* Migrate
       one maintainer-selected `*-master` repository on a dedicated branch after a reviewed dry
-      run; perform no Canvas writes and retain a documented rollback point. The TOOLING for this
-      (`migrate_nested_to_flat.py`, Phase 8) is built and fixture-tested; running it against a
-      real repository is the one thing that tooling being ready does not itself authorize.
+      run; perform no Canvas writes and retain a documented rollback point. **The MECHANICS are now
+      rehearsed against a real Canvas connection**, not just fixture-tested — see the progress log
+      entry below. A disposable `demo-master` repo is not one of the six real repositories, so this
+      checklist item is still open, but the tooling has now cleared a materially higher bar than
+      "fixture-tested."
 - [ ] *(Follows from the item above)* Convert every layout difference found in that pilot into a
       synthetic migration fixture before selecting another course repository.
 - [ ] *(Follows from the item above)* Migrate additional `*-master` repositories one at a time
@@ -1079,14 +1082,18 @@ repo was opened, no Canvas sandbox call was made, no VS Code extension was drive
 - [ ] *(Needs the maintainer)* Decide whether an optional `.code-profile` materially reduces
       onboarding steps; reject it if it duplicates plugin/adapter state or overwrites user
       preferences — a product judgment call, not a technical check.
-- [ ] *(Needs the maintainer)* Test: initialize, restart session, pull course, run read-only
-      audit, edit locally, review a push plan, decline, approve in sandbox, update toolkit, and
-      restart again — a real session, in a real editor, against a real (sandbox) Canvas course.
+- [x] *(Partially — a real sandbox audit, not a full faculty session)* Test: initialize, pull
+      course, run read-only audit, approve in sandbox, update toolkit. Every one of these steps ran
+      for real against the live sandbox in the rehearsal below, including a second update cycle
+      (legacy distribution → curated v2 distribution) with a real capability-consent approval. Not
+      done: restart session / edit locally / review-and-decline a push plan — a full editor-session
+      walkthrough still needs the maintainer.
 - [ ] *(Needs the maintainer)* Record friction and revise setup text/videos before release.
 
 **Gate:** a non-technical tester completes the reference workflow without developer help or
-copy-pasting terminal commands. **Not met, and cannot be met by continuing to work on the v2
-branch alone** — this gate is specifically about a human's experience, not about more code.
+copy-pasting terminal commands. **Not met.** Real Canvas-sandbox evidence now exists (Stage 3), but
+the gate is specifically about a non-technical human's experience in a real editor session — that
+cannot be met by continuing to work on the v2 branch alone.
 
 ### Phase 11 — Release candidate and migration rehearsal
 
@@ -1273,3 +1280,4 @@ evidence.
 | 2026-09-15 | Phase 8 complete | pending / #317 | `lib/tools/migrate_nested_to_flat.py` added: detect nested/flat/standalone/unknown layout; relocate the nested clone via a LOCAL git clone (never a rename — the old `canvas-toolbox/` stays untouched until a separate, explicit `--finalize`); remove stale skill symlinks and the Windows copy-fallback (never a course-owned real directory); delegate the actual flatten/merge/verify to Phase 4/6's already-built `cb_flatten.py` machinery rather than reimplementing it; replace ONLY a `grade_guardian` hook pointing at the nested subdirectory, leaving an already-flat or genuinely-customized hook alone; `--finalize` requires the same 6-check verification to pass; `rollback()` handles both pre- and post-finalize. A real gap was found and fixed by testing rather than assumed away: `--finalize` originally let the old clone be removed even when an earlier `merge_cleanup.py` run had failed and correctly retained `AGENTS.merge.md` — nothing was actually lost, but the status gave no indication anything was still open; added a distinct `finalized-merge-pending` status. Verified repeatedly against real git and real fixtures (never a real `*-master` repo, per `docs/V2_TESTING.md`): full happy path, pre- and post-finalize rollback, and finalize-with-a-failed-merge. 1483 tests pass (34 new), ruff clean | Begin Phase 9 (safety regression suite) — the deferred `cb_init.py`/`cb_update.py` rewrite and running this migration tool against a real `*-master` repo both remain pilot-gated, not part of this phase |
 | 2026-09-15 | Phase 9 complete | pending / #317 | `lib/tests/test_safety_regression.py` added, covering the invariants new in v2 (declared-writer accuracy, manifest/adapter layering) rather than duplicating 1.x's existing FERPA/bypass/scope/offline coverage, all reconfirmed passing. **Two real findings, fixed rather than assumed away**: (1) `AGENTS.md` claimed only `grader_push.py`/`grader_standing.py` write grades/comments — false; four more tools are equally sanctioned (flagged in Phase 3), wording corrected, and `package_validate.py`'s `CONSTITUTIONAL_WRITERS` (previously protecting only 2) expanded to all 6. (2) `grade_guardian.py`'s own bypass-detection regex would NOT have caught a script mimicking `grader_quiz_clear_pending.py`'s real mechanism (zeroing a Classic Quiz question's score via `quiz_submissions[].questions[].score`, never `posted_grade`) — a genuine gap in the enforcement mechanism itself, found by cross-checking every sanctioned writer's actual payload against the pattern meant to catch bypasses of it, fixed and proven with a real bypass-shaped script both before (failed) and after (passes) the fix. Ported to `main` immediately given the safety significance, not deferred with the rest of Phase 9. 1492 tests pass (10 new), ruff clean | Begin Phase 10 (faculty acceptance testing) — this phase requires the maintainer's own hands (real VS Code sessions, a real course pilot) and cannot be completed by an agent alone |
 | 2026-09-15 | Phase 10 — the buildable slice only; the phase cannot close | pending / #317 | Updated `docs/V2_TESTING.md`'s readiness table honestly: Stage 1 (automated tests) genuinely Complete — 1492 passing, no course repository touched; Stage 2 (disposable repositories) Partially ready — every file-level bullet verified against real fixtures across Phases 4/6/7/8, but real VS Code adapter-discovery is the one item closing it; Stages 3–6 Not ready (all require a live Canvas sandbox, real VS Code sessions, or a real `*-master` repository). Confirmed by construction/fixture evidence: the setup flow requests only Canvas URL/course ID/token (never a manifest or `.env` internal), and disabling the plugin doesn't affect the flattened toolkit's own operation (nothing in Phase 6/7/8's code reads plugin state). Every remaining checklist item is marked needing the maintainer directly — real macOS/Windows/Codex/Claude Code/Copilot sessions, a real Canvas sandbox run, faculty-friction observation, and the actual `*-master` pilot migration Phase 8 built the tooling for but cannot itself authorize running. No course repository was opened and no Canvas sandbox call was made this session | Phases 11 and 12 are explicitly gated on this phase (11's own gate: "approved by the maintainer"; 12's Definition of Done requires "a non-technical faculty tester completes the reference workflow") — continuing to write code cannot satisfy either. Handed back to the maintainer rather than worked around |
+| 2026-09-15 | Phase 10 — real Stage 3 rehearsal, maintainer-authorized | pending / #317 | The maintainer offered a real Canvas sandbox (course 427808). Before using it for anything, its safety was verified with real evidence, not the variable name: `canvas_course_guard.check_course_safety()` — an actual read-only API call — confirmed 0 enrolled students and the course's real Canvas name ("...Sandbox"). A disposable `demo-master` repo was built as a real nested 1.x clone of `canvas-toolbox` at `main`, pointed at that sandbox, and taken through the full real cycle: `migrate_nested_to_flat.py` end to end (dry run → apply → AGENTS.md merge → `merge_cleanup.py` → `--finalize`) while `main` still lacks `distribution/manifest.yaml` — confirming for real that a pilot run *today* gets the legacy 385-file fallback, not the curated ~280; then the hidden clone was switched to `feat/v2-agent-packaging` and re-flattened, which fired a real first-time capability-consent prompt (all 3 packages, every Canvas-write tool named) that the maintainer explicitly approved; `course_audit.py` ran twice against the live sandbox with real authenticated API calls and real findings; the weekly staleness check fired correctly against a real `git ls-remote`. **This rehearsal found a real bug no synthetic fixture had exercised**: `credentials_resolve()`/`canvas_smoke_test()` each checked one credential source at a time for both keys, so a legitimate, common split (base URL in the course `.env`, token in `~/.canvas/config`) was reported as unresolved even though `_env_loader.load_env()` and every real tool handled it correctly — proven by the audit's own success. Fixed with one shared per-key-merge helper (`_resolve_credentials()`) used by both functions; neither had any unit tests before this, 8 added, including the exact split-source case. 1500 tests pass, ruff clean | This is real Stage 3 evidence, not Stage 4 — `demo-master` is a disposable rehearsal repo, not one of the six real `*-master` repositories. Stages 4–6 still need an actual pilot repository, real VS Code sessions, and real non-technical-faculty observation |
