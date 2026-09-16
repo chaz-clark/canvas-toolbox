@@ -1133,6 +1133,60 @@ documented migration works.
 
 ---
 
+### Phase 13 — Distribution collision protection & course housekeeping
+
+Added after the real m119-master Stage 4 pilot found that `apply_sync()` had no way to tell "the
+toolkit's own file, being updated" from "a course file that happens to share the toolkit's path" —
+it silently overwrote the course's real, tracked `knowledge/behavioral_discipline.md` with the
+toolkit's own same-named file the first time the flat distribution touched that course root. Not
+theoretical: a hand-maintained course document was actually replaced, recovered only because `git
+checkout` still had it (it was a tracked file — an untracked one would have been unrecoverable the
+same way `.claude/settings.json` briefly was during the same pilot, see the progress log entry
+below).
+
+- [x] `apply_sync()` accepts `previously_owned` (the set of paths already on record as toolkit-
+      written, read from the course's own gitignore block via `parse_gitignore_block()`). A path in
+      `to_copy` NOT in that set is landing at this course root for the first time; if something
+      already exists there with different content, it is renamed to `<path>.pre-flatten-backup`
+      instead of overwritten. A path already in `previously_owned` is an ordinary toolkit-file
+      update and is still always overwritten — this changes nothing about routine updates.
+      Default (`previously_owned=None`) preserves the old unconditional-overwrite behavior for
+      every caller except `main()`'s real apply path and `migrate_nested_to_flat.py`'s migration
+      path, which now both pass the real record.
+- [x] `verify_no_pending_collisions()` added as the report's 7th check (informational, same shape
+      as the AGENTS.md merge-pending check — it reports, `merge_cleanup.py`-style manual resolution
+      decides, not the report).
+- [ ] **Reserved-namespace documentation.** When the flat model ships (Phase 10/11), the README and
+      AGENTS.md's repo-structure section must name the toolkit-owned top-level paths
+      (`knowledge/`, `lib/`, `skills/`, `agent-packages/`, `scaffold/`, `schemas/`, `bin/`,
+      `.agents/`) explicitly, so a course author (or an agent working in a course repo) knows not to
+      create a same-named file there. Collision protection is a safety net for when this is
+      violated anyway (a pre-existing course predates the convention, or the boundary is
+      unintentionally crossed) — it is not a substitute for the boundary being documented.
+- [ ] **`course_doctor.py` (proposed, not yet built) — a housekeeping/pre-flight skill.** The same
+      pilot surfaced two more real hazards this doesn't yet check for, found manually rather than by
+      tooling:
+      1. Files that exist ONLY inside the nested `canvas-toolbox/` clone (or `.canvas-toolbox/`),
+         uncommitted to the toolkit's own history and absent from the course root — found for real
+         in ITM327 (`ENHANCEMENT_auto_zero_regrade.md`, `ITM327_DELIVERS_grader-receipts.md`,
+         `lib/tools/merge_deid_masters.py`). `finalize_migration()`'s `shutil.rmtree(nested)`
+         destroys these permanently, with no git history anywhere to recover from — a real bug of
+         omission that a course author needs to know about BEFORE running `--finalize`, not after.
+      2. A dirty working tree in general — Stage 4's own gate says "verify the working tree before
+         changing anything," but that verification was done by hand this pilot (a maintainer
+         reading `git status --short` output), not by a tool. A `course_doctor.py --report` that a
+         maintainer or agent runs before any migration/update would cover both: enumerate
+         nested-clone-only untracked files, dirty-tree summary, and (reusing this phase's own check)
+         any unresolved `*.pre-flatten-backup` or `AGENTS.merge.md`. Read-only, no `--apply` mode
+         needed — it is a report, not a mutation.
+
+**Gate:** the two checked items are the actual safety fix and are done; the two unchecked items are
+scoped but not built. Do not treat this phase as closing Phase 8's migration-tooling gate by itself
+— `course_doctor.py` is new scope, proposed here rather than assumed silently into an existing
+phase, and needs the maintainer's go-ahead before implementation.
+
+---
+
 ## 11. Required test matrix
 
 | Scenario | Codex | Claude Code | Copilot | Generic |

@@ -48,6 +48,7 @@ from cb_flatten import (  # noqa: E402
     verify_course_learning,
     verify_guardian_hook,
     verify_manifest_clean,
+    verify_no_pending_collisions,
     verify_skills_present,
     verify_token_budget,
     verification_report,
@@ -212,6 +213,87 @@ def test_apply_removes_upstream_deletions_and_prunes_the_empty_dir(tmp_path):
     apply_sync(src, root, [], ["lib/tools/gone.py"], apply=True)
     assert not stale.exists()
     assert not (root / "lib" / "tools").exists()
+
+
+# ---------------------------------------------------------------------------
+# apply_sync — collision protection (THE BUG A REAL PILOT FOUND). A course's
+# own file can share a path with something the toolkit ships (found for real:
+# m119-master's knowledge/behavioral_discipline.md, its own tracked,
+# hand-maintained file, silently replaced by the toolkit's same-named one).
+# previously_owned is the provenance record (parsed from the gitignore block)
+# that lets apply_sync tell "toolkit file being updated" from "this path is
+# new here" — only the second case needs protecting.
+# ---------------------------------------------------------------------------
+
+def test_apply_backs_up_a_pre_existing_course_file_at_a_new_toolkit_path(tmp_path):
+    src = _toolkit(tmp_path, {"knowledge/x.md": "toolkit version"})
+    root = tmp_path / "course"; root.mkdir()
+    dst = root / "knowledge" / "x.md"
+    dst.parent.mkdir(parents=True)
+    dst.write_text("real course content", encoding="utf-8")
+    counts = apply_sync(src, root, ["knowledge/x.md"], [], apply=True,
+                        previously_owned=set())
+    assert counts["backed_up"] == 1
+    assert counts["backed_up_paths"] == ["knowledge/x.md"]
+    backup = root / "knowledge" / "x.md.pre-flatten-backup"
+    assert backup.read_text(encoding="utf-8") == "real course content"
+    assert dst.read_text(encoding="utf-8") == "toolkit version"
+
+
+def test_apply_does_not_back_up_when_content_already_matches(tmp_path):
+    """No real collision — the course happens to already have the exact
+    toolkit content (e.g. a prior manual copy). Nothing to protect."""
+    src = _toolkit(tmp_path, {"knowledge/x.md": "same"})
+    root = tmp_path / "course"; root.mkdir()
+    dst = root / "knowledge" / "x.md"
+    dst.parent.mkdir(parents=True)
+    dst.write_text("same", encoding="utf-8")
+    counts = apply_sync(src, root, ["knowledge/x.md"], [], apply=True,
+                        previously_owned=set())
+    assert counts["backed_up"] == 0
+    assert not (root / "knowledge" / "x.md.pre-flatten-backup").exists()
+
+
+def test_apply_overwrites_without_backup_when_path_is_already_toolkit_owned(tmp_path):
+    """The ordinary update case: the toolkit wrote this file last time (it's
+    in previously_owned) and upstream changed it. Always overwrite — this is
+    not a collision, it's an update."""
+    src = _toolkit(tmp_path, {"lib/tools/a.py": "new upstream content"})
+    root = tmp_path / "course"; root.mkdir()
+    dst = root / "lib" / "tools" / "a.py"
+    dst.parent.mkdir(parents=True)
+    dst.write_text("old toolkit content", encoding="utf-8")
+    counts = apply_sync(src, root, ["lib/tools/a.py"], [], apply=True,
+                        previously_owned={"lib/tools/a.py"})
+    assert counts["backed_up"] == 0
+    assert dst.read_text(encoding="utf-8") == "new upstream content"
+
+
+def test_apply_preserves_old_unconditional_overwrite_when_previously_owned_omitted(tmp_path):
+    """Default (previously_owned=None) behavior is unchanged — only main()'s
+    real apply path opts into collision protection, since it is the only
+    caller with an actual provenance record to check against."""
+    src = _toolkit(tmp_path, {"knowledge/x.md": "toolkit version"})
+    root = tmp_path / "course"; root.mkdir()
+    dst = root / "knowledge" / "x.md"
+    dst.parent.mkdir(parents=True)
+    dst.write_text("real course content", encoding="utf-8")
+    counts = apply_sync(src, root, ["knowledge/x.md"], [], apply=True)
+    assert counts["backed_up"] == 0
+    assert dst.read_text(encoding="utf-8") == "toolkit version"
+
+
+def test_apply_dry_run_reports_the_collision_without_writing(tmp_path):
+    src = _toolkit(tmp_path, {"knowledge/x.md": "toolkit version"})
+    root = tmp_path / "course"; root.mkdir()
+    dst = root / "knowledge" / "x.md"
+    dst.parent.mkdir(parents=True)
+    dst.write_text("real course content", encoding="utf-8")
+    counts = apply_sync(src, root, ["knowledge/x.md"], [], apply=False,
+                        previously_owned=set())
+    assert counts["backed_up"] == 1
+    assert dst.read_text(encoding="utf-8") == "real course content"
+    assert not (root / "knowledge" / "x.md.pre-flatten-backup").exists()
 
 
 def test_apply_never_touches_a_course_owned_path(tmp_path):
@@ -653,10 +735,32 @@ def test_verify_manifest_clean_passes_when_all_removed(tmp_path):
     assert ok
 
 
-def test_verification_report_returns_all_six_checks(tmp_path):
+def test_verify_no_pending_collisions_passes_when_none_exist(tmp_path):
+    ok, msg = verify_no_pending_collisions(tmp_path)
+    assert ok and "no pending" in msg
+
+
+def test_verify_no_pending_collisions_reports_but_does_not_block(tmp_path):
+    """Same shape as the AGENTS.md merge-pending check: ok=True even with a
+    pending backup — this reports it, it does not decide for the maintainer."""
+    (tmp_path / "knowledge").mkdir()
+    (tmp_path / "knowledge" / "x.md.pre-flatten-backup").write_text("x", encoding="utf-8")
+    ok, msg = verify_no_pending_collisions(tmp_path)
+    assert ok and "knowledge/x.md.pre-flatten-backup" in msg
+
+
+def test_verify_no_pending_collisions_ignores_the_hidden_clone(tmp_path):
+    clone_dir = tmp_path / cf.CLONE_DIR / "knowledge"
+    clone_dir.mkdir(parents=True)
+    (clone_dir / "x.md.pre-flatten-backup").write_text("x", encoding="utf-8")
+    ok, msg = verify_no_pending_collisions(tmp_path)
+    assert ok and "no pending" in msg
+
+
+def test_verification_report_returns_all_seven_checks(tmp_path):
     clone = tmp_path / "clone"; clone.mkdir()
     results = verification_report(tmp_path, clone, [])
-    assert len(results) == 6
+    assert len(results) == 7
     assert all(isinstance(ok, bool) and isinstance(msg, str) for ok, msg in results)
 
 

@@ -48,7 +48,7 @@ one before it)
                                   nested subdirectory; a hook already pointing
                                   somewhere else (a course's own customization)
                                   is left untouched.
-  5. verification_report()      — cb_flatten's own 6-check report. Migration
+  5. verification_report()      — cb_flatten's own 7-check report. Migration
      (imported, not reimplemented) is not reported complete if this fails.
   6. finalize_migration()       — ONLY on explicit --finalize (never bundled
                                   with --apply): removes the OLD canvas-toolbox/
@@ -165,7 +165,7 @@ def plan_migration(course_root: Path) -> dict:
             "merge AGENTS.md (backup to AGENTS.merge.md, fresh constitution copied in — "
             "the merge SKILL and merge_cleanup.py still finish this, same as any other update)",
             "replace a stale nested-path grade_guardian hook with the flat-path one",
-            "run the 6-check verification report",
+            "run the 7-check verification report",
             "(separate step, --finalize only) remove the old canvas-toolbox/ directory",
         ] if layout == "nested" else [],
     }
@@ -310,7 +310,7 @@ def finalize_migration(course_root: Path) -> str:
     """no-flat-clone/nested-already-gone/not-verified/finalized/
     finalized-merge-pending.
 
-    Requires the SAME 6-check verification report cb_flatten.py's own --apply
+    Requires the SAME 7-check verification report cb_flatten.py's own --apply
     uses to pass before removing anything — "the operation is not reported as
     complete if a required verification fails" applies here at its highest
     stakes, since this step cannot be undone by this tool.
@@ -432,9 +432,14 @@ def main() -> int:
     to_copy, to_delete = flat.plan_sync(old_manifest, new_manifest)
     print(f"distribution: {len(to_copy)} to copy, {len(to_delete)} to remove, "
           f"packages: {', '.join(packages) or '(legacy)'}")
-    counts = flat.apply_sync(clone, root, to_copy, to_delete, args.apply)
+    counts = flat.apply_sync(clone, root, to_copy, to_delete, args.apply,
+                             previously_owned=old_manifest)
     print(f"{'wrote' if args.apply else 'would write'}: {counts['copied']} copied, "
           f"{counts['deleted']} removed")
+    if counts["backed_up"]:
+        backup_verb = "backed up" if args.apply else "would back up"
+        print(f"  🟡 {counts['backed_up']} course file(s) collided with a toolkit path — "
+              f"{backup_verb} rather than overwritten: {counts['backed_up_paths']}")
 
     agents_status = flat.apply_agents_md_step(root, clone, args.apply)
     print(f"AGENTS.md: {agents_status}")

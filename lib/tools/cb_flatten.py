@@ -318,10 +318,27 @@ def ensure_clone(course_root: Path, remote: str, apply: bool) -> str:
 # ---------------------------------------------------------------------------
 
 def apply_sync(clone: Path, course_root: Path,
-               to_copy: list[str], to_delete: list[str], apply: bool) -> dict:
+               to_copy: list[str], to_delete: list[str], apply: bool,
+               previously_owned: set[str] | None = None) -> dict:
     """Copy the toolkit's files to the course root and remove what upstream
-    deleted. Returns counts; never touches a path outside the two lists."""
-    counts = {"copied": 0, "deleted": 0, "missing": 0}
+    deleted. Returns counts; never touches a path outside the two lists.
+
+    previously_owned: paths this tool is on record as having written before
+    (read from the course's own gitignore block — see parse_gitignore_block).
+    A path in to_copy that is NOT in this set is landing at this course root
+    for the first time. If something already sits there and its content
+    differs from the toolkit's own copy, that is not a toolkit file being
+    updated — it is real, pre-existing course content that happens to share
+    the toolkit's path. FOUND FOR REAL during the m119-master pilot:
+    knowledge/behavioral_discipline.md was the course's own tracked file,
+    silently replaced with the toolkit's same-named one. Back the collision
+    up instead of destroying it; a path already in previously_owned is an
+    ordinary toolkit-file update and is still always overwritten. Passing
+    None (the default) preserves the old unconditional-overwrite behavior —
+    only main()'s real apply path opts into the protection, since that is the
+    only caller with an actual provenance record to check against."""
+    counts = {"copied": 0, "deleted": 0, "missing": 0, "backed_up": 0}
+    backed_up: list[str] = []
     for rel in to_delete:
         dst = course_root / rel
         if not dst.exists():
@@ -335,10 +352,17 @@ def apply_sync(clone: Path, course_root: Path,
         if not src.is_file():
             counts["missing"] += 1
             continue
+        is_new_path = previously_owned is not None and rel not in previously_owned
+        if is_new_path and dst.is_file() and dst.read_bytes() != src.read_bytes():
+            backed_up.append(rel)
+            if apply:
+                dst.rename(dst.with_name(dst.name + ".pre-flatten-backup"))
+            counts["backed_up"] += 1
         if apply:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
         counts["copied"] += 1
+    counts["backed_up_paths"] = backed_up
     return counts
 
 
@@ -730,6 +754,22 @@ def verify_manifest_clean(course_root: Path, to_delete: list[str]) -> tuple[bool
     return True, f"no orphaned paths ({len(to_delete)} upstream deletions all removed)"
 
 
+def verify_no_pending_collisions(course_root: Path) -> tuple[bool, str]:
+    """Same shape as the AGENTS.md merge-pending check: a *.pre-flatten-backup
+    left by apply_sync()'s collision protection needs a human decision (keep
+    the toolkit's file, restore the course's own, or merge by hand) — this
+    reports it rather than deciding, exactly like merge_cleanup.py is the
+    actual gate for AGENTS.md rather than this report."""
+    found = sorted(
+        str(p.relative_to(course_root)) for p in course_root.rglob("*.pre-flatten-backup")
+        if CLONE_DIR not in p.relative_to(course_root).parts
+    )
+    if not found:
+        return True, "no pending collision backups (*.pre-flatten-backup)"
+    return True, (f"{len(found)} pending collision backup(s) need review: "
+                  f"{found[:5]} — see apply_sync()'s collision-protection note")
+
+
 def verification_report(course_root: Path, clone: Path,
                         to_delete: list[str]) -> list[tuple[bool, str]]:
     """[(ok, message)] for every check — pure given its inputs; callers do the
@@ -741,6 +781,7 @@ def verification_report(course_root: Path, clone: Path,
         verify_skills_present(course_root, clone),
         verify_guardian_hook(course_root),
         verify_manifest_clean(course_root, to_delete),
+        verify_no_pending_collisions(course_root),
     ]
 
 
@@ -839,10 +880,19 @@ def main() -> int:
         )
         return 2
 
-    counts = apply_sync(clone, root, to_copy, to_delete, args.apply)
+    counts = apply_sync(clone, root, to_copy, to_delete, args.apply, previously_owned=old)
     verb = "wrote" if args.apply else "would write"
     print(f"{verb}: {counts['copied']} copied, {counts['deleted']} removed"
           + (f", {counts['missing']} missing from clone" if counts["missing"] else ""))
+    if counts["backed_up"]:
+        backup_verb = "backed up" if args.apply else "would back up"
+        print(f"\n🟡 {counts['backed_up']} course file(s) collided with a toolkit path — "
+              f"{backup_verb} rather than overwritten:")
+        for rel in counts["backed_up_paths"]:
+            suffix = ".pre-flatten-backup" if args.apply else ""
+            print(f"  {rel}{(' -> ' + rel + suffix) if suffix else ''}")
+        print("  Review each: keep the toolkit's version, restore your own "
+              "(remove the .pre-flatten-backup suffix), or merge by hand.")
 
     updated = splice_gitignore(existing, render_gitignore_block(to_copy))
     if updated != existing:
