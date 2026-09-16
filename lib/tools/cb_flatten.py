@@ -223,7 +223,8 @@ def splice_gitignore(existing: str, block: str) -> str:
 
 def _git(clone: Path, *args: str) -> str:
     return subprocess.run(["git", "-C", str(clone), *args],
-                          capture_output=True, text=True, check=True).stdout
+                          capture_output=True, text=True, encoding="utf-8",
+                          check=True).stdout
 
 
 def manifest(clone: Path) -> set[str]:

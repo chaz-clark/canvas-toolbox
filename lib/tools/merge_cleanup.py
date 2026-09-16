@@ -117,16 +117,16 @@ def historical_lines(clone: Path) -> set[str]:
     try:
         shas = subprocess.run(
             ["git", "-C", str(clone), "log", "--format=%H", "--", "AGENTS.md"],
-            capture_output=True, text=True, check=True).stdout.split()
-    except (OSError, subprocess.SubprocessError):
+            capture_output=True, text=True, encoding="utf-8", check=True).stdout.split()
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
         return set()
     seen: set[str] = set()
     for sha in shas:
         try:
             body = subprocess.run(
                 ["git", "-C", str(clone), "show", f"{sha}:AGENTS.md"],
-                capture_output=True, text=True, check=True).stdout
-        except (OSError, subprocess.SubprocessError):
+                capture_output=True, text=True, encoding="utf-8", check=True).stdout
+        except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
             continue
         seen.update(ln.strip() for ln in body.splitlines() if ln.strip())
     return seen
