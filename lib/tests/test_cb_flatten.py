@@ -412,6 +412,19 @@ def test_block_carries_runtime_ignores():
         assert pat in block
 
 
+def test_hidden_clone_is_actually_gitignored(tmp_path):
+    """THE BUG A REAL PILOT FOUND. This module's own header comment claims
+    .canvas-toolbox/ is "gitignored", but RUNTIME_IGNORES never listed it — a
+    course that ran `git add -A` after a real flatten would create a gitlink
+    (mode 160000) pointing at whatever commit the clone happened to be on, and
+    a fresh `git clone` of that course afterward gets an EMPTY .canvas-toolbox/
+    instead of the toolkit. Assert the actual clone-dir NAME, not just that
+    RUNTIME_IGNORES contains itself — a future rename of CLONE_DIR without a
+    matching RUNTIME_IGNORES update must fail this."""
+    block = render_gitignore_block(["lib/a.py"])
+    assert f"{cf.CLONE_DIR}/" in block
+
+
 def test_deletion_is_detected_without_a_pull_in_the_same_run(tmp_path):
     """THE BUG A 381-FILE SMOKE TEST FOUND. Reading both manifests off the clone
     only works if this tool's own --pull is the only way the clone ever changes.

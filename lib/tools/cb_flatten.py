@@ -147,7 +147,17 @@ GI_END = "# <<< canvas-toolbox flattened files <<<"
 #: Artifacts the FLATTENED toolkit creates when it runs. The toolkit's own
 #: .gitignore covers these, but it is hybrid and deliberately never flattened,
 #: so the course would otherwise see __pycache__ churn in `git status`.
-RUNTIME_IGNORES = ("__pycache__/", "*.pyc", "*.pyo", ".venv/")
+#:
+#: FOUND FOR REAL, first time a pilot actually tried to commit a flattened
+#: course: CLONE_DIR (.canvas-toolbox/) was never in this list, despite this
+#: module's own header comment claiming it is "gitignored". It has its own
+#: .git — `git add -A` on an ignorant repo creates a gitlink (mode 160000)
+#: pointing at whatever commit the clone happened to be on, not a real
+#: submodule, and a plain `git clone` of the course repo afterward gets an
+#: EMPTY .canvas-toolbox/ directory instead of the toolkit. Listed by name
+#: (not CLONE_DIR the variable) so a stale rendered block in an old course's
+#: .gitignore still reads correctly without needing this module to run.
+RUNTIME_IGNORES = ("__pycache__/", "*.pyc", "*.pyo", ".venv/", ".canvas-toolbox/")
 
 
 # ---------------------------------------------------------------------------
