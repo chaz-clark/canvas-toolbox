@@ -1163,6 +1163,20 @@ below).
       create a same-named file there. Collision protection is a safety net for when this is
       violated anyway (a pre-existing course predates the convention, or the boundary is
       unintentionally crossed) — it is not a substitute for the boundary being documented.
+- [x] **Weekly commit-hygiene nudge.** A real Genchi Genbutsu survey across all six `*-master`
+      repos (not assumed — actually read, diff by diff) found real, uncommitted grading tools and
+      deleted feedback docs sitting in five of six working trees, some for weeks — a live violation
+      of `knowledge/behavioral_discipline.md`'s own "commit and push in the same operation... local-
+      only commits are an Andon condition" rule, in the very knowledge file the Phase 13 collision
+      bug clobbered in m119-master. Prose in a knowledge file an agent might not reread is not a
+      check, so one was added: `_check_commit_hygiene()` in `_env_loader.py`, modeled directly on
+      the existing weekly toolkit-staleness check (same fail-open, at-most-weekly, git-plumbing-only
+      contract, so it fires below the agent layer for every runtime — ~94 of ~120 tools already call
+      `load_env()`). Scoped to "repos that use git" with a configured remote only — a genuinely
+      local-only repo is the documented exception to the rule and must never be nagged for a
+      deliberate choice. Verified against real data: fired correctly on the actual dirty
+      `ds460-master` working tree, silent on a synthetic clean-and-pushed fixture. 1532 tests pass
+      (9 new), ruff clean.
 - [ ] **`course_doctor.py` (proposed, not yet built) — a housekeeping/pre-flight skill.** The same
       pilot surfaced two more real hazards this doesn't yet check for, found manually rather than by
       tooling:
@@ -1180,10 +1194,10 @@ below).
          any unresolved `*.pre-flatten-backup` or `AGENTS.merge.md`. Read-only, no `--apply` mode
          needed — it is a report, not a mutation.
 
-**Gate:** the two checked items are the actual safety fix and are done; the two unchecked items are
-scoped but not built. Do not treat this phase as closing Phase 8's migration-tooling gate by itself
-— `course_doctor.py` is new scope, proposed here rather than assumed silently into an existing
-phase, and needs the maintainer's go-ahead before implementation.
+**Gate:** three of the four items in this phase are the actual safety fixes and are done;
+`course_doctor.py` remains scoped but not built. Do not treat this phase as closing Phase 8's
+migration-tooling gate by itself — `course_doctor.py` is new scope, proposed here rather than
+assumed silently into an existing phase, and needs the maintainer's go-ahead before implementation.
 
 ---
 

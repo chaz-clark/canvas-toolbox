@@ -180,6 +180,7 @@ def load_env() -> Path | None:
 
     if loaded is not None:
         _check_toolkit_staleness(loaded.parent)
+        _check_commit_hygiene(loaded.parent)
 
     return loaded
 
@@ -238,6 +239,77 @@ def _check_toolkit_staleness(course_root: Path) -> None:
                 file=sys.stderr,
             )
     except Exception:  # noqa: BLE001 — a staleness check must never break a tool run
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Weekly commit-hygiene check. Found the need for this by real survey (not
+# assumed): a Genchi Genbutsu pass across six real *-master course repos found
+# real, uncommitted grading tools and deleted feedback docs sitting in five of
+# six working trees, some for weeks. The exact rule this violates is already
+# written down — knowledge/behavioral_discipline.md's "commit and push in the
+# same operation... local-only commits are an Andon condition" — but prose in
+# a knowledge file an agent might not reread is not a check. This is.
+# ---------------------------------------------------------------------------
+
+_COMMIT_CHECK_INTERVAL_DAYS = 7
+_COMMIT_CHECK_MARKER = "canvas-toolbox-commit-check"
+
+
+def _check_commit_hygiene(course_root: Path) -> None:
+    """A one-line, at-most-weekly nudge that the COURSE repo itself (not the
+    toolkit clone) has uncommitted or unpushed work. FAILS OPEN,
+    UNCONDITIONALLY — same contract as _check_toolkit_staleness: this can only
+    ever print an extra line or do nothing.
+
+    Only for a repo with a configured git remote. "For those that use git"
+    scopes this deliberately: a genuinely local-only repo is the documented
+    exception to the underlying rule (behavioral_discipline.md, point 2), and
+    this must never nag someone for a deliberate choice, or fire in a course
+    repo that isn't a git repo at all.
+
+    The marker lives under .git/ rather than .canvas-toolbox/ — a course repo
+    always has the former the moment this can run at all, regardless of
+    nested vs. flat layout, and .git/ is never itself tracked or synced."""
+    git_dir = course_root / ".git"
+    marker = git_dir / _COMMIT_CHECK_MARKER
+    try:
+        if not git_dir.is_dir():
+            return
+        if marker.is_file():
+            import time
+            age_days = (time.time() - marker.stat().st_mtime) / 86400
+            if age_days < _COMMIT_CHECK_INTERVAL_DAYS:
+                return
+
+        import subprocess
+        remotes = subprocess.run(
+            ["git", "-C", str(course_root), "remote"],
+            capture_output=True, text=True, timeout=3,
+        )
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("", encoding="utf-8")  # reset the clock either way
+        if remotes.returncode != 0 or not remotes.stdout.strip():
+            return  # no remote configured — local-only by choice, never nag
+
+        dirty = subprocess.run(
+            ["git", "-C", str(course_root), "status", "--porcelain"],
+            capture_output=True, text=True, timeout=3,
+        )
+        ahead = subprocess.run(
+            ["git", "-C", str(course_root), "rev-list", "--count", "@{u}.."],
+            capture_output=True, text=True, timeout=3,
+        )
+        has_dirty = dirty.returncode == 0 and bool(dirty.stdout.strip())
+        has_unpushed = (ahead.returncode == 0 and ahead.stdout.strip().isdigit()
+                       and int(ahead.stdout.strip()) > 0)
+        if has_dirty or has_unpushed:
+            print(
+                "canvas-toolbox: this repo has uncommitted or unpushed work — "
+                "commit and push together (see knowledge/behavioral_discipline.md).",
+                file=sys.stderr,
+            )
+    except Exception:  # noqa: BLE001 — a hygiene nudge must never break a tool run
         pass
 
 
