@@ -81,6 +81,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -95,6 +96,21 @@ except ImportError:
         pass
 
 NESTED_DIR_NAME = "canvas-toolbox"
+
+
+def _rmtree(path: Path) -> None:
+    """shutil.rmtree, but tolerant of git's read-only pack/object files.
+
+    FOUND ON REAL WINDOWS. Git marks .git/objects/pack/* read-only on every
+    platform, but only Windows' os.unlink() actually honors that bit — POSIX
+    deletion is governed by the directory's write permission, not the file's,
+    so this never surfaced there. shutil.rmtree(nested) on a real git clone
+    raised PermissionError on first contact with a pack file. Clear the
+    read-only attribute on retry instead of failing the whole finalize."""
+    def _on_error(func, target, _exc_info):
+        os.chmod(target, stat.S_IWRITE)
+        func(target)
+    shutil.rmtree(path, onexc=_on_error)
 
 
 # ---------------------------------------------------------------------------
@@ -315,7 +331,7 @@ def finalize_migration(course_root: Path) -> str:
     results = flat.verification_report(course_root, clone, [])
     if not all(ok for ok, _ in results):
         return "not-verified"
-    shutil.rmtree(nested)
+    _rmtree(nested)
     if (course_root / "AGENTS.merge.md").is_file():
         return "finalized-merge-pending"
     return "finalized"
@@ -343,7 +359,7 @@ def rollback(course_root: Path) -> str:
     backup = course_root / "AGENTS.merge.md"
     target = course_root / "AGENTS.md"
     if nested.is_dir():
-        shutil.rmtree(clone)
+        _rmtree(clone)
         if backup.is_file():
             if target.is_file():
                 target.unlink()
