@@ -11,7 +11,8 @@ behavior is recorded in
 
 ## Current readiness
 
-_Last updated: 2026-09-15, after a real rehearsal against a live, verified-empty Canvas sandbox._
+_Last updated: 2026-09-15, after real rehearsals against a live, verified-empty Canvas sandbox
+(macOS) and native Windows 11 (Parallels)._
 
 | Test stage | Status | May use an existing `*-master` repository? |
 |---|---|---|
@@ -19,7 +20,7 @@ _Last updated: 2026-09-15, after a real rehearsal against a live, verified-empty
 | **Stage 1** — Automated repository tests | **Complete** | No. |
 | **Stage 2** — Disposable local repositories | **Partially ready** — see note | No. |
 | **Stage 3** — Canvas sandbox, read-only first | **Rehearsed — real evidence, not a fixture** — see note | No — ran against a disposable `demo-master` repo, not an existing `*-master`. |
-| **Stage 4** — One selected `*-master` pilot | Not ready — mechanics rehearsed, not on a real repo | No. |
+| **Stage 4** — One selected `*-master` pilot | Not ready — mechanics rehearsed on both macOS and Windows, not on a real repo | No. |
 | **Stage 5** — Additional master repositories | Not ready | No. |
 | **Stage 6** — Faculty beta and release | Not ready | No. |
 
@@ -77,6 +78,47 @@ mechanics are now proven, but "one maintainer-selected `*-master` repository" st
 one. Stages 5–6 remain entirely gated on real VS Code sessions (macOS and Windows), real
 non-technical faculty, and real additional repositories — none of which an agent can perform or
 substitute for.
+
+**Native Windows rehearsal — Phase 8's Windows checklist item, closed with real evidence.**
+Every prior migration test had run on macOS, including fixtures written to simulate Windows path
+and symlink behavior. This rehearsal ran the real thing: a Parallels-hosted Windows 11 VM, driven
+non-interactively via `prlctl exec`. Setup — `uv`, Python 3.14 (via `uv python install`), and Git
+for Windows 2.47.0 — then a fresh `C:\demo-master\` nested-layout fixture: a real `git clone` of
+`canvas-toolbox` at `main`, all 8 skill symlinks created explicitly, a demo-labeled `AGENTS.md`
+(deliberately with no Canvas `.env` — this fixture is file-operations-only, not a second Canvas
+connection test), then checked out to `feat/v2-agent-packaging`.
+
+`migrate_nested_to_flat.py --apply` ran clean on the first try: layout detection, symlink removal,
+the curated 282-file distribution copy (matching the macOS result exactly), and guardian-hook
+installation with Windows-appropriate paths all passed their verification checks. But the two steps
+after that each hit a real, previously-undetected, Windows-only bug that no macOS-based fixture —
+real or simulated — had ever exercised:
+
+- **`merge_cleanup.py` crashed reading `AGENTS.md`'s own git history.** It ran `git log`/`git show`
+  through `subprocess.run(text=True)`, which decodes stdout using the platform's default
+  encoding — cp1252 on Windows, not UTF-8. A past revision containing a character outside cp1252
+  (this toolkit's own tool output uses "✓" and em dashes throughout) raised `UnicodeDecodeError`
+  inside git's stdout reader thread; that exception isn't propagated by `subprocess.run`, so the
+  call silently returned `stdout=None` and the tool crashed with an unhandled `AttributeError`
+  instead of its own documented best-effort fallback. Fixed by decoding as UTF-8 explicitly
+  (`lib/tools/merge_cleanup.py`, `lib/tools/cb_flatten.py`'s identical `_git()` helper).
+- **`--finalize` crashed deleting the old nested clone.** Git marks `.git/objects/pack/*` read-only
+  on every platform, but only Windows' `os.unlink()` actually enforces that bit against the
+  caller — POSIX deletion permission comes from the containing directory, not the file's own mode,
+  so `shutil.rmtree()` on a real git clone had never failed this way on macOS or Linux. Fixed with a
+  wrapper that clears the read-only attribute and retries (`lib/tools/migrate_nested_to_flat.py`).
+
+Both fixes were pushed, pulled into the live VM, and the failing step was re-run from the point of
+failure — not just re-run from scratch — confirming each fix against the exact real failure it was
+written for. The rehearsal then completed for real: `merge_cleanup.py` passed its full
+constitution-intact / course-learning-preserved / line-budget verification once the fixture's course
+content was curated into a marked section, and `--finalize` removed the nested clone cleanly,
+leaving `.canvas-toolbox/` as the sole hidden clone and no leftover `AGENTS.merge.md`.
+
+Neither bug could have been caught by a fixture built or run on macOS — one is a platform-default
+text-decoding difference, the other a platform difference in what a file's own permission bits
+control. This is the specific gap real cross-platform testing exists to close, and it closed it
+twice in one rehearsal.
 
 ## Testing ladder
 
