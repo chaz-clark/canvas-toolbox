@@ -20,7 +20,13 @@ if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
 import _env_loader  # noqa: E402
-from _env_loader import GLOBAL_KEYS, global_config_problems, load_env  # noqa: E402
+from _env_loader import (  # noqa: E402
+    GLOBAL_KEYS,
+    _check_commit_hygiene,
+    _COMMIT_CHECK_MARKER,
+    global_config_problems,
+    load_env,
+)
 
 _CANVAS_VARS = ("CANVAS_API_TOKEN", "CANVAS_BASE_URL", "CANVAS_COURSE_ID")
 
@@ -143,3 +149,100 @@ def test_absent_global_file_changes_nothing(tmp_path, monkeypatch):
     assert load_env() is not None
     assert os.environ["CANVAS_API_TOKEN"] == "REPO_tok"
     assert global_config_problems() == []
+
+
+# ---------------------------------------------------------------------------
+# Weekly commit-hygiene check. Found the need for this by a real survey across
+# six *-master course repos, not assumed — see _env_loader.py's own comment.
+# FAILS OPEN, UNCONDITIONALLY: none of these may ever raise out of
+# _check_commit_hygiene — it must be safe to call from inside load_env().
+# ---------------------------------------------------------------------------
+
+import subprocess  # noqa: E402
+
+
+def _git(d: Path, *a):
+    subprocess.run(["git", "-C", str(d), *a], check=True, capture_output=True)
+
+
+def _course_repo_with_remote(tmp_path: Path) -> tuple[Path, Path]:
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    _git(origin, "init", "-q")
+    (origin / "f.txt").write_text("x", encoding="utf-8")
+    _git(origin, "add", "-A")
+    _git(origin, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+
+    course_root = tmp_path / "course"
+    subprocess.run(["git", "clone", "-q", str(origin), str(course_root)],
+                   check=True, capture_output=True)
+    return origin, course_root
+
+
+def test_commit_hygiene_no_op_without_a_git_repo(tmp_path, capsys):
+    _check_commit_hygiene(tmp_path)             # no .git/ at all
+    assert capsys.readouterr().err == ""
+
+
+def test_commit_hygiene_never_nags_a_local_only_repo(tmp_path, capsys):
+    """No remote configured — the documented, deliberate exception
+    (behavioral_discipline.md, point 2). Never nag for a real choice."""
+    course_root = tmp_path / "course"
+    course_root.mkdir()
+    _git(course_root, "init", "-q")
+    (course_root / "f.txt").write_text("x", encoding="utf-8")
+    _check_commit_hygiene(course_root)
+    assert capsys.readouterr().err == ""
+
+
+def test_commit_hygiene_silent_when_clean_and_pushed(tmp_path, capsys):
+    _origin, course_root = _course_repo_with_remote(tmp_path)
+    _check_commit_hygiene(course_root)
+    assert (course_root / ".git" / _COMMIT_CHECK_MARKER).is_file()
+    assert capsys.readouterr().err == ""
+
+
+def test_commit_hygiene_notices_a_dirty_working_tree(tmp_path, capsys):
+    _origin, course_root = _course_repo_with_remote(tmp_path)
+    (course_root / "new_file.md").write_text("uncommitted", encoding="utf-8")
+    _check_commit_hygiene(course_root)
+    assert "uncommitted or unpushed" in capsys.readouterr().err
+
+
+def test_commit_hygiene_notices_unpushed_commits(tmp_path, capsys):
+    origin, course_root = _course_repo_with_remote(tmp_path)
+    (course_root / "f.txt").write_text("y", encoding="utf-8")
+    _git(course_root, "add", "-A")
+    _git(course_root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "local only")
+    _check_commit_hygiene(course_root)
+    assert "uncommitted or unpushed" in capsys.readouterr().err
+
+
+def test_commit_hygiene_skips_network_when_marker_is_fresh(tmp_path, monkeypatch):
+    _origin, course_root = _course_repo_with_remote(tmp_path)
+    marker = course_root / ".git" / _COMMIT_CHECK_MARKER
+    marker.write_text("", encoding="utf-8")     # just written — fresh
+
+    def _boom(*a, **k):
+        raise AssertionError("must not shell out when the marker is fresh")
+    monkeypatch.setattr(subprocess, "run", _boom)
+    _check_commit_hygiene(course_root)          # would raise if it reached subprocess.run
+
+
+def test_commit_hygiene_rechecks_after_the_interval(tmp_path):
+    import os as _os
+    import time
+    _origin, course_root = _course_repo_with_remote(tmp_path)
+    marker = course_root / ".git" / _COMMIT_CHECK_MARKER
+    marker.write_text("", encoding="utf-8")
+    old = time.time() - (_env_loader._COMMIT_CHECK_INTERVAL_DAYS + 1) * 86400
+    _os.utime(marker, (old, old))
+    (course_root / "dirty.md").write_text("x", encoding="utf-8")
+    _check_commit_hygiene(course_root)
+    assert marker.stat().st_mtime > old         # clock was reset
+
+
+def test_commit_hygiene_never_raises_when_course_root_is_not_a_repo(tmp_path):
+    course_root = tmp_path / "course"
+    (course_root / ".git").mkdir(parents=True)  # present but not a real repo
+    _check_commit_hygiene(course_root)          # must not raise
