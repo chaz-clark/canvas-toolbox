@@ -253,7 +253,7 @@ def _check_toolkit_staleness(course_root: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Weekly commit-hygiene check. Found the need for this by real survey (not
+# Weekly commit-hygiene check. Found the need for this by a real survey (not
 # assumed): a Genchi Genbutsu pass across six real *-master course repos found
 # real, uncommitted grading tools and deleted feedback docs sitting in five of
 # six working trees, some for weeks. The exact rule this violates is already

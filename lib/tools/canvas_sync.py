@@ -1643,6 +1643,46 @@ def cmd_status():
 # Push: local files → Canvas
 # ---------------------------------------------------------------------------
 
+def _push_page_todo_date(page_url: str, todo_date: Optional[str]) -> bool:
+    """Set (or clear) a Page's student to-do date.
+
+    Canvas silently ignores wiki_page[todo_date] unless student_todo_at is
+    sent in the same PUT — confirmed by testing (2026-09-15): sending
+    todo_date alone returns 200 but does not persist. Pass todo_date=None
+    to clear an existing to-do date — Canvas also ignores an explicit JSON
+    null for clearing (the field is simply left unchanged); an empty string
+    is what actually clears it, confirmed by testing the same day.
+    """
+    value = todo_date if todo_date is not None else ""
+    result = _put(f"/courses/{CANVAS_COURSE_ID}/pages/{page_url}", {
+        "wiki_page": {"todo_date": value, "student_todo_at": value}
+    })
+    if result.get("error"):
+        print(f"    ERROR: {result['error']}")
+        return False
+    return True
+
+
+def cmd_set_todo_dates(path: str) -> None:
+    """Batch-set Page todo_date from a JSON file of {page_url: iso_date_or_null}."""
+    data_path = Path(path)
+    if not data_path.exists():
+        print(f"ERROR: file not found — {path}")
+        sys.exit(1)
+    mapping: dict = json.loads(data_path.read_text(encoding="utf-8"))
+
+    ok_count = 0
+    fail_count = 0
+    for page_url, todo_date in mapping.items():
+        _vprint(f"  {page_url} -> {todo_date}")
+        if _push_page_todo_date(page_url, todo_date):
+            ok_count += 1
+        else:
+            fail_count += 1
+
+    print(f"\nSet todo_date on {ok_count}/{len(mapping)} pages ({fail_count} failed).")
+
+
 def _push_page(filepath: Path, meta: dict) -> bool:
     page_url = meta.get("page_url")
     if not page_url:
@@ -2437,6 +2477,9 @@ Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
                         help="Write changes for --rebind / --migrate-from "
                              "(both are dry-run by default)")
     parser.add_argument("--upload", metavar="PATH", help="Upload a local file or folder to Canvas Files")
+    parser.add_argument("--set-todo-dates", metavar="FILE",
+                         help="Batch-set Page todo_date from a JSON file of "
+                              "{page_url: iso_date_or_null} (null clears it)")
     parser.add_argument("--folder", default="course_assets", metavar="FOLDER",
                         help="Canvas folder to upload into (default: course_assets)")
     parser.add_argument("--quiet", action="store_true", help="Suppress per-file output; show only headers and totals")
@@ -2480,7 +2523,7 @@ Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
 
     # Startup safety guard (#27) — never block --build (local-only, no Canvas call).
     if not args.build:
-        _write_mode = bool(args.push is not None) or bool(args.upload)
+        _write_mode = bool(args.push is not None) or bool(args.upload) or bool(args.set_todo_dates)
         _course_guard(CANVAS_BASE_URL, _headers(), CANVAS_COURSE_ID,
                       "write" if _write_mode else "read",
                       allow_override=args.allow_enrolled,
@@ -2498,6 +2541,8 @@ Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
         cmd_build()
     elif args.upload:
         cmd_upload(args.upload, args.folder)
+    elif args.set_todo_dates:
+        cmd_set_todo_dates(args.set_todo_dates)
     elif args.pull_files:
         cmd_pull_files(
             max_file_size=_parse_size(args.max_file_size),

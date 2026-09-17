@@ -10,6 +10,45 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`grade_guardian`'s bypass-detection regex would not have caught a script mimicking
+`grader_quiz_clear_pending.py`'s actual write mechanism.**
+
+An audit of every sanctioned Canvas grade/comment writer's real payload against the
+pattern meant to catch bypasses of it found one real gap: a Classic Quiz grade can be
+changed WITHOUT ever touching `posted_grade` or an `/assignments/.../submissions`
+URL — `grader_quiz_clear_pending.py` zeroes a pending question's score via
+`PUT .../quizzes/{qid}/submissions/{id}` with `{"quiz_submissions": [{"questions":
+{q: {"score": 0}}}]}`, a shape `_CANVAS_CTX` didn't cover.
+
+- **`_CANVAS_CTX` now also matches `/quizzes/<anything>/submissions`**, mirroring the
+  existing f-string-tolerant `/assignments/<anything>/submissions` pattern. A
+  hand-written bypass mimicking the quiz-score mechanism is now denied — proven with
+  the actual bypass shape run through `evaluate()`, not just asserted.
+- **`AGENTS.md`'s constitutional wording corrected.** It named only `grader_push.py`
+  and `grader_standing.py` as sanctioned grade/comment writers; `grader_push_comments.py`,
+  `grader_letter_comments.py`, `grader_audit_workflow.py --fix`, and
+  `grader_quiz_clear_pending.py` are equally sanctioned and are now named.
+
+**`canvas_sync.py --push` unconditionally skipped every field for New-Quiz-backed
+assignments, including due/unlock/lock dates (#318).**
+
+Migrating a course from Spring to Fall term, 51 New-Quiz-backed quiz files had stale
+due/unlock/lock dates from the old term. Correcting the local `.json` files and running
+`--push` reported "Canvas-only: NewQuiz descriptions must be edited in Canvas UI (API
+not supported)" and silently acknowledged every one as done — 0/51 pushed. The code
+path skipped ALL fields for `item_type == "NewQuiz"`, not just quiz content/settings.
+
+- **`_push_newquiz_dates()`** pushes only `due_at`/`lock_at`/`unlock_at` via
+  `PUT /courses/:id/assignments/:id` — confirmed empirically, not assumed: a clean 200
+  for 25/25 dated New-Quiz assignments in the reporting course. The restriction is real
+  only for the quiz content/settings sidecar (`.newquiz.json` — items, quiz-specific
+  settings), which genuinely has no write support in Canvas's New Quizzes API; date
+  fields live on the standard Assignment object regardless of quiz engine.
+- **Deliberately narrower than `_push_assignment()`** — never sends `description`,
+  `submission_types`, or `grading_type`. Those weren't part of what was tested, and
+  touching `submission_types` on a New-Quiz assignment shell risks breaking its LTI
+  linkage.
+
 **`canvas_course_guard` blocked a due-date push to a course whose term hadn't started.**
 
 A section built before the semester — 25 students enrolled, course still `unpublished`,

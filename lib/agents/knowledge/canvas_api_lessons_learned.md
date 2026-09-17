@@ -287,6 +287,20 @@ data = {"quiz[due_at]": new_due, "quiz[lock_at]": None, "quiz[unlock_at]": None}
 
 **Provenance:** issue #199 (DS460 run — grades across pass/fail sprints read "needs grading", 2026-07-15); root cause + fix reproduced end-to-end on sandbox 427808 (2026-07-16): auto policy posts, manual policy hides, `postAssignmentGrades` releases. Canvas dev docs confirm `workflow_state` is a response-only field.
 
+### L21 — Page `todo_date` needs `student_todo_at` sent in the same PUT
+
+**What Canvas does:** `PUT /courses/:course_id/pages/:url` with `wiki_page[todo_date]` alone returns `200` and echoes the *old* value back — the write silently no-ops. Sending `wiki_page[todo_date]` **and** `wiki_page[student_todo_at]` together in the same payload (both set to the same ISO timestamp) persists correctly. This mirrors the Canvas UI, which only exposes `todo_date` behind an "Add to student to-do" checkbox — the checkbox state is `student_todo_at`, and Canvas appears to require both fields present to accept the write.
+
+**Why it matters:** a first attempt at bulk-fixing Page to-do dates (M119 Fall 2026 semester date migration, 65 pages) looked like a genuine platform limitation — the toolkit's existing `_push_page` never sent `todo_date` at all, and a same-shaped PUT with only `todo_date` also silently failed, matching the "Canvas refuses every write" assumption. It was only a real limitation for the field *alone*; the companion field was the missing piece.
+
+**The fix:** `_push_page_todo_date(page_url, todo_date)` in `canvas_sync.py` sends both fields together. Clearing has its own gotcha (below).
+
+**Clearing gotcha:** a JSON `null` for both fields also returns `200` and *also* silently no-ops — Canvas leaves the stale date in place. Confirmed by re-GET after a batch run reported 64/64 "success": two pages meant to be cleared (no real class day that week) still showed their old spring-semester `todo_date`. An **empty string** (`""`) for both fields is what actually clears it. `_push_page_todo_date` converts `todo_date=None` to `""` before sending — callers still pass `None` to mean "clear."
+
+**How the toolkit handles it:** `--set-todo-dates FILE` (new CLI flag) batch-applies a JSON `{page_url: iso_date_or_null}` mapping via `cmd_set_todo_dates`, gated by the same `--allow-enrolled` startup guard as `--push`.
+
+**Provenance:** M119 Fall 2026 date migration handoff (2026-09-15); confirmed on live course 425166 against `w01-monday-class-prep-reminder` (set) and `w14-friday-class-prep-reminder` (clear) — `todo_date` alone, and `null` for clearing, both left the field unchanged on re-GET despite a `200` response; `student_todo_at` alongside a real value, and empty string for clearing, both persisted.
+
 ---
 
 ## Cross-Cutting Patterns
