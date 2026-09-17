@@ -33,13 +33,27 @@ WHY A HIDDEN CLONE RATHER THAN JUST COPYING FILES
 
 WHAT IS NOT FLATTENED
 
-  Two files are HYBRID — part toolkit, part course — and a blind copy would
+  Four files are HYBRID — part toolkit, part course — and a blind copy would
   destroy the course's half:
 
-    AGENTS.md   toolkit constitution + the course's HERMES learning. Handled by
-                the merge skill + merge_cleanup.py (Phase 3), never by this tool.
-    .gitignore  the toolkit's own ignores + the course's. This tool only rewrites
-                its own sentinel-delimited block and leaves the rest alone.
+    AGENTS.md         toolkit constitution + the course's HERMES learning.
+                       Handled by the merge skill + merge_cleanup.py (Phase 3),
+                       never by this tool.
+    .gitignore         the toolkit's own ignores + the course's. This tool only
+                       rewrites its own sentinel-delimited block and leaves the
+                       rest alone.
+    pyproject.toml     the host repo's own project identity (name, version,
+    uv.lock            description, license, authors) plus its own dependency
+                       set. A course repo consuming canvas-toolbox is never the
+                       same project AS canvas-toolbox — copying the toolkit's
+                       own pyproject.toml/uv.lock wholesale replaces the host's
+                       identity outright (found for real in the m119-master
+                       pilot: `uv run` started identifying the whole course
+                       repo as "canvas-toolbox"). This tool never writes either
+                       file; report_pyproject_deps() only reports which of the
+                       toolkit's dependencies are missing from the host's own
+                       pyproject.toml, for a human to add by hand and re-run
+                       `uv lock`.
 
   `.git/` is excluded for the obvious reason. Everything else in the manifest is
   toolkit-owned and replaced wholesale.
@@ -73,9 +87,11 @@ USAGE
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 try:
@@ -89,7 +105,11 @@ DEFAULT_REMOTE = "https://github.com/chaz-clark/canvas-toolbox.git"
 
 #: Paths the flatten never writes. AGENTS.md and .gitignore are HYBRID — the
 #: course owns part of each — so copying them over would destroy course content.
-HYBRID = frozenset({"AGENTS.md", ".gitignore"})
+#: pyproject.toml/uv.lock are HYBRID too, for the same reason but a sharper
+#: failure mode: overwriting them destroys the HOST REPO'S OWN project identity
+#: (name, version, dependencies), not just some course content within a
+#: toolkit-owned file. See report_pyproject_deps().
+HYBRID = frozenset({"AGENTS.md", ".gitignore", "pyproject.toml", "uv.lock"})
 
 GI_START = "# >>> canvas-toolbox flattened files (generated — do not edit) >>>"
 GI_END = "# <<< canvas-toolbox flattened files <<<"
@@ -238,6 +258,49 @@ def _prune_empty_dirs(start: Path, stop: Path) -> None:
         cur = cur.parent
 
 
+_DEP_NAME_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+
+
+def _dependency_names(deps: list[str]) -> set[str]:
+    """PEP 508 requirement strings -> bare package names, normalized like PyPI
+    does (case-insensitive, `_`/`.` treated as `-`) so `Python-Dotenv` in one
+    file matches `python-dotenv` in the other."""
+    names = set()
+    for dep in deps:
+        match = _DEP_NAME_RE.match(dep)
+        if match:
+            names.add(match.group(1).lower().replace("_", "-").replace(".", "-"))
+    return names
+
+
+def report_pyproject_deps(course_root: Path, clone: Path) -> tuple[bool, str]:
+    """Advisory only — pyproject.toml/uv.lock are HYBRID (see HYBRID) and this
+    tool never writes to either. This just tells a human which of canvas-
+    toolbox's own dependencies aren't yet in the host's pyproject.toml, so they
+    can add them by hand and re-run `uv lock`. Always ok=True: a missing
+    dependency is real work for a human, not a failed flatten."""
+    clone_pyproject = clone / "pyproject.toml"
+    if not clone_pyproject.is_file():
+        return True, "clone has no pyproject.toml — nothing to check"
+    clone_deps = _dependency_names(
+        tomllib.loads(clone_pyproject.read_text(encoding="utf-8"))
+        .get("project", {}).get("dependencies", [])
+    )
+    host_pyproject = course_root / "pyproject.toml"
+    if not host_pyproject.is_file():
+        return True, (f"no host pyproject.toml yet — add canvas-toolbox's "
+                       f"{len(clone_deps)} dependencies to one, then `uv lock`")
+    host_deps = _dependency_names(
+        tomllib.loads(host_pyproject.read_text(encoding="utf-8"))
+        .get("project", {}).get("dependencies", [])
+    )
+    missing = sorted(clone_deps - host_deps)
+    if not missing:
+        return True, "host pyproject.toml already covers all of canvas-toolbox's dependencies"
+    return True, (f"{len(missing)} canvas-toolbox dependencies missing from host "
+                  f"pyproject.toml — add by hand, then `uv lock`: {', '.join(missing)}")
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -302,6 +365,9 @@ def main() -> int:
               f"({len(to_copy)} exact paths — never a directory blanket, see #271)")
     else:
         print("gitignore block: present")
+
+    _, pyproject_msg = report_pyproject_deps(root, clone)
+    print(f"pyproject.toml / uv.lock (never written — host project identity): {pyproject_msg}")
 
     if not args.apply:
         print("\nDRY RUN — re-run with --apply to write.")

@@ -36,6 +36,7 @@ from cb_flatten import (  # noqa: E402
     manifest,
     plan_sync,
     render_gitignore_block,
+    report_pyproject_deps,
     splice_gitignore,
 )
 
@@ -82,7 +83,7 @@ def test_hybrid_files_are_never_copied_or_deleted():
 
 
 def test_hybrid_set_is_exactly_the_two_part_course_files():
-    assert HYBRID == {"AGENTS.md", ".gitignore"}
+    assert HYBRID == {"AGENTS.md", ".gitignore", "pyproject.toml", "uv.lock"}
 
 
 def test_unchanged_manifest_deletes_nothing():
@@ -377,3 +378,49 @@ def test_only_the_known_negation_escapes_the_ignore_block(tmp_path):
     escaped = [ln[3:] for ln in out.splitlines() if ln.startswith("??")]
     assert escaped == ["scaffold/grading/answer_keys/README.md"], (
         f"expected exactly the one known negation to escape, got: {escaped}")
+
+
+# ---------------------------------------------------------------------------
+# report_pyproject_deps — advisory only, never writes pyproject.toml/uv.lock
+# (both HYBRID). Regression coverage for the m119-master pilot bug: the
+# flatten used to copy the toolkit's own pyproject.toml wholesale, replacing
+# the host repo's project identity (name/version/description) outright.
+# ---------------------------------------------------------------------------
+
+_CLONE_PYPROJECT = (
+    '[project]\nname = "canvas-toolbox"\ndependencies = ["Requests>=2.0", "PyYAML>=6.0"]\n'
+)
+
+
+def test_report_pyproject_deps_never_writes_host_file(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "pyproject.toml").write_text(_CLONE_PYPROJECT, encoding="utf-8")
+    host = tmp_path / "pyproject.toml"
+    host.write_text('[project]\nname = "m119-master"\nversion = "3.0.0"\n', encoding="utf-8")
+    ok, msg = report_pyproject_deps(tmp_path, clone)
+    assert ok
+    assert host.read_text(encoding="utf-8") == '[project]\nname = "m119-master"\nversion = "3.0.0"\n'
+    assert "requests" in msg and "pyyaml" in msg
+
+
+def test_report_pyproject_deps_normalizes_names_and_finds_no_gap(tmp_path):
+    """Case and separator differences (Requests vs requests, PyYAML vs pyyaml)
+    must not read as missing dependencies."""
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "pyproject.toml").write_text(_CLONE_PYPROJECT, encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "m119-master"\ndependencies = ["requests>=2.34", "pyyaml>=6.0.3"]\n',
+        encoding="utf-8",
+    )
+    ok, msg = report_pyproject_deps(tmp_path, clone)
+    assert ok
+    assert "already covers" in msg
+
+
+def test_report_pyproject_deps_no_host_file_yet(tmp_path):
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "pyproject.toml").write_text(_CLONE_PYPROJECT, encoding="utf-8")
+    ok, msg = report_pyproject_deps(tmp_path, clone)
+    assert ok
+    assert "no host pyproject.toml yet" in msg
+    assert not (tmp_path / "pyproject.toml").exists()
