@@ -236,3 +236,25 @@ def test_historical_lines_is_best_effort_on_a_non_repo(tmp_path):
     """Any git failure returns empty, which falls back to the stricter HEAD-only
     comparison — erring toward refusing, never toward silently dropping."""
     assert mc.historical_lines(tmp_path) == set()
+
+
+def test_historical_lines_reads_non_ascii_history_correctly(tmp_path):
+    """THE BUG A REAL WINDOWS RUN FOUND. `subprocess.run(text=True)` decodes
+    with the platform's default encoding — cp1252 on Windows, not UTF-8 — so
+    any past AGENTS.md revision containing a character outside cp1252 (this
+    toolkit's own tool output uses '✓' and em dashes) raised UnicodeDecodeError
+    inside git's stdout reader thread and historical_lines() silently came back
+    with an incomplete/`None`-poisoned read instead of the real content. Fixed
+    by decoding as UTF-8 explicitly rather than relying on the platform default."""
+    import subprocess
+    repo = tmp_path / "clone"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    old_line = "✓ constitution is byte-identical — done"
+    (repo / "AGENTS.md").write_text(old_line + "\n", encoding="utf-8")
+    subprocess.run(["git", "add", "AGENTS.md"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "old revision"], cwd=repo, check=True)
+
+    assert old_line in mc.historical_lines(repo)

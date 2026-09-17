@@ -179,9 +179,77 @@ def load_env() -> Path | None:
             os.environ[key] = allowed[key]
 
     if loaded is not None:
+        _check_toolkit_staleness(loaded.parent)
         _check_commit_hygiene(loaded.parent)
 
     return loaded
+
+
+# ---------------------------------------------------------------------------
+# Weekly toolkit staleness check (v2, #317 Phase 6 / flat-layout-and-agents-
+# merge.md Phase 4). Deliberately NOT a Claude-Code-only SessionStart hook —
+# the supported surface is any host that runs these tools. Living here instead
+# means it fires below the agent layer, for every runtime, by construction:
+# ~94 of ~120 tools already call load_env().
+# ---------------------------------------------------------------------------
+
+_STALENESS_CHECK_INTERVAL_DAYS = 7
+_STALENESS_MARKER = "canvas-toolbox-update-check"
+
+
+def _check_toolkit_staleness(course_root: Path) -> None:
+    """A one-line, at-most-weekly nudge that the hidden `.canvas-toolbox/` clone
+    is behind its remote. FAILS OPEN, UNCONDITIONALLY: a staleness notice must
+    never become a reason a tool run breaks, hangs, or blocks — this can only
+    ever print an extra line or do nothing.
+
+    Cheap path first: a recent timestamp file means no network call at all, on
+    every run in between. `git ls-remote` (not `fetch` or `pull`) is
+    deliberately lighter — it never touches the clone's working tree or object
+    store, so it can't conflict with the pristine-clone guarantee `cb_flatten.py`
+    depends on (`git -C .canvas-toolbox status --porcelain` must stay empty).
+
+    The marker itself lives in the COURSE repo's `.git/`, not inside the clone
+    — found for real in the m119-master pilot (canvas-toolbox#328): a marker
+    written at `.canvas-toolbox/.update_check` sits in the clone's own working
+    tree, so the very first weekly nudge makes `git -C .canvas-toolbox status
+    --porcelain` permanently non-empty, and `cb_flatten.py --pull` then hard-
+    blocks on "DIRTY" on every run after. Same fix, same reasoning, as
+    `_check_commit_hygiene`'s marker below: `.git/` is never itself tracked or
+    synced, so nothing here can ever register as a change to either repo."""
+    clone = course_root / ".canvas-toolbox"
+    git_dir = course_root / ".git"
+    marker = git_dir / _STALENESS_MARKER
+    try:
+        if not clone.is_dir() or not git_dir.is_dir():
+            return
+        if marker.is_file():
+            import time
+            age_days = (time.time() - marker.stat().st_mtime) / 86400
+            if age_days < _STALENESS_CHECK_INTERVAL_DAYS:
+                return
+
+        import subprocess
+        local = subprocess.run(
+            ["git", "-C", str(clone), "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=3,
+        )
+        remote = subprocess.run(
+            ["git", "-C", str(clone), "ls-remote", "origin", "HEAD"],
+            capture_output=True, text=True, timeout=3,
+        )
+        marker.write_text("", encoding="utf-8")  # reset the clock either way
+        if local.returncode != 0 or remote.returncode != 0:
+            return
+        remote_sha = remote.stdout.split()[0] if remote.stdout.strip() else ""
+        if remote_sha and remote_sha != local.stdout.strip():
+            print(
+                "canvas-toolbox: an update is available — run `uv run python "
+                "lib/tools/cb_flatten.py --pull --apply` from the course root.",
+                file=sys.stderr,
+            )
+    except Exception:  # noqa: BLE001 — a staleness check must never break a tool run
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -199,10 +267,10 @@ _COMMIT_CHECK_MARKER = "canvas-toolbox-commit-check"
 
 
 def _check_commit_hygiene(course_root: Path) -> None:
-    """A one-line, at-most-weekly nudge that the COURSE repo itself has
-    uncommitted or unpushed work. FAILS OPEN, UNCONDITIONALLY: this can only
-    ever print an extra line or do nothing — never a reason a tool run
-    breaks, hangs, or blocks.
+    """A one-line, at-most-weekly nudge that the COURSE repo itself (not the
+    toolkit clone) has uncommitted or unpushed work. FAILS OPEN,
+    UNCONDITIONALLY — same contract as _check_toolkit_staleness: this can only
+    ever print an extra line or do nothing.
 
     Only for a repo with a configured git remote. "For those that use git"
     scopes this deliberately: a genuinely local-only repo is the documented
@@ -210,8 +278,9 @@ def _check_commit_hygiene(course_root: Path) -> None:
     this must never nag someone for a deliberate choice, or fire in a course
     repo that isn't a git repo at all.
 
-    The marker lives under .git/ — every course repo this can run in at all
-    has one, and .git/ is never itself tracked or synced."""
+    The marker lives under .git/ rather than .canvas-toolbox/ — a course repo
+    always has the former the moment this can run at all, regardless of
+    nested vs. flat layout, and .git/ is never itself tracked or synced."""
     git_dir = course_root / ".git"
     marker = git_dir / _COMMIT_CHECK_MARKER
     try:

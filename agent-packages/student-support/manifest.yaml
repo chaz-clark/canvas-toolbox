@@ -1,0 +1,69 @@
+schema_version: 1
+id: student-support
+version: 2.0.0
+name: Student Support
+description: Accommodations and Title IV engagement workflows involving individual students.
+entry_prompt: agent-packages/student-support/AGENT.md
+requires_course_folder: true
+skills:
+- id: accommodations
+  path: skills/accommodations
+- id: title-iv
+  path: skills/title-iv
+tools:
+- id: apply-sas-accommodations
+  command: lib/tools/apply_sas_accommodations.py
+  effect: canvas_student_intervention
+  data_class: student_accommodation
+  approval: always
+- id: student-late-accommodation
+  command: lib/tools/student_late_accommodation.py
+  effect: canvas_student_intervention
+  data_class: student_accommodation
+  approval: always
+- id: student-quiz-time-extension
+  command: lib/tools/student_quiz_time_extension.py
+  effect: canvas_student_intervention
+  data_class: student_accommodation
+  approval: always
+- id: exempt-by-date
+  command: lib/tools/exempt_by_date.py
+  effect: canvas_student_intervention
+  data_class: student_accommodation
+  approval: always
+- id: submit-on-behalf
+  command: lib/tools/submit_on_behalf.py
+  effect: canvas_student_intervention
+  data_class: student_submission
+  approval: always
+- id: course-engagement-audit
+  command: lib/tools/course_engagement_audit.py
+  effect: read
+  data_class: student_engagement
+  approval: none
+- id: ai-engagement-classifier
+  command: lib/tools/ai_engagement_classifier.py
+  effect: read
+  data_class: student_engagement
+  approval: none
+- id: update-title-iv-snapshot
+  command: lib/tools/update_title_iv_snapshot.py
+  effect: local_write
+  data_class: student_engagement
+  approval: none
+data_access:
+  classes:
+  - student_accommodation
+  - student_engagement
+  - student_submission
+  ferpa_zone_2: deny
+  student_names_in_evaluations: deny
+  deidentified_submissions: deny
+credentials:
+- CANVAS_API_TOKEN
+- CANVAS_BASE_URL
+- CANVAS_COURSE_ID
+- PROTECTED_COURSE_IDS
+network:
+- canvas_base_url_only
+ships: true

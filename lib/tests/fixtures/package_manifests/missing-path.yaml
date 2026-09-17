@@ -1,0 +1,18 @@
+schema_version: 1
+id: missing-path
+version: "2.0.0"
+name: Missing Path Fixture
+description: A visibly synthetic invalid package.
+entry_prompt: fixtures/DOES_NOT_EXIST.md
+requires_course_folder: false
+skills:
+  - id: fixture-skill
+    path: fixtures/skills/fixture-skill
+tools: []
+data_access:
+  classes: [none]
+  ferpa_zone_2: deny
+  student_names_in_evaluations: deny
+credentials: []
+network: [none]
+ships: false

@@ -23,7 +23,9 @@ import _env_loader  # noqa: E402
 from _env_loader import (  # noqa: E402
     GLOBAL_KEYS,
     _check_commit_hygiene,
+    _check_toolkit_staleness,
     _COMMIT_CHECK_MARKER,
+    _STALENESS_MARKER,
     global_config_problems,
     load_env,
 )
@@ -152,10 +154,9 @@ def test_absent_global_file_changes_nothing(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Weekly commit-hygiene check. Found the need for this by a real survey across
-# six *-master course repos, not assumed — see _env_loader.py's own comment.
-# FAILS OPEN, UNCONDITIONALLY: none of these may ever raise out of
-# _check_commit_hygiene — it must be safe to call from inside load_env().
+# Weekly toolkit staleness check (v2, #317 Phase 6). FAILS OPEN: none of these
+# may ever raise out of _check_toolkit_staleness — it must be safe to call from
+# inside load_env(), which ~94 tools call on every invocation.
 # ---------------------------------------------------------------------------
 
 import subprocess  # noqa: E402
@@ -165,7 +166,89 @@ def _git(d: Path, *a):
     subprocess.run(["git", "-C", str(d), *a], check=True, capture_output=True)
 
 
+def _origin_and_clone(tmp_path: Path) -> tuple[Path, Path]:
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    _git(origin, "init", "-q")
+    (origin / "f.txt").write_text("x", encoding="utf-8")
+    _git(origin, "add", "-A")
+    _git(origin, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+
+    course_root = tmp_path / "course"
+    course_root.mkdir()
+    (course_root / ".git").mkdir()  # the marker's home — see canvas-toolbox#328
+    subprocess.run(["git", "clone", "-q", str(origin), str(course_root / ".canvas-toolbox")],
+                   check=True, capture_output=True)
+    return origin, course_root
+
+
+def test_staleness_check_no_op_without_a_hidden_clone(tmp_path, capsys):
+    _check_toolkit_staleness(tmp_path)          # no .canvas-toolbox/ at all
+    assert capsys.readouterr().err == ""
+
+
+def test_staleness_check_writes_marker_and_is_silent_when_up_to_date(tmp_path, capsys):
+    _origin, course_root = _origin_and_clone(tmp_path)
+    _check_toolkit_staleness(course_root)
+    assert (course_root / ".git" / _STALENESS_MARKER).is_file()
+    assert not (course_root / ".canvas-toolbox" / _STALENESS_MARKER).exists()  # never inside the clone — canvas-toolbox#328
+    assert capsys.readouterr().err == ""        # local == remote — nothing to say
+
+
+def test_staleness_check_notices_when_behind(tmp_path, capsys):
+    origin, course_root = _origin_and_clone(tmp_path)
+    (origin / "f.txt").write_text("y", encoding="utf-8")
+    _git(origin, "add", "-A")
+    _git(origin, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "update")
+    _check_toolkit_staleness(course_root)
+    assert "update is available" in capsys.readouterr().err
+
+
+def test_staleness_check_skips_network_when_marker_is_fresh(tmp_path, monkeypatch):
+    _origin, course_root = _origin_and_clone(tmp_path)
+    marker = course_root / ".git" / _STALENESS_MARKER
+    marker.write_text("", encoding="utf-8")     # just written — fresh
+
+    def _boom(*a, **k):
+        raise AssertionError("must not shell out when the marker is fresh")
+    monkeypatch.setattr(subprocess, "run", _boom)
+    _check_toolkit_staleness(course_root)       # would raise if it reached subprocess.run
+
+
+def test_staleness_check_rechecks_after_the_interval(tmp_path):
+    import os as _os
+    import time
+    origin, course_root = _origin_and_clone(tmp_path)
+    marker = course_root / ".git" / _STALENESS_MARKER
+    marker.write_text("", encoding="utf-8")
+    old = time.time() - (_env_loader._STALENESS_CHECK_INTERVAL_DAYS + 1) * 86400
+    _os.utime(marker, (old, old))
+    (origin / "f.txt").write_text("y", encoding="utf-8")
+    _git(origin, "add", "-A")
+    _git(origin, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "update")
+    _check_toolkit_staleness(course_root)
+    assert marker.stat().st_mtime > old         # clock was reset
+
+
+def test_staleness_check_never_raises_on_a_broken_clone(tmp_path):
+    """A .canvas-toolbox/ that isn't a real git repo (partial vendoring, corrupted
+    checkout) must degrade to silence, never an exception in a caller that can't
+    afford one (load_env() itself)."""
+    course_root = tmp_path / "course"
+    (course_root / ".canvas-toolbox").mkdir(parents=True)
+    _check_toolkit_staleness(course_root)       # must not raise
+
+
+# ---------------------------------------------------------------------------
+# Weekly commit-hygiene check. Found the need for this by a real survey across
+# six *-master course repos, not assumed — see _env_loader.py's own comment.
+# Same fail-open contract as the staleness check above.
+# ---------------------------------------------------------------------------
+
 def _course_repo_with_remote(tmp_path: Path) -> tuple[Path, Path]:
+    """A course repo that is itself a git clone of some origin — the shape
+    _check_commit_hygiene actually inspects, distinct from _origin_and_clone's
+    course_root/.canvas-toolbox/ toolkit clone above."""
     origin = tmp_path / "origin"
     origin.mkdir()
     _git(origin, "init", "-q")

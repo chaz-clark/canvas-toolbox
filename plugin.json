@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "canvas-toolbox",
+  "version": "1.22.2",
+  "description": "Canvas LMS course-management toolkit: mirror, edit, audit, and push courses through sanctioned tools with FERPA and Canvas-write safety gates.",
+  "author": {
+    "name": "Chaz Clark",
+    "url": "https://github.com/chaz-clark"
+  },
+  "homepage": "https://github.com/chaz-clark/canvas-toolbox",
+  "repository": "https://github.com/chaz-clark/canvas-toolbox",
+  "license": "MIT",
+  "keywords": ["canvas", "lms", "instructional-design", "grading", "ferpa"]
+}

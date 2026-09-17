@@ -64,6 +64,16 @@ BACKUP_NAME = "AGENTS.merge.md"
 TARGET_NAME = "AGENTS.md"
 DEFAULT_SOURCE = Path(".canvas-toolbox") / "AGENTS.md"
 
+# ONE canonical string (flat-layout-and-agents-merge.md Phase 6) — not a per-tool
+# if/else. cb_flatten.py prints this too, after any successful apply that changed
+# files, not only after a merge; both import this constant rather than each
+# carrying their own copy.
+RELOAD_NOTICE = (
+    "Restart your AI session (new chat, reload the extension, or restart the IDE) "
+    "for the update to take effect — AGENTS.md and skills are read once at "
+    "session start."
+)
+
 
 # ---------------------------------------------------------------------------
 # Pure helpers — no filesystem, no argv
@@ -107,16 +117,16 @@ def historical_lines(clone: Path) -> set[str]:
     try:
         shas = subprocess.run(
             ["git", "-C", str(clone), "log", "--format=%H", "--", "AGENTS.md"],
-            capture_output=True, text=True, check=True).stdout.split()
-    except (OSError, subprocess.SubprocessError):
+            capture_output=True, text=True, encoding="utf-8", check=True).stdout.split()
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
         return set()
     seen: set[str] = set()
     for sha in shas:
         try:
             body = subprocess.run(
                 ["git", "-C", str(clone), "show", f"{sha}:AGENTS.md"],
-                capture_output=True, text=True, check=True).stdout
-        except (OSError, subprocess.SubprocessError):
+                capture_output=True, text=True, encoding="utf-8", check=True).stdout
+        except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
             continue
         seen.update(ln.strip() for ln in body.splitlines() if ln.strip())
     return seen
@@ -240,8 +250,7 @@ def main() -> int:
 
     backup_path.unlink()
     print(f"\n✓ merge_cleanup: verified and {BACKUP_NAME} removed.")
-    print("  Restart your AI session (new chat, reload the extension, or restart the "
-          "IDE) — AGENTS.md is read once at session start.")
+    print(f"  {RELOAD_NOTICE}")
     return 0
 
 
