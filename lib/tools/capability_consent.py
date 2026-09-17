@@ -90,11 +90,21 @@ def has_grown(diff: dict[str, list[str]]) -> bool:
 
 
 def render_install_summary(package: dict[str, Any],
-                           diff: dict[str, list[str]] | None = None) -> str:
+                           diff: dict[str, list[str]] | None = None,
+                           first_approval: bool = False) -> str:
     """Concise, human-readable — what an agent relays to the instructor before
     asking for approval. Shows Canvas-write tools by NAME (not just a count —
     the instructor is approving specific capabilities, not a number),
-    student-data classes, credential names, and network scope."""
+    student-data classes, credential names, and network scope.
+
+    `first_approval` (True when `capability_diff()`'s `old` was None — no
+    prior approval record exists at all) changes only the header wording.
+    Found for real in the m119-master pilot: every capability read as "NEW
+    since last approval" on this repo's first-ever v2 consent run, which
+    reads as a regression ("this used to be approved and now something
+    changed") when nothing was ever approved before. The gating logic is
+    identical either way — `has_grown()` is True and approval is required —
+    this only fixes what the human is told."""
     fp = compute_fingerprint(package)
     lines = [f"{package.get('name', package.get('id', '?'))} (v{package.get('version', '?')})"]
     lines.append(f"  {package.get('description', '')}")
@@ -105,7 +115,9 @@ def render_install_summary(package: dict[str, Any],
     if diff is not None:
         newly = {field: entries for field, entries in diff.items() if entries}
         if newly:
-            lines.append("  NEW since last approval:")
+            header = ("capabilities requested (first approval for this package):"
+                      if first_approval else "NEW since last approval:")
+            lines.append(f"  {header}")
             for field, entries in newly.items():
                 lines.append(f"    {field}: {', '.join(entries)}")
     return "\n".join(lines)

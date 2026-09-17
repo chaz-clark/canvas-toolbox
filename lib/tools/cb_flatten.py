@@ -414,12 +414,15 @@ def check_capability_consent(
         old_entry = approvals.get(pkg_id)
         old_fp = old_entry["fingerprint"] if isinstance(old_entry, dict) else None
         diff = capability_diff(old_fp, new_fp)
+        first_approval = old_fp is None
         if has_grown(diff):
             if pkg_id in approve or approve_all:
-                messages.append(f"approved — {pkg_id}:\n" + render_install_summary(package, diff))
+                messages.append(f"approved — {pkg_id}:\n"
+                                + render_install_summary(package, diff, first_approval))
                 pending.append((pkg_id, new_fp, "operator (relayed via --approve)"))
             else:
-                messages.append(f"NEEDS APPROVAL — {pkg_id}:\n" + render_install_summary(package, diff))
+                messages.append(f"NEEDS APPROVAL — {pkg_id}:\n"
+                                + render_install_summary(package, diff, first_approval))
                 blocking = True
         else:
             # No growth: proceed without asking (checklist: "do not require

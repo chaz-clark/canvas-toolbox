@@ -148,6 +148,19 @@ def test_summary_shows_new_entries_when_a_diff_is_given():
     assert "github_repository_only" in summary
 
 
+def test_summary_labels_a_never_approved_package_as_first_approval_not_new():
+    """Found for real in the m119-master pilot: a package's very first v2
+    consent run (no prior approval record at all — capability_diff(None, fp))
+    read as "NEW since last approval" on every field, which misleadingly
+    implies something used to be approved and changed. first_approval=True
+    is exactly the old=None case."""
+    pkg = _package()
+    diff = cc.capability_diff(None, cc.compute_fingerprint(pkg))
+    summary = cc.render_install_summary(pkg, diff, first_approval=True)
+    assert "first approval" in summary
+    assert "NEW since last approval" not in summary
+
+
 # ---------------------------------------------------------------------------
 # load_approvals / record_approval — the self-approval boundary
 # ---------------------------------------------------------------------------

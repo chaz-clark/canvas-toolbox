@@ -194,7 +194,7 @@ def load_env() -> Path | None:
 # ---------------------------------------------------------------------------
 
 _STALENESS_CHECK_INTERVAL_DAYS = 7
-_STALENESS_MARKER = ".update_check"
+_STALENESS_MARKER = "canvas-toolbox-update-check"
 
 
 def _check_toolkit_staleness(course_root: Path) -> None:
@@ -207,11 +207,21 @@ def _check_toolkit_staleness(course_root: Path) -> None:
     every run in between. `git ls-remote` (not `fetch` or `pull`) is
     deliberately lighter — it never touches the clone's working tree or object
     store, so it can't conflict with the pristine-clone guarantee `cb_flatten.py`
-    depends on (`git -C .canvas-toolbox status --porcelain` must stay empty)."""
+    depends on (`git -C .canvas-toolbox status --porcelain` must stay empty).
+
+    The marker itself lives in the COURSE repo's `.git/`, not inside the clone
+    — found for real in the m119-master pilot (canvas-toolbox#328): a marker
+    written at `.canvas-toolbox/.update_check` sits in the clone's own working
+    tree, so the very first weekly nudge makes `git -C .canvas-toolbox status
+    --porcelain` permanently non-empty, and `cb_flatten.py --pull` then hard-
+    blocks on "DIRTY" on every run after. Same fix, same reasoning, as
+    `_check_commit_hygiene`'s marker below: `.git/` is never itself tracked or
+    synced, so nothing here can ever register as a change to either repo."""
     clone = course_root / ".canvas-toolbox"
-    marker = clone / _STALENESS_MARKER
+    git_dir = course_root / ".git"
+    marker = git_dir / _STALENESS_MARKER
     try:
-        if not clone.is_dir():
+        if not clone.is_dir() or not git_dir.is_dir():
             return
         if marker.is_file():
             import time

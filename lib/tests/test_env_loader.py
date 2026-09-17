@@ -176,6 +176,7 @@ def _origin_and_clone(tmp_path: Path) -> tuple[Path, Path]:
 
     course_root = tmp_path / "course"
     course_root.mkdir()
+    (course_root / ".git").mkdir()  # the marker's home — see canvas-toolbox#328
     subprocess.run(["git", "clone", "-q", str(origin), str(course_root / ".canvas-toolbox")],
                    check=True, capture_output=True)
     return origin, course_root
@@ -189,7 +190,8 @@ def test_staleness_check_no_op_without_a_hidden_clone(tmp_path, capsys):
 def test_staleness_check_writes_marker_and_is_silent_when_up_to_date(tmp_path, capsys):
     _origin, course_root = _origin_and_clone(tmp_path)
     _check_toolkit_staleness(course_root)
-    assert (course_root / ".canvas-toolbox" / _STALENESS_MARKER).is_file()
+    assert (course_root / ".git" / _STALENESS_MARKER).is_file()
+    assert not (course_root / ".canvas-toolbox" / _STALENESS_MARKER).exists()  # never inside the clone — canvas-toolbox#328
     assert capsys.readouterr().err == ""        # local == remote — nothing to say
 
 
@@ -204,7 +206,7 @@ def test_staleness_check_notices_when_behind(tmp_path, capsys):
 
 def test_staleness_check_skips_network_when_marker_is_fresh(tmp_path, monkeypatch):
     _origin, course_root = _origin_and_clone(tmp_path)
-    marker = course_root / ".canvas-toolbox" / _STALENESS_MARKER
+    marker = course_root / ".git" / _STALENESS_MARKER
     marker.write_text("", encoding="utf-8")     # just written — fresh
 
     def _boom(*a, **k):
@@ -217,7 +219,7 @@ def test_staleness_check_rechecks_after_the_interval(tmp_path):
     import os as _os
     import time
     origin, course_root = _origin_and_clone(tmp_path)
-    marker = course_root / ".canvas-toolbox" / _STALENESS_MARKER
+    marker = course_root / ".git" / _STALENESS_MARKER
     marker.write_text("", encoding="utf-8")
     old = time.time() - (_env_loader._STALENESS_CHECK_INTERVAL_DAYS + 1) * 86400
     _os.utime(marker, (old, old))
