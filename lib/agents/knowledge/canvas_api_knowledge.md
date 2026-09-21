@@ -139,6 +139,8 @@ The Peer Reviews API (`/doc/api/peer_reviews.html`):
 
 A per-institution feature option (Settings > Feature Options), generally available from Q2 2026. Per UMN's overview it becomes the **default and only** peer-review mode from **January 2027**, so tools built on the legacy fields above will need a second path. It adds allocation from actual submissions until an "Available Until" date, strict and flexible pairing rules, separate review points graded in SpeedGrader, independent review due dates, and "submit to view". The published material does not describe REST or GraphQL surface, anonymity or group behaviour — treat those as unknown until tested. Whether reviewees see peer rubric scores is undocumented by Canvas (UI guides say scores and comments are visible, reviewer hidden when anonymous) and is still unverified; how to read peer `rubric_assessment` scores through the API is verified in lessons L24.
 
+**Working stance for peer-review tooling (decided 2026-09-21):** behavior that could not be tested without enrolled students — reviewee visibility of peer rubric scores, anonymity on the rubric view, review creation before a submission exists, real group pairing, Enhanced Peer Review's API — is taken from Canvas's documentation and institutional UI guides, and tools and student-facing instructions must say so ("per Canvas documentation") rather than assert it as verified. Re-check against real students when a course with enrolled students is available.
+
 ---
 
 ## Documented Universal Patterns
