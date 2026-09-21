@@ -10,6 +10,19 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`peer_review_setup.py` — create a peer-review assignment with a rating rubric (#331).**
+
+New tool: creates ONE unpublished assignment with peer review (anonymous by default,
+manual or `--auto-count N` assignment, optional `--group-category-id`) and attaches a
+peer rubric built from a compact spec (`yesno`, `1-5`, `none|some|strong`) that never
+grades. Dry run by default, `--apply` writes, idempotent by title (a same-titled
+assignment is reported, never edited; a missing rubric is attached on re-run), every
+write read back, `canvas_course_guard`-gated (`--allow-enrolled` for live courses),
+and reports whether Enhanced Peer Review is on. Only text/upload submissions — Canvas
+documents that quizzes/discussions/external tools cannot be peer reviewed but its API
+stores the flag anyway (L22). Verified end-to-end on a sandbox. Follow-ups in #331:
+`peer_review_assign.py`, `peer_review_summary.py`.
+
 **`grade_guardian`'s bypass-detection regex would not have caught a script mimicking
 `grader_quiz_clear_pending.py`'s actual write mechanism.**
 
