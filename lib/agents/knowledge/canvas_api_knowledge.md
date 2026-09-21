@@ -1,7 +1,7 @@
 ---
 name: canvas_api_knowledge
 version: '1.0'
-last_updated: '2026-07-16'
+last_updated: '2026-09-21'
 description: 'What Canvas''s own documentation says about its REST API: endpoints, data model, permission scopes, pagination, and the patterns Canvas itself describes. Empirical findings the toolkit discovered through use (the things Canvas does NOT docum'
 skill_type: knowledge
 shape: reference
@@ -110,6 +110,37 @@ Conflating the two is incorrect per Canvas's data model.
 
 Many resources (Rubrics, Outcomes, OutcomeGroups, Files) can be created at either course scope (`/api/v1/courses/:course_id/...`) or account scope (`/api/v1/accounts/:account_id/...`). Canvas's docs note the permission model differs: course-scoped operations require course-level capabilities; account-scoped require account-admin capabilities.
 
+### D7 — Peer review is per individual submission
+
+Canvas's Assignments API documents these peer-review fields: `peer_reviews`, `automatic_peer_reviews`, `peer_review_count` and `peer_reviews_assign_at` (both only present in automatic mode; the date must fall after the due date), `intra_group_peer_reviews`, and `anonymous_peer_reviews`. `peer_reviews` only takes effect when `submission_types` excludes `external_tool`, `discussion_topic`, `online_quiz` and `on_paper` — so Classic Quizzes, New Quizzes, discussions and LTI items cannot be peer reviewed. (The API does not enforce this list for three of the four types — see lessons L22.)
+
+The Peer Reviews API (`/doc/api/peer_reviews.html`):
+
+| Operation | Path | Notes |
+|---|---|---|
+| List | `GET /courses/:cid/assignments/:aid/peer_reviews` (also per-submission and `/sections/:sid/...`) | `include[]=submission_comments` or `user`. Response carries `assessor_id`, `asset_id`, `user_id`, `workflow_state` — no scores |
+| Create | `POST /courses/:cid/assignments/:aid/submissions/:submission_id/peer_reviews` | `user_id` = the **reviewer**. Path is keyed by the **reviewee's submission id** |
+| Delete | `DELETE` same path | `user_id` = the reviewer to remove |
+| Allocate | `POST /courses/:cid/assignments/:aid/allocate` | No parameters; allocates a submission for the **calling user**. Not an instructor picker |
+
+`anonymous_peer_reviews` is a single flag covering both directions (reviewer hidden from author, author hidden from reviewer). Instructors and TAs still see identities.
+
+### D8 — Group assignments and peer-review scoping
+
+`group_category_id` (the assignment's group set) must be set at creation for group overrides to function. `grade_group_students_individually` controls whether one score applies to every group member. On a group assignment one member submits for the group, so every member shows the same submission, and a peer review is still one individual reviewing one submission.
+
+`intra_group_peer_reviews` ("Allow intra-group peer reviews" in the UI) is **not** group scoping. Automatic mode pairs students with *other* groups by default; the flag makes pairing fully random, ignoring groups, so groupmates may be paired. Per institutional guides (Tufts, Penn), the only way to restrict reviewers to their own group is **manual assignment**, done after the submissions exist. For an *individual* assignment reviewed within a group set there is no automatic scoping at all.
+
+### D9 — Group categories (group sets)
+
+`/courses/:cid/group_categories` and `/group_categories/:id`. `self_signup`: `enabled` (any group), `restricted` (own section only), `null` (off); course scope only. `group_limit` needs self signup enabled. `create_group_count` builds groups at creation; `auto_leader` is `first` or `random`. Members: `GET /group_categories/:id/users` (`unassigned` filter, `search_term` min 3 chars); groups: `GET /group_categories/:id/groups`. `POST .../assign_unassigned_members` is asynchronous by default and returns a Progress object (`sync=true` runs it immediately). Groups can be imported and exported as CSV. Self-signup sets change during a term, so any pairing built from them must be re-runnable.
+
+### D10 — Enhanced Peer Review ("Peer Review Allocation and Grading")
+
+A per-institution feature option (Settings > Feature Options), generally available from Q2 2026. Per UMN's overview it becomes the **default and only** peer-review mode from **January 2027**, so tools built on the legacy fields above will need a second path. It adds allocation from actual submissions until an "Available Until" date, strict and flexible pairing rules, separate review points graded in SpeedGrader, independent review due dates, and "submit to view". The published material does not describe REST or GraphQL surface, anonymity or group behaviour — treat those as unknown until tested. Whether reviewees see peer rubric scores is undocumented by Canvas (UI guides say scores and comments are visible, reviewer hidden when anonymous) and is still unverified; how to read peer `rubric_assessment` scores through the API is verified in lessons L24.
+
+**Working stance for peer-review tooling (decided 2026-09-21):** behavior that could not be tested without enrolled students — reviewee visibility of peer rubric scores, anonymity on the rubric view, review creation before a submission exists, real group pairing, Enhanced Peer Review's API — is taken from Canvas's documentation and institutional UI guides, and tools and student-facing instructions must say so ("per Canvas documentation") rather than assert it as verified. Re-check against real students when a course with enrolled students is available.
+
 ---
 
 ## Documented Universal Patterns
@@ -178,6 +209,8 @@ Pointer table — full endpoint inventories live in per-resource surveys (or Can
 | **Pages** | `/doc/api/pages.html` | [`pages_api_survey.md`](../pre_knowledge/canvas_api/pages_api_survey.md) | `/courses/:id/pages` |
 | **Modules** | `/doc/api/modules.html` | (TBD survey) | `/courses/:id/modules`, `.../items` |
 | **Assignments** | `/doc/api/assignments.html` | (TBD survey) | `/courses/:id/assignments` |
+| **Peer Reviews** | `/doc/api/peer_reviews.html` | see D7 | `/courses/:id/assignments/:aid/peer_reviews`, `.../submissions/:sid/peer_reviews` |
+| **Group Categories** | `/doc/api/group_categories.html` | see D9 | `/courses/:id/group_categories`, `/group_categories/:id/users` |
 | **Classic Quizzes** | `/doc/api/quizzes.html` | (TBD survey) | `/courses/:id/quizzes`, `.../quiz_questions` |
 | **New Quizzes (LTI)** | `/doc/api/new_quizzes.html` (or noted as LTI) | n/a — REST gap | LTI 1.3 launch surface |
 | **Discussion Topics** | `/doc/api/discussion_topics.html` | (TBD survey) | `/courses/:id/discussion_topics` |
