@@ -74,6 +74,16 @@ Zone-2 check in line without opening a hole.
   bug-report tool was blocked by the guard it reports on. Same-command exemption as
   before, so `cat lib/tools/x.py; cat <zone2>` remains a known gap of that exemption.
 - The denial message now names the matched read verb and path.
+- **Follow-up (#338): matching is now per command SEGMENT, aware of quotes and heredocs.**
+  A read verb and a Zone-2 path in different steps (`python -c "open('/dev/null')…" &&
+  ls build/`) are no longer one read, and a Zone-2 name that is only words in a text
+  heredoc (`cat <<EOF | wc -c` / `cat > note.md <<EOF`) is not a read. A heredoc body
+  counts as code only when its segment runs an interpreter (`python3 - <<PY`,
+  `cat <<EOF | python3 -`). Quoted code is one unit, so a `;` inside it cannot separate
+  the path from the read. Indirection stays denied: `f=<path> && cat $f`,
+  `for f in <path>; do cat $f; done`, `while read f; do cat $f; done < <path>`, and
+  `<path> | xargs cat`. Tightened as it loosened: 18 adversarial must-deny variants and 7
+  must-allow variants are pinned in tests.
 - Not adopted from the report: exempting `make_grader.py`/`make_tool.py` as sanctioned —
   that would trust arbitrary course-repo scripts inside a FERPA hook; the fixes above
   already let the reported command run.
