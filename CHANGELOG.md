@@ -10,6 +10,21 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`peer_review_assign.py` — pair group members as peer reviewers of each other (#331).**
+
+Canvas cannot scope reviewers to a group on an individual assignment (D8), so this creates
+the pairings explicitly from a group set — self-signup or instructor-assigned, both read
+the same. For each group every member reviews each groupmate (never self); existing pairs
+are skipped, so re-running after late submissions or group changes is safe. Leaves out
+non-active-student members (Test Student, dropped), skips reviewees who have not submitted
+(`--include-unsubmitted` overrides), never deletes pairs, refuses group assignments.
+Dry run by default, `--apply` writes and reads back, `canvas_course_guard`-gated
+(`--allow-enrolled` on live courses). **Output is counts only** — Canvas returns student
+names on the member endpoints and the tool keeps only ids, printing neither. Read paths
+checked against a real Canvas sandbox; pairing behavior with real students is
+documentation-sourced (no enrolled students available to test). Follow-up:
+`peer_review_summary.py`.
+
 **`peer_review_setup.py` — create a peer-review assignment with a rating rubric (#331).**
 
 New tool: creates ONE unpublished assignment with peer review (anonymous by default,
