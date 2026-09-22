@@ -412,10 +412,60 @@ def test_toolkit_script_exempt_without_a_leading_slash():
 
 
 def test_zone2_denial_names_what_matched():
-    """A compound command is denied as a whole; the message must say which read verb and
-    which path tripped it, or the operator can't tell which part to change (#334)."""
+    """The message must say which read verb and which path tripped it, or the operator
+    can't tell which part of a compound command to change (#334)."""
     r = evaluate("Bash", {"command": "ls; cat grading/.review.csv; ls"})
     assert r and "matched read `cat`" in r and ".review.csv" in r
+
+
+# --- #338: matching is per SEGMENT, aware of quotes and heredocs ---
+
+_Z = "grading/.review.csv"
+
+
+def test_read_verb_and_zone2_path_in_different_steps_are_not_one_read():
+    """Shape A: `open(` reads /dev/null in step 1; step 2 only lists the path (#338)."""
+    for cmd in (
+        f"python3 -c \"x=open('/dev/null').read()\" && ls {_Z} | wc -l",
+        f"python3 -c \"import json; json.load(open('/dev/null'))\" ; wc -l {_Z}",
+    ):
+        assert evaluate("Bash", {"command": cmd}) is None, cmd
+
+
+def test_zone2_name_in_a_text_heredoc_is_not_a_read():
+    """Shape B: writing a report that MENTIONS the file, via cat/heredoc (#338)."""
+    for cmd in (
+        f"cat <<'EOF' | wc -c\nthe report mentions {_Z} as words only\nEOF",
+        f"cat > note.md <<'EOF'\nthe report mentions {_Z} as words only\nEOF",
+        f"cat <<EOF > out.md\nmentions {_Z}\nEOF",
+    ):
+        assert evaluate("Bash", {"command": cmd}) is None, cmd
+
+
+def test_code_in_a_heredoc_that_reads_the_path_is_still_denied():
+    for cmd in (
+        f"python3 - <<'PY'\nimport json\nr=json.load(open('{_Z}'))\nPY",
+        f"python3 - <<'PY'\nf='{_Z}'\nprint(open(f).read())\nPY",       # split across lines
+        f"cat <<'EOF' | python3 -\nprint(open('{_Z}').read())\nEOF",      # cat feeds python
+    ):
+        assert evaluate("Bash", {"command": cmd}) is not None, cmd
+
+
+def test_quoted_code_is_one_unit_so_a_semicolon_inside_it_cannot_split_the_read():
+    assert evaluate("Bash", {"command": f"python3 -c \"f='{_Z}'; print(open(f).read())\""}) is not None
+
+
+def test_indirection_across_steps_is_still_denied():
+    """The per-segment check must not open `f=<path> && cat $f`-style holes."""
+    for cmd in (
+        f"f={_Z} && cat $f",
+        f"for f in {_Z}; do cat $f; done",
+        f"ls {_Z} | xargs cat",
+        f"echo {_Z} | xargs head -5",
+        f"while read f; do cat $f; done < {_Z}",         # path arrives by input redirect
+        f'cat {_Z}"',                                    # an unterminated quote hides nothing
+    ):
+        assert evaluate("Bash", {"command": cmd}) is not None, cmd
 
 
 # --- Zone-2 pattern set: one source, two forms, course-local extension (#278) ---

@@ -351,24 +351,117 @@ _RAW_READ = re.compile(  # case-sensitive: match the `head` command, not git `HE
 _STDIN_FILTER = re.compile(r"^\s*(head|tail|less|more|nl)\b")
 
 
-def _without_stdin_filters(cmd: str, zone2_re: re.Pattern) -> str:
-    """cmd with downstream stdin-filter segments removed — but ONLY those that name no
-    Zone-2 path. `x | tail -n5 _roster.json` names one, so it stays and is still denied.
-    Segments after the first pipe only: a leading `tail file` is a real file read."""
-    parts = re.split(r"(\|\||&&|[;|\n])", cmd)      # keep separators to rejoin
-    out, after_pipe = [], False
-    for tok in parts:
-        if tok == "|":
-            after_pipe = True
-            out.append(tok)
-        elif tok in ("||", "&&", ";", "\n"):
-            after_pipe = False
-            out.append(tok)
-        elif after_pipe and _STDIN_FILTER.search(tok) and not zone2_re.search(tok):
-            continue
-        else:
-            out.append(tok)
-    return "".join(out)
+_HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
+
+# A heredoc body is CODE only when the segment feeds it to an interpreter
+# (`python3 - <<PY`, `bash <<EOF`, `cat <<EOF | python3 -` — the body attaches to the
+# `python3 -` segment). Fed to `cat`/`tee`/`wc` it is TEXT being written, and a report
+# that mentions a Zone-2 file by name is not a read of it (#338).
+_INTERPRETER = re.compile(
+    r"\b(python3?|node|perl|ruby|php|Rscript|bash|sh|zsh|osascript)\b")
+
+
+def _segments(cmd: str) -> list[tuple[str, str]]:
+    """Split a shell command into [(separator_before, text)] at `||` `&&` `;` `|` and
+    newlines that sit OUTSIDE quotes. Quoted text stays inside its segment, so
+    `python3 -c "f='x'; print(open(f).read())"` is ONE unit — a `;` in it cannot separate
+    the path from the read. A heredoc body joins the segment of the last command on the
+    line that opened it, and is dropped unless that segment runs an interpreter.
+    Not a shell parser: a regex-level tripwire like the rest of this hook."""
+    segs: list[tuple[str, str]] = []
+    cur: list[str] = []
+    sep = ""
+    pending: list[str] = []
+    quote = ""
+    i, n = 0, len(cmd)
+
+    def flush(next_sep: str) -> None:
+        nonlocal cur, sep
+        segs.append((sep, "".join(cur)))
+        cur, sep = [], next_sep
+
+    while i < n:
+        ch = cmd[i]
+        if quote:
+            if ch == "\\" and quote == '"' and i + 1 < n:
+                cur.append(cmd[i:i + 2]); i += 2; continue
+            if ch == quote:
+                quote = ""
+            cur.append(ch); i += 1; continue
+        if ch in "'\"":
+            quote = ch; cur.append(ch); i += 1; continue
+        if ch == "\\" and i + 1 < n:
+            cur.append(cmd[i:i + 2]); i += 2; continue
+        if cmd.startswith("<<", i) and not cmd.startswith("<<<", i):
+            m = _HEREDOC.match(cmd, i)
+            if m:
+                pending.append(m.group(2))
+                cur.append(m.group(0)); i = m.end(); continue
+        two = cmd[i:i + 2]
+        if two in ("||", "&&"):
+            flush(two); i += 2; continue
+        if ch in ";|":
+            flush(ch); i += 1; continue
+        if ch == "\n":
+            if pending:
+                body_start, body = i + 1, []
+                lines = cmd[body_start:].split("\n")
+                consumed = 0
+                for line in lines:
+                    consumed += len(line) + 1
+                    if line.strip() == pending[0]:
+                        break
+                    body.append(line)
+                seg_text = "".join(cur)
+                if _INTERPRETER.search(seg_text):
+                    cur.append(" " + "\n".join(body))
+                pending.clear()
+                i = body_start + consumed
+            else:
+                i += 1
+            flush("\n"); continue
+        cur.append(ch); i += 1
+    if cur or not segs:
+        flush("")
+    return segs
+
+
+# A segment that hands a path to something else: assignment (`f=<path>`), a `for … in`,
+# `read`, or an input redirect (`done < <path>`, but not a `<<` heredoc).
+_BINDING = re.compile(
+    r"(?:^|\s)[A-Za-z_]\w*=\S|\bfor\s+\w+\s+in\b|\bread\s+\w|(?<![<\d])<(?!<)\s*\S")
+
+
+def zone2_read(cmd: str, raw_re: re.Pattern, zone2_re: re.Pattern):
+    """(read_match, path_match) if the command reads a Zone-2 path, else None.
+
+    Per SEGMENT (#338): a read verb and a path in different steps are not one read. Three
+    things stop that opening holes:
+      - a downstream `head|tail|less|more|nl` that names no Zone-2 path filters stdin and
+        is ignored (#334); one that names the path is a read;
+      - INDIRECTION — a segment that binds the path (`f=<path>`, `for f in <path>`,
+        `done < <path>`) with a read of a `$var` elsewhere in the command;
+      - a path piped into `xargs <read verb>`.
+    """
+    segs = _segments(cmd)
+    bound = next((zone2_re.search(t) for _, t in segs
+                  if zone2_re.search(t) and _BINDING.search(t)), None)
+    path_upstream = False
+    for sep, text in segs:
+        is_stdin_filter = sep == "|" and _STDIN_FILTER.search(text)
+        path_m = zone2_re.search(text)
+        read_m = raw_re.search(text)
+        if is_stdin_filter and not path_m:
+            read_m = None
+        if read_m and path_m:
+            return read_m, path_m
+        if read_m and bound and re.search(r"\$", text):
+            return read_m, bound
+        if read_m and sep == "|" and path_upstream and re.search(r"\bxargs\b", text):
+            return read_m, path_upstream
+        if path_m:
+            path_upstream = path_m
+    return None
 
 
 def _runs_toolkit(cmd: str) -> bool:
@@ -454,9 +547,9 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
                 "via _env_loader.load_env() and never surface the value. To see WHICH "
                 "keys are set without values: grep -o '^[A-Z_]*=' <file>"
             )
-        checked = _without_stdin_filters(cmd, _FERPA_FILE)
-        read_m, file_m = _RAW_READ.search(checked), _FERPA_FILE.search(checked)
-        if not _runs_toolkit(cmd) and read_m and file_m:
+        hit = None if _runs_toolkit(cmd) else zone2_read(cmd, _RAW_READ, _FERPA_FILE)
+        if hit:
+            read_m, file_m = hit
             return (
                 "⛔ FERPA Zone-2 file — never cat/head/read it in a shell (AGENTS.md → FERPA "
                 "discipline). It maps de-id codes ↔ names/user_ids; reading it into context "
@@ -464,8 +557,8 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
                 "`ls` only. To re-identify, run grader_reidentify.py (it reads the keymap "
                 "internally, never surfacing it) — do NOT reconstruct the map by hand. "
                 f"[matched read `{read_m.group(0).strip()}` + Zone-2 path "
-                f"`{file_m.group(0)}` in this command; a command with several parts is "
-                "denied as a whole — split it]"
+                f"`{file_m.group(0)}` in the same step (or via a variable / xargs from "
+                "another step) — split the command so the read and the path are apart]"
             )
         # Run-catch: executing an EXISTING script whose BODY writes to Canvas. The
         # create (Write) / edit (Edit) hooks can't catch a script that already
