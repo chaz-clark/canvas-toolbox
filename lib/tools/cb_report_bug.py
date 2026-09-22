@@ -51,6 +51,18 @@ USAGE
   # Show what would be sent without posting
   uv run python lib/tools/cb_report_bug.py --dry-run
 
+  # Add a follow-up to an issue THIS TOOL already filed (#275) — no --title
+  uv run python lib/tools/cb_report_bug.py --issue 271 \\
+      --body "Sharper reproduction: ..."
+
+COMMENTING ON AN EXISTING ISSUE (--issue N)
+  Posts to POST /comment instead of POST /bug. The worker only accepts a
+  number it filed itself (recorded when the original POST /bug succeeded)
+  — an issue number you file a bug for on the web UI, or one on another
+  repo, is refused with a clear error. This keeps the maintainer's PAT
+  scoped to "issues this pipe created," never "any issue on the repo."
+  --issue and --title are mutually exclusive (a comment has no title).
+
 TITLE-PREFIX CONVENTION
   - `bug: ...`         — toolkit deviated from documented behavior, exit
                          code surprised the agent, output looks wrong.
@@ -125,6 +137,9 @@ except ImportError:
 # Override via --endpoint for
 # testing against a preview deployment.
 _ENDPOINT: str | None = "https://canvas-toolbox-bugs.tylerchaz5.workers.dev/bug"
+# --issue N (#275) posts here instead. Same host, sibling route — the worker
+# scopes it to issues IT filed via /bug; see cmd_body / _post_comment_to_worker.
+_COMMENT_ENDPOINT: str | None = "https://canvas-toolbox-bugs.tylerchaz5.workers.dev/comment"
 
 _USER_AGENT = f"canvas-toolbox-bug-reporter/{__version__}"
 _TIMEOUT = 30
@@ -306,13 +321,7 @@ def _open_in_editor() -> str:
 # Network
 # ----------------------------------------------------------------------------
 
-def _post_to_worker(endpoint: str, title: str, body: str) -> tuple[int, dict]:
-    payload = {
-        "title": title,
-        "body": body,
-        "toolkit_version": __version__,
-        "user_agent": _USER_AGENT,
-    }
+def _post_to_worker(endpoint: str, payload: dict) -> tuple[int, dict]:
     r = requests.post(
         endpoint,
         data=json.dumps(payload).encode("utf-8"),
@@ -328,6 +337,16 @@ def _post_to_worker(endpoint: str, title: str, body: str) -> tuple[int, dict]:
         return r.status_code, {"raw": r.text}
 
 
+def _bug_payload(title: str, body: str) -> dict:
+    return {"title": title, "body": body, "toolkit_version": __version__,
+            "user_agent": _USER_AGENT}
+
+
+def _comment_payload(issue: int, body: str) -> dict:
+    return {"issue": issue, "body": body, "toolkit_version": __version__,
+            "user_agent": _USER_AGENT}
+
+
 # ----------------------------------------------------------------------------
 # Main
 # ----------------------------------------------------------------------------
@@ -341,30 +360,48 @@ def main() -> int:
                     "files the GitHub issue.")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     ap.add_argument("--title", default=None,
-                    help="One-line issue title. Prompted if omitted.")
+                    help="One-line issue title. Prompted if omitted. Mutually "
+                         "exclusive with --issue.")
+    ap.add_argument("--issue", type=int, default=None, metavar="N",
+                    help="Comment on issue N instead of filing a new one (#275). "
+                         "N must be an issue THIS TOOL filed — the worker refuses "
+                         "any other number. Mutually exclusive with --title.")
     ap.add_argument("--body", default=None,
-                    help="Issue body (markdown). Opens $EDITOR if omitted (and --from is unused).")
+                    help="Issue/comment body (markdown). Opens $EDITOR if omitted "
+                         "(and --from is unused).")
     ap.add_argument("--from", dest="from_log", default=None,
                     help="Path to a log / stack trace to attach. Last 150 lines included.")
     ap.add_argument("--dry-run", action="store_true",
                     help="Show what WOULD be sent (title + scrubbed body). Don't POST.")
     ap.add_argument("--endpoint", default=None,
                     help="Override the worker endpoint URL (advanced; default reads "
-                         "the constant in this file).")
+                         "the constant in this file — /bug or /comment depending on "
+                         "--issue).")
     args = ap.parse_args()
 
-    endpoint = args.endpoint or _ENDPOINT
+    if args.issue is not None and args.title:
+        print("ERROR: --issue and --title are mutually exclusive — a comment has "
+              "no title.", file=sys.stderr)
+        return 1
+    if args.issue is not None and args.issue <= 0:
+        print("ERROR: --issue must be a positive issue number.", file=sys.stderr)
+        return 1
 
-    # Title
-    title = (args.title or "").strip()
-    if not title and not args.dry_run:
-        try:
-            title = input("Bug title (one line): ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\nAborted.", file=sys.stderr)
-            return 1
-    if not title:
-        title = "(no title)"
+    commenting = args.issue is not None
+    endpoint = args.endpoint or (_COMMENT_ENDPOINT if commenting else _ENDPOINT)
+
+    # Title (bug mode only — a comment has none)
+    title = ""
+    if not commenting:
+        title = (args.title or "").strip()
+        if not title and not args.dry_run:
+            try:
+                title = input("Bug title (one line): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nAborted.", file=sys.stderr)
+                return 1
+        if not title:
+            title = "(no title)"
 
     # Body
     body_src = args.body
@@ -386,7 +423,10 @@ def main() -> int:
 
     if args.dry_run:
         print("=== DRY RUN — not posting ===")
-        print(f"title: {scrubbed_title}")
+        if commenting:
+            print(f"issue: #{args.issue}")
+        else:
+            print(f"title: {scrubbed_title}")
         print(f"endpoint: {endpoint or '(unset — see edge-infra/workers/bug-intake-worker/README.md)'}")
         print(f"body length: {len(scrubbed)} chars  (after {n_scrubs} redaction(s))")
         print()
@@ -394,41 +434,60 @@ def main() -> int:
         return 0
 
     if not endpoint:
-        print("⛔ _ENDPOINT not set. The bug-intake worker hasn't been deployed yet, "
+        print("⛔ endpoint not set. The bug-intake worker hasn't been deployed yet, "
               "or the URL hasn't been wired into this file. See "
               "edge-infra/workers/bug-intake-worker/README.md for the one-time setup. "
               "Until then, file the bug at "
               "https://github.com/chaz-clark/canvas-toolbox/issues/new", file=sys.stderr)
         return 2
 
-    print(f"  scrubbed {n_scrubs} sensitive token(s) from the body. Posting...")
+    verb = "comment" if commenting else "bug"
+    print(f"  scrubbed {n_scrubs} sensitive token(s) from the {verb} body. Posting...")
     t0 = time.monotonic()
+    payload = (_comment_payload(args.issue, scrubbed) if commenting
+               else _bug_payload(scrubbed_title, scrubbed))
     try:
-        status, payload = _post_to_worker(endpoint, scrubbed_title, scrubbed)
+        status, resp = _post_to_worker(endpoint, payload)
     except requests.RequestException as e:
         print(f"⛔ network error: {type(e).__name__}: {e}", file=sys.stderr)
         return 2
     dt = time.monotonic() - t0
 
     if 200 <= status < 300:
-        url = (payload or {}).get("url")
-        num = (payload or {}).get("number")
+        url = (resp or {}).get("url")
         if url:
-            print(f"✓ filed: {url}  ({dt:.1f}s)")
-            if num:
-                print(f"  (issue #{num} on chaz-clark/canvas-toolbox)")
+            if commenting:
+                print(f"✓ comment posted: {url}  ({dt:.1f}s)")
+            else:
+                num = (resp or {}).get("number")
+                print(f"✓ filed: {url}  ({dt:.1f}s)")
+                if num:
+                    print(f"  (issue #{num} on chaz-clark/canvas-toolbox)")
             print("  Thank you. The maintainer will triage shortly.")
             return 0
-        print(f"✓ worker accepted (status {status}, no URL returned): {payload}")
+        print(f"✓ worker accepted (status {status}, no URL returned): {resp}")
         return 0
 
     if status == 429:
-        print(f"⛔ rate-limited (status 429): {payload}", file=sys.stderr)
+        print(f"⛔ rate-limited (status 429): {resp}", file=sys.stderr)
         print("   Wait a bit and try again. Or use the GitHub web UI: "
               "https://github.com/chaz-clark/canvas-toolbox/issues/new", file=sys.stderr)
         return 2
 
-    print(f"⛔ worker rejected (status {status}): {payload}", file=sys.stderr)
+    if status == 403 and commenting:
+        print(f"⛔ refused (status 403): {resp}", file=sys.stderr)
+        print(f"   Issue #{args.issue} was not filed through this tool — the worker "
+              "only comments on issues it itself created. File a new issue instead, "
+              "or comment manually at "
+              f"https://github.com/chaz-clark/canvas-toolbox/issues/{args.issue}",
+              file=sys.stderr)
+        return 2
+
+    if status == 503 and commenting:
+        print(f"⛔ worker not ready to accept comments (status 503): {resp}", file=sys.stderr)
+        return 2
+
+    print(f"⛔ worker rejected (status {status}): {resp}", file=sys.stderr)
     return 2
 
 
