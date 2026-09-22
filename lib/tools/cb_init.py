@@ -1014,12 +1014,12 @@ def main() -> int:
     )
     parser.add_argument("--version", action="version", version="%(prog)s " + __version__)
     parser.add_argument(
-        "--mode", choices=["maintainer", "adopter"], default="adopter",
-        help=("Default: adopter. Pass `--mode maintainer` to suppress "
-              "adopter-facing hints (e.g. the cb-report-bug reminder). "
-              "Auto-detection from `git remote get-url origin` surfaces a "
-              "suggestion but doesn't override the default — the flag is "
-              "the explicit toggle."),
+        "--mode", choices=["maintainer", "adopter"], default=None,
+        help=("Default: auto-detected from `git remote get-url origin` "
+              "(maintainer iff it's chaz-clark/canvas-toolbox, else adopter). "
+              "Pass explicitly to override detection — e.g. force --mode "
+              "adopter while testing adopter-facing behavior from a "
+              "maintainer checkout."),
     )
     parser.add_argument(
         "--yes", "-y", action="store_true",
@@ -1053,13 +1053,26 @@ def main() -> int:
     print("    cwd:       " + str(cwd))
     print("    repo root: " + str(REPO_ROOT))
 
-    # Mode resolution — flag wins; auto-detection is a hint.
+    # Mode resolution — an explicit --mode always wins (e.g. forcing adopter
+    # mode while testing from a maintainer checkout); auto-detection is the
+    # default when no flag is given, not just a printed hint. FOUND FOR REAL
+    # in code review (#345): steps 10-12 now gate real writes on `mode`
+    # (fixing the is_subdir conflation bug), but `mode` was still resolving
+    # to args.mode's old default ("adopter") whenever no flag was passed —
+    # so running cb_init.py with no flags in canvas-toolbox's OWN checkout
+    # silently ran adopter steps (Canvas sync, course AGENTS.md, course
+    # .gitignore) against the toolkit's own repo. Auto-detection was already
+    # computed correctly; it just was never made authoritative.
     detected = detect_mode_from_remote(get_git_remote_origin())
-    mode = args.mode
-    if detected != mode:
-        print("    mode:      " + mode + " (auto-detected: " + detected + ")")
+    if args.mode is not None:
+        mode = args.mode
+        if mode != detected:
+            print("    mode:      " + mode + " (override — auto-detected: " + detected + ")")
+        else:
+            print("    mode:      " + mode)
     else:
-        print("    mode:      " + mode)
+        mode = detected
+        print("    mode:      " + mode + " (auto-detected)")
     if args.check:
         print("    --check:   no writes will occur")
     print()

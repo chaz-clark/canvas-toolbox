@@ -435,3 +435,54 @@ def test_step_12_nested_adopter_writes_a_stub_with_the_shared_course_content(tmp
     assert "Toyota Production System" in stub
     assert "HERMES Learning" in stub
     assert "canvas-toolbox/AGENTS.md" in stub  # nested still points at the toolkit's own
+
+
+# ---------------------------------------------------------------------------
+# main() mode resolution — auto-detection must be authoritative by default
+# (regression caught in code review, #345)
+#
+# Steps 10-12 now gate real writes on `mode` (fixing the is_subdir
+# conflation bug — see step_10's docstring), but `mode` was still resolving
+# to args.mode's old hardcoded default ("adopter") whenever no --mode flag
+# was passed. Auto-detection was computed correctly; it just was never made
+# authoritative. Running cb_init.py with no flags in canvas-toolbox's OWN
+# checkout silently ran adopter steps (Canvas sync, course AGENTS.md, course
+# .gitignore) against the toolkit's own repo.
+# ---------------------------------------------------------------------------
+
+def _run_cb_init_check(tmp_path, origin: str | None, extra: list[str] | None = None):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    if origin:
+        subprocess.run(["git", "remote", "add", "origin", origin], cwd=tmp_path, check=True)
+    cb_init_path = _TOOLS_DIR / "cb_init.py"
+    result = subprocess.run(
+        [sys.executable, str(cb_init_path), "--check", "--skip-playwright", "--yes",
+         *(extra or [])],
+        cwd=tmp_path, capture_output=True, text=True, timeout=30,
+    )
+    return result.stdout + result.stderr
+
+
+def test_no_mode_flag_in_maintainer_checkout_stays_maintainer(tmp_path):
+    """The exact regression: no --mode flag, origin is chaz-clark/canvas-toolbox
+    -> must resolve to maintainer and skip the adopter-only steps, not silently
+    run Canvas sync / course AGENTS.md generation against the toolkit's own repo."""
+    out = _run_cb_init_check(tmp_path, "https://github.com/chaz-clark/canvas-toolbox.git")
+    assert "mode:      maintainer (auto-detected)" in out
+    assert "Maintainer mode" in out
+    assert "canvas-sync --pull" not in out.lower() or "would run" not in out.lower()
+
+
+def test_no_mode_flag_in_adopter_checkout_stays_adopter(tmp_path):
+    out = _run_cb_init_check(tmp_path, "https://github.com/smithu/ds250-master.git")
+    assert "mode:      adopter (auto-detected)" in out
+
+
+def test_explicit_mode_flag_overrides_detection(tmp_path):
+    """An explicit --mode still wins over auto-detection — e.g. testing
+    adopter-facing behavior from a maintainer checkout on purpose."""
+    out = _run_cb_init_check(
+        tmp_path, "https://github.com/chaz-clark/canvas-toolbox.git",
+        extra=["--mode", "adopter"],
+    )
+    assert "mode:      adopter (override — auto-detected: maintainer)" in out
