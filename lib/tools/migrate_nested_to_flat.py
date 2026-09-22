@@ -441,6 +441,26 @@ def main() -> int:
         print(f"  🟡 {counts['backed_up']} course file(s) collided with a toolkit path — "
               f"{backup_verb} rather than overwritten: {counts['backed_up_paths']}")
 
+    # FOUND FOR REAL, first time a pilot tried to commit a migrated course:
+    # this step was missing entirely. cb_flatten.py's own --apply writes the
+    # gitignore block right after apply_sync(); this function read the block
+    # (old_manifest, above) but never wrote it back. Left as-is, a migrated
+    # course's .gitignore never gains an ignore entry for ANY of the 280+
+    # flattened toolkit files or for .canvas-toolbox/ itself — `git add -A`
+    # would track the whole toolkit into the course's own history and create
+    # a gitlink for the hidden clone, exactly backwards from the nested
+    # layout's "toolkit code isn't part of course version control" model this
+    # is supposed to preserve.
+    gi_path = root / ".gitignore"
+    updated_gi = flat.splice_gitignore(old_gi, flat.render_gitignore_block(to_copy))
+    if updated_gi != old_gi:
+        if args.apply:
+            gi_path.write_text(updated_gi, encoding="utf-8")
+        print(f"gitignore block: {'updated' if args.apply else 'would update'} "
+              f"({len(to_copy)} exact paths)")
+    else:
+        print("gitignore block: present")
+
     agents_status = flat.apply_agents_md_step(root, clone, args.apply)
     print(f"AGENTS.md: {agents_status}")
 
