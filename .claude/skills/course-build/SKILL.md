@@ -41,6 +41,7 @@ defends against it, but naming the target explicitly is on you.
 | Create a custom grading scheme | `grading_scheme_setup.py --title ... --tiers ... --apply` |
 | Create a peer-review assignment + peer rubric (unpublished) | `peer_review_setup.py --title ... --criteria "Prepared?:yesno;Effort:1-5" --apply` — enrolled course needs `--allow-enrolled`, only on the instructor's explicit say-so |
 | Pair group members as peer reviewers of each other (counts-only output) | `peer_review_assign.py --title ... --group-set-id N --apply` — same `--allow-enrolled` rule; re-run after late submissions or group changes |
+| Report per-student peer rating averages (read-only, user_id-keyed, no names) | `peer_review_summary.py --title ... [--csv out.csv]` |
 | Multi-course wrapper | `sync_context.sh` |
 | Post-push structural audit | `course_quality_check.py` *(then hand off to the `audit` skill)* |
 

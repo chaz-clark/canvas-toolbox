@@ -10,6 +10,20 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`peer_review_summary.py` — per-student peer rating averages from a peer rubric (#331).**
+
+Read-only. Peer assessments are invisible on the submission (only the grading assessment
+shows there, L24), so this reads them from the rubric
+(`include[]=peer_assessments&style=full`), joins each to its reviewee through the
+submission id, and reports per-criterion means plus one overall figure (each criterion as
+a share of its maximum, so a yes/no and a 1-5 scale weigh equally). Only
+`peer_review`-type assessments count; an assessment by the reviewee themself is reported
+as self. Keyed by `user_id`, **points only** — assessor names and free-text comments are
+never read into the output — and rows resting on fewer than 3 assessments are flagged.
+Optional `--csv`. Verified against real Canvas assessments in a sandbox (grading excluded,
+peer counted); also records L24's finding that a second assessment by the same assessor
+on the same submission replaces the first. Completes the #331 tool set.
+
 **`peer_review_assign.py` — pair group members as peer reviewers of each other (#331).**
 
 Canvas cannot scope reviewers to a group on an individual assignment (D8), so this creates
