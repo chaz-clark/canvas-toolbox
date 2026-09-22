@@ -22,6 +22,7 @@ from merge_cleanup import (  # noqa: E402
     COURSE_END,
     COURSE_MARKER,
     course_content_lines,
+    default_course_content,
     split_merged,
     verify,
 )
@@ -258,3 +259,53 @@ def test_historical_lines_reads_non_ascii_history_correctly(tmp_path):
     subprocess.run(["git", "commit", "-q", "-m", "old revision"], cwd=repo, check=True)
 
     assert old_line in mc.historical_lines(repo)
+
+
+# ---------------------------------------------------------------------------
+# default_course_content (#317 follow-up)
+#
+# WHY THIS EXISTS: a brand-new flat install's AGENTS.md used to be the bare
+# toolkit constitution — no course section at all, silently dropping the
+# Toyota quality-discipline block, the grading pointer, the vendored-tools
+# reminder, and the HERMES Course Context stub that nested installs had
+# always gotten via cb_init.py's step_12. This is the ONE shared body both
+# cb_flatten.py (flat "fresh" case) and cb_init.py (nested step_12) now draw
+# from, so they can never drift into two different experiences again.
+# ---------------------------------------------------------------------------
+
+def test_default_course_content_carries_toyota_and_hermes_for_both_layouts():
+    for flat in (True, False):
+        body = default_course_content(flat=flat)
+        assert "Genchi Gembutsu" in body
+        assert "Jidoka" in body
+        assert "Poka-yoke" in body
+        assert "Toyota Production System" in body
+        assert "## Course Context" in body
+        assert "HERMES Learning" in body
+        assert "grade_guardian" in body
+        assert "HG-5" in body
+
+
+def test_default_course_content_flat_has_no_nested_path_prefix():
+    """Flat layout has no visible canvas-toolbox/ subfolder — lib/tools/ sits
+    directly at the course root."""
+    body = default_course_content(flat=True)
+    assert "canvas-toolbox/lib/tools/" not in body
+    assert "canvas-toolbox/lib/agents/knowledge/toolkit_reuse_knowledge.md" not in body
+    assert "lib/tools/" in body
+
+
+def test_default_course_content_nested_keeps_the_path_prefix():
+    body = default_course_content(flat=False)
+    assert "canvas-toolbox/lib/tools/" in body
+    assert "canvas-toolbox/lib/agents/knowledge/toolkit_reuse_knowledge.md" in body
+
+
+def test_default_course_content_is_valid_as_a_course_half():
+    """What cb_flatten.py actually does with it: wrap in the sentinel markers
+    and confirm split_merged reads it back as real, non-empty course content."""
+    merged = _merged(default_course_content(flat=True))
+    toolkit, course = split_merged(merged)
+    assert toolkit.rstrip() == SOURCE.rstrip()
+    assert course is not None and course.strip()
+    assert "HERMES Learning" in course

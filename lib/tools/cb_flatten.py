@@ -65,11 +65,15 @@ WHAT IS NOT FLATTENED
                        own pyproject.toml/uv.lock wholesale replaces the host's
                        identity outright (found for real in the m119-master
                        pilot: `uv run` started identifying the whole course
-                       repo as "canvas-toolbox"). This tool never writes either
-                       file; report_pyproject_deps() only reports which of the
-                       toolkit's dependencies are missing from the host's own
-                       pyproject.toml, for a human to add by hand and re-run
-                       `uv lock`.
+                       repo as "canvas-toolbox"). This tool never overwrites
+                       an EXISTING host pyproject.toml — report_pyproject_deps()
+                       only reports which of the toolkit's dependencies are
+                       missing, for a human to add by hand and re-run `uv lock`.
+                       When there is no host pyproject.toml AT ALL (nothing to
+                       protect), it writes a minimal one instead of leaving a
+                       fresh install with no way to `uv sync` at all; uv.lock is
+                       still never written directly — cb_init.py's `uv sync`
+                       step generates it.
 
   `.git/` is excluded for the obvious reason. Everything else in the manifest is
   toolkit-owned and replaced wholesale.
@@ -114,15 +118,26 @@ from pathlib import Path
 import yaml
 
 from merge_cleanup import (
+    COURSE_END,
+    COURSE_MARKER,
     HARD_FLAG_LINES,
     RELOAD_NOTICE,
     SOFT_WARN_LINES,
+    default_course_content,
     split_merged,
 )
 
 # Reused rather than reimplemented — architecture-agnostic (operate on .env text
 # or a token/URL pair, not on the nested-vs-flat distinction).
 from cb_init import env_stub_content, smoke_test_canvas
+
+# The CLAUDE.md shim — cb_update.py's own main() already installs this on every
+# UPDATE. FOUND FOR REAL auditing the fresh-install path (#317 follow-up): this
+# tool's own main() never called it, so a course bootstrapped by cb_flatten.py
+# alone (no cb_update.py run yet) had an AGENTS.md Claude Code would never read —
+# not just missing course content, the WHOLE constitution invisible at session
+# start. No circular import: cb_update.py does not import this module.
+from cb_update import CLAUDE_SHIM, install_claude_shim, plan_claude_shim
 
 from capability_consent import (
     capability_diff,
@@ -420,23 +435,66 @@ def _dependency_names(deps: list[str]) -> set[str]:
     return names
 
 
-def report_pyproject_deps(course_root: Path, clone: Path) -> tuple[bool, str]:
-    """Advisory only — pyproject.toml/uv.lock are HYBRID (see HYBRID) and this
-    tool never writes to either. This just tells a human which of canvas-
-    toolbox's own dependencies aren't yet in the host's pyproject.toml, so they
-    can add them by hand and re-run `uv lock`. Always ok=True: a missing
-    dependency is real work for a human, not a failed flatten."""
+def render_fresh_pyproject(course_root: Path, clone_toml: dict) -> str:
+    """A minimal host pyproject.toml for a course with NONE yet — pure, no I/O.
+
+    Never used when a host file already exists (that's the HYBRID overwrite
+    bug this whole function family exists to avoid, #327/m119-master) — only
+    when there is nothing to protect. Carries canvas-toolbox's own runtime
+    dependencies + dev group + requires-python (what `uv sync --group dev` and
+    `pre-commit install` in cb_init.py's later steps need to actually work);
+    deliberately NOT the toolkit's own ruff/lint config, which is a style
+    preference for canvas-toolbox's own codebase, not something to impose on
+    every course repo. `name` is slugified from the course root's folder name —
+    never "canvas-toolbox" (the exact identity-clobber #327 fixed)."""
+    project = clone_toml.get("project", {})
+    deps = project.get("dependencies", [])
+    dev_deps = clone_toml.get("dependency-groups", {}).get("dev", [])
+    requires_python = project.get("requires-python", ">=3.11")
+    slug = re.sub(r"[^a-z0-9]+", "-", course_root.name.lower()).strip("-") or "course"
+
+    lines = [
+        "[project]",
+        f'name = "{slug}"',
+        'version = "0.1.0"',
+        f'requires-python = "{requires_python}"',
+        "dependencies = [",
+        *(f'    "{d}",' for d in deps),
+        "]",
+        "",
+        "[dependency-groups]",
+        "dev = [",
+        *(f'    "{d}",' for d in dev_deps),
+        "]",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def report_pyproject_deps(course_root: Path, clone: Path, apply: bool) -> tuple[bool, str]:
+    """pyproject.toml/uv.lock are HYBRID (see HYBRID) and this never overwrites
+    an EXISTING host file — that's the identity-clobber #327 fixed. But "don't
+    overwrite" only protects something that exists; when there is truly nothing
+    yet, leaving a human to hand-copy 14 dependency strings is real, avoidable
+    friction for exactly the fresh-install case this function otherwise reports
+    on and does nothing about. So: write one, only when none exists at all.
+
+    Always ok=True: a missing dependency (when a host file DOES exist and is
+    just incomplete) is real work for a human, not a failed flatten."""
     clone_pyproject = clone / "pyproject.toml"
     if not clone_pyproject.is_file():
         return True, "clone has no pyproject.toml — nothing to check"
-    clone_deps = _dependency_names(
-        tomllib.loads(clone_pyproject.read_text(encoding="utf-8"))
-        .get("project", {}).get("dependencies", [])
-    )
+    clone_toml = tomllib.loads(clone_pyproject.read_text(encoding="utf-8"))
+    clone_deps = _dependency_names(clone_toml.get("project", {}).get("dependencies", []))
     host_pyproject = course_root / "pyproject.toml"
     if not host_pyproject.is_file():
-        return True, (f"no host pyproject.toml yet — add canvas-toolbox's "
-                       f"{len(clone_deps)} dependencies to one, then `uv lock`")
+        if not apply:
+            return True, (f"would write a fresh pyproject.toml — {len(clone_deps)} "
+                          "canvas-toolbox dependencies, then `uv sync` locks it")
+        host_pyproject.write_text(render_fresh_pyproject(course_root, clone_toml),
+                                  encoding="utf-8")
+        return True, (f"wrote a fresh pyproject.toml — {len(clone_deps)} canvas-toolbox "
+                      "dependencies; cb-init's `uv sync` step locks it")
     host_deps = _dependency_names(
         tomllib.loads(host_pyproject.read_text(encoding="utf-8"))
         .get("project", {}).get("dependencies", [])
@@ -710,7 +768,19 @@ def apply_agents_md_step(course_root: Path, clone: Path, apply: bool) -> str:
     source_text = (clone / "AGENTS.md").read_text(encoding="utf-8")
     target = course_root / "AGENTS.md"
     if status == "fresh":
-        target.write_text(source_text, encoding="utf-8")
+        # No prior course AGENTS.md exists, so there is nothing to MERGE — but
+        # "nothing to merge" is not "no course section at all". FOUND FOR REAL
+        # (#317 follow-up): a fresh flat install got the bare toolkit constitution
+        # with no course half whatsoever, silently losing the Toyota quality-
+        # discipline block, the grading pointer, the vendored-tools reminder, and
+        # the HERMES Course Context stub — content nested installs had always
+        # gotten via cb_init.py's step_12. Restored via the ONE shared body
+        # (merge_cleanup.default_course_content) both paths now draw from.
+        course_half = default_course_content(flat=True)
+        target.write_text(
+            f"{source_text.rstrip()}\n\n{COURSE_MARKER}\n\n{course_half}\n{COURSE_END}\n",
+            encoding="utf-8",
+        )
         return "fresh"
     # merge-needed: back up the old file, THEN drop in the fresh constitution —
     # never the other order, or a crash between the two steps loses the course's
@@ -979,8 +1049,8 @@ def main() -> int:
     else:
         print("gitignore block: present")
 
-    _, pyproject_msg = report_pyproject_deps(root, clone)
-    print(f"pyproject.toml / uv.lock (never written — host project identity): {pyproject_msg}")
+    _, pyproject_msg = report_pyproject_deps(root, clone, args.apply)
+    print(f"pyproject.toml (existing host identity never overwritten): {pyproject_msg}")
 
     print("\nAGENTS.md:", end=" ")
     agents_status = apply_agents_md_step(root, clone, args.apply)
@@ -1003,6 +1073,15 @@ def main() -> int:
     if hook_status == "installed":
         print("    ↳ Canvas grade/comment writes must now go through "
               "grader_push.py / grader_standing.py — enforced at the harness.")
+    shim_link, shim_rel = plan_claude_shim(root)
+    shim_status = install_claude_shim(shim_link, shim_rel, args.apply)
+    print(f"  {CLAUDE_SHIM} shim -> {shim_rel}: {shim_status}")
+    if shim_status in ("linked", "copied", "would-install"):
+        print("    ↳ Claude Code does NOT read AGENTS.md — it reads CLAUDE.md. "
+              "Without this shim the constitution you just wrote never loads.")
+    elif shim_status == "missing-target":
+        print("    ↳ AGENTS.md wasn't written above — the shim will point at "
+              "nothing until that's resolved.")
     if not args.apply:
         print("  Canvas API smoke test: (dry-run — not calling the network)")
         print("\nDRY RUN — re-run with --apply to write.")
