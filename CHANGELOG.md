@@ -59,6 +59,24 @@ names on the member endpoints and the tool keeps only ids, printing neither. Rea
 checked against a real Canvas sandbox; pairing behavior with real students is
 documentation-sourced (no enrolled students available to test). Follow-up:
 `peer_review_summary.py`.
+**`grade_guardian` no longer denies a write-only command just because a `| tail` follows it (#334).**
+
+The Zone-2 shell check tested `_RAW_READ` and the protected path against the WHOLE
+command string, so `python make_grader.py … build/out.js 2>&1 | tail -8` was denied:
+`tail` matched as a read and the output path matched as Zone-2, though `tail` only
+filters stdin. The credential check beside it was already per-segment; this brings the
+Zone-2 check in line without opening a hole.
+
+- Downstream `head|tail|less|more|nl` segments that name **no** Zone-2 path are ignored.
+  Still denied: a filter that names the path (`x | tail -n5 .review.csv`), a leading
+  `tail file`, `cat`/`open(`/`json.load` anywhere, and reads split across `;` or `&&`.
+- `python lib/tools/x.py` (no leading slash) is exempt like `./lib/tools/x.py` — the
+  bug-report tool was blocked by the guard it reports on. Same-command exemption as
+  before, so `cat lib/tools/x.py; cat <zone2>` remains a known gap of that exemption.
+- The denial message now names the matched read verb and path.
+- Not adopted from the report: exempting `make_grader.py`/`make_tool.py` as sanctioned —
+  that would trust arbitrary course-repo scripts inside a FERPA hook; the fixes above
+  already let the reported command run.
 
 **`peer_review_setup.py` — create a peer-review assignment with a rating rubric (#331).**
 

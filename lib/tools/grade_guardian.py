@@ -344,6 +344,39 @@ _RAW_READ = re.compile(  # case-sensitive: match the `head` command, not git `HE
 )
 
 
+# Stdin-only display filters. After a pipe these read the PREVIOUS command's output,
+# never a file operand, so `python make.py out.js | tail -8` reads nothing from the
+# path it writes to (#334). Only `head|tail|less|more|nl` — `cat`, `open(`, `json.load`
+# stay raw reads wherever they appear.
+_STDIN_FILTER = re.compile(r"^\s*(head|tail|less|more|nl)\b")
+
+
+def _without_stdin_filters(cmd: str, zone2_re: re.Pattern) -> str:
+    """cmd with downstream stdin-filter segments removed — but ONLY those that name no
+    Zone-2 path. `x | tail -n5 _roster.json` names one, so it stays and is still denied.
+    Segments after the first pipe only: a leading `tail file` is a real file read."""
+    parts = re.split(r"(\|\||&&|[;|\n])", cmd)      # keep separators to rejoin
+    out, after_pipe = [], False
+    for tok in parts:
+        if tok == "|":
+            after_pipe = True
+            out.append(tok)
+        elif tok in ("||", "&&", ";", "\n"):
+            after_pipe = False
+            out.append(tok)
+        elif after_pipe and _STDIN_FILTER.search(tok) and not zone2_re.search(tok):
+            continue
+        else:
+            out.append(tok)
+    return "".join(out)
+
+
+def _runs_toolkit(cmd: str) -> bool:
+    """The command runs a toolkit script — with or without a leading slash, so
+    `python lib/tools/x.py` is treated like `./lib/tools/x.py` (#334)."""
+    return bool(re.search(r"(?:^|[\s\"'/])lib/tools/", cmd.replace("\\", "/")))
+
+
 # A `*.py` token in a shell command — `python push.py`, `uv run … x.py`. The `\b`
 # after `.py` avoids matching `.python`. Quotes/pipes/parens bound the token.
 _SCRIPT_TOKEN = re.compile(r"[^\s;|&'\"()]+\.py\b")
@@ -412,7 +445,7 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
         # printed into a transcript is exposed even if the transcript is private,
         # and this fires on the python `open()`/`.read_text()` forms too, which is
         # how it actually gets leaked in practice (a script that prints a file).
-        if ("/lib/tools/" not in cmd.replace("\\", "/")
+        if (not _runs_toolkit(cmd)
                 and _credential_leak(cmd, _CRED_SHELL)):
             return (
                 "⛔ Canvas credential file — never cat/head/print it. It holds an API "
@@ -421,14 +454,18 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
                 "via _env_loader.load_env() and never surface the value. To see WHICH "
                 "keys are set without values: grep -o '^[A-Z_]*=' <file>"
             )
-        if ("/lib/tools/" not in cmd.replace("\\", "/")
-                and _RAW_READ.search(cmd) and _FERPA_FILE.search(cmd)):
+        checked = _without_stdin_filters(cmd, _FERPA_FILE)
+        read_m, file_m = _RAW_READ.search(checked), _FERPA_FILE.search(checked)
+        if not _runs_toolkit(cmd) and read_m and file_m:
             return (
                 "⛔ FERPA Zone-2 file — never cat/head/read it in a shell (AGENTS.md → FERPA "
                 "discipline). It maps de-id codes ↔ names/user_ids; reading it into context "
                 "IS the re-identification the two-zone model prevents. Verify with `wc -l` / "
                 "`ls` only. To re-identify, run grader_reidentify.py (it reads the keymap "
-                "internally, never surfacing it) — do NOT reconstruct the map by hand."
+                "internally, never surfacing it) — do NOT reconstruct the map by hand. "
+                f"[matched read `{read_m.group(0).strip()}` + Zone-2 path "
+                f"`{file_m.group(0)}` in this command; a command with several parts is "
+                "denied as a whole — split it]"
             )
         # Run-catch: executing an EXISTING script whose BODY writes to Canvas. The
         # create (Write) / edit (Edit) hooks can't catch a script that already

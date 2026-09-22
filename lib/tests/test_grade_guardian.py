@@ -377,6 +377,47 @@ def test_bash_exempts_sanctioned_reidentify_reading_keymap():
     assert evaluate("Bash", {"command": cmd}) is None
 
 
+# --- #334: a stdin filter downstream of a pipe is not a read of a Zone-2 path ---
+
+def test_stdin_filter_after_pipe_is_not_a_zone2_read():
+    """`gen.py --out <zone2 path> | tail -8` writes; `tail` filters stdin. It was denied
+    because `tail` and the path appeared anywhere in the same command string (#334)."""
+    for cmd in (
+        "python3 make_grader.py t.js data.json grading/.review.csv 2>&1 | tail -8",
+        "python3 make_grader.py grading/.keymap.json 2>&1 | head -60",
+        "python3 make.py x grading/.review.csv | less",
+    ):
+        assert evaluate("Bash", {"command": cmd}) is None, cmd
+
+
+def test_filters_still_denied_when_they_name_or_feed_a_zone2_file():
+    """The relaxation must not open a hole: a filter that names the file, a leading
+    `tail file`, `cat`/`open(` anywhere, or content split across `;` segments."""
+    for cmd in (
+        "echo x | tail -n5 grading/.review.csv",             # filter names the path
+        "tail -n5 grading/.review.csv",                       # leading read, not stdin
+        "cat grading/.review.csv | head",                     # cat is the read
+        "python3 -c \"print(open('grading/.review.csv').read())\" | tail -3",
+        "python3 -c \"f='grading/.review.csv'; print(open(f).read())\"",
+        "cd grading && tail -n5 .review.csv",                 # after &&, not after a pipe
+    ):
+        assert evaluate("Bash", {"command": cmd}) is not None, cmd
+
+
+def test_toolkit_script_exempt_without_a_leading_slash():
+    """`python lib/tools/x.py` is the same sanctioned path as `./lib/tools/x.py` (#334)."""
+    cmd = ("cd canvas-toolbox && uv run python lib/tools/grader_reidentify.py "
+           "--map grading/kc3/.keymap.json")
+    assert evaluate("Bash", {"command": cmd}) is None
+
+
+def test_zone2_denial_names_what_matched():
+    """A compound command is denied as a whole; the message must say which read verb and
+    which path tripped it, or the operator can't tell which part to change (#334)."""
+    r = evaluate("Bash", {"command": "ls; cat grading/.review.csv; ls"})
+    assert r and "matched read `cat`" in r and ".review.csv" in r
+
+
 # --- Zone-2 pattern set: one source, two forms, course-local extension (#278) ---
 
 def test_both_zone2_forms_derive_from_one_list_and_cannot_drift():
