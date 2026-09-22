@@ -325,6 +325,8 @@ data = {"quiz[due_at]": new_due, "quiz[lock_at]": None, "quiz[unlock_at]": None}
 
 **Why it matters:** the peer-review list endpoint carries no scores (D7), so `peer_review_summary` must aggregate from the rubric's `peer_assessments`, joined to reviewees by `artifact_id` → submission → `user_id`. Anything reading only the submission will report peer ratings as missing.
 
+**One assessment per assessor per submission:** a second `peer_review` assessment by the same assessor on the same submission **replaces** the first — two posts of different scores left one peer assessment (the later scores), not two. A summary's `n_peer` therefore counts distinct reviewers, and re-posting is an edit, not an addition.
+
 **Provenance:** sandbox 427808 probe, 2026-09-21. Not yet confirmed: what a reviewee sees, and whether anonymity hides `assessor_id` from students — both need a second student.
 
 ### L25 — Group-assignment and peer-review fields behave identically on self-signup and teacher-assigned group sets
