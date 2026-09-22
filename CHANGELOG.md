@@ -10,6 +10,27 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`cb_report_bug.py --issue N` — comment on an existing issue instead of filing a new one (#275).**
+
+An agent that keeps investigating after filing routinely finds sharper evidence for
+the same defect; until now the only route was a second issue. `--issue N` posts to
+the worker's new `POST /comment` instead of `POST /bug` — mutually exclusive with
+`--title` (a comment has no title), same client-side scrub, `--dry-run`, and exit
+codes. Requires the paired edge-infra worker deploy (below); against the current
+production worker this returns 404 until that deploy happens.
+
+**Sister change, edge-infra `workers/bug-intake-worker`:** `POST /comment` accepts
+`{issue, body, ...}` and posts a GitHub issue comment — but **only for an issue
+number this worker itself filed** via `POST /bug`. Every successful `/bug` now
+records `filed:<number>` in the rate-limit KV (no ttl); `/comment` looks it up and
+refuses (403) any number it didn't file itself, so the maintainer's PAT stays
+scoped to "issues this pipe created," not "any issue or PR on the repo." If the KV
+namespace isn't bound, `/comment` refuses outright (503) rather than skip the
+check — `/bug`'s rate-limiting still degrades gracefully without KV, as before.
+`/bug` and `/comment` rate-limit independently (`rl:`/`rlc:` key prefixes) so
+filing a bug doesn't spend the budget for following up on it. **Needs a manual
+`wrangler deploy`** in edge-infra before `--issue` works against production.
+
 **`peer_review_summary.py` — per-student peer rating averages from a peer rubric (#331).**
 
 Read-only. Peer assessments are invisible on the submission (only the grading assessment
