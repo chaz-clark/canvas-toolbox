@@ -10,6 +10,97 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`cb_report_bug.py --issue N` — comment on an existing issue instead of filing a new one (#275).**
+
+An agent that keeps investigating after filing routinely finds sharper evidence for
+the same defect; until now the only route was a second issue. `--issue N` posts to
+the worker's new `POST /comment` instead of `POST /bug` — mutually exclusive with
+`--title` (a comment has no title), same client-side scrub, `--dry-run`, and exit
+codes. Requires the paired edge-infra worker deploy (below); against the current
+production worker this returns 404 until that deploy happens.
+
+**Sister change, edge-infra `workers/bug-intake-worker`:** `POST /comment` accepts
+`{issue, body, ...}` and posts a GitHub issue comment — but **only for an issue
+number this worker itself filed** via `POST /bug`. Every successful `/bug` now
+records `filed:<number>` in the rate-limit KV (no ttl); `/comment` looks it up and
+refuses (403) any number it didn't file itself, so the maintainer's PAT stays
+scoped to "issues this pipe created," not "any issue or PR on the repo." If the KV
+namespace isn't bound, `/comment` refuses outright (503) rather than skip the
+check — `/bug`'s rate-limiting still degrades gracefully without KV, as before.
+`/bug` and `/comment` rate-limit independently (`rl:`/`rlc:` key prefixes) so
+filing a bug doesn't spend the budget for following up on it. **Needs a manual
+`wrangler deploy`** in edge-infra before `--issue` works against production.
+
+**`peer_review_summary.py` — per-student peer rating averages from a peer rubric (#331).**
+
+Read-only. Peer assessments are invisible on the submission (only the grading assessment
+shows there, L24), so this reads them from the rubric
+(`include[]=peer_assessments&style=full`), joins each to its reviewee through the
+submission id, and reports per-criterion means plus one overall figure (each criterion as
+a share of its maximum, so a yes/no and a 1-5 scale weigh equally). Only
+`peer_review`-type assessments count; an assessment by the reviewee themself is reported
+as self. Keyed by `user_id`, **points only** — assessor names and free-text comments are
+never read into the output — and rows resting on fewer than 3 assessments are flagged.
+Optional `--csv`. Verified against real Canvas assessments in a sandbox (grading excluded,
+peer counted); also records L24's finding that a second assessment by the same assessor
+on the same submission replaces the first. Completes the #331 tool set.
+
+**`peer_review_assign.py` — pair group members as peer reviewers of each other (#331).**
+
+Canvas cannot scope reviewers to a group on an individual assignment (D8), so this creates
+the pairings explicitly from a group set — self-signup or instructor-assigned, both read
+the same. For each group every member reviews each groupmate (never self); existing pairs
+are skipped, so re-running after late submissions or group changes is safe. Leaves out
+non-active-student members (Test Student, dropped), skips reviewees who have not submitted
+(`--include-unsubmitted` overrides), never deletes pairs, refuses group assignments.
+Dry run by default, `--apply` writes and reads back, `canvas_course_guard`-gated
+(`--allow-enrolled` on live courses). **Output is counts only** — Canvas returns student
+names on the member endpoints and the tool keeps only ids, printing neither. Read paths
+checked against a real Canvas sandbox; pairing behavior with real students is
+documentation-sourced (no enrolled students available to test). Follow-up:
+`peer_review_summary.py`.
+**`grade_guardian` no longer denies a write-only command just because a `| tail` follows it (#334).**
+
+The Zone-2 shell check tested `_RAW_READ` and the protected path against the WHOLE
+command string, so `python make_grader.py … build/out.js 2>&1 | tail -8` was denied:
+`tail` matched as a read and the output path matched as Zone-2, though `tail` only
+filters stdin. The credential check beside it was already per-segment; this brings the
+Zone-2 check in line without opening a hole.
+
+- Downstream `head|tail|less|more|nl` segments that name **no** Zone-2 path are ignored.
+  Still denied: a filter that names the path (`x | tail -n5 .review.csv`), a leading
+  `tail file`, `cat`/`open(`/`json.load` anywhere, and reads split across `;` or `&&`.
+- `python lib/tools/x.py` (no leading slash) is exempt like `./lib/tools/x.py` — the
+  bug-report tool was blocked by the guard it reports on. Same-command exemption as
+  before, so `cat lib/tools/x.py; cat <zone2>` remains a known gap of that exemption.
+- The denial message now names the matched read verb and path.
+- **Follow-up (#338): matching is now per command SEGMENT, aware of quotes and heredocs.**
+  A read verb and a Zone-2 path in different steps (`python -c "open('/dev/null')…" &&
+  ls build/`) are no longer one read, and a Zone-2 name that is only words in a text
+  heredoc (`cat <<EOF | wc -c` / `cat > note.md <<EOF`) is not a read. A heredoc body
+  counts as code only when its segment runs an interpreter (`python3 - <<PY`,
+  `cat <<EOF | python3 -`). Quoted code is one unit, so a `;` inside it cannot separate
+  the path from the read. Indirection stays denied: `f=<path> && cat $f`,
+  `for f in <path>; do cat $f; done`, `while read f; do cat $f; done < <path>`, and
+  `<path> | xargs cat`. Tightened as it loosened: 18 adversarial must-deny variants and 7
+  must-allow variants are pinned in tests.
+- Not adopted from the report: exempting `make_grader.py`/`make_tool.py` as sanctioned —
+  that would trust arbitrary course-repo scripts inside a FERPA hook; the fixes above
+  already let the reported command run.
+
+**`peer_review_setup.py` — create a peer-review assignment with a rating rubric (#331).**
+
+New tool: creates ONE unpublished assignment with peer review (anonymous by default,
+manual or `--auto-count N` assignment, optional `--group-category-id`) and attaches a
+peer rubric built from a compact spec (`yesno`, `1-5`, `none|some|strong`) that never
+grades. Dry run by default, `--apply` writes, idempotent by title (a same-titled
+assignment is reported, never edited; a missing rubric is attached on re-run), every
+write read back, `canvas_course_guard`-gated (`--allow-enrolled` for live courses),
+and reports whether Enhanced Peer Review is on. Only text/upload submissions — Canvas
+documents that quizzes/discussions/external tools cannot be peer reviewed but its API
+stores the flag anyway (L22). Verified end-to-end on a sandbox. Follow-ups in #331:
+`peer_review_assign.py`, `peer_review_summary.py`.
+
 **`grade_guardian`'s bypass-detection regex would not have caught a script mimicking
 `grader_quiz_clear_pending.py`'s actual write mechanism.**
 

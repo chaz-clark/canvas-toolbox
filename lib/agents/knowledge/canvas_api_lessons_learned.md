@@ -301,6 +301,48 @@ data = {"quiz[due_at]": new_due, "quiz[lock_at]": None, "quiz[unlock_at]": None}
 
 **Provenance:** M119 Fall 2026 date migration handoff (2026-09-15); confirmed on live course 425166 against `w01-monday-class-prep-reminder` (set) and `w14-friday-class-prep-reminder` (clear) — `todo_date` alone, and `null` for clearing, both left the field unchanged on re-GET despite a `200` response; `student_todo_at` alongside a real value, and empty string for clearing, both persisted.
 
+### L22 — `peer_reviews=true` is accepted on quiz, discussion and paper assignments; only `external_tool` refuses it
+
+**What Canvas does:** the Assignments docs say `peer_reviews` only applies when `submission_types` excludes `external_tool`, `discussion_topic`, `online_quiz` and `on_paper`. In practice `POST /courses/:cid/assignments` with `peer_reviews=true` stored `true` for `online_quiz`, `discussion_topic` and `on_paper`, and returned `false` only for `external_tool`. A create with `peer_reviews=true` + `anonymous_peer_reviews=true` + `automatic_peer_reviews=false` on an `online_text_entry` assignment round-trips all three flags (unpublished by default; `peer_review_count` and `intra_group_peer_reviews` come back `null` / `false`).
+
+**Why it matters:** a tool that trusts the echoed `peer_reviews` flag would report success on an assignment type where peer review does not actually work in the UI. Whether Canvas honours the stored flag on those types was not tested.
+
+**How the toolkit should handle it:** a peer-review setup tool creates `online_text_entry` / `online_upload` assignments only and refuses other `submission_types` itself rather than reading the echo.
+
+**Provenance:** sandbox 427808 probe, 2026-09-21 (issue #331).
+
+### L23 — Peer-review creation needs a real second student; the submission id exists before anything is submitted
+
+**What Canvas does:** an unsubmitted student already has a placeholder submission — `GET /assignments/:aid/submissions/:user_id` returns an `id` with `workflow_state: unsubmitted`. `POST .../submissions/:submission_id/peer_reviews` then behaved as follows: instructor as reviewer → `404 The specified resource does not exist`; the submission's own author as reviewer → `400 {"base": "Create failed"}`. The reviewer must be a different enrolled student. `DELETE` for a review that does not exist → `404`.
+
+**Why it matters:** an instructor cannot be assigned as a peer reviewer this way, and self-review is refused, so `peer_review_assign` must skip self (as the issue says) and only pair enrolled students. Whether a review can be created against an *unsubmitted* submission was **not** resolved — the sandbox has one student, so the only failures seen were the reviewer-side ones above.
+
+**Provenance:** sandbox 427808 probe, 2026-09-21. Open: repeat with two students.
+
+### L24 — Peer rubric assessments are invisible on the submission; read them from the rubric
+
+**What Canvas does:** `POST /courses/:cid/rubric_associations/:id/rubric_assessments` with `rubric_assessment[assessment_type]=peer_review` succeeds for an instructor (`assessor_id` = the instructor) and does **not** change the submission score (stayed `null`). Reading back: `GET .../submissions/:user_id?include[]=rubric_assessment` and `include[]=full_rubric_assessment` return only the `grading` assessment — with no grading assessment they return `null`. `GET /courses/:cid/rubrics/:rid?include[]=assessments&style=full` also returns only `grading`. The peer assessments come from `GET /courses/:cid/rubrics/:rid?include[]=peer_assessments&style=full`, each with `assessment_type: peer_review`, `assessor_id`, `artifact_id` (the submission) and per-criterion `data`. A point value that matches no rating comes back with `description: "No details"` and a `null` rating id. `use_for_grading=false` on the rubric association is accepted and honoured.
+
+**Why it matters:** the peer-review list endpoint carries no scores (D7), so `peer_review_summary` must aggregate from the rubric's `peer_assessments`, joined to reviewees by `artifact_id` → submission → `user_id`. Anything reading only the submission will report peer ratings as missing.
+
+**One assessment per assessor per submission:** a second `peer_review` assessment by the same assessor on the same submission **replaces** the first — two posts of different scores left one peer assessment (the later scores), not two. A summary's `n_peer` therefore counts distinct reviewers, and re-posting is an edit, not an addition.
+
+**Provenance:** sandbox 427808 probe, 2026-09-21. Not yet confirmed: what a reviewee sees, and whether anonymity hides `assessor_id` from students — both need a second student.
+
+### L25 — Group-assignment and peer-review fields behave identically on self-signup and teacher-assigned group sets
+
+**What Canvas does:** `group_category_id`, `peer_reviews`, `anonymous_peer_reviews`, `intra_group_peer_reviews` and `grade_group_students_individually` all round-trip on `POST /courses/:cid/assignments`, with the same result against a teacher-assigned set (`self_signup: null`) and a self-signup set (`self_signup: enabled`, `group_limit`). Automatic mode round-trips too: `automatic_peer_reviews=true` + `peer_review_count=2` + `peer_reviews_assign_at` (after `due_at`). `PUT` with only `group_category_id` on an existing individual assignment returned `200` and set it (on an assignment with no submissions or overrides; the docs' "must be set at creation for overrides" was not exercised). `intra_group_peer_reviews=true` is also *stored* on an assignment with no `group_category_id` — the docs describe it as group-assignment-only, so a stored flag proves nothing about effect. `assign_unassigned_members` with `sync=true` returns `200` with an empty body when nobody is unassigned.
+
+**Why it matters:** a peer-review tool can treat a group set as an opaque source of membership. It should not branch on how the set was populated. `GET /group_categories/:id/users` and `.../groups` are the read surface either way.
+
+**Sandbox limits:** the Test Student is not listed among a group set's users (`unassigned=true` returned 0), and a `POST /groups/:id/memberships` returned `403` on both set types — the token's `/courses/:id/permissions` showed `manage_groups: false` (also `add_student_to_course`, `manage_students`, and account-level `manage_user_logins` all false), so the 403 is a permission gap, not proof about the Test Student. Real membership, per-group submissions, and actual pairing behavior (does automatic mode skip your own group, what `intra_group_peer_reviews` really changes) are still **unverified** and need enrolled fake students.
+
+**Provenance:** sandbox 427808 probe, 2026-09-21.
+
+### Group sets (also verified 2026-09-21)
+
+`POST /courses/:cid/group_categories` with `self_signup=enabled`, `create_group_count=1`, `group_limit=4` returned `200` and echoed `self_signup` and `group_limit`; `GET /group_categories/:id/users?unassigned=true` returned `200`. Deleting the category removed its groups.
+
 ---
 
 ## Cross-Cutting Patterns
