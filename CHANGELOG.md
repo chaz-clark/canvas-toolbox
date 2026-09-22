@@ -1,14 +1,43 @@
 # Changelog
 
 All notable changes to canvas-toolbox. Format follows [Keep a
-Changelog](https://keepachangelog.com/). Versioning follows [SemVer](https://semver.org/)
-on the `1.x` line — see the **Versioning policy** in [AGENTS.md → Active Context](AGENTS.md#active-context).
+Changelog](https://keepachangelog.com/). Versioning follows [SemVer](https://semver.org/) —
+see the **Versioning policy** in [AGENTS.md → Active Context](AGENTS.md#active-context).
+(Shipped `2.0.0` for the v2 agent-packaging architecture; the "shape changes stay on the
+1.x line" policy that held through v1.8-v1.22 was a deliberate choice for THAT scale of
+change, not a permanent ceiling.)
 
 For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ---
 
 ## [Unreleased]
+
+**A fresh v2 flat-layout install silently lost real content and skipped real steps a nested install always had (#317 follow-up).**
+
+Found by actually running the bootstrap end-to-end in a scratch directory, not by reading
+code — the four pilots that validated #317 all migrated an *existing* nested install, so a
+genuinely from-scratch flat bootstrap had never been exercised.
+
+- **`cb_flatten.py`'s "fresh" AGENTS.md write was the bare toolkit constitution** — no
+  course section at all, silently dropping the Toyota quality-discipline block, the
+  grading pointer, the vendored-tools reminder, and the HERMES Course Context stub that
+  nested installs always got via `cb_init.py`'s `step_12`. Restored via one shared body
+  (`merge_cleanup.default_course_content`, flat/nested variants) both paths now draw from.
+- **`cb_flatten.py`'s own `main()` never installed the `.claude/CLAUDE.md` shim.** Claude
+  Code does not read `AGENTS.md`, only `CLAUDE.md` — so a course bootstrapped by
+  `cb_flatten.py` alone (before any `cb_update.py` run) had a constitution Claude Code
+  would never load at all, not just a missing course section. Now installed as part of
+  `cb_flatten`'s own apply flow.
+- **`cb_init.py`'s steps 10/11/12 gated on `is_subdir` alone**, conflating "not nested"
+  with "the maintainer's own toolkit dev repo." A v2 flat adopter is "not nested" but very
+  much a real course — Canvas sync, course `.gitignore`, and AGENTS.md handling were all
+  silently skipped. Now gated on `mode` (adopter vs. maintainer), the signal that already
+  existed for exactly this distinction.
+- `report_pyproject_deps()` now writes a minimal `pyproject.toml` when **none exists at
+  all** (never when one already exists — the #327 identity-clobber protection is
+  unchanged) — a truly fresh install used to leave a human hand-copying 14 dependency
+  strings before `uv sync` could even run.
 
 **`cb_report_bug.py --issue N` — comment on an existing issue instead of filing a new one (#275).**
 
