@@ -21,8 +21,11 @@ course_src/
 # AI coding tool local memory / caches — per-user, never committed
 .gemini/
 .claude/cache/
+.claude/commands/
+.claude/settings.json
 .cursor/
 .aider*
+.vscode/
 
 # Dev tools — maintainer-only scripts for managing the toolkit itself
 # (e.g. add_roadmap_feature.py for updating voting system)
@@ -121,3 +124,6 @@ handoffs/
 *.backup
 *.bak
 *.orig
+
+.databricks
+databricks.yml
