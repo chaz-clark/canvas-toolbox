@@ -265,18 +265,38 @@ canvas-toolbox/
 ├── lib/
 │   ├── agents/            ← agent specs, knowledge/, templates/, AGENT_LAYERS.md
 │   ├── tools/             ← Python CLIs (uv run python lib/tools/<script>)
-│   └── tests/             ← pytest
-├── .claude/skills/        ← operating-mode skills (grading, course-build, audit, …)
-├── scaffold/              ← copy-once starters (.gitignore, .env.example)
+│   └── tests/             ← pytest (dev-only — not distributed to course repos)
+├── skills/                ← operating-mode skills, CANONICAL source (grading,
+│                             course-build, audit, …)
+├── .claude/skills/, .agents/skills/  ← GENERATED runtime adapters — never edit
+│                             directly; regenerate via generate_adapters.py
+├── agent-packages/        ← schema-validated capability manifests (course-design,
+│                             grading, student-support) + registry.yaml
+├── schemas/                ← package-manifest / distribution-manifest JSON schemas
+├── distribution/manifest.yaml  ← the course-facing payload allowlist — narrower
+│                             than `git ls-files`; see the file's own header
+├── bin/                    ← cb-init, cb-report-bug, cb-share entry points
+├── scaffold/                ← copy-once starters (.gitignore, .env.example)
+├── knowledge/                ← cross-cutting knowledge (behavioral discipline,
+│                             naming conventions, trunk-based development)
 ├── docs/, examples/, README.md, CHANGELOG.md
 ```
 
-**Consumer usage (v1.6+):** a course repo clones `canvas-toolbox` into its root
-(gitignored), runs `cb_init.py` to create course files (.env, .gitignore, AGENTS.md)
-at course root, and runs tools from there: `uv run python canvas-toolbox/lib/tools/<script>`.
-Update: `cd canvas-toolbox && git pull` — toolkit code updates; course files
-untouched. When in a consumer repo and `canvas-toolbox/` is behind latest, surface
-[`docs/UPGRADING.md`](docs/UPGRADING.md).
+**Consumer usage (v2.0+, flat layout — current default):** `cb_init.py`/`cb_flatten.py`
+bootstrap a course repo directly at its own root — no visible `canvas-toolbox/`
+subdirectory. A hidden pristine clone (`.canvas-toolbox/`, gitignored) is the update
+source; `cb_flatten.py` copies the distribution manifest's allowlist into the course
+root and merges AGENTS.md (constitution + the course's own HERMES learning, joined by
+sentinel markers — see `merge_cleanup.py`). Run tools from the course root:
+`uv run python lib/tools/<script>`. Update: `uv run python lib/tools/cb_update.py --pull --apply`.
+
+**Legacy nested layout (v1.6–v1.22, still supported):** a course repo clones
+`canvas-toolbox` into its own root (gitignored) as a visible subdirectory, runs
+`cb_init.py` from there, and runs tools via
+`uv run python canvas-toolbox/lib/tools/<script>`. Update: `cd canvas-toolbox && git pull`.
+`migrate_nested_to_flat.py` converts an existing nested install to flat.
+[`docs/UPGRADING.md`](docs/UPGRADING.md) predates the flat layout — it currently
+only covers nested-layout version bumps.
 
 Full setup/command reference: [`README.md`](README.md). Agent-layer taxonomy:
 [`lib/agents/AGENT_LAYERS.md`](lib/agents/AGENT_LAYERS.md).
@@ -323,16 +343,24 @@ Dev tools (gitignored) → add to `.gitignore` on creation.
 
 ## Active Context
 
-_Last updated: 2026-07-28._ Latest few releases only; full history in
+_Last updated: 2026-09-22._ Latest few releases only; full history in
 [`CHANGELOG.md`](CHANGELOG.md).
 
-- **v1.7.31–1.7.39 (grading-safety + tooling train, 2026-07-27/28):** TTY-only push
-  confirmation (#241); `grader_standing` standing-column tool; `grade_guardian` now
-  catches bypass scripts at create/edit **and run**; engagement-audit auto-dates from
-  Canvas + includes inactive students; disclosure-tag menu (`--disclosure
-  ai|hybrid|script`); `build_deid_master` dedups multi-section students.
-- **v1.7 offline mode (v1.7.0, 2026-07-12):** tools read a local `course/`; 7 audits
-  gained `--local`; `.imscc` round-trip (`offline_import` → edit → `imscc_record`).
+- **v2.0.0 — runtime-neutral agent packaging (2026-09-22, #317):** the flat layout
+  above, replacing the nested `canvas-toolbox/` subdirectory as the default consumer
+  model. Distribution manifest, schema-validated agent packages, and a
+  capability-consent gate (instructor approves Canvas-write capability growth
+  explicitly — see `capability_consent.py`). Validated by real pilots against four
+  live course repos before merge. A known gap tracked separately, not merge-blocking:
+  `--approve-all` has no check for an unattended/scheduled invocation (#343).
+- **v1.22.x — peer review + intake follow-ups (2026-09-21/22):** `peer_review_setup.py`
+  / `peer_review_assign.py` / `peer_review_summary.py` (#331); `cb_report_bug.py --issue
+  N` to comment on an existing filed issue instead of always opening a new one (#275);
+  `grade_guardian`'s Zone-2 shell-read matching moved to per-segment, quote- and
+  heredoc-aware (#334, #338), closing several false-positive denials.
+- **v1.8–v1.21 (2026-08):** the skills split (operating-mode skills as loadable units
+  instead of one monolithic constitution — 1.8.0 is its milestone); see `CHANGELOG.md`
+  for the full run.
 - **v1.6 course-centric architecture (v1.6.0, 2026-07-07):** course files live at
   course root, not inside canvas-toolbox/; `cb_init` auto-detects context.
 
