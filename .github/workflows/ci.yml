@@ -84,6 +84,19 @@ jobs:
       - name: Pytest (pure-logic helpers only)
         run: uv run pytest lib/tests/ -v -k "not sprint"
 
+      # ── Tier 1b: agent-package manifest validation (v2, #317 Phase 2) ──
+      # --allow-empty until Phase 3 creates real agent-packages/*/manifest.yaml
+      # files; the check still catches a malformed/forbidden-path manifest or a
+      # drifted vendored plugin.json schema the moment either is added.
+      - name: Validate agent-package manifests
+        run: uv run python lib/tools/package_validate.py --allow-empty
+
+      - name: Check agent-package registry/catalog is current
+        run: uv run python lib/tools/package_catalog.py --check
+
+      - name: Check generated skill adapters are current
+        run: uv run python lib/tools/generate_adapters.py --check
+
       # ── Tier 2: ruff lint — bug-catching rules only, see [tool.ruff] in
       # pyproject.toml. v0.53.0 caught a real F821 in course_mirror.py
       # (referenced master_slug never defined). Stylistic rules (F541,

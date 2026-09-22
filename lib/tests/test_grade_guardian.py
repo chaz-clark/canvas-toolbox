@@ -129,13 +129,13 @@ def test_denies_edit_that_introduces_a_canvas_write():
 
 
 def test_denies_a_bypass_that_zeroes_quiz_scores_without_posted_grade(tmp_path):
-    """A Classic Quiz grade can be changed WITHOUT ever touching posted_grade or
-    an /assignments/.../submissions URL — grader_quiz_clear_pending.py's own
-    sanctioned mechanism is PUT .../quizzes/{qid}/submissions/{id} with
-    {"questions": {q: {"score": 0}}}. An audit of every sanctioned writer's real
-    payload against this pattern found this shape wasn't covered — a hand-written
-    bypass mimicking it would have gone undetected. Regression-pinned against the
-    real fix."""
+    """#317 Phase 9: a Classic Quiz grade can be changed WITHOUT ever touching
+    posted_grade or an /assignments/.../submissions URL — grader_quiz_clear_pending.py's
+    own sanctioned mechanism is PUT .../quizzes/{qid}/submissions/{id} with
+    {"questions": {q: {"score": 0}}}. A cross-check that every sanctioned writer's
+    real payload would actually be caught by this pattern (test_safety_regression.py)
+    found this shape wasn't covered — a hand-written bypass mimicking it would have
+    gone undetected. Regression-pinned here against the real fix."""
     body = ('requests.put(f"{base}/api/v1/courses/{cid}/quizzes/{qid}/submissions/{sid}", '
             'json={"quiz_submissions": [{"questions": {"123": {"score": 0}}}]})')
     reason = evaluate("Write", {"file_path": "/tmp/zero_quiz.py", "content": body})

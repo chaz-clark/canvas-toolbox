@@ -12,6 +12,13 @@ Built at BYU-Idaho. Designed for all instructors. Works with any Canvas institut
 
 > **Follow your institution's AI policy** — refer to and abide by your university's generative-AI policy when using this tool.
 
+> [!IMPORTANT]
+> **Canvas Toolbox 2.0 is under development on `feat/v2-agent-packaging`.** The branch currently
+> contains validated architecture and runtime-discovery evidence, but it is not yet a faculty beta
+> and should not be installed into an existing course repository. Maintainer testing is tracked in
+> [the v2 pilot guide](docs/V2_TESTING.md). The setup steps below remain the supported 1.x workflow
+> until that guide marks the v2 fresh-install and migration stages ready.
+
 ---
 
 # Getting started

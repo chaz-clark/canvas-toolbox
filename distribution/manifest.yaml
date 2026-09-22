@@ -1,0 +1,67 @@
+schema_version: 1
+version: "2.0.0"
+packages:
+  - course-design
+  - grading
+  - student-support
+
+# The course-facing payload: what cb_flatten.py copies into a course root. This is
+# deliberately narrower than `git ls-files` (which answers "is this toolkit-owned?",
+# not "should this land in every course repo?" — see docs/proposals/v2-agent-packaging-
+# plan.md section 8). Each entry is resolved against the clone's tracked-file set —
+# a `tree` entry expands to every tracked file under that directory; a `file` entry
+# is that exact path. Nothing here is invented; resolution only ever selects paths
+# that are actually git-tracked in the toolkit.
+#
+# Deliberately EXCLUDED (developer-only, research, or toolkit-repo-level — a course
+# gains nothing from a local copy and the hidden `.canvas-toolbox/` clone already
+# holds the full history if anyone needs it): lib/tests/, lib/marketing/, docs/
+# (ROADMAP, UPGRADING, proposals/, research/, architecture/, implementation/),
+# .github/, examples/, .claude-plugin/, .devcontainer/, scripts/ (curl-pipe-bash
+# bootstrap installers, only useful before the toolkit exists locally), and
+# toolkit-repo-root files (README.md, CHANGELOG.md, LICENSE, llms.txt,
+# .pre-commit-config.yaml, .gitattributes, the toolkit's own .env.example).
+#
+# schemas/ IS included despite being dev-tooling-shaped: lib/tools/package_validate.py
+# is flattened (it lives under lib/tools/) and hard-fails without it — a distribution
+# entry set is about what a SHIPPED TOOL needs at runtime, not a file's category.
+entries:
+  - path: bin
+    kind: tree
+    install: copy
+  - path: lib/agents
+    kind: tree
+    install: copy
+  - path: lib/tools
+    kind: tree
+    install: copy
+  - path: agent-packages
+    kind: tree
+    install: copy
+  - path: skills
+    kind: tree
+    install: copy
+  - path: .claude/skills
+    kind: tree
+    install: copy
+  - path: .agents/skills
+    kind: tree
+    install: copy
+  - path: scaffold
+    kind: tree
+    install: copy
+  - path: knowledge
+    kind: tree
+    install: copy
+  - path: schemas
+    kind: tree
+    install: copy
+  - path: pyproject.toml
+    kind: file
+    install: copy
+  - path: uv.lock
+    kind: file
+    install: copy
+  - path: .python-version
+    kind: file
+    install: copy

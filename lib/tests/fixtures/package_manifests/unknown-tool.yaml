@@ -1,0 +1,23 @@
+schema_version: 1
+id: unknown-tool
+version: "2.0.0"
+name: Unknown Tool Fixture
+description: A visibly synthetic invalid package.
+entry_prompt: fixtures/AGENT.md
+requires_course_folder: false
+skills:
+  - id: fixture-skill
+    path: fixtures/skills/fixture-skill
+tools:
+  - id: outside-tool-root
+    command: scripts/not-a-tool.py
+    effect: read
+    data_class: none
+    approval: none
+data_access:
+  classes: [none]
+  ferpa_zone_2: deny
+  student_names_in_evaluations: deny
+credentials: []
+network: [none]
+ships: false

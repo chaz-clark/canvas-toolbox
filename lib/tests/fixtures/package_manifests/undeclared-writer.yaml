@@ -1,0 +1,23 @@
+schema_version: 1
+id: undeclared-writer
+version: "2.0.0"
+name: Writer Fixture
+description: A visibly synthetic invalid package.
+entry_prompt: fixtures/AGENT.md
+requires_course_folder: true
+skills:
+  - id: fixture-skill
+    path: fixtures/skills/fixture-skill
+tools:
+  - id: grade-writer
+    command: lib/tools/grader_push.py
+    effect: read
+    data_class: student_evaluation
+    approval: review
+data_access:
+  classes: [student_evaluation]
+  ferpa_zone_2: deny
+  student_names_in_evaluations: deny
+credentials: [CANVAS_API_TOKEN, CANVAS_BASE_URL]
+network: [canvas_base_url_only]
+ships: false
