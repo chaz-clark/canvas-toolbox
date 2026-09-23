@@ -13,6 +13,17 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**AGENTS.md — Toyota Quality Loop promoted to its own no-override principle (P-011).**
+
+Make-AI-Agents (the sister repo this project's behavioral discipline is sourced from)
+has moved Genchi Gembutsu / Jidoka / Poka-yoke from an example-driven aside into a
+formal, no-override principle — P-011, co-equal with P-001/P-003/P-007/P-010 — with
+explicit per-principle behavioral triggers. AGENTS.md's "Working style" section
+previously compressed this into one paragraph; it's now its own section, matching the
+same full form already shipped in `merge_cleanup.default_course_content()` for course
+repos (#317), so canvas-toolbox's own constitution and what it hands to consumers say
+the same thing. No behavior change — a documentation/discipline-citation alignment.
+
 **A fresh v2 flat-layout install silently lost real content and skipped real steps a nested install always had (#317 follow-up).**
 
 Found by actually running the bootstrap end-to-end in a scratch directory, not by reading

@@ -206,14 +206,9 @@ Every contributor — human or LLM — operates under the behavioral discipline 
 populated) or the equivalent loaded via the host tool's skill system: read before
 claiming, plan before acting, stop on the first defect, find root causes, generate
 exactly what was asked (no speculative additions), mistake-proof outputs, and respect
-intent without drift. The four **no-override** principles apply unconditionally:
-**P-001 Read Before Claiming, P-003 Stop on Defect, P-007 Pull Don't Push, P-010
-Respect Intent.**
-
-**Toyota Production System discipline:** *Genchi Gembutsu* (verify with real data —
-when you say "probably", STOP and check), *Jidoka* (write tests with code; a red test
-blocks progress), *Poka-yoke* (design mistakes out). Quality loop: Prevent → Detect →
-Verify; on a defect, fix it, verify with real data, then add an automated guard.
+intent without drift. Five **no-override** principles apply unconditionally: **P-001
+Read Before Claiming, P-003 Stop on Defect, P-007 Pull Don't Push, P-010 Respect
+Intent, P-011 Toyota Quality Loop** (below).
 
 **Ground claims in the source — letters are read, not parsed.** Any statement you repeat
 to a student (their requested grade, their evidence, what their letter "says") must come
@@ -240,6 +235,36 @@ local files are the source of truth (Canvas is the sync target); ground pedagogi
 work in the knowledge base; match Canvas objects by title, not ID; keep institutional
 facts out of committed files; placeholder names must be visibly fake (`"Sarah" (fake
 name)`); deterministic-first grader design (Python over LLM when deterministic).
+
+---
+
+## Toyota Quality Loop (P-011 — no-override)
+
+Every task completes the loop: **Prevent (Poka-yoke) → Detect (Jidoka) → Verify
+(Genchi Gembutsu).** Violating it creates technical debt — Genchi Gembutsu without
+Jidoka verifies after the damage is done; Jidoka without Poka-yoke catches the same
+mistake repeatedly; Poka-yoke without Genchi Gembutsu prevents the wrong things.
+
+**Genchi Gembutsu (現地現物) — go and see.** Don't assume, verify with real data: test
+against real course data, not synthetic fixtures; when uncertain about a format,
+examine the actual file; verify in a real Canvas sandbox, don't trust docs alone; read
+the actual code before claiming to understand it.
+*Trigger: when you catch yourself saying "probably" or "should" → STOP and verify.*
+
+**Jidoka (自働化) — built-in quality, stop on defect.** Write tests with the code, not
+after; a red test blocks progress — fix it, don't defer; validation runs
+automatically, not as a manual step; a push with errors is blocked by design, not by
+discipline. *Trigger: when you want to say "we'll fix this later" → STOP and fix now
+(aligns with P-003).*
+
+**Poka-yoke (ポカヨケ) — mistake-proofing.** Design so the mistake can't happen:
+automate validation instead of a manual step; use hooks (`grade_guardian`,
+pre-commit) to catch errors at the harness, not at review; block the operation that
+would create the defect. *Trigger: when manual verification is required → design it
+out instead.*
+
+When you find a defect: fix it (Jidoka), verify the fix with real data (Genchi
+Gembutsu), then add an automated guard so it can't recur (Poka-yoke).
 
 ---
 
