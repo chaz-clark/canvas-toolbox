@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-canvas_shell_create.py — create a Canvas object shell that doesn't exist yet (#349, #351).
+canvas_shell_create.py — create a Canvas object shell that doesn't exist yet (#349,
+#351), or place an already-existing one into one or more modules (#355).
 
 WHY THIS EXISTS
   canvas_sync.py's --push only ever PUTs: every `_push_*` function requires a
@@ -24,6 +25,13 @@ WHY THIS EXISTS
   LTI-delivered with no content/settings write support via the API at all
   (Canvas-only, edit in the UI; see `_push_newquiz_dates()`'s own docstring in
   canvas_sync.py) — a platform ceiling, not a toolkit gap.
+
+  #355 closed a follow-on gap: module placement only ever fired inside
+  create_shell()'s success path, once, at creation time — so there was no way to
+  place an ALREADY-existing item into a module, and no way to place the SAME item
+  into a SECOND module at all (real case: an assignment living in both a weekly
+  module and a dedicated per-project module simultaneously). `--module-id` is now
+  repeatable, and `--place` places an existing item without creating anything.
 
 WHAT THIS DELIBERATELY DOES NOT DO
   Write the local `course/<module>/<slug>.json` file or `.canvas/index.json` entry
@@ -72,9 +80,14 @@ Usage:
   # dry run (default) — validates the draft, shows what would be created
   uv run python lib/tools/canvas_shell_create.py --draft prep_quiz.json
 
-  # create it (unpublished), optionally placed in a module
+  # create it (unpublished), optionally placed in one or more modules
   uv run python lib/tools/canvas_shell_create.py --draft prep_quiz.json --apply \\
-      --module-id 456789
+      --module-id 456789 --module-id 456790
+
+  # place an ALREADY-EXISTING item into one or more modules, no --draft needed
+  uv run python lib/tools/canvas_shell_create.py --place assignment \\
+      --title "Project 3 Compiled Report" --module-id 456789 --module-id 456791 \\
+      --apply
 
   # then, to track it locally like anything else canvas_sync manages:
   uv run python lib/tools/canvas_sync.py --pull
@@ -432,13 +445,49 @@ def create_shell(course_id: str, draft: dict) -> tuple[dict | None, str]:
     return back, ""
 
 
-def add_to_module(course_id: str, module_id: str, kind: str, content_id: int,
-                  title: str) -> tuple[bool, str]:
+def item_in_module(course_id: str, module_id: str, kind: str, content_id) -> bool:
+    """True if an item of this type/content already sits in this module — the
+    module-item equivalent of find_existing()'s idempotency-by-title, so placing
+    the same item into the same module twice is a no-op, not a duplicate row."""
+    item_type = {"quiz": "Quiz", "assignment": "Assignment",
+                 "page": "Page", "discussion": "Discussion"}[kind]
+    field = "page_url" if kind == "page" else "content_id"
+    for it in _get(f"/courses/{course_id}/modules/{module_id}/items") or []:
+        if isinstance(it, dict) and it.get("type") == item_type and it.get(field) == content_id:
+            return True
+    return False
+
+
+def add_to_module(course_id: str, module_id: str, kind: str, content_id,
+                  title: str) -> tuple[str, str]:
+    """Returns (status, error). status is 'added', 'already_in_module', or 'error'."""
+    if item_in_module(course_id, module_id, kind, content_id):
+        return "already_in_module", ""
     created, err = _post(f"/courses/{course_id}/modules/{module_id}/items",
                          build_module_item_payload(kind, content_id, title))
     if not created:
-        return False, err
-    return True, ""
+        return "error", err
+    return "added", ""
+
+
+def place_in_modules(course_id: str, kind: str, content_id, title: str,
+                     module_ids: list[str]) -> bool:
+    """Places (idempotently) into every module in module_ids — attempts all of
+    them even if one fails (#355: a course-wide-per-module network hiccup
+    shouldn't block placement into the OTHER modules), and prints a per-module
+    line so a partial failure is never silently swallowed. Returns True iff
+    every module succeeded (added or already there)."""
+    all_ok = True
+    for module_id in module_ids:
+        status, err = add_to_module(course_id, module_id, kind, content_id, title)
+        if status == "added":
+            print(f"  ✓ added to module {module_id}")
+        elif status == "already_in_module":
+            print(f"  ✓ already in module {module_id} — nothing to do")
+        else:
+            print(f"  ✗ ERROR adding to module {module_id}: {err}")
+            all_ok = False
+    return all_ok
 
 
 def main() -> int:
@@ -446,17 +495,29 @@ def main() -> int:
 
     ap = argparse.ArgumentParser(
         description="Create a Canvas object shell (quiz, assignment, page, discussion, "
-                    "module, or assignment group), unpublished.")
+                    "module, or assignment group), unpublished — or place an "
+                    "already-existing one into one or more modules (--place).")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
-    ap.add_argument("--draft", required=True, metavar="PATH",
-                    help="Local JSON file describing the shell — see this file's own "
-                         "docstring for the shape.")
-    ap.add_argument("--module-id", default=None,
-                    help="Add the created item to this module. Only valid for "
-                         f"kind in {sorted(_MODULE_ITEM_KINDS)} — modules and "
-                         "assignment groups are never module items themselves. "
-                         "Omit to create it unfiled (real in Canvas, but invisible "
-                         "to canvas_sync's own tracking until placed in a module).")
+    ap.add_argument("--draft", default=None, metavar="PATH",
+                    help="Local JSON file describing the shell to CREATE — see this "
+                         "file's own docstring for the shape. Mutually exclusive "
+                         "with --place.")
+    ap.add_argument("--place", choices=sorted(_MODULE_ITEM_KINDS), default=None,
+                    help="Place an ALREADY-EXISTING item of this kind into one or "
+                         "more modules (#355), instead of creating anything. "
+                         "Requires --title and at least one --module-id.")
+    ap.add_argument("--title", default=None,
+                    help="Exact title of the existing item to place — only used "
+                         "with --place.")
+    ap.add_argument("--module-id", action="append", default=[],
+                    help="Place the item in this module. Repeatable — pass "
+                         "--module-id more than once to place into 2+ modules "
+                         "(#355). Only valid for kind in "
+                         f"{sorted(_MODULE_ITEM_KINDS)} — modules and assignment "
+                         "groups are never module items themselves. With --draft "
+                         "and omitted, the created item is left unfiled (real in "
+                         "Canvas, but invisible to canvas_sync's own tracking "
+                         "until placed in a module).")
     ap.add_argument("--target", default="CANVAS_COURSE_ID",
                     help="Env var holding the course id (default CANVAS_COURSE_ID)")
     ap.add_argument("--course-id", default=None, help="Literal course id; overrides --target")
@@ -476,8 +537,65 @@ def main() -> int:
         print("       Set the env var, or pass --course-id <id> directly.")
         return 2
 
+    if args.draft and args.place:
+        print("ERROR: --draft (create) and --place (place an existing item) are "
+              "mutually exclusive.")
+        return 2
+    if not args.draft and not args.place:
+        print("ERROR: one of --draft or --place is required.")
+        return 2
+
+    if args.place:
+        return _run_place(course_id=course_id, kind=args.place, title=args.title,
+                          module_ids=args.module_id, apply=args.apply,
+                          allow_enrolled=args.allow_enrolled)
+    return _run_create(course_id=course_id, draft_path=args.draft,
+                       module_ids=args.module_id, apply=args.apply,
+                       allow_enrolled=args.allow_enrolled)
+
+
+def _run_place(*, course_id: str, kind: str, title: str | None, module_ids: list[str],
+               apply: bool, allow_enrolled: bool) -> int:
+    if not title or not title.strip():
+        print("ERROR: --place requires --title (the exact title of the existing item).")
+        return 2
+    if not module_ids:
+        print("ERROR: --place requires at least one --module-id.")
+        return 2
+
+    print(f"Place existing {kind}: {title}"
+          f"   ({'APPLYING' if apply else 'DRY RUN — pass --apply to write'})")
+    for module_id in module_ids:
+        print(f"  module:          {module_id}")
+
+    guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
+                  mode="write" if apply else "read",
+                  allow_override=allow_enrolled, label="shell-create target")
+
+    existing = find_existing(course_id, kind, title)
+    if not existing:
+        print(f"\nERROR: no existing {kind} titled {title!r} found in course {course_id}.")
+        return 1
+    id_field = _KIND_ID_FIELD.get(kind, "id")
+    ident = existing[id_field]
+    print(f"\n  found existing {kind} ({id_field} {ident})")
+
+    if not apply:
+        print("\nRe-run with --apply to place it.")
+        return 0
+
+    ok = place_in_modules(course_id, kind, ident, title, module_ids)
+    if not ok:
+        return 1
+    print(f"\nNext: run `uv run python lib/tools/canvas_sync.py --pull` to track this "
+          f"{kind} locally like everything else canvas_sync manages.")
+    return 0
+
+
+def _run_create(*, course_id: str, draft_path: str, module_ids: list[str],
+                apply: bool, allow_enrolled: bool) -> int:
     try:
-        draft = load_draft(args.draft)
+        draft = load_draft(draft_path)
     except ValueError as e:
         print(f"ERROR: {e}")
         return 2
@@ -491,33 +609,44 @@ def main() -> int:
     id_field = _KIND_ID_FIELD.get(kind, "id")
     module_eligible = kind in _MODULE_ITEM_KINDS
 
-    if args.module_id and not module_eligible:
+    if module_ids and not module_eligible:
         print(f"ERROR: --module-id is not valid for kind '{kind}' — modules and "
               "assignment groups are never module items themselves.")
         return 2
 
     print(f"{kind.replace('_', ' ').capitalize()} shell: {draft['title']}"
-          f"   ({'APPLYING' if args.apply else 'DRY RUN — pass --apply to write'})")
+          f"   ({'APPLYING' if apply else 'DRY RUN — pass --apply to write'})")
     print_plan(draft)
     if module_eligible:
-        if args.module_id:
-            print(f"  module:          {args.module_id}")
+        if module_ids:
+            for module_id in module_ids:
+                print(f"  module:          {module_id}")
         else:
             print("  module:          (none — will not be picked up by `canvas_sync.py "
                   "--pull` until placed in a module)")
 
     guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
-                  mode="write" if args.apply else "read",
-                  allow_override=args.allow_enrolled, label="shell-create target")
+                  mode="write" if apply else "read",
+                  allow_override=allow_enrolled, label="shell-create target")
 
     existing = find_existing(course_id, kind, draft["title"])
     if existing:
-        print(f"\n  already exists ({id_field} {existing.get(id_field)}) — nothing to do. "
+        ident = existing[id_field]
+        print(f"\n  already exists ({id_field} {ident}) — nothing to do. "
               f"This tool never edits an existing {kind}; use canvas_sync.py --push "
               f"for that once it's tracked locally.")
+        if module_ids and module_eligible:
+            if not apply:
+                print("\nRe-run with --apply to place it in the requested module(s).")
+                return 0
+            # #355: hitting "already exists" used to short-circuit before ever
+            # reaching module placement, so --module-id silently did nothing on
+            # a second run. Place it (idempotently) instead of just returning.
+            ok = place_in_modules(course_id, kind, ident, draft["title"], module_ids)
+            return 0 if ok else 1
         return 0
 
-    if not args.apply:
+    if not apply:
         print("\nRe-run with --apply to create it.")
         return 0
 
@@ -529,25 +658,24 @@ def main() -> int:
     status = "no publish state" if kind in _KINDS_WITHOUT_PUBLISH_STATE else "unpublished"
     print(f"\n  ✓ {kind} created and verified ({id_field} {ident}, {status})")
 
-    if args.module_id:
-        ok, err = add_to_module(course_id, args.module_id, kind, ident, draft["title"])
-        if not ok:
-            print(f"\nERROR adding to module {args.module_id}: {err}")
-            print(f"  The {kind} exists ({id_field} {ident}) but was not placed in a "
-                  f"module. Add it manually in Canvas, or re-run this tool's "
-                  f"module-add step.")
-            return 1
-        print(f"  ✓ added to module {args.module_id}")
+    place_ok = True
+    if module_ids:
+        place_ok = place_in_modules(course_id, kind, ident, draft["title"], module_ids)
+        if not place_ok:
+            print(f"\n  The {kind} exists ({id_field} {ident}) but was not placed in "
+                  f"every requested module. Add the missing one(s) manually in "
+                  f"Canvas, or re-run with --place --title {draft['title']!r} "
+                  f"--module-id <id>.")
 
     if module_eligible:
         print(f"\nNext: run `uv run python lib/tools/canvas_sync.py --pull` to track this "
               f"{kind} locally like everything else canvas_sync manages"
-              + ("." if args.module_id else
+              + ("." if module_ids else
                  " — note it won't be picked up until it's placed in a module."))
     else:
         print(f"\nNext: run `uv run python lib/tools/canvas_sync.py --pull` to track this "
               f"{kind} locally — {kind}s are pulled directly, no module placement needed.")
-    return 0
+    return 0 if place_ok else 1
 
 
 if __name__ == "__main__":

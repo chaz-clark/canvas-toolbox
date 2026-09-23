@@ -13,6 +13,29 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`canvas_shell_create.py` — place an already-existing item into modules, incl. 2+ at once (#355).**
+
+Follow-on gap from #349–#351: module placement only ever fired inside `create_shell()`'s
+success path, once, at creation time. Two real problems this closes: `--module-id` is now
+repeatable (`--module-id 111 --module-id 222`), so the same item can be placed into 2+
+modules — a confirmed real case (an assignment living in both a weekly module and a
+dedicated per-project module simultaneously); and a new `--place <kind> --title "..."
+--module-id <id>` mode places an already-existing item without creating anything, for
+when the item's module wasn't decided at creation time.
+
+Also fixes the "already exists" short-circuit: re-running `--draft ... --module-id X`
+against an item that already exists used to print "already exists — nothing to do" and
+return immediately, silently ignoring `--module-id` on that run. It now places the
+existing item into the requested module(s) instead (idempotently — a module the item's
+already in is reported, not duplicated).
+
+Sandbox-verified end-to-end (course 427808): created a quiz, placed it via `--place` into
+a module, placed it into a second module in the same run (confirming the first was
+reported idempotent, not re-added), then re-ran `--draft` create-mode against the now-existing
+quiz with a third `--module-id` and confirmed it placed rather than no-op'd. A real
+`canvas_sync.py --pull` correctly discovered and mirrored the quiz once per module, matching
+how a genuinely multi-module item already pulls today. Deleted afterward.
+
 **`canvas_shell_create.py` extended — page, discussion, module, and assignment-group shells (#351).**
 
 #349/#350 closed the create-vs-update gap for quiz/assignment shells. A follow-up sweep

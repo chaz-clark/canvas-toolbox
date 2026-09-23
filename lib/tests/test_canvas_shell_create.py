@@ -25,7 +25,9 @@ from canvas_shell_create import (  # noqa: E402
     build_page_payload,
     build_quiz_payload,
     find_existing,
+    item_in_module,
     load_draft,
+    place_in_modules,
     validate_draft,
 )
 
@@ -389,3 +391,172 @@ def test_invalid_draft_exits_2_before_any_network_call(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "argv", ["canvas_shell_create.py", "--course-id", "1",
                                       "--draft", str(draft_path)])
     assert sc.main() == 2
+
+
+# --- item_in_module -------------------------------------------------------------
+
+def test_item_in_module_true_on_matching_type_and_content_id(monkeypatch):
+    monkeypatch.setattr(sc, "_get", lambda ep: [
+        {"type": "Page", "page_url": "other"}, {"type": "Quiz", "content_id": 42}])
+    assert item_in_module("1", "77", "quiz", 42) is True
+
+
+def test_item_in_module_false_when_not_present(monkeypatch):
+    monkeypatch.setattr(sc, "_get", lambda ep: [{"type": "Quiz", "content_id": 99}])
+    assert item_in_module("1", "77", "quiz", 42) is False
+
+
+def test_item_in_module_matches_page_by_page_url_not_content_id(monkeypatch):
+    monkeypatch.setattr(sc, "_get", lambda ep: [{"type": "Page", "page_url": "week-3"}])
+    assert item_in_module("1", "77", "page", "week-3") is True
+    assert item_in_module("1", "77", "page", "week-4") is False
+
+
+# --- place_in_modules — attempts every module even after a failure -------------
+
+def test_place_in_modules_all_succeed(monkeypatch, capsys):
+    monkeypatch.setattr(sc, "item_in_module", lambda *a: False)
+    monkeypatch.setattr(sc, "_post", lambda ep, form: ({"id": 1}, ""))
+    ok = place_in_modules("1", "quiz", 42, "Prep check", ["77", "78"])
+    assert ok is True
+    out = capsys.readouterr().out
+    assert "added to module 77" in out and "added to module 78" in out
+
+
+def test_place_in_modules_skips_ones_already_placed(monkeypatch, capsys):
+    monkeypatch.setattr(sc, "item_in_module", lambda cid, mid, kind, cont: mid == "77")
+    posted = []
+    monkeypatch.setattr(sc, "_post", lambda ep, form: (posted.append(ep) or {"id": 1}, ""))
+    ok = place_in_modules("1", "quiz", 42, "Prep check", ["77", "78"])
+    assert ok is True
+    assert posted == ["/courses/1/modules/78/items"]
+    assert "already in module 77" in capsys.readouterr().out
+
+
+def test_place_in_modules_attempts_all_even_if_one_fails(monkeypatch, capsys):
+    monkeypatch.setattr(sc, "item_in_module", lambda *a: False)
+
+    def fake_post(ep, form):
+        if "77" in ep:
+            return None, "HTTP 400"
+        return {"id": 1}, ""
+
+    monkeypatch.setattr(sc, "_post", fake_post)
+    ok = place_in_modules("1", "quiz", 42, "Prep check", ["77", "78"])
+    assert ok is False  # overall failure...
+    out = capsys.readouterr().out
+    assert "ERROR adding to module 77" in out
+    assert "added to module 78" in out  # ...but 78 was still attempted
+
+
+# --- main(): --place mode -------------------------------------------------------
+
+def _run_place(monkeypatch, argv, existing=None, in_module=False, post_ok=True):
+    calls = []
+    monkeypatch.setattr(sc, "CANVAS_API_TOKEN", "t")
+    monkeypatch.setattr(sc, "CANVAS_BASE_URL", "https://x")
+    monkeypatch.setattr(sc.guard, "enforce", lambda **k: None)
+    monkeypatch.setattr(sc, "find_existing", lambda cid, kind, title: existing)
+    monkeypatch.setattr(sc, "item_in_module", lambda *a: in_module)
+
+    def fake_post(ep, form):
+        calls.append(ep)
+        if not post_ok:
+            return None, "HTTP 400"
+        return {"id": 1}, ""
+
+    monkeypatch.setattr(sc, "_post", fake_post)
+    monkeypatch.setattr(sys, "argv", ["canvas_shell_create.py", "--course-id", "1", *argv])
+    return sc.main(), calls
+
+
+def test_place_dry_run_writes_nothing(monkeypatch):
+    rc, calls = _run_place(monkeypatch,
+                           ["--place", "quiz", "--title", "Prep check", "--module-id", "77"],
+                           existing={"id": 9})
+    assert rc == 0 and calls == []
+
+
+def test_place_apply_places_existing_item(monkeypatch):
+    rc, calls = _run_place(monkeypatch,
+                           ["--place", "quiz", "--title", "Prep check", "--module-id", "77",
+                            "--apply"],
+                           existing={"id": 9})
+    assert rc == 0 and calls == ["/courses/1/modules/77/items"]
+
+
+def test_place_apply_into_two_modules(monkeypatch):
+    """#355's core case: the same item placed into 2+ modules."""
+    rc, calls = _run_place(monkeypatch,
+                           ["--place", "quiz", "--title", "Prep check",
+                            "--module-id", "77", "--module-id", "78", "--apply"],
+                           existing={"id": 9})
+    assert rc == 0
+    assert calls == ["/courses/1/modules/77/items", "/courses/1/modules/78/items"]
+
+
+def test_place_no_matching_item_exits_1(monkeypatch):
+    rc, calls = _run_place(monkeypatch,
+                           ["--place", "quiz", "--title", "Nonexistent", "--module-id", "77",
+                            "--apply"],
+                           existing=None)
+    assert rc == 1 and calls == []
+
+
+def test_place_requires_title(monkeypatch):
+    rc, _ = _run_place(monkeypatch, ["--place", "quiz", "--module-id", "77"])
+    assert rc == 2
+
+
+def test_place_requires_at_least_one_module_id(monkeypatch):
+    rc, _ = _run_place(monkeypatch, ["--place", "quiz", "--title", "Prep check"])
+    assert rc == 2
+
+
+def test_place_and_draft_are_mutually_exclusive(monkeypatch, tmp_path):
+    draft_path = tmp_path / "draft.json"
+    draft_path.write_text(json.dumps(_QUIZ_DRAFT), encoding="utf-8")
+    monkeypatch.setattr(sc, "CANVAS_API_TOKEN", "t")
+    monkeypatch.setattr(sc, "CANVAS_BASE_URL", "https://x")
+    monkeypatch.setattr(sys, "argv", ["canvas_shell_create.py", "--course-id", "1",
+                                      "--draft", str(draft_path),
+                                      "--place", "quiz", "--title", "x", "--module-id", "77"])
+    assert sc.main() == 2
+
+
+def test_neither_draft_nor_place_exits_2(monkeypatch):
+    monkeypatch.setattr(sc, "CANVAS_API_TOKEN", "t")
+    monkeypatch.setattr(sc, "CANVAS_BASE_URL", "https://x")
+    monkeypatch.setattr(sys, "argv", ["canvas_shell_create.py", "--course-id", "1"])
+    assert sc.main() == 2
+
+
+# --- main(): create mode — the "already exists" short-circuit fix (#355) -------
+
+def test_existing_item_with_module_id_places_it_instead_of_only_reporting(monkeypatch, tmp_path):
+    """The bug: hitting 'already exists' used to return immediately, so
+    --module-id on a second run silently did nothing."""
+    rc, calls = _run(monkeypatch, tmp_path, ["--apply", "--module-id", "77"],
+                     existing={"id": 5})
+    assert rc == 0
+    assert calls == ["/courses/1/modules/77/items"]
+
+
+def test_existing_item_with_module_id_dry_run_does_not_place(monkeypatch, tmp_path):
+    rc, calls = _run(monkeypatch, tmp_path, ["--module-id", "77"], existing={"id": 5})
+    assert rc == 0 and calls == []
+
+
+def test_existing_item_without_module_id_still_just_reports(monkeypatch, tmp_path):
+    """No regression on the ordinary already-exists path when no module is asked for."""
+    rc, calls = _run(monkeypatch, tmp_path, ["--apply"], existing={"id": 5})
+    assert rc == 0 and calls == []
+
+
+def test_create_apply_into_two_modules(monkeypatch, tmp_path):
+    """#355: --module-id is now repeatable at creation time too."""
+    rc, calls = _run(monkeypatch, tmp_path,
+                     ["--apply", "--module-id", "77", "--module-id", "78"])
+    assert rc == 0
+    assert calls == ["/courses/1/quizzes", "/courses/1/modules/77/items",
+                     "/courses/1/modules/78/items"]
