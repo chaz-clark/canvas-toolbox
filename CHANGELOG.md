@@ -13,6 +13,34 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`local_feedback_join.py` — grade a course with no Canvas API, without the roster ever reaching an LLM (#339 Phase A).**
+
+Some courses run on another LMS entirely (Brightspace/D2L) with no API and no export
+— inputs are local-only: the instructor's notes/posts as files, and a roster CSV.
+The existing Canvas de-id/re-id pipeline (`build_deid_master.py` → `grader_deidentify_*.py`
+→ `grader_reidentify.py`) has no fetch step to hook into for a course like this. New
+tool covers the re-identify HALF, matching `grader_reidentify.py`'s exact boundary:
+reads a D2L Classlist roster CSV in-process, joins names into agent-drafted,
+code-keyed results at output time. The roster's own id column plays the same role
+`user_id` does elsewhere in this project's FERPA convention — no separate deid-master
+file needed.
+
+First name only by default; "First L." only for students who actually share a first
+name (computed against the whole roster, so a student's display name never changes
+run to run based on who else has results this time). The tool's own console output —
+dry run and `--apply` alike — never prints a name; the joined text exists only in the
+file `--output` writes. An unmatched results code (no roster match) refuses the whole
+run rather than writing a partial join.
+
+**Splitting the source files (a mixed discussion export by its per-student separators,
+or renaming already-per-student submission files to codes) is deliberately NOT built
+here — Phase B, follow-up comments on #339.** Also confirmed and documented: no new
+`grade_guardian` awareness was needed for this (its Canvas-write bypass detector
+requires an HTTP write verb AND Canvas-specific submission/grade-endpoint context — a
+purely local script never matches either), and the existing `.claude/ferpa_zone2.txt`
+extension point (#278) already covers non-Canvas name-bearing files generically, once
+declared.
+
 **`--approve`/`--approve-all` now require an interactive terminal (#343).**
 
 `cb_flatten.py --apply --approve-all` had no technical control distinguishing a

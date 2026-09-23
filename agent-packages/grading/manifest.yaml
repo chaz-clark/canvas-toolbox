@@ -168,6 +168,11 @@ tools:
   effect: local_write
   data_class: student_evaluation
   approval: none
+- id: local-feedback-join
+  command: lib/tools/local_feedback_join.py
+  effect: local_write
+  data_class: student_evaluation
+  approval: none
 - id: grader-reconcile
   command: lib/tools/grader_reconcile.py
   effect: local_write
