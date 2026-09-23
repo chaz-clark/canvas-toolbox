@@ -6,266 +6,136 @@
 
 ## Current Coverage
 
-### ✅ Heavily Used APIs
-- **Assignments API** - assignment creation, updates, fetching
-- **Assignment Overrides API** - student accommodations, late submissions, group overrides
-- **Submissions API** - reading submission data, grading workflows
-- **Quizzes API** - quiz time extensions, quiz-to-assignment mapping
-- **Users API** - user lookups, enrollments
-- **Courses API** - course metadata, roster management
-- **Files API** - file uploads (submit_on_behalf)
+Refreshed 2026-09-23 by grepping actual `api/v1` endpoint usage across `lib/tools/`
+(method: same approach as the create-vs-update sweep below — this section was last
+accurate pre-#349 and had drifted well behind what's actually built).
 
-### 🔶 Partially Used APIs
-- **Grading API** - basic grading in mass regrading tools
-- **Sections API** - used in enrollment/roster tools
-- **Modules API** - minimal use (course structure awareness)
+### ✅ Heavily used (many tools, read + write)
+Assignments · Assignment Overrides · Submissions · Quizzes (Classic) + Quiz Questions ·
+Modules + Module Items · Pages · Discussion Topics/Announcements · Assignment Groups ·
+Rubrics · Enrollments · Files/Folders (upload, #7) · Courses (metadata, settings, guard)
 
----
+(Create support for Quiz/Assignment/Page/Discussion/Module/Assignment-Group shells
+landed in #349–#351 via `canvas_shell_create.py`; this section previously listed
+several of these as unexplored, which was stale as of that work and is now corrected.)
 
-## Known gaps: create vs. update parity
+### 🔶 Partially used (one or two tools each — real but narrow)
+Grading Standards (`grading_scheme_setup.py` only) · Late Policy (read + blueprint
+propagation, no standalone editor) · Group Categories/Groups (read-only — `peer_review_assign.py`,
+`grader_fetch.py`) · Outcomes/Outcome Groups (read + CLO import, no outcome-mastery
+tracking) · Content Migrations/Exports (`.imscc` + course clone) · Calendar Events
+(read-only, one tool) · Custom Gradebook Columns (read-only, one tool) · Sections
+(roster/enrollment tools) · Feature Flags (read-only — one gate check)
 
-Confirmed 2026-09-23, prompted by #349/#350 (`canvas_shell_create.py` — Classic Quiz +
-Assignment shell creation, shipped after an instructor was blocked hand-creating quizzes
-in the Canvas UI). Re-auditing `lib/tools/` for the same pattern — read support and
-update-an-existing-object support, but no "create a new one in a live, already-existing
-course" path outside `sync_to_new.py`'s whole-course clone — found **4 more object types**
-with the identical gap:
-
-1. **Wiki pages** in `canvas_sync.py`'s plain single-section push flow (`_push_page()`
-   requires an existing `page_url`; the create-capable `upsert_page()` already exists in
-   `canvas_pages.py` but is only wired into `blueprint_sync.py`/`course_mirror.py`).
-2. **Discussion topics / announcements** (`_push_discussion()` requires an existing
-   `canvas_id`; no create path anywhere for a live course).
-3. **Modules** (no standalone tool creates a new Module shell; `module_settings_sync.py`
-   only updates settings on modules that already exist).
-4. **Assignment groups** (read-only everywhere except inside `sync_to_new.py`'s clone).
-
-New Quiz creation is excluded deliberately, not missed (New Quizzes are LTI-delivered
-with no content/settings write support via the API at all — a platform ceiling, not a
-toolkit gap). File upload (#7) already closed the same shape of gap for Canvas Files.
-
-Full writeup, suggested build shape, and trigger condition: `handoffs/parkinglot.md`
-("Create-vs-update gap sweep — 4 object types still un-creatable in a live course").
+### ⛔ Never touched (zero tools, zero read-only usage)
+Conversations · Analytics · Grade Change Log · Gradebook History · Usage Rights ·
+Media Objects · Planner · Appointment Groups · Collaborations · External Tools (LTI) ·
+Moderated Grading · Content Shares · Bookmarks · Polls · SIS Import · Developer Keys ·
+Account Reports · Accounts · Roles · Terms of Service
 
 ---
 
-## Unexplored Canvas API Categories
+## ✅ Shipped: create vs. update parity (#349–#351)
 
-### 📊 Analytics & Reporting
+`canvas_sync.py --push` used to only ever `PUT`: every `_push_*` function required a
+`canvas_id`/`page_url` already in `.canvas/index.json` and refused otherwise. #349/#350
+closed this for quiz/assignment shells; a follow-up sweep (2026-09-23) found the
+identical gap in 4 more object types and #351 closed those too. `canvas_shell_create.py`
+now covers all six: `quiz`, `assignment`, `page`, `discussion`, `module`,
+`assignment_group` — unpublished create, read-back verification, idempotent by exact
+title, `canvas_course_guard`-gated.
 
-#### **Analytics API** ([docs](https://canvas.instructure.com/doc/api/analytics.html))
-**Capabilities:**
-- Student participation summaries (page views, assignments submitted, on-time rate)
-- Course-level activity analytics
-- Department/account-level analytics
-- Per-assignment analytics (min/max/median scores, submission counts)
+New Quiz creation stays excluded deliberately (LTI-delivered, no content/settings write
+support via the API at all — a platform ceiling, not a toolkit gap). File upload (#7)
+already closed the same shape of gap for Canvas Files.
 
-**Potential Tools:**
-1. **Student engagement early warning system**
-   - Flag students with low participation before they fall behind
-   - Compare page views vs. assignment submissions
-   - Identify students who view content but don't submit
-   - Export: `docs/engagement_alerts.csv` (deid-safe)
-
-2. **Assignment performance analyzer**
-   - Show which assignments have lowest completion rates
-   - Identify assignments with unusual score distributions
-   - Compare assignment difficulty across sections
-   - Suggest which assignments need better instructions
-
-3. **Course health dashboard**
-   - Weekly participation trends
-   - Assignment submission velocity
-   - Section performance comparison
-   - Export: `docs/course_health_report.md`
-
-**Priority:** HIGH - fills gap in current engagement audit tool
+Sweep write-up and sandbox verification notes: `handoffs/parkinglot.md` ("Create-vs-update
+gap sweep") and `CHANGELOG.md` [Unreleased]. Caught along the way: Canvas's Assignment
+Groups API rejects the wrapped-payload convention every other object type here
+accepts — documented as **L27** in `canvas_api_lessons_learned.md`, and fixed in
+`sync_to_new.py`'s pre-existing, previously-untested `create_assignment_group()`.
 
 ---
 
-### 💬 Communication & Engagement
+## API capability audit — ranked (2026-09-23)
 
-#### **Conversations API** ([docs](https://canvas.instructure.com/doc/api/conversations.html))
-**Capabilities:**
-- Send messages to individual students or groups
-- Bulk messaging with recipient filters
-- Message templates
-- Conversation history
+Spun off from the create-vs-update sweep above (parked as its own idea in
+`handoffs/parkinglot.md`, "Full Canvas API capability audit"). That sweep was narrow
+by design — one pattern (create missing, update exists) across 6 object types. This
+is the broader question: across the *entire* Canvas API, what has canvas-toolbox
+never built tooling for at all, and is it worth building?
 
-**Potential Tools:**
-1. **Bulk assignment reminder sender**
-   - Message all students missing specific assignment
-   - Personalized reminder with assignment details
-   - FERPA-safe: uses Canvas messaging (not email)
-   - Example: `uv run python lib/tools/message_missing_assignment.py --assignment-id 12345 --template late_reminder`
+**Method:** grepped every `api/v1` endpoint path actually constructed in `lib/tools/`,
+normalized and de-duplicated (see the Current Coverage section above for the result),
+then checked the remaining API categories against this toolkit's real usage patterns
+— FERPA-safe grading, student accommodations, instructional-design audits, course
+building — rather than generic "what could an LMS API do" brainstorming. That's the
+main defect in the section this replaces: most of its "potential tools" were plausible
+in the abstract but not grounded in what this toolkit's actual operators ask for.
 
-2. **Accommodation notification tool**
-   - Auto-message students when accommodations are applied
-   - Explain what changed (due dates, time limits)
-   - Include Canvas links to affected assignments
-   - Integrates with student_late_accommodation.py
+### Tier 1 — worth scoping next
 
-3. **Grade release announcer**
-   - Notify students when batch grading is complete
-   - Personalized feedback summaries
-   - Link to SpeedGrader for detailed comments
+**Conversations API** ([docs](https://canvas.instructure.com/doc/api/conversations.html)).
+Zero tooling today. The clearest gap: every accommodation tool in `skills/accommodations/`
+(late grace, time extensions, exemptions) silently changes what a student sees in
+Canvas with no notification path — the instructor tells the student by hand, outside
+the toolkit, or not at all. A `--notify` flag on the existing accommodation tools
+(or a small shared `canvas_conversations.py` helper) that sends a Canvas message when
+an accommodation is applied closes a real loop this toolkit already opened. FERPA
+discipline applies exactly as it does to grading comments — draft in the student's
+voice, never bulk-blast, log what was sent.
 
-**Priority:** MEDIUM - useful but requires careful FERPA handling
+**Grade Change Log API** ([docs](https://canvas.instructure.com/doc/api/grade_change_log.html))
+and **Gradebook History API** ([docs](https://canvas.instructure.com/doc/api/gradebook_history.html)).
+Zero tooling today. Directly serves an already-real workflow: `grader_audit_workflow.py`
+and the HG-5 review gate exist because grade disputes and TA-oversight questions
+("who changed this and when") are a recurring category of instructor ask in a
+TA-managed course. Right now that question has no toolkit answer at all — the
+instructor goes into Canvas's UI grade-history view by hand. A read-only export
+(deid-safe, same convention as every other audit) is a small, contained build.
 
----
+### Tier 2 — real, but scope before building
 
-#### **Discussion Topics API** ([docs](https://canvas.instructure.com/doc/api/discussion_topics.html))
-**Capabilities:**
-- Create announcements programmatically
-- Post discussion topics
-- Read discussion participation
-- Grade discussion posts
+**Analytics API** ([docs](https://canvas.instructure.com/doc/api/analytics.html)).
+Zero tooling today, but overlaps meaningfully with what `course_engagement_audit.py`
+already does by fetching submissions/discussions directly for Title IV engagement
+classification. Worth a scoping pass on what Analytics adds (page-view data, per-
+assignment score distributions) that the existing tool can't get more cheaply before
+building anything new — building this without that check risks a second tool doing
+half of what the first one does.
 
-**Potential Tools:**
-1. **Weekly announcement publisher**
-   - Generate weekly course announcements from template
-   - Include upcoming assignments, due dates, office hours
-   - Auto-post on schedule (via cron)
-   - Example: `uv run python lib/tools/post_weekly_announcement.py --week 3`
+**External Tools (LTI) API** ([docs](https://canvas.instructure.com/doc/api/external_tools.html)).
+Zero tooling today. `course_audit.py`/`course_quality_check.py` already flag New-Quiz
+LTI assignments as a walled-off write case (documented in
+`canvas_api_lessons_learned.md`); a read-only "what LTI tools are installed and does
+this course lean on any with known write-support gaps" audit generalizes that one
+documented lesson into a proactive check instead of a per-incident discovery.
 
-2. **Discussion participation audit**
-   - Track which students haven't posted in required discussions
-   - Export missing participation report (deid-safe)
-   - Integrates with engagement early warning
+**Usage Rights API** ([docs](https://canvas.instructure.com/doc/api/files.html#method.usage_rights.set_usage_rights)).
+Zero tooling today. Copyright/accessibility compliance for uploaded course files is
+adjacent to what `accessibility_audit.py` already checks — worth folding into that
+audit's scope (flag files with no usage-rights license set) rather than a standalone
+tool.
 
-**Priority:** LOW - announcements are easy to post manually, discussion grading is complex
+### Tier 3 — real capability, low fit for this toolkit's operators
 
----
+Groups API (group creation/assignment — `peer_review_assign.py`/`grader_fetch.py`
+already read group membership for the workflows that need it; bulk group *creation*
+is a one-time per-semester task most instructors do fine in the UI). Calendar Events
+(infrequent, low pain). Planner API, Appointment Groups, Collaborations, Media
+Objects, Moderated Grading, Content Shares, Bookmarks, Polls — each real, none matches
+a recurring ask from this toolkit's actual operators (instructors/instructional
+designers doing course-design and FERPA-safe grading work, not office-hours
+scheduling or collaborative-doc management).
 
-### 📚 Content Management
+### Out of scope — admin/account-level, not instructor-facing
 
-#### **Modules API** ([docs](https://canvas.instructure.com/doc/api/modules.html))
-**Capabilities:**
-- List course modules and module items
-- Update module requirements
-- Publish/unpublish modules
-- Reorder module items
-
-**Potential Tools:**
-1. **Module release scheduler**
-   - Bulk publish modules on specific dates
-   - Example: Publish week 2 module every Monday
-   - JSON config: `course_schedule.json`
-
-2. **Module structure validator**
-   - Check that all modules follow same structure
-   - Verify required items are present (syllabus, assignment, quiz)
-   - Export: `docs/module_audit.md`
-
-**Priority:** LOW - mostly one-time setup, manual is fine
-
----
-
-#### **Pages API** ([docs](https://canvas.instructure.com/doc/api/pages.html))
-**Capabilities:**
-- Create/update course pages
-- List all pages
-- Publish/unpublish pages
-
-**Potential Tools:**
-1. **Page content updater**
-   - Bulk update semester dates across all pages
-   - Find/replace across course content
-   - Example: Update "Spring 2026" → "Fall 2026"
-
-**Priority:** LOW - content updates are infrequent
-
----
-
-### 📝 Grading & Assessment
-
-#### **Rubrics API** ([docs](https://canvas.instructure.com/doc/api/rubrics.html))
-**Capabilities:**
-- Create rubrics programmatically
-- Associate rubrics with assignments
-- Grade using rubric criteria
-
-**Potential Tools:**
-1. **Rubric template library**
-   - Store rubric definitions as JSON
-   - Apply standard rubrics to new assignments
-   - Share rubrics across courses
-   - Example: `uv run python lib/tools/apply_rubric.py --assignment-id 12345 --rubric discussion_post`
-
-**Priority:** LOW - rubrics are typically reused, not recreated
-
----
-
-#### **Outcomes API** ([docs](https://canvas.instructure.com/doc/api/outcomes.html))
-**Capabilities:**
-- Manage learning outcomes
-- Align assignments to outcomes
-- Track outcome achievement
-
-**Potential Tools:**
-1. **Outcome achievement tracker**
-   - Export which students have mastered which outcomes
-   - Identify struggling students by outcome gaps
-   - Generate outcome reports for accreditation
-
-**Priority:** VERY LOW - most courses don't use outcomes
-
----
-
-#### **Grade Change Log API** ([docs](https://canvas.instructure.com/doc/api/grade_change_log.html))
-**Capabilities:**
-- Query grade change history
-- Track who changed grades and when
-- Audit trail for grading disputes
-
-**Potential Tools:**
-1. **Grading audit trail exporter**
-   - Export all grade changes for a course
-   - Filter by assignment, student, or date range
-   - Useful for: grade disputes, TA oversight, accreditation
-
-**Priority:** LOW - needed only for disputes
-
----
-
-### 👥 Groups & Collaboration
-
-#### **Groups API** ([docs](https://canvas.instructure.com/doc/api/groups.html))
-**Capabilities:**
-- Create group sets
-- Assign students to groups
-- Manage group memberships
-
-**Potential Tools:**
-1. **Random group generator**
-   - Create balanced groups based on criteria
-   - Avoid putting certain students together (from config)
-   - Example: `uv run python lib/tools/create_groups.py --size 4 --count 10 --avoid-pairs avoid_list.csv`
-
-2. **Group override manager**
-   - Apply accommodations to entire group (extend due date)
-   - Better UX than current fix_group_override_recalc.py
-   - Example: `uv run python lib/tools/group_late_accommodation.py --group-id 123 --days 2`
-
-**Priority:** MEDIUM - group management is tedious
-
----
-
-### 📅 Calendar & Scheduling
-
-#### **Calendar Events API** ([docs](https://canvas.instructure.com/doc/api/calendar_events.html))
-**Capabilities:**
-- Create calendar events
-- Bulk schedule office hours, review sessions
-- Delete outdated events
-
-**Potential Tools:**
-1. **Office hours scheduler**
-   - Bulk create recurring office hours events
-   - Example: Every Tuesday/Thursday 2-4pm for semester
-   - JSON config: `office_hours_schedule.json`
-
-**Priority:** LOW - calendar events are infrequent
+SIS Import, Developer Keys, Account Reports, Accounts API, Roles, Terms of Service.
+These require account-admin permissions most instructors using this toolkit don't
+have, and sit outside "things an instructor does to their own course" — the same
+reasoning that already excludes New Quiz content writes (a platform permission
+ceiling) and full LTI tool management (an account-admin surface, distinct from the
+read-only per-course audit in Tier 2 above).
 
 ---
 
@@ -614,6 +484,11 @@ Tools for messaging students and automating repetitive communications.
 2. **No batch submission creation** - submit_on_behalf blocked at institutional level
 3. **Include parameters are inconsistent** - Some endpoints support include[], others don't
 4. **No schema validation** - Canvas accepts invalid dates, silently fails
+5. **Payload wrapping is per-endpoint, not a platform convention** - most object-creation
+   endpoints want a wrapped body (`{"assignment": {...}}`), but Assignment Groups and
+   Discussion Topics want it flat, and a wrapped POST to those two returns `200` while
+   silently ignoring every field. Verify per endpoint on a sandbox; don't assume the
+   convention generalizes (L27, `canvas_api_lessons_learned.md`).
 
 ---
 
