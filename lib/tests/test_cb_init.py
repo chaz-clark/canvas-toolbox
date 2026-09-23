@@ -30,6 +30,9 @@ from cb_init import (  # noqa: E402
     detect_mode_from_remote,
     env_stub_content,
     parse_canvas_self_name,
+    step_10_gitignore,
+    step_11_canvas_sync,
+    step_12_generate_agents_md,
     stub_is_filled,
     _install_guardian_hook,
 )
@@ -353,3 +356,133 @@ def test_no_cb_init_message_sends_the_instructor_to_a_terminal(banned):
         encoding="utf-8")
     printed = "\n".join(ln for ln in src.splitlines() if "print(" in ln)
     assert banned not in printed.lower(), f"cb_init prints {banned!r} at the operator"
+
+
+# ---------------------------------------------------------------------------
+# steps 10/11/12 — mode-based gating (#317 follow-up)
+#
+# WHY THIS EXISTS: these used to gate on `is_subdir` alone, which meant a v2
+# FLAT adopter ("not nested" but a real course) was treated exactly like the
+# maintainer's own standalone toolkit dev repo — silently getting no course
+# .gitignore, no Canvas sync, no course AGENTS.md content at all. `mode`
+# (from detect_mode_from_remote) is the actual signal for "is this the
+# maintainer's own repo"; these three steps now gate on that instead.
+# ---------------------------------------------------------------------------
+
+def test_step_10_skips_for_maintainer_regardless_of_is_subdir(tmp_path, capsys):
+    for is_subdir in (True, False):
+        ok = step_10_gitignore(course_root=tmp_path, is_subdir=is_subdir,
+                               mode="maintainer", check_only=False)
+        assert ok and not (tmp_path / ".gitignore").exists()
+        assert "Maintainer mode" in capsys.readouterr().out
+
+
+def test_step_10_runs_for_flat_adopter_not_just_nested(tmp_path):
+    """The bug: flat ("not nested") used to be treated as standalone/skip."""
+    ok = step_10_gitignore(course_root=tmp_path, is_subdir=False, mode="adopter",
+                           check_only=False)
+    assert ok
+    content = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    assert "course/" in content and "grading/" in content
+    assert "canvas-toolbox/" not in content  # no such folder in flat layout
+
+
+def test_step_10_nested_adopter_still_ignores_the_nested_folder(tmp_path):
+    ok = step_10_gitignore(course_root=tmp_path, is_subdir=True, mode="adopter",
+                           check_only=False)
+    assert ok
+    content = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    assert "canvas-toolbox/" in content
+
+
+def test_step_11_skips_for_maintainer_only(capsys):
+    ok = step_11_canvas_sync(course_root=Path("/nonexistent"), is_subdir=False,
+                             mode="maintainer", check_only=False)
+    assert ok
+    assert "Maintainer mode" in capsys.readouterr().out
+
+
+def test_step_12_skips_for_maintainer(tmp_path, capsys):
+    ok = step_12_generate_agents_md(course_root=tmp_path, is_subdir=False,
+                                    mode="maintainer", check_only=False)
+    assert ok and not (tmp_path / "AGENTS.md").exists()
+    assert "Maintainer mode" in capsys.readouterr().out
+
+
+def test_step_12_flat_adopter_confirms_cb_flatten_already_wrote_it(tmp_path, capsys):
+    """Flat: cb_flatten.py owns AGENTS.md (constitution + course content merged
+    together). step_12 must not try to write a second, competing stub."""
+    (tmp_path / "AGENTS.md").write_text("constitution + course half", encoding="utf-8")
+    ok = step_12_generate_agents_md(course_root=tmp_path, is_subdir=False,
+                                    mode="adopter", check_only=False)
+    assert ok
+    assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == "constitution + course half"
+    assert "written by cb_flatten.py" in capsys.readouterr().out
+
+
+def test_step_12_flat_adopter_missing_agents_md_tells_operator_to_run_cb_flatten(tmp_path, capsys):
+    ok = step_12_generate_agents_md(course_root=tmp_path, is_subdir=False,
+                                    mode="adopter", check_only=False)
+    assert not ok
+    assert "cb_flatten.py" in capsys.readouterr().out
+
+
+def test_step_12_nested_adopter_writes_a_stub_with_the_shared_course_content(tmp_path):
+    ok = step_12_generate_agents_md(course_root=tmp_path, is_subdir=True,
+                                    mode="adopter", check_only=False)
+    assert ok
+    stub = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "Toyota Production System" in stub
+    assert "HERMES Learning" in stub
+    assert "canvas-toolbox/AGENTS.md" in stub  # nested still points at the toolkit's own
+
+
+# ---------------------------------------------------------------------------
+# main() mode resolution — auto-detection must be authoritative by default
+# (regression caught in code review, #345)
+#
+# Steps 10-12 now gate real writes on `mode` (fixing the is_subdir
+# conflation bug — see step_10's docstring), but `mode` was still resolving
+# to args.mode's old hardcoded default ("adopter") whenever no --mode flag
+# was passed. Auto-detection was computed correctly; it just was never made
+# authoritative. Running cb_init.py with no flags in canvas-toolbox's OWN
+# checkout silently ran adopter steps (Canvas sync, course AGENTS.md, course
+# .gitignore) against the toolkit's own repo.
+# ---------------------------------------------------------------------------
+
+def _run_cb_init_check(tmp_path, origin: str | None, extra: list[str] | None = None):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    if origin:
+        subprocess.run(["git", "remote", "add", "origin", origin], cwd=tmp_path, check=True)
+    cb_init_path = _TOOLS_DIR / "cb_init.py"
+    result = subprocess.run(
+        [sys.executable, str(cb_init_path), "--check", "--skip-playwright", "--yes",
+         *(extra or [])],
+        cwd=tmp_path, capture_output=True, text=True, timeout=30,
+    )
+    return result.stdout + result.stderr
+
+
+def test_no_mode_flag_in_maintainer_checkout_stays_maintainer(tmp_path):
+    """The exact regression: no --mode flag, origin is chaz-clark/canvas-toolbox
+    -> must resolve to maintainer and skip the adopter-only steps, not silently
+    run Canvas sync / course AGENTS.md generation against the toolkit's own repo."""
+    out = _run_cb_init_check(tmp_path, "https://github.com/chaz-clark/canvas-toolbox.git")
+    assert "mode:      maintainer (auto-detected)" in out
+    assert "Maintainer mode" in out
+    assert "canvas-sync --pull" not in out.lower() or "would run" not in out.lower()
+
+
+def test_no_mode_flag_in_adopter_checkout_stays_adopter(tmp_path):
+    out = _run_cb_init_check(tmp_path, "https://github.com/smithu/ds250-master.git")
+    assert "mode:      adopter (auto-detected)" in out
+
+
+def test_explicit_mode_flag_overrides_detection(tmp_path):
+    """An explicit --mode still wins over auto-detection — e.g. testing
+    adopter-facing behavior from a maintainer checkout on purpose."""
+    out = _run_cb_init_check(
+        tmp_path, "https://github.com/chaz-clark/canvas-toolbox.git",
+        extra=["--mode", "adopter"],
+    )
+    assert "mode:      adopter (override — auto-detected: maintainer)" in out

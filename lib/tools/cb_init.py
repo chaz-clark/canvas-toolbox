@@ -131,21 +131,17 @@ except ImportError:
     _ensure_guardian_hook = None
 
 try:
-    # Single source of truth for the HG-5 grading-protocol pointer (#207), shared
-    # with sync_grading_protocol.py so a freshly-init'd repo and a retrofitted one
-    # carry the identical, sentinel-marked block.
-    from sync_grading_protocol import POINTER_BLOCK as GRADING_POINTER_BLOCK
+    # ONE canonical course-half body (Quality Discipline + grading pointer +
+    # vendored-tools reminder + HERMES stub) — shared with cb_flatten.py's flat
+    # "fresh" AGENTS.md path so nested and flat installs can never drift into
+    # two different first-course-section experiences (#317 follow-up).
+    from merge_cleanup import default_course_content
 except ImportError:
-    # Fallback for pre-sync / partial vendored environments. Keeps the same
-    # sentinel marker so sync_grading_protocol stays idempotent against it.
-    GRADING_POINTER_BLOCK = (
-        "<!-- canvas-toolbox:grading-protocol-pointer -->\n\n"
-        "## ⚠️ Grading — HG-5: the instructor decides\n\n"
-        "AI-assisted grading is decision support, not autonomy. Never push AI-drafted "
-        "grades without human review. Full protocol: canvas-toolbox/AGENTS.md → "
-        '"AI Grading Protocol — HG-5".\n\n'
-        "<!-- /canvas-toolbox:grading-protocol-pointer -->"
-    )
+    default_course_content = None
+
+# (The HG-5 grading-protocol pointer used to be imported here directly for
+# step_12's stub; that now goes through merge_cleanup.default_course_content(),
+# which imports it itself — #317 follow-up.)
 
 
 # ---------------------------------------------------------------------------
@@ -726,16 +722,28 @@ def step_9_surface_docs(*, mode: str) -> bool:
     return True
 
 
-def step_10_gitignore(*, course_root: Path, is_subdir: bool, check_only: bool) -> bool:
-    """Create .gitignore at course root (v1.6+ subdirectory mode only)."""
-    if not is_subdir:
-        print("Step 10/14: ⏭  Standalone mode — .gitignore not needed.")
+def step_10_gitignore(*, course_root: Path, is_subdir: bool, mode: str,
+                      check_only: bool) -> bool:
+    """Create .gitignore at course root — every ADOPTER course needs this,
+    nested or flat. Only the maintainer's own toolkit dev repo doesn't.
+
+    FOUND FOR REAL (#317 follow-up): this used to gate on `is_subdir` alone,
+    which meant a v2 FLAT adopter — "not nested" but very much a real course —
+    was treated the same as the maintainer's own standalone dev checkout, and
+    silently got no course .gitignore, no Canvas sync, no course content at
+    all. The signal for "is this the maintainer's own repo" already existed
+    (`mode`, from `detect_mode_from_remote`) — it just wasn't being used here."""
+    if mode == "maintainer":
+        print("Step 10/14: ⏭  Maintainer mode — .gitignore not needed.")
         return True
 
     gitignore_path = course_root / ".gitignore"
-    gitignore_content = """.env
-canvas-toolbox/
-handoffs/
+    # `canvas-toolbox/` only applies in the NESTED layout — flat has no such
+    # subfolder; cb_flatten.py already writes its own sentinel-delimited block
+    # for the flattened toolkit files (283+ exact paths, never this blanket).
+    nested_line = "canvas-toolbox/\n" if is_subdir else ""
+    gitignore_content = f""".env
+{nested_line}handoffs/
 course/
 course_ref/
 course_src/
@@ -757,10 +765,13 @@ quality_report.md
     return True
 
 
-def step_11_canvas_sync(*, course_root: Path, is_subdir: bool, check_only: bool) -> bool:
-    """Run canvas-sync --pull to populate course/ directory (v1.6+ subdirectory mode only)."""
-    if not is_subdir:
-        print("Step 11/14: ⏭  Standalone mode — canvas-sync skipped.")
+def step_11_canvas_sync(*, course_root: Path, is_subdir: bool, mode: str,
+                        check_only: bool) -> bool:
+    """Run canvas-sync --pull to populate course/ directory — every ADOPTER
+    course needs this, nested or flat (see step_10's docstring for why the
+    gate is on `mode`, not `is_subdir`)."""
+    if mode == "maintainer":
+        print("Step 11/14: ⏭  Maintainer mode — canvas-sync skipped.")
         print("          Run manually: uv run python lib/tools/canvas_sync.py --pull")
         return True
 
@@ -783,13 +794,46 @@ def step_11_canvas_sync(*, course_root: Path, is_subdir: bool, check_only: bool)
     return True
 
 
-def step_12_generate_agents_md(*, course_root: Path, is_subdir: bool, check_only: bool) -> bool:
-    """Generate course-specific AGENTS.md stub (v1.6+ subdirectory mode only)."""
-    if not is_subdir:
-        print("Step 12/14: ⏭  Standalone mode — AGENTS.md generation skipped.")
+def step_12_generate_agents_md(*, course_root: Path, is_subdir: bool, mode: str,
+                               check_only: bool) -> bool:
+    """Generate course-specific AGENTS.md content — every ADOPTER course needs
+    this, nested or flat, but the SHAPE differs:
+
+    Nested: two files. `canvas-toolbox/AGENTS.md` is the toolkit's own; this
+    writes a SEPARATE course-root stub that points at it and carries the
+    course-specific half (Quality Discipline, grading pointer, vendored-tools
+    reminder, HERMES stub) via merge_cleanup.default_course_content(flat=False).
+
+    Flat: ONE file. cb_flatten.py's own apply_agents_md_step() already writes
+    the merged AGENTS.md — constitution + the same shared course-half, via
+    default_course_content(flat=True) — as part of ITS apply, before cb_init
+    ever runs. There is no separate stub to create; this step only confirms
+    that happened, or tells the operator to run cb_flatten.py first if not.
+
+    FOUND FOR REAL (#317 follow-up): the flat case used to be silently skipped
+    entirely (gated on `is_subdir`, conflating "not nested" with "maintainer's
+    own dev repo" — see step_10's docstring), which combined with the missing
+    course-half in cb_flatten's own fresh write (also fixed) meant a fresh flat
+    course's AGENTS.md was canvas-toolbox's own constitution, unmodified — its
+    OWN repo-structure and Active Context sections, describing the toolkit's
+    development, not the course."""
+    if mode == "maintainer":
+        print("Step 12/14: ⏭  Maintainer mode — AGENTS.md generation skipped.")
         return True
 
     agents_md_path = course_root / "AGENTS.md"
+
+    if not is_subdir:
+        # Flat: cb_flatten.py owns this file. Confirm, don't duplicate.
+        if agents_md_path.exists():
+            print(f"Step 12/14: ✓ AGENTS.md exists at {agents_md_path} "
+                  "(written by cb_flatten.py) — skipping.")
+            return True
+        print(f"Step 12/14: ✗ AGENTS.md missing at {agents_md_path}.")
+        print("    ↳ Run `uv run python lib/tools/cb_flatten.py --apply` first — "
+              "it owns AGENTS.md in a flat-layout course, cb-init does not "
+              "generate it directly here.")
+        return check_only  # advisory in --check; a real failure otherwise
 
     if agents_md_path.exists():
         print(f"Step 12/14: ✓ AGENTS.md exists at {agents_md_path} — skipping.")
@@ -798,6 +842,10 @@ def step_12_generate_agents_md(*, course_root: Path, is_subdir: bool, check_only
     if check_only:
         print("Step 12/14: would generate course-specific AGENTS.md")
         return True
+
+    course_body = (default_course_content(flat=False) if default_course_content
+                  else "[merge_cleanup.py unavailable — re-sync the toolkit, then "
+                       "re-run cb-init to fill this section in]")
 
     # Create stub that references canvas-toolbox/AGENTS.md
     stub_content = f"""---
@@ -816,81 +864,9 @@ See [canvas-toolbox/AGENTS.md](canvas-toolbox/AGENTS.md) for:
 - Agent knowledge and workflows
 - Canvas API patterns
 
-Run all tools from this directory (course root):
-```bash
-uv run python canvas-toolbox/lib/tools/course_audit.py --help
-```
-
 ---
 
-## Quality Discipline (Toyota Production System)
-
-AI agents working on this course follow three core quality principles:
-
-### 1. Genchi Gembutsu (現地現物) - Go and See
-
-**Don't assume, verify with real data:**
-- Test with REAL course data, not synthetic fixtures
-- When uncertain about format, examine actual files
-- Verify in Canvas sandbox, don't trust docs alone
-- Read actual code before claiming understanding
-
-**Behavioral trigger**: When you catch yourself saying "probably" or "should" → STOP and verify
-
-### 2. Jidoka (自働化) - Built-in Quality / Stop on Defect
-
-**Build quality in, stop when defect detected:**
-- Write tests WITH code, not after
-- Red tests block progress - fix immediately, don't defer
-- Validation runs automatically (not manual step)
-- Can't push to Canvas with errors (blocked by design)
-
-**Behavioral trigger**: When you want to say "we'll fix this later" → STOP and fix now
-
-### 3. Poka-yoke (ポカヨケ) - Mistake-Proofing
-
-**Design so mistakes can't happen:**
-- Automate validation (no manual steps)
-- Use pre-commit hooks to catch errors
-- Type hints catch errors at write-time
-- Block operations that would create defects
-
-**Behavioral trigger**: When manual verification required → Design it out
-
-**Quality Loop**: Prevent (Poka-yoke) → Detect (Jidoka) → Verify (Genchi Gembutsu)
-
-When you find a defect:
-1. **Fix it** (Jidoka - stop and correct)
-2. **Verify the fix** (Genchi Gembutsu - test with real data)
-3. **Prevent recurrence** (Poka-yoke - add automated check)
-
----
-
-{GRADING_POINTER_BLOCK}
-
----
-
-## ⚠️ Use the vendored tools — don't reimplement them
-
-Before implementing **any** Canvas operation, search `canvas-toolbox/lib/tools/` first —
-use the tool if it exists, propose one if it doesn't, and **never hand-write a Canvas API
-script**. The toolkit was generalized *from* course scripts, so a local copy silently
-misses every safety fix the vendored tool has gained (the duplicate-comment, empty-comment,
-and stuck-workflow-state bugs all came from custom scripts). Full rationale + the
-custom→vendored **migration map**: `canvas-toolbox/lib/agents/knowledge/toolkit_reuse_knowledge.md`.
-The `grade_guardian` hook (installed by `cb-init`) enforces this at the harness.
-
----
-
-## Course Context
-
-[Add course-specific context here as you work]
-
-**HERMES Learning:** This section grows as you chat with Claude about your course.
-- Teaching approach
-- Grading workflows
-- Course-specific Canvas patterns
-- Student cohort notes
+{course_body}
 """
 
     agents_md_path.write_text(stub_content, encoding="utf-8")
@@ -1038,12 +1014,12 @@ def main() -> int:
     )
     parser.add_argument("--version", action="version", version="%(prog)s " + __version__)
     parser.add_argument(
-        "--mode", choices=["maintainer", "adopter"], default="adopter",
-        help=("Default: adopter. Pass `--mode maintainer` to suppress "
-              "adopter-facing hints (e.g. the cb-report-bug reminder). "
-              "Auto-detection from `git remote get-url origin` surfaces a "
-              "suggestion but doesn't override the default — the flag is "
-              "the explicit toggle."),
+        "--mode", choices=["maintainer", "adopter"], default=None,
+        help=("Default: auto-detected from `git remote get-url origin` "
+              "(maintainer iff it's chaz-clark/canvas-toolbox, else adopter). "
+              "Pass explicitly to override detection — e.g. force --mode "
+              "adopter while testing adopter-facing behavior from a "
+              "maintainer checkout."),
     )
     parser.add_argument(
         "--yes", "-y", action="store_true",
@@ -1077,13 +1053,26 @@ def main() -> int:
     print("    cwd:       " + str(cwd))
     print("    repo root: " + str(REPO_ROOT))
 
-    # Mode resolution — flag wins; auto-detection is a hint.
+    # Mode resolution — an explicit --mode always wins (e.g. forcing adopter
+    # mode while testing from a maintainer checkout); auto-detection is the
+    # default when no flag is given, not just a printed hint. FOUND FOR REAL
+    # in code review (#345): steps 10-12 now gate real writes on `mode`
+    # (fixing the is_subdir conflation bug), but `mode` was still resolving
+    # to args.mode's old default ("adopter") whenever no flag was passed —
+    # so running cb_init.py with no flags in canvas-toolbox's OWN checkout
+    # silently ran adopter steps (Canvas sync, course AGENTS.md, course
+    # .gitignore) against the toolkit's own repo. Auto-detection was already
+    # computed correctly; it just was never made authoritative.
     detected = detect_mode_from_remote(get_git_remote_origin())
-    mode = args.mode
-    if detected != mode:
-        print("    mode:      " + mode + " (auto-detected: " + detected + ")")
+    if args.mode is not None:
+        mode = args.mode
+        if mode != detected:
+            print("    mode:      " + mode + " (override — auto-detected: " + detected + ")")
+        else:
+            print("    mode:      " + mode)
     else:
-        print("    mode:      " + mode)
+        mode = detected
+        print("    mode:      " + mode + " (auto-detected)")
     if args.check:
         print("    --check:   no writes will occur")
     print()
@@ -1100,9 +1089,9 @@ def main() -> int:
         lambda: step_7_pre_commit(auto_yes=args.yes, check_only=args.check),
         lambda: step_8_canvas_smoke(cwd=COURSE_ROOT, check_only=args.check),
         lambda: step_9_surface_docs(mode=mode),
-        lambda: step_10_gitignore(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, check_only=args.check),
-        lambda: step_11_canvas_sync(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, check_only=args.check),
-        lambda: step_12_generate_agents_md(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, check_only=args.check),
+        lambda: step_10_gitignore(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, mode=mode, check_only=args.check),
+        lambda: step_11_canvas_sync(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, mode=mode, check_only=args.check),
+        lambda: step_12_generate_agents_md(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, mode=mode, check_only=args.check),
         lambda: step_13_handoffs(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, with_handoffs=args.with_handoffs, check_only=args.check),
         lambda: step_14_slash_commands(course_root=COURSE_ROOT, check_only=args.check),
     ]

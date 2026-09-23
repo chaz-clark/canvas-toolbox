@@ -16,8 +16,10 @@ The properties that make a flatten safe, and what breaks if each is missing:
 Real git, real files. A pattern-only assertion cannot see the class of bug #277 was.
 """
 import json
+import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -41,10 +43,12 @@ from cb_flatten import (  # noqa: E402
     manifest,
     plan_agents_md_merge,
     plan_sync,
+    render_fresh_pyproject,
     render_gitignore_block,
     report_pyproject_deps,
     resolve_distribution,
     splice_gitignore,
+    split_merged,
     verify_agents_md,
     verify_course_learning,
     verify_guardian_hook,
@@ -826,11 +830,21 @@ def test_apply_agents_md_step_dry_run_writes_nothing(tmp_path):
 
 
 def test_apply_agents_md_step_writes_fresh_constitution(tmp_path):
+    """"fresh" means no prior course AGENTS.md to merge FROM — not "no course
+    section at all" (#317 follow-up: that gap silently dropped the Toyota
+    quality-discipline block, the grading pointer, the vendored-tools reminder,
+    and the HERMES Course Context stub on every brand-new flat install)."""
     clone = tmp_path / "clone"; clone.mkdir()
     (clone / "AGENTS.md").write_text("CONSTITUTION", encoding="utf-8")
     status = apply_agents_md_step(tmp_path, clone, apply=True)
     assert status == "fresh"
-    assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == "CONSTITUTION"
+    written = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert written.startswith("CONSTITUTION")
+    toolkit_half, course_half = split_merged(written)
+    assert toolkit_half.rstrip() == "CONSTITUTION"
+    assert course_half is not None and course_half.strip()
+    assert "Toyota Production System" in course_half
+    assert "HERMES Learning" in course_half
 
 
 def test_apply_agents_md_step_backs_up_before_overwriting(tmp_path):
@@ -1003,14 +1017,19 @@ _CLONE_PYPROJECT = (
 )
 
 
-def test_report_pyproject_deps_never_writes_host_file(tmp_path):
+def test_report_pyproject_deps_never_overwrites_an_existing_host_file(tmp_path):
+    """The invariant this whole function exists to protect (#327, m119-master's
+    identity-clobber) — unchanged by the newer "write when NOTHING exists" case,
+    checked here with apply=True so a real write attempt is actually exercised,
+    not just skipped because the caller happened to pass apply=False."""
     clone = tmp_path / "clone"; clone.mkdir()
     (clone / "pyproject.toml").write_text(_CLONE_PYPROJECT, encoding="utf-8")
     host = tmp_path / "pyproject.toml"
-    host.write_text('[project]\nname = "m119-master"\nversion = "3.0.0"\n', encoding="utf-8")
-    ok, msg = report_pyproject_deps(tmp_path, clone)
+    original = '[project]\nname = "m119-master"\nversion = "3.0.0"\n'
+    host.write_text(original, encoding="utf-8")
+    ok, msg = report_pyproject_deps(tmp_path, clone, apply=True)
     assert ok
-    assert host.read_text(encoding="utf-8") == '[project]\nname = "m119-master"\nversion = "3.0.0"\n'
+    assert host.read_text(encoding="utf-8") == original
     assert "requests" in msg and "pyyaml" in msg
 
 
@@ -1023,15 +1042,81 @@ def test_report_pyproject_deps_normalizes_names_and_finds_no_gap(tmp_path):
         '[project]\nname = "m119-master"\ndependencies = ["requests>=2.34", "pyyaml>=6.0.3"]\n',
         encoding="utf-8",
     )
-    ok, msg = report_pyproject_deps(tmp_path, clone)
+    ok, msg = report_pyproject_deps(tmp_path, clone, apply=True)
     assert ok
     assert "already covers" in msg
 
 
-def test_report_pyproject_deps_no_host_file_yet(tmp_path):
+def test_report_pyproject_deps_no_host_file_dry_run_does_not_write(tmp_path):
     clone = tmp_path / "clone"; clone.mkdir()
     (clone / "pyproject.toml").write_text(_CLONE_PYPROJECT, encoding="utf-8")
-    ok, msg = report_pyproject_deps(tmp_path, clone)
+    ok, msg = report_pyproject_deps(tmp_path, clone, apply=False)
     assert ok
-    assert "no host pyproject.toml yet" in msg
+    assert "would write" in msg
     assert not (tmp_path / "pyproject.toml").exists()
+
+
+def test_report_pyproject_deps_no_host_file_apply_writes_one(tmp_path):
+    """The one case this tool IS allowed to write pyproject.toml — nothing
+    exists yet, so there is no host identity to protect (#317 follow-up: a
+    truly fresh install used to leave a human hand-copying 14 dependency
+    strings before `uv sync` could even run)."""
+    clone = tmp_path / "clone"; clone.mkdir()
+    (clone / "pyproject.toml").write_text(_CLONE_PYPROJECT, encoding="utf-8")
+    ok, msg = report_pyproject_deps(tmp_path, clone, apply=True)
+    assert ok
+    assert "wrote a fresh pyproject.toml" in msg
+    written = (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
+    assert "requests" in written.lower() and "pyyaml" in written.lower()
+    assert "canvas-toolbox" not in written  # never the toolkit's own identity
+
+
+# ---------------------------------------------------------------------------
+# render_fresh_pyproject — pure
+# ---------------------------------------------------------------------------
+
+_CLONE_TOML = {
+    "project": {
+        "dependencies": ["requests>=2.34.2", "pyyaml>=6.0.3"],
+        "requires-python": ">=3.14",
+    },
+    "dependency-groups": {"dev": ["pytest>=9.1.1", "ruff>=0.15.21"]},
+}
+
+
+def test_render_fresh_pyproject_never_names_itself_canvas_toolbox(tmp_path):
+    """The exact identity-clobber #327 fixed — a fresh scaffold must name the
+    COURSE, never the toolkit."""
+    out = render_fresh_pyproject(tmp_path / "DS250-Fall26", _CLONE_TOML)
+    assert 'name = "ds250-fall26"' in out
+    assert "canvas-toolbox" not in out.split("dependencies", 1)[0]
+
+
+def test_render_fresh_pyproject_carries_deps_dev_group_and_python_version():
+    out = render_fresh_pyproject(Path("course"), _CLONE_TOML)
+    assert '"requests>=2.34.2"' in out
+    assert '"pyyaml>=6.0.3"' in out
+    assert '"pytest>=9.1.1"' in out
+    assert '"ruff>=0.15.21"' in out
+    assert 'requires-python = ">=3.14"' in out
+
+
+def test_render_fresh_pyproject_omits_the_toolkits_own_ruff_lint_config():
+    """The toolkit's ruff rule selection is a style preference for canvas-
+    toolbox's OWN codebase, not something to impose on every course repo."""
+    out = render_fresh_pyproject(Path("course"), _CLONE_TOML)
+    assert "[tool.ruff" not in out
+
+
+def test_render_fresh_pyproject_slugifies_odd_folder_names():
+    out = render_fresh_pyproject(Path("DS 250 (Fall '26)!"), _CLONE_TOML)
+    # never raises, never produces an empty/invalid name
+    m = re.search(r'name = "([^"]*)"', out)
+    assert m and m.group(1)
+
+
+def test_render_fresh_pyproject_is_parseable_toml():
+    out = render_fresh_pyproject(Path("some-course"), _CLONE_TOML)
+    parsed = tomllib.loads(out)
+    assert parsed["project"]["name"] == "some-course"
+    assert parsed["project"]["dependencies"] == _CLONE_TOML["project"]["dependencies"]

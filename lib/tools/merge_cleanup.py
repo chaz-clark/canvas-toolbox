@@ -54,6 +54,20 @@ except ImportError:
     def force_utf8_console() -> None:
         pass
 
+try:
+    # Same single source of truth cb_init.py uses (#207) — nested-mode course
+    # content gets the identical grading pointer either tool writes it.
+    from sync_grading_protocol import POINTER_BLOCK as GRADING_POINTER_BLOCK
+except ImportError:
+    GRADING_POINTER_BLOCK = (
+        "<!-- canvas-toolbox:grading-protocol-pointer -->\n\n"
+        "## ⚠️ Grading — HG-5: the instructor decides\n\n"
+        "AI-assisted grading is decision support, not autonomy. Never push AI-drafted "
+        "grades without human review. Full protocol: canvas-toolbox/AGENTS.md → "
+        '"AI Grading Protocol — HG-5".\n\n'
+        "<!-- /canvas-toolbox:grading-protocol-pointer -->"
+    )
+
 COURSE_MARKER = "<!-- canvas-toolbox:course-content -->"
 COURSE_END = "<!-- /canvas-toolbox:course-content -->"
 
@@ -94,6 +108,145 @@ def split_merged(text: str) -> tuple[str, str | None]:
     if end != -1:
         course = course[:end]
     return toolkit, course
+
+
+def default_course_content(*, flat: bool) -> str:
+    """The starter course-half body for a FIRST-TIME AGENTS.md — no prior course
+    content exists to merge, so `apply_agents_md_step`'s "fresh" case (cb_flatten.py)
+    and `step_12_generate_agents_md`'s nested stub (cb_init.py) both need SOMETHING
+    here, not an empty course section.
+
+    ONE canonical body (RELOAD_NOTICE's own comment states this project's rule:
+    "not a per-tool if/else") — found missing entirely for the flat "fresh" case: a
+    brand-new flat install's AGENTS.md ended up as the bare toolkit constitution,
+    silently losing the Toyota quality-discipline block, the grading pointer, the
+    vendored-tools reminder, and the HERMES Course Context stub that nested installs
+    had always gotten via `step_12`. Restored here as the one shared source, so flat
+    and nested can never drift into two different "first course section" experiences
+    again.
+
+    `flat=True` drops the `canvas-toolbox/` path prefix nested installs need — in
+    flat layout the toolkit's own files sit directly at the course root, not under a
+    visible subdirectory."""
+    if flat:
+        pointer = (
+            "## ⚠️ Using canvas-toolbox — constitution + skills\n\n"
+            "This course uses **canvas-toolbox**, flattened into this repo from a "
+            "hidden pristine clone (`.canvas-toolbox/`). Its always-on rules — FERPA "
+            "discipline, the Canvas-write safety doctrine + the `grade_guardian` hook, "
+            "and behavioral principles — live above, in this same file's constitution "
+            "half. Mode-specific procedure lives in **operating-mode skills** under "
+            "`.claude/skills/`: `grading`, `course-build`, `audit`, `accommodations`, "
+            "`ferpa-deid`, `title-iv`, `voicing`, `improve`. Load the skill that "
+            "matches your task.\n\n"
+            "**Grading is HG-5 — the instructor decides.** AI grading is decision "
+            "support, not autonomy: grade → **show the feedback in chat** → "
+            "`grader_push.py --mark-reviewed --yes` → `--push --yes`. `--yes` is "
+            "honored (no terminal — never send faculty to a shell), but the "
+            "`grade_guardian` hook fires an in-chat **permission pop-up** at BOTH the "
+            "review and the push: the instructor clicks to approve — an agent cannot "
+            "skip it or self-attest. When a gate blocks you, get the human — never "
+            "stack `--force`/`--regrade` to route around it, and never hand-write a "
+            "Canvas write (the `grade_guardian` hook blocks that at create/edit/run)."
+        )
+        tools_reminder = (
+            "## ⚠️ Use the vendored tools — don't reimplement them\n\n"
+            "Before implementing **any** Canvas operation, search `lib/tools/` first — "
+            "use the tool if it exists, propose one if it doesn't, and **never "
+            "hand-write a Canvas API script**. The toolkit was generalized *from* "
+            "course scripts, so a local copy silently misses every safety fix the "
+            "vendored tool has gained (the duplicate-comment, empty-comment, and "
+            "stuck-workflow-state bugs all came from custom scripts). Full rationale + "
+            "the custom→vendored **migration map**: "
+            "`lib/agents/knowledge/toolkit_reuse_knowledge.md`. The `grade_guardian` "
+            "hook (installed by `cb-init`) enforces this at the harness."
+        )
+        run_line = "uv run python lib/tools/course_audit.py --help"
+    else:
+        pointer = GRADING_POINTER_BLOCK
+        tools_reminder = (
+            "## ⚠️ Use the vendored tools — don't reimplement them\n\n"
+            "Before implementing **any** Canvas operation, search "
+            "`canvas-toolbox/lib/tools/` first — use the tool if it exists, propose "
+            "one if it doesn't, and **never hand-write a Canvas API script**. The "
+            "toolkit was generalized *from* course scripts, so a local copy silently "
+            "misses every safety fix the vendored tool has gained (the "
+            "duplicate-comment, empty-comment, and stuck-workflow-state bugs all came "
+            "from custom scripts). Full rationale + the custom→vendored **migration "
+            "map**: `canvas-toolbox/lib/agents/knowledge/toolkit_reuse_knowledge.md`. "
+            "The `grade_guardian` hook (installed by `cb-init`) enforces this at the "
+            "harness."
+        )
+        run_line = "uv run python canvas-toolbox/lib/tools/course_audit.py --help"
+
+    return f"""{pointer}
+
+---
+
+## Quality Discipline (Toyota Production System)
+
+AI agents working on this course follow three core quality principles:
+
+### 1. Genchi Gembutsu (現地現物) - Go and See
+
+**Don't assume, verify with real data:**
+- Test with REAL course data, not synthetic fixtures
+- When uncertain about format, examine actual files
+- Verify in Canvas sandbox, don't trust docs alone
+- Read actual code before claiming understanding
+
+**Behavioral trigger**: When you catch yourself saying "probably" or "should" → STOP and verify
+
+### 2. Jidoka (自働化) - Built-in Quality / Stop on Defect
+
+**Build quality in, stop when defect detected:**
+- Write tests WITH code, not after
+- Red tests block progress - fix immediately, don't defer
+- Validation runs automatically (not manual step)
+- Can't push to Canvas with errors (blocked by design)
+
+**Behavioral trigger**: When you want to say "we'll fix this later" → STOP and fix now
+
+### 3. Poka-yoke (ポカヨケ) - Mistake-Proofing
+
+**Design so mistakes can't happen:**
+- Automate validation (no manual steps)
+- Use pre-commit hooks to catch errors
+- Type hints catch errors at write-time
+- Block operations that would create defects
+
+**Behavioral trigger**: When manual verification required → Design it out
+
+**Quality Loop**: Prevent (Poka-yoke) → Detect (Jidoka) → Verify (Genchi Gembutsu)
+
+When you find a defect:
+1. **Fix it** (Jidoka - stop and correct)
+2. **Verify the fix** (Genchi Gembutsu - test with real data)
+3. **Prevent recurrence** (Poka-yoke - add automated check)
+
+---
+
+{tools_reminder}
+
+---
+
+Run tools from the course root, e.g.:
+```bash
+{run_line}
+```
+
+---
+
+## Course Context
+
+[Add course-specific context here as you work]
+
+**HERMES Learning:** This section grows as you chat with Claude about your course.
+- Teaching approach
+- Grading workflows
+- Course-specific Canvas patterns
+- Student cohort notes
+"""
 
 
 def historical_lines(clone: Path) -> set[str]:
