@@ -1,4 +1,4 @@
-"""Unit tests — Canvas quiz/assignment shell creation (#349).
+"""Unit tests — Canvas object shell creation (#349, #351).
 
 The dangerous failures here are quiet ones: a payload Canvas's JSON parser silently
 ignores every field of (form-encoded bracket keys sent as JSON — a real bug caught
@@ -17,8 +17,12 @@ if str(_TOOLS_DIR) not in sys.path:
 
 import canvas_shell_create as sc  # noqa: E402
 from canvas_shell_create import (  # noqa: E402
+    build_assignment_group_payload,
     build_assignment_payload,
+    build_discussion_payload,
     build_module_item_payload,
+    build_module_payload,
+    build_page_payload,
     build_quiz_payload,
     find_existing,
     load_draft,
@@ -28,6 +32,11 @@ from canvas_shell_create import (  # noqa: E402
 _QUIZ_DRAFT = {"kind": "quiz", "title": "Prep check", "points_possible": 5,
               "quiz_type": "assignment", "due_at": "2026-10-01T05:59:00Z"}
 _ASSIGN_DRAFT = {"kind": "assignment", "title": "Reflection 1", "points_possible": 10}
+_PAGE_DRAFT = {"kind": "page", "title": "Week 3 overview", "description": "<p>hi</p>"}
+_DISCUSSION_DRAFT = {"kind": "discussion", "title": "Week 3 discussion",
+                     "description": "Discuss...", "is_announcement": False}
+_MODULE_DRAFT = {"kind": "module", "title": "Week 3", "position": 3}
+_AG_DRAFT = {"kind": "assignment_group", "title": "Homework", "group_weight": 20}
 
 
 # --- load_draft --------------------------------------------------------------
@@ -59,14 +68,18 @@ def test_load_draft_rejects_a_non_object_json_body(tmp_path):
 
 # --- validate_draft ------------------------------------------------------------
 
-def test_valid_quiz_and_assignment_drafts_pass():
+def test_valid_drafts_pass_for_every_kind():
     assert validate_draft(_QUIZ_DRAFT) == []
     assert validate_draft(_ASSIGN_DRAFT) == []
+    assert validate_draft(_PAGE_DRAFT) == []
+    assert validate_draft(_DISCUSSION_DRAFT) == []
+    assert validate_draft(_MODULE_DRAFT) == []
+    assert validate_draft(_AG_DRAFT) == []
 
 
 @pytest.mark.parametrize("bad", [
     {},
-    {"kind": "page", "title": "x"},
+    {"kind": "spreadsheet", "title": "x"},
     {"kind": "quiz"},
     {"kind": "quiz", "title": "  "},
     {"kind": "quiz", "title": "x", "points_possible": -1},
@@ -76,6 +89,12 @@ def test_valid_quiz_and_assignment_drafts_pass():
     {"kind": "assignment", "title": "x", "submission_types": []},
     {"kind": "assignment", "title": "x", "submission_types": "online_text_entry"},
     {"kind": "quiz", "title": "x", "due_at": 12345},
+    {"kind": "discussion", "title": "x", "is_announcement": "yes"},
+    {"kind": "module", "title": "x", "position": 0},
+    {"kind": "module", "title": "x", "position": "first"},
+    {"kind": "module", "title": "x", "position": True},
+    {"kind": "assignment_group", "title": "x", "group_weight": -5},
+    {"kind": "assignment_group", "title": "x", "group_weight": "lots"},
 ])
 def test_invalid_drafts_are_refused(bad):
     assert validate_draft(bad) != []
@@ -143,6 +162,65 @@ def test_module_item_payload_is_nested_and_typed_correctly():
     }
 
 
+def test_module_item_payload_uses_page_url_not_content_id_for_pages():
+    """Canvas's module-item API is the one place Pages break the content_id pattern
+    every other type uses — it takes page_url instead."""
+    assert build_module_item_payload("page", "week-3-overview", "Week 3 overview") == {
+        "module_item": {"title": "Week 3 overview", "type": "Page",
+                        "page_url": "week-3-overview"}
+    }
+
+
+def test_module_item_payload_for_discussion():
+    assert build_module_item_payload("discussion", 55, "Week 3 discussion") == {
+        "module_item": {"title": "Week 3 discussion", "type": "Discussion", "content_id": 55}
+    }
+
+
+# --- payload building — the 4 new kinds (#351) --------------------------------
+
+def test_page_payload_is_nested_and_unpublished():
+    payload = build_page_payload(_PAGE_DRAFT)
+    assert payload == {"wiki_page": {"title": "Week 3 overview", "body": "<p>hi</p>",
+                                     "published": False}}
+
+
+def test_discussion_payload_is_flat_not_wrapped():
+    """The one kind that does NOT use a wrapper key — Canvas's Discussion Topics API
+    takes flat params, matching canvas_sync.py's own _push_discussion()."""
+    payload = build_discussion_payload(_DISCUSSION_DRAFT)
+    assert "discussion_topic" not in payload
+    assert payload == {"title": "Week 3 discussion", "message": "Discuss...",
+                       "published": False, "is_announcement": False}
+
+
+def test_discussion_payload_defaults_is_announcement_false():
+    payload = build_discussion_payload({"kind": "discussion", "title": "x"})
+    assert payload["is_announcement"] is False
+
+
+def test_module_payload_is_nested_and_unpublished():
+    payload = build_module_payload(_MODULE_DRAFT)
+    assert payload == {"module": {"name": "Week 3", "published": False, "position": 3}}
+
+
+def test_module_payload_omits_optional_fields_when_absent():
+    payload = build_module_payload({"kind": "module", "title": "x"})
+    assert "position" not in payload["module"]
+    assert "unlock_at" not in payload["module"]
+
+
+def test_assignment_group_payload_is_flat_not_wrapped():
+    """The other kind (besides discussion) that does NOT use a wrapper key —
+    confirmed on a sandbox: a wrapped {"assignment_group": {...}} POST returns 200
+    but silently creates a group named "Assignments" with group_weight 0, ignoring
+    every field sent."""
+    payload = build_assignment_group_payload(_AG_DRAFT)
+    assert payload == {"name": "Homework", "group_weight": 20}
+    assert "assignment_group" not in payload
+    assert "published" not in payload
+
+
 # --- find_existing -------------------------------------------------------------
 
 def test_find_existing_matches_exact_title(monkeypatch):
@@ -159,6 +237,13 @@ def test_find_existing_uses_name_field_for_assignments(monkeypatch):
 def test_find_existing_none_when_no_match(monkeypatch):
     monkeypatch.setattr(sc, "_get", lambda ep: [{"id": 1, "title": "Other"}])
     assert find_existing("1", "quiz", "Prep check") is None
+
+
+def test_find_existing_uses_name_field_for_modules_and_assignment_groups(monkeypatch):
+    monkeypatch.setattr(sc, "_get", lambda ep: [{"id": 3, "name": "Week 3"}])
+    assert find_existing("1", "module", "Week 3")["id"] == 3
+    monkeypatch.setattr(sc, "_get", lambda ep: [{"id": 4, "name": "Homework"}])
+    assert find_existing("1", "assignment_group", "Homework")["id"] == 4
 
 
 # --- create_shell — read-back verification ------------------------------------
@@ -188,6 +273,31 @@ def test_create_shell_propagates_post_error(monkeypatch):
     monkeypatch.setattr(sc, "_post", lambda ep, form: (None, "HTTP 422"))
     back, err = sc.create_shell("1", _QUIZ_DRAFT)
     assert back is None and err == "HTTP 422"
+
+
+def test_create_shell_reads_back_pages_by_url_not_id(monkeypatch):
+    """The one kind whose Canvas API path uses the url slug, not a numeric id."""
+    monkeypatch.setattr(sc, "_post", lambda ep, form: (
+        {"page_id": 9, "url": "week-3-overview"}, ""))
+    seen_endpoints = []
+
+    def fake_get(ep):
+        seen_endpoints.append(ep)
+        return {"url": "week-3-overview", "title": "Week 3 overview", "published": False}
+
+    monkeypatch.setattr(sc, "_get", fake_get)
+    back, err = sc.create_shell("1", _PAGE_DRAFT)
+    assert back and err == ""
+    assert seen_endpoints == ["/courses/1/pages/week-3-overview"]
+
+
+def test_create_shell_skips_published_check_for_assignment_groups(monkeypatch):
+    """Assignment groups have no publish state — a read-back with no 'published'
+    key at all (as Canvas actually returns) must not be treated as a failure."""
+    monkeypatch.setattr(sc, "_post", lambda ep, form: ({"id": 4}, ""))
+    monkeypatch.setattr(sc, "_get", lambda ep: {"id": 4, "name": "Homework"})
+    back, err = sc.create_shell("1", _AG_DRAFT)
+    assert back and err == ""
 
 
 # --- main(): mocked Canvas -----------------------------------------------------
@@ -248,6 +358,27 @@ def test_create_failure_exits_1(monkeypatch, tmp_path):
 def test_published_readback_exits_1(monkeypatch, tmp_path):
     rc, calls = _run(monkeypatch, tmp_path, ["--apply"], published_back=True)
     assert rc == 1
+
+
+def test_module_id_refused_for_module_kind(monkeypatch, tmp_path):
+    """Modules are never module items themselves — Canvas has no such relationship."""
+    draft_path = tmp_path / "draft.json"
+    draft_path.write_text(json.dumps(_MODULE_DRAFT), encoding="utf-8")
+    monkeypatch.setattr(sc, "CANVAS_API_TOKEN", "t")
+    monkeypatch.setattr(sc, "CANVAS_BASE_URL", "https://x")
+    monkeypatch.setattr(sys, "argv", ["canvas_shell_create.py", "--course-id", "1",
+                                      "--draft", str(draft_path), "--module-id", "77"])
+    assert sc.main() == 2
+
+
+def test_module_id_refused_for_assignment_group_kind(monkeypatch, tmp_path):
+    draft_path = tmp_path / "draft.json"
+    draft_path.write_text(json.dumps(_AG_DRAFT), encoding="utf-8")
+    monkeypatch.setattr(sc, "CANVAS_API_TOKEN", "t")
+    monkeypatch.setattr(sc, "CANVAS_BASE_URL", "https://x")
+    monkeypatch.setattr(sys, "argv", ["canvas_shell_create.py", "--course-id", "1",
+                                      "--draft", str(draft_path), "--module-id", "77"])
+    assert sc.main() == 2
 
 
 def test_invalid_draft_exits_2_before_any_network_call(monkeypatch, tmp_path):

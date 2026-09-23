@@ -13,6 +13,35 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`canvas_shell_create.py` extended — page, discussion, module, and assignment-group shells (#351).**
+
+#349/#350 closed the create-vs-update gap for quiz/assignment shells. A follow-up sweep
+of `lib/tools/` (documented in `handoffs/parkinglot.md` and `docs/ROADMAP.md`) found the
+identical gap in 4 more object types: `canvas_sync.py`'s `_push_page()`/`_push_discussion()`
+require an existing `page_url`/`canvas_id`, and no standalone tool created a new Module
+or Assignment Group in a live course at all — both existed only inside `sync_to_new.py`'s
+whole-course clone. `canvas_shell_create.py` now takes `kind: page | discussion | module |
+assignment_group` alongside the existing `quiz`/`assignment`, same shape: unpublished
+create, read-back verification, idempotent by exact title, `canvas_course_guard`-gated.
+
+**New empirical finding, caught on a sandbox before this ever reached a real course:**
+Canvas's Assignment Groups API is the one endpoint (besides Discussion Topics) that does
+**not** accept a wrapped `{"assignment_group": {...}}` body — a wrapped `POST` returns
+`200` but silently creates a group named "Assignments" with `group_weight 0`, ignoring
+every field sent. Caught by this tool's own read-back-to-verify step doing exactly its
+job. **`sync_to_new.py`'s existing `create_assignment_group()` had the same bug**,
+shipped and untested since it was written — fixed alongside this PR, with a new
+regression test (`test_sync_to_new.py`) pinning the flat payload shape.
+
+**Sandbox-verified end-to-end** (course 427808): created a page, a discussion, a module,
+and an assignment group; re-ran each — correctly reported "already exists," created
+nothing; placed a page in the new module and confirmed `--module-id` is refused for
+`module`/`assignment_group` (neither is ever a module item); ran a real
+`canvas_sync.py --pull` in an isolated scratch course and confirmed the new module and
+its placed page were discovered and written to the correct local path with the correct
+schema, and the new assignment group appeared in `.canvas/index.json` with the correct
+`group_weight`. All sandbox objects deleted afterward.
+
 **`canvas_shell_create.py` — create a Classic Quiz or Assignment shell, unpublished (#349).**
 
 `canvas_sync.py --push` only ever `PUT`s: `_push_quiz`/`_push_assignment` require a
