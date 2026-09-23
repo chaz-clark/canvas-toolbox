@@ -28,6 +28,8 @@ jobs:
           fetch-depth: 0
 
       - name: Tag the merge commit from pyproject version (if the tag is new)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           ver=$(grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' pyproject.toml)
           if [ -z "$ver" ]; then
@@ -40,4 +42,12 @@ jobs:
             git tag "v${ver}"
             git push origin "v${ver}"
             echo "tagged v${ver}"
+          fi
+          if gh release view "v${ver}" >/dev/null 2>&1; then
+            echo "v${ver} already has a GitHub Release — nothing to do"
+          else
+            gh release create "v${ver}" \
+              --title "canvas-toolbox v${ver}" \
+              --generate-notes
+            echo "published GitHub Release v${ver}"
           fi
