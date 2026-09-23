@@ -783,7 +783,7 @@ def step_11_canvas_sync(*, course_root: Path, is_subdir: bool, mode: str,
     sync_tool = REPO_ROOT / "lib" / "tools" / "canvas_sync.py"
 
     if not run_subprocess(
-        ["uv", "run", "python", str(sync_tool), "--pull"],
+        ["uv", "run", "--project", str(REPO_ROOT), "python", str(sync_tool), "--pull"],
         cwd=course_root,
         timeout=300
     ):
