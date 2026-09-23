@@ -41,6 +41,13 @@ purely local script never matches either), and the existing `.claude/ferpa_zone2
 extension point (#278) already covers non-Canvas name-bearing files generically, once
 declared.
 
+**Opt-in scheduled peer-review pairing for advanced users (#354).** Adds a
+timezone-aware scheduler around the existing idempotent peer-review pairing
+tool, course-owned YAML configuration and GitHub Actions templates, and an
+advanced-user setup skill. The workflow is not installed automatically; it
+starts in dry-run mode and requires an explicit repository-variable opt-in for
+scheduled Canvas writes.
+
 **`--approve`/`--approve-all` now require an interactive terminal (#343).**
 
 `cb_flatten.py --apply --approve-all` had no technical control distinguishing a

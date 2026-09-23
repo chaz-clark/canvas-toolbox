@@ -13,6 +13,8 @@ skills:
   path: skills/course-build
 - id: improve
   path: skills/improve
+- id: scheduled-peer-review
+  path: skills/scheduled-peer-review
 tools:
 - id: blueprint-sync
   command: lib/tools/blueprint_sync.py
@@ -88,6 +90,11 @@ tools:
   command: lib/tools/course_quality_check.py
   effect: canvas_content_write
   data_class: course_content
+  approval: always
+- id: peer-review-schedule
+  command: lib/tools/peer_review_schedule.py
+  effect: canvas_content_write
+  data_class: course_configuration
   approval: always
 - id: module-settings-sync
   command: lib/tools/module_settings_sync.py

@@ -1,0 +1,46 @@
+# Install this as .github/workflows/peer-review-sync.yml in the course repo.
+# This is an advanced, instructor-owned deployment. It is not installed by
+# cb_flatten/cb_update automatically.
+
+name: Scheduled peer-review pairing
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Write pairings to Canvas (unchecked = dry run)"
+        required: true
+        default: false
+        type: boolean
+  schedule:
+    # GitHub schedules are UTC. The checked-in config owns the DST-aware local
+    # lock time; this cron is only a polling cadence.
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  peer-review-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CANVAS_BASE_URL: ${{ secrets.CANVAS_BASE_URL }}
+      CANVAS_API_TOKEN: ${{ secrets.CANVAS_API_TOKEN }}
+      CANVAS_COURSE_ID: ${{ vars.CANVAS_COURSE_ID }}
+      PEER_REVIEW_SCHEDULE_APPLY: ${{ vars.PEER_REVIEW_SCHEDULE_APPLY || 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Run scheduled peer-review pairing
+        run: |
+          apply_flag=""
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.apply }}" == "true" ]] || \
+             [[ "${{ github.event_name }}" == "schedule" && "$PEER_REVIEW_SCHEDULE_APPLY" == "true" ]]; then
+            apply_flag="--apply"
+          fi
+          uv run python lib/tools/peer_review_schedule.py \
+            --config .canvas/peer-review-schedule.yml \
+            $apply_flag
