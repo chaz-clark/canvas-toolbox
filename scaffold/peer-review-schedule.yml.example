@@ -1,0 +1,24 @@
+# Advanced feature: scheduled peer-review pairing (#354).
+# Copy this file to .canvas/peer-review-schedule.yml in the course repo.
+# Keep Canvas credentials in GitHub Actions secrets, never in this file.
+
+timezone: America/Denver
+course_id_env: CANVAS_COURSE_ID
+
+# The scheduler will not run before start_date, after end_date, or before
+# lock_at on a day in the window.
+window:
+  start_date: 2026-10-01
+  end_date: 2026-12-15
+  lock_at: "18:00"
+
+assignment:
+  title: Prep ratings
+  group_set_id: 123456
+  # Use id: 123456 instead of title when the assignment title is not stable.
+
+include_unsubmitted: false
+
+# Explicitly opt in only after validating the workflow against a sandbox.
+# false keeps canvas_course_guard's enrolled-course protection active.
+allow_enrolled: false
