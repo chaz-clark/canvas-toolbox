@@ -402,6 +402,26 @@ def test_step_11_skips_for_maintainer_only(capsys):
     assert "Maintainer mode" in capsys.readouterr().out
 
 
+def test_step_11_runs_uv_with_explicit_project_root(monkeypatch, tmp_path):
+    """#329/#330: `cwd=course_root` has no pyproject.toml in the documented
+    clone-in-subdirectory layout, so a bare `uv run` there resolves no project
+    and silently falls back to system Python missing python-dotenv. `--project
+    REPO_ROOT` pins uv to the toolkit's own project regardless of cwd."""
+    seen = {}
+
+    def fake_run_subprocess(args, *, cwd=None, timeout=None):
+        seen["args"] = args
+        seen["cwd"] = cwd
+        return True
+
+    monkeypatch.setattr(cb_init, "run_subprocess", fake_run_subprocess)
+    ok = step_11_canvas_sync(course_root=tmp_path, is_subdir=True,
+                             mode="adopter", check_only=False)
+    assert ok
+    assert seen["args"][:4] == ["uv", "run", "--project", str(cb_init.REPO_ROOT)]
+    assert seen["cwd"] == tmp_path
+
+
 def test_step_12_skips_for_maintainer(tmp_path, capsys):
     ok = step_12_generate_agents_md(course_root=tmp_path, is_subdir=False,
                                     mode="maintainer", check_only=False)
