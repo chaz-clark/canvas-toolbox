@@ -13,6 +13,40 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**New Quiz API: confirmed `/api/quiz/v1` supports content writes, sandbox-verified — production sync push opt-in (`CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true`).**
+
+New Quizzes were documented in this project as having "no content/settings write
+support via the API at all — a platform ceiling." That was wrong: Canvas documents
+quiz CRUD and QuestionItem CRUD under `/api/quiz/v1`, confirmed with a sandbox probe
+(`new_quiz_crud_probe.py`) that creates, reads, updates, and deletes both a quiz and
+a QuestionItem end to end. `canvas_sync.py --pull` now tracks a sidecar hash so a
+locally-edited New Quiz sidecar is picked up as a push candidate; `--push` reconciles
+settings and QuestionItems (matched by Canvas ID first, exact title second — a
+re-bound/copied course still updates instead of duplicating), additive/update-only by
+default, with deletion separately opt-in via `CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE=true`.
+
+**Content push itself is opt-in** (`CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true`, default
+off) — sandbox CRUD is verified, but only 4 of 12 documented writable item types
+have fixture coverage, and the reconciliation logic had no unit tests independent of
+the sandbox before this. Without the flag, `--push` still pushes assignment dates
+(unchanged behavior) and prints why content was skipped. New tests cover the gate
+itself and the matching/create/update/delete branching via mocked `_get_new_quiz`/
+`_newquiz_write`, including a guard against ever reaching a real `requests.patch`
+call in a unit test.
+
+New sandbox-only tools: `new_quiz_crud_probe.py` (narrow CRUD validation, not the
+production writer) and `sandbox_new_quiz_fixtures.py` (seeds/tears down a marked New
+Quiz with true/false, choice, essay, and numeric items for sync development).
+`grader_fetch_nq_responses.py` now authenticates its report-download request and
+surfaces a Canvas JSON error body clearly instead of misreporting it as malformed
+CSV — the underlying `student_analysis` report generation itself remains unresolved
+(`The specified resource does not exist`; tracked separately, not yet root-caused).
+
+Also corrected: `canvas_shell_create.py`, `canvas_quiz_questions.py`,
+`_course_rebind.py`, the `course-build` skill, and `canvas_api_lessons_learned.md`
+(L8) no longer claim New Quiz content has no write path at all — they now point at
+this sync workstream instead.
+
 **`local_feedback_join.py` — grade a course with no Canvas API, without the roster ever reaching an LLM (#339 Phase A).**
 
 Some courses run on another LMS entirely (Brightspace/D2L) with no API and no export

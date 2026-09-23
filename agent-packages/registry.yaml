@@ -10,7 +10,7 @@ packages:
   - course-build
   - improve
   - scheduled-peer-review
-  tool_count: 41
+  tool_count: 43
 - id: grading
   version: 2.0.0
   name: Grading

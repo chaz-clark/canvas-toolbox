@@ -25,7 +25,9 @@ propagation, no standalone editor) · Group Categories/Groups (read-only — `pe
 `grader_fetch.py`) · Outcomes/Outcome Groups (read + CLO import, no outcome-mastery
 tracking) · Content Migrations/Exports (`.imscc` + course clone) · Calendar Events
 (read-only, one tool) · Custom Gradebook Columns (read-only, one tool) · Sections
-(roster/enrollment tools) · Feature Flags (read-only — one gate check)
+(roster/enrollment tools) · Feature Flags (read-only — one gate check) · New Quizzes
+(assignment-shell dates plus read-only `/api/quiz/v1` sidecars; content writes under
+investigation)
 
 ### ⛔ Never touched (zero tools, zero read-only usage)
 Conversations · Analytics · Grade Change Log · Gradebook History · Usage Rights ·
@@ -45,9 +47,11 @@ now covers all six: `quiz`, `assignment`, `page`, `discussion`, `module`,
 `assignment_group` — unpublished create, read-back verification, idempotent by exact
 title, `canvas_course_guard`-gated.
 
-New Quiz creation stays excluded deliberately (LTI-delivered, no content/settings write
-support via the API at all — a platform ceiling, not a toolkit gap). File upload (#7)
-already closed the same shape of gap for Canvas Files.
+New Quiz creation stays excluded for now, but no longer as a presumed platform ceiling.
+Current Canvas documentation exposes quiz list/create/retrieve/update/delete and
+QuestionItem create/update/retrieve/delete operations under `/api/quiz/v1`; the repo
+has only read-sidecar support today. File upload (#7) already closed the same shape of
+gap for Canvas Files.
 
 Sweep write-up and sandbox verification notes: `handoffs/parkinglot.md` ("Create-vs-update
 gap sweep") and `CHANGELOG.md` [Unreleased]. Caught along the way: Canvas's Assignment
@@ -96,6 +100,46 @@ instructor goes into Canvas's UI grade-history view by hand. A read-only export
 
 ### Tier 2 — real, but scope before building
 
+**New Quiz API sync** ([quiz docs](https://canvas.instructure.com/doc/api/new_quizzes.html),
+[item docs](https://canvas.instructure.com/doc/api/new_quiz_items.html)).
+The sandbox confirmed that the separate API can retrieve New Quiz records and item
+collections for existing external-tool assignment shells. A controlled sandbox CRUD
+probe then created an unpublished, clearly marked test quiz and one fake QuestionItem,
+read both back, updated both, and deleted both successfully. The next step is a
+sanctioned production sync writer with local-source mapping, read-back verification,
+and rollback/delete behavior. Keep response/reporting work separate: structure CRUD
+does not establish per-student response access. **Status: candidate, Tier 2, M.**
+
+**New Quiz capability workstream:**
+
+1. **Content adapter and local round-trip (M).** Extend the existing sidecar model
+   into a sanctioned `new_quiz_sync` path: quiz settings, assignment metadata,
+   module placement, QuestionItem create/update/delete, idempotent matching, and
+   read-back verification. Start with true/false, essay, choice, and numeric
+   questions; preserve unsupported structures instead of silently flattening them.
+2. **Question-type coverage (M).** Add explicit serializers/validators for the
+   documented question types and UUID-bearing interaction data. Stimulus, Bank,
+   and BankEntry items remain read-only until Canvas exposes write endpoints for
+   them; the tool must report those limits clearly.
+3. **Reports and response workflows (S–M).** Wrap asynchronous `student_analysis`
+   and `item_analysis` report generation, progress polling, download, caching, and
+   FERPA-safe de-identification. Keep this separate from content sync and reuse the
+   existing New Quiz reporting path where possible.
+4. **Accommodations (M).** Add guarded course-level and quiz-level tools for extra
+   time, extra attempts, reduced answer choices, and optional application to
+   in-progress sessions. This is per-student Canvas writing and must use the
+   accommodations workflow and explicit scope confirmation.
+5. **Cross-course propagation (L).** After the adapter is stable, integrate master →
+   blueprint/section workflows with two-course verification, rollback behavior, and
+   tests against populated sandbox fixtures. Do not replace Canvas course-copy or
+   Blueprint behavior until this path proves equivalent for unsupported item types.
+
+**Explicit API boundaries:** the current documented surface does not make every
+New Quiz UI feature automatable. Stimulus/Bank/BankEntry writes are not available,
+and direct per-student submission/result endpoints remain a separate reporting
+problem. “All abilities” therefore means complete coverage of the supported API,
+plus honest read-only preservation and UI/server-side fallbacks for the rest.
+
 **Analytics API** ([docs](https://canvas.instructure.com/doc/api/analytics.html)).
 Zero tooling today, but overlaps meaningfully with what `course_engagement_audit.py`
 already does by fetching submissions/discussions directly for Title IV engagement
@@ -133,8 +177,7 @@ scheduling or collaborative-doc management).
 SIS Import, Developer Keys, Account Reports, Accounts API, Roles, Terms of Service.
 These require account-admin permissions most instructors using this toolkit don't
 have, and sit outside "things an instructor does to their own course" — the same
-reasoning that already excludes New Quiz content writes (a platform permission
-ceiling) and full LTI tool management (an account-admin surface, distinct from the
+reasoning that excludes full LTI tool management (an account-admin surface, distinct from the
 read-only per-course audit in Tier 2 above).
 
 ---
@@ -689,6 +732,21 @@ If you build a tool for one of these API categories:
   - **Payoff:** removes the CLI/token barrier for faculty on the accommodations that can't go
     offline; complements offline mode (which covers the read/report + content tools).
   - **Filed:** 2026-07-13 (parking lot).
+
+### Operator UX / agent ergonomics
+
+- **Context-pressure and topic-shift notification.** Notify the user when a single
+  chat is consuming a large context window or token budget, and gently recommend
+  starting a new chat when the conversation changes topics. The signal should be
+  advisory rather than blocking: show an approximate reason (context pressure,
+  topic shift, or both), preserve a concise handoff summary, and let the user
+  continue if they choose. Avoid noisy warnings by adding a cooldown and only
+  notifying after a meaningful threshold or a clear topic transition.
+  - **Status:** roadmap idea; likely host/runtime capability rather than a
+    `canvas-toolbox` feature.
+  - **Acceptance shape:** warning appears before quality degrades, does not expose
+    hidden system limits, and offers a one-click/new-chat handoff with the current
+    task summary.
 
 ---
 

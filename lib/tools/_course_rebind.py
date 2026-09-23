@@ -14,10 +14,11 @@ WHY STRIPPING THE IDS DOESN'T WORK
   (`_push_assignment`, `_push_quiz`, `_push_discussion`) is UPDATE-ONLY: it requires an
   existing id and issues a PUT. There is no create path.
 
-  Nor should there be. New Quizzes (quizzes.next) cannot be created or edited through
-  the classic API at all — the field report shows canvas_sync already refusing them
-  with "Canvas-only: must be edited in Canvas UI". Any hand-rolled create path would
-  silently drop them, along with rubrics, question banks and file attachments.
+  Nor should there be. New Quizzes use a separate `/api/quiz/v1` content API;
+  rebind currently updates their assignment-shell IDs only, while QuestionItem
+  content mapping belongs to the New Quiz sync workstream. Any hand-rolled path
+  outside that adapter could silently drop them, along with question banks and
+  file attachments.
 
   Canvas's OWN copy (content migration / .imscc import) carries all of it. Both field
   workarounds independently converged on it. So the division of labour is:

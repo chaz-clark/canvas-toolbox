@@ -70,6 +70,36 @@ def _newquiz_assignment_file(tmp_path, **overrides) -> Path:
     return path
 
 
+def test_newquiz_item_payload_strips_read_only_response_fields():
+    source = {
+        "id": "9001",
+        "position": 1,
+        "points_possible": 2,
+        "entry_type": "Item",
+        "entry_editable": True,
+        "status": "mutable",
+        "created_at": "2026-09-23T00:00:00Z",
+        "entry": {
+            "id": "entry-1",
+            "title": "Probe question",
+            "item_body": "<p>Is this a test?</p>",
+            "interaction_type_slug": "true-false",
+            "interaction_data": {"true_choice": "True", "false_choice": "False"},
+            "scoring_data": {"value": True},
+            "scoring_algorithm": "Equivalence",
+            "updated_at": "2026-09-23T00:00:00Z",
+        },
+    }
+
+    payload = canvas_sync._newquiz_item_payload(source)
+    assert payload["item"]["points_possible"] == 2
+    assert payload["item"]["entry"]["title"] == "Probe question"
+    assert "id" not in payload["item"]["entry"]
+    assert "updated_at" not in payload["item"]["entry"]
+    assert "entry_editable" not in payload["item"]
+    assert "status" not in payload["item"]
+
+
 def test_pushes_only_the_three_date_fields(monkeypatch, tmp_path):
     fake = _install(monkeypatch)
     path = _newquiz_assignment_file(tmp_path)
@@ -141,3 +171,207 @@ def test_the_old_blanket_skip_no_longer_exists():
     src = inspect.getsource(canvas_sync)
     assert "NewQuiz descriptions must be edited in Canvas UI (API not supported)" not in src
     assert "_push_newquiz_dates" in src
+
+
+# ---------------------------------------------------------------------------
+# _push_newquiz_content — opt-in gate + matching/create/update/delete logic
+#
+# Content writes are sandbox-CRUD-verified but not production-sync-validated
+# (8 of 12 documented writable item types have no fixture coverage). The gate
+# mirrors the existing CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE precedent, extended to
+# the create/update path it was inconsistently missing from.
+# ---------------------------------------------------------------------------
+
+def _sidecar_file(tmp_path, settings=None, items=None) -> Path:
+    """Default settings deliberately has NO push-whitelisted keys (only "id",
+    which is used for quiz_id fallback but never sent) — item-focused tests
+    must not accidentally trigger the settings PATCH against a real network
+    call just because a monkeypatch was missed."""
+    sidecar = {
+        "quiz_engine": "new_quiz",
+        "settings": settings if settings is not None else {"id": 999},
+        "items": items if items is not None else [],
+    }
+    path = tmp_path / "quiz.newquiz.json"
+    path.write_text(json.dumps(sidecar), encoding="utf-8")
+    return path
+
+
+class _BlockRealPatch:
+    """Defense in depth: item-focused tests below rely on an empty settings
+    payload to skip the PATCH call, but a real `requests.patch` reaching the
+    live sandbox with a fake quiz_id must fail LOUDLY in a test, never
+    silently succeed or silently no-op against production Canvas."""
+    def patch(self, *a, **k):
+        raise AssertionError("test must not reach a real requests.patch() call")
+
+
+def test_content_push_skipped_by_default(monkeypatch, tmp_path, capsys):
+    """The core fix: without the opt-in flag, no network call happens at all —
+    not the settings PATCH, not a single item read or write."""
+    monkeypatch.delenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", raising=False)
+    calls = []
+    monkeypatch.setattr(canvas_sync, "requests",
+                        type("R", (), {"patch": staticmethod(lambda *a, **k: calls.append(1))}))
+    monkeypatch.setattr(canvas_sync, "_get_new_quiz", lambda *a: calls.append(1))
+    sidecar = _sidecar_file(tmp_path, items=[{"entry_type": "Item", "entry": {"title": "X"}}])
+
+    ok = canvas_sync._push_newquiz_content(
+        tmp_path / "assignment.json", {"canvas_id": 999, "settings_path": str(sidecar)})
+
+    assert ok is True
+    assert calls == []
+    assert "CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true" in capsys.readouterr().out
+
+
+def test_content_push_runs_when_flag_enabled(monkeypatch, tmp_path):
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+    monkeypatch.setattr(canvas_sync, "CANVAS_COURSE_ID", "425166")
+    monkeypatch.setattr(canvas_sync, "requests", _BlockRealPatch())
+    monkeypatch.setattr(canvas_sync, "_get_new_quiz", lambda ep: [])
+    sidecar = _sidecar_file(tmp_path, settings={"id": 999})  # no settings_payload fields
+
+    ok = canvas_sync._push_newquiz_content(
+        tmp_path / "assignment.json", {"canvas_id": 999, "settings_path": str(sidecar)})
+
+    assert ok is True
+
+
+def test_content_push_creates_new_item_when_no_match(monkeypatch, tmp_path):
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+    monkeypatch.setattr(canvas_sync, "CANVAS_COURSE_ID", "425166")
+    monkeypatch.setattr(canvas_sync, "requests", _BlockRealPatch())
+    monkeypatch.setattr(canvas_sync, "_get_new_quiz", lambda ep: [])  # nothing exists yet
+    writes = []
+    monkeypatch.setattr(canvas_sync, "_newquiz_write", lambda method, path, payload:
+                        writes.append((method, path)) or {"id": 42})
+    sidecar = _sidecar_file(tmp_path, items=[
+        {"entry_type": "Item", "entry": {"title": "New question"}}])
+
+    ok = canvas_sync._push_newquiz_content(
+        tmp_path / "assignment.json", {"canvas_id": 999, "settings_path": str(sidecar)})
+
+    assert ok is True
+    assert writes == [("POST", "/courses/425166/quizzes/999/items")]
+
+
+def test_content_push_updates_item_matched_by_id(monkeypatch, tmp_path):
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+    monkeypatch.setattr(canvas_sync, "CANVAS_COURSE_ID", "425166")
+    monkeypatch.setattr(canvas_sync, "requests", _BlockRealPatch())
+    monkeypatch.setattr(canvas_sync, "_get_new_quiz", lambda ep: [
+        {"id": 7, "entry_type": "Item", "entry": {"title": "Old title"}}])
+    writes = []
+    monkeypatch.setattr(canvas_sync, "_newquiz_write", lambda method, path, payload:
+                        writes.append((method, path)) or {"id": 7})
+    sidecar = _sidecar_file(tmp_path, items=[
+        {"id": 7, "entry_type": "Item", "entry": {"title": "New title"}}])
+
+    ok = canvas_sync._push_newquiz_content(
+        tmp_path / "assignment.json", {"canvas_id": 999, "settings_path": str(sidecar)})
+
+    assert ok is True
+    assert writes == [("PATCH", "/courses/425166/quizzes/999/items/7")]
+
+
+def test_content_push_matches_by_title_when_id_differs(monkeypatch, tmp_path):
+    """A re-bound/copied course gives the item a NEW Canvas id — title match
+    is the fallback so it updates instead of duplicating."""
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+    monkeypatch.setattr(canvas_sync, "CANVAS_COURSE_ID", "425166")
+    monkeypatch.setattr(canvas_sync, "requests", _BlockRealPatch())
+    monkeypatch.setattr(canvas_sync, "_get_new_quiz", lambda ep: [
+        {"id": 555, "entry_type": "Item", "entry": {"title": "Same title"}}])
+    writes = []
+    monkeypatch.setattr(canvas_sync, "_newquiz_write", lambda method, path, payload:
+                        writes.append((method, path)) or {"id": 555})
+    sidecar = _sidecar_file(tmp_path, items=[
+        {"id": 111, "entry_type": "Item", "entry": {"title": "Same title"}}])  # id 111 in source
+
+    ok = canvas_sync._push_newquiz_content(
+        tmp_path / "assignment.json", {"canvas_id": 999, "settings_path": str(sidecar)})
+
+    assert ok is True
+    assert writes == [("PATCH", "/courses/425166/quizzes/999/items/555")]  # target's real id
+
+
+def test_content_push_skips_read_only_entry_types(monkeypatch, tmp_path):
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+    monkeypatch.setattr(canvas_sync, "CANVAS_COURSE_ID", "425166")
+    monkeypatch.setattr(canvas_sync, "requests", _BlockRealPatch())
+    monkeypatch.setattr(canvas_sync, "_get_new_quiz", lambda ep: [])
+    writes = []
+    monkeypatch.setattr(canvas_sync, "_newquiz_write", lambda method, path, payload:
+                        writes.append((method, path)) or {"id": 1})
+    sidecar = _sidecar_file(tmp_path, items=[
+        {"entry_type": "StimulusItem", "entry": {"title": "reading passage"}}])
+
+    ok = canvas_sync._push_newquiz_content(
+        tmp_path / "assignment.json", {"canvas_id": 999, "settings_path": str(sidecar)})
+
+    assert ok is True
+    assert writes == []
+
+
+def test_content_push_never_deletes_by_default(monkeypatch, tmp_path):
+    monkeypatch.delenv("CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE", raising=False)
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+    monkeypatch.setattr(canvas_sync, "CANVAS_COURSE_ID", "425166")
+    monkeypatch.setattr(canvas_sync, "requests", _BlockRealPatch())
+    monkeypatch.setattr(canvas_sync, "_get_new_quiz", lambda ep: [
+        {"id": 7, "entry_type": "Item", "entry": {"title": "orphaned locally"}}])
+    writes = []
+    monkeypatch.setattr(canvas_sync, "_newquiz_write", lambda method, path, payload:
+                        writes.append((method, path)) or {"id": 7})
+    sidecar = _sidecar_file(tmp_path, items=[])  # source no longer has item 7
+
+    ok = canvas_sync._push_newquiz_content(
+        tmp_path / "assignment.json", {"canvas_id": 999, "settings_path": str(sidecar)})
+
+    assert ok is True
+    assert writes == []  # additive/update-only — nothing deleted
+
+
+def test_content_push_deletes_when_both_flags_set(monkeypatch, tmp_path):
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE", "true")
+    monkeypatch.setattr(canvas_sync, "CANVAS_COURSE_ID", "425166")
+    monkeypatch.setattr(canvas_sync, "requests", _BlockRealPatch())
+    monkeypatch.setattr(canvas_sync, "_get_new_quiz", lambda ep: [
+        {"id": 7, "entry_type": "Item", "entry": {"title": "orphaned locally"}}])
+    writes = []
+    monkeypatch.setattr(canvas_sync, "_newquiz_write", lambda method, path, payload:
+                        writes.append((method, path)) or {"id": 7})
+    sidecar = _sidecar_file(tmp_path, items=[])
+
+    ok = canvas_sync._push_newquiz_content(
+        tmp_path / "assignment.json", {"canvas_id": 999, "settings_path": str(sidecar)})
+
+    assert ok is True
+    assert writes == [("DELETE", "/courses/425166/quizzes/999/items/7")]
+
+
+def test_content_push_missing_sidecar_fails(monkeypatch, tmp_path):
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+
+    ok = canvas_sync._push_newquiz_content(
+        tmp_path / "assignment.json",
+        {"canvas_id": 999, "settings_path": str(tmp_path / "missing.json")})
+
+    assert ok is False
+
+
+def test_content_push_item_write_error_returns_false(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+    monkeypatch.setattr(canvas_sync, "CANVAS_COURSE_ID", "425166")
+    monkeypatch.setattr(canvas_sync, "requests", _BlockRealPatch())
+    monkeypatch.setattr(canvas_sync, "_get_new_quiz", lambda ep: [])
+    monkeypatch.setattr(canvas_sync, "_newquiz_write",
+                        lambda method, path, payload: {"error": "HTTP 422"})
+    sidecar = _sidecar_file(tmp_path, items=[{"entry_type": "Item", "entry": {"title": "X"}}])
+
+    ok = canvas_sync._push_newquiz_content(
+        tmp_path / "assignment.json", {"canvas_id": 999, "settings_path": str(sidecar)})
+
+    assert ok is False
+    assert "ERROR" in capsys.readouterr().out

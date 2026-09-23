@@ -212,7 +212,20 @@ def fetch_nq_report_csv(
             url = (p.get("results") or {}).get("url")
             if not url:
                 raise RuntimeError(f"Progress {pid} completed but no results.url")
-            csv_text = requests.get(url, timeout=_TIMEOUT).text
+            # Canvas may return an inst-fs URL that still requires the
+            # Canvas bearer token.  Supplying it is harmless for signed
+            # URLs and avoids receiving the misleading text/csv
+            # `{"errors":["The specified resource does not exist"]}` body.
+            csv_text = requests.get(url, headers=headers, timeout=_TIMEOUT).text
+            try:
+                error_body = json.loads(csv_text)
+            except json.JSONDecodeError:
+                error_body = None
+            if isinstance(error_body, dict) and error_body.get("errors"):
+                raise RuntimeError(
+                    "NQ report download returned Canvas error: "
+                    + "; ".join(str(e) for e in error_body["errors"])
+                )
             return csv_text
         if state == "failed":
             raise RuntimeError(f"NQ report {pid} failed: {p.get('message')}")

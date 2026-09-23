@@ -138,17 +138,17 @@ data = {"quiz[due_at]": new_due, "quiz[lock_at]": None, "quiz[unlock_at]": None}
 
 **Provenance:** `canvas_sync.py` Discussion path.
 
-### L8 — NewQuiz / ExternalTool items can't be content-pushed via REST
+### L8 — NewQuiz / ExternalTool items use a separate REST surface
 
 **What Canvas does:** New Quizzes (formerly Quizzes.Next) is a separate **LTI 1.3 tool**, not part of the core Canvas REST API (`/api/v1/`). In the core API a New Quiz surfaces only as an **Assignment shell** with `submission_types == ["external_tool"]`: the assignment *metadata* (title, points, due dates, module placement) is REST-addressable, but the quiz *body* (questions/items, settings, stimulus) lives in the New Quizzes engine, exposed through a **separate API at `/api/quiz/v1/`**. Classic Quizzes, by contrast, is fully REST-addressable (`/api/v1/courses/:id/quizzes` + `quiz_questions`), which is why Classic content syncs cleanly and New does not. (LTI integration is documented in `canvas_api_knowledge.md` D4; this lesson is the empirical sync consequence.)
 
-**Read/write asymmetry (the crux):** The `/api/quiz/v1/` engine API supports **reads** — the toolkit pulls a read-only sidecar of a New Quiz's settings + items (`_pull_new_quiz_sidecar` → `quiz_engine: new_quiz`). But there is **no reliable REST create/write path** for the quiz content. So a sync tool can recreate the assignment *shell* (the external_tool link) in a target course, yet has no API to repopulate the questions — and the recreated link points at source-course quiz content that doesn't exist in the target.
+**Current status (verified 2026-09-23):** The toolkit pulls a read-only sidecar of a New Quiz's settings + items (`_pull_new_quiz_sidecar` → `quiz_engine: new_quiz`). Current Canvas documentation also describes quiz CRUD and QuestionItem CRUD under `/api/quiz/v1`. The sandbox probe `new_quiz_crud_probe.py` successfully created an unpublished quiz, created and read back a true/false QuestionItem, updated both resources, and deleted both. Production sync remains unimplemented; do not treat the probe as proof that arbitrary course migrations are safe until local mapping and full fixture coverage exist.
 
 **Why it matters:** Both the module shell and the assignment shell sync, and the API reports success, so the operation *looks* clean — but the item body lands **empty** in the target: students see a module entry / assignment with no quiz behind it. The failure is silent; nothing errors.
 
 **Detection signal:** The toolkit classifies an assignment as `NewQuiz` when `submission_types == ["external_tool"]` (`canvas_sync.py:674`). That plus `ExternalTool`, `ExternalUrl`, and the sub-header types form `NO_PUSH_TYPES`.
 
-**How the toolkit handles it:** Sync scripts **warn-and-skip** anything in `NO_PUSH_TYPES` with a pre-write warning; `course_quality_check.py` flags the resulting empty/floating items afterward. Read-only New Quiz content is preserved in the sidecar for backup/inspection, not re-pushed. **Correct remediation** (what actually moves a New Quiz between courses): Canvas's own server-side machinery — **content migration / course copy / blueprint association** — not REST item recreation. `course_mirror.py` explicitly notes New Quiz content must be set manually in Canvas.
+**How the toolkit handles it today:** Sync scripts **warn-and-skip** anything in `NO_PUSH_TYPES` with a pre-write warning; `course_quality_check.py` flags the resulting empty/floating items afterward. Read-only New Quiz content is preserved in the sidecar for backup/inspection, not re-pushed. Until a sanctioned writer and sandbox CRUD verification land, Canvas's own server-side machinery — **content migration / course copy / blueprint association** — remains the supported cross-course path. `course_mirror.py` explicitly notes New Quiz content must be set manually in Canvas.
 
 **Provenance:** `canvas_sync.py` (`_get_new_quiz` → `/api/quiz/v1/`, `_pull_new_quiz_sidecar`, NewQuiz detection at :674), `blueprint_sync.py` / `course_mirror.py` (`NO_PUSH_TYPES`, warn-and-skip), `course_quality_check.py` (post-sync flag).
 

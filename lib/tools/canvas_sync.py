@@ -949,6 +949,7 @@ def cmd_init():
                             sidecar_path.write_text(json.dumps(sidecar, indent=2, default=str), encoding="utf-8")
                             index_entry["quiz_engine"] = "new_quiz"
                             index_entry["settings_path"] = str(sidecar_path)
+                            index_entry["sidecar_hash"] = _file_hash(sidecar_path)
                             _vprint(f"      [newquiz sidecar] {sidecar_path.name}")
                         else:
                             _vprint(f"      [newquiz sidecar] skipped — API inaccessible for {item_title}")
@@ -1779,6 +1780,187 @@ def _push_newquiz_dates(filepath: Path, meta: dict) -> bool:
     return True
 
 
+def _newquiz_item_payload(item: dict) -> dict:
+    """Return the writable subset of a New Quiz QuestionItem.
+
+    Canvas returns timestamps, IDs, editability flags, and status fields alongside
+    the writable interaction model. Sending the response object back wholesale is
+    unsafe: those fields are read-only and some Canvas instances reject them.
+    """
+    entry = item.get("entry") or {}
+    writable_entry = {
+        key: entry[key]
+        for key in (
+            "title", "item_body", "calculator_type", "interaction_type_slug",
+            "interaction_data", "properties", "scoring_data", "scoring_algorithm",
+            "feedback", "answer_feedback",
+        )
+        if key in entry
+    }
+    payload = {
+        "item": {
+            "entry_type": "Item",
+            "points_possible": item.get("points_possible", 1),
+            "position": item.get("position"),
+            "entry": writable_entry,
+        }
+    }
+    if payload["item"]["position"] is None:
+        payload["item"].pop("position")
+    return payload
+
+
+def _newquiz_write(method: str, path: str, payload: dict) -> dict:
+    """Call the documented `/api/quiz/v1` JSON write surface."""
+    url = f"{CANVAS_BASE_URL}/api/quiz/v1{path}"
+    try:
+        resp = requests.request(method, url, headers=_headers(), json=payload, timeout=20)
+    except Exception as exc:
+        return {"error": str(exc)}
+    if resp.status_code >= 400:
+        return {"error": resp.text[:300], "status_code": resp.status_code}
+    try:
+        return resp.json() if resp.text else {}
+    except ValueError:
+        return {}
+
+
+def _push_newquiz_content(filepath: Path, meta: dict) -> bool:
+    """Reconcile a pulled New Quiz sidecar's settings and QuestionItems.
+
+    Existing target items match by Canvas ID first and exact question title second,
+    which allows a re-bound course to update items whose IDs changed during a copy.
+    New items are created. Deletions are opt-in via
+    `CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE=true`; the default is additive/update-only.
+    Stimulus, Bank, and BankEntry items are preserved locally and reported as
+    read-only because Canvas does not document write endpoints for them.
+
+    WHY THE WHOLE FUNCTION IS OPT-IN (`CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true`)
+    Content writes are sandbox-CRUD-verified (create/read/update/delete all
+    confirmed against a real New Quiz) but not yet production-sync-validated:
+    no fixture coverage exists for 8 of the 12 documented writable item types
+    (only true-false/choice/essay/numeric are exercised), and this function's
+    own matching/create/update/delete branching has no unit test coverage
+    independent of the sandbox. Silently defaulting this on the first time a
+    NewQuiz sidecar's hash changes would attempt a live write against
+    unvalidated logic with no operator opt-in — the same reasoning the delete
+    flag above already applies, extended to the create/update path it was
+    inconsistently missing from.
+    """
+    if os.getenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "").lower() != "true":
+        print("    SKIP: New Quiz content push requires "
+              "CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true (not yet production-validated — "
+              "see canvas_api_lessons_learned.md L8). Dates were still pushed above.")
+        return True
+    sidecar_path = Path(meta.get("settings_path", ""))
+    if not sidecar_path.exists():
+        print(f"    ERROR: New Quiz sidecar not found: {sidecar_path}")
+        return False
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    settings = sidecar.get("settings") or {}
+    quiz_id = meta.get("canvas_id") or settings.get("id")
+    if not quiz_id:
+        print(f"    ERROR: no New Quiz assignment/quiz id in {filepath}")
+        return False
+
+    settings_payload = {}
+    for key in ("title", "instructions", "assignment_group_id", "points_possible",
+                "due_at", "lock_at", "unlock_at", "grading_type"):
+        if key in settings:
+            settings_payload[f"quiz[{key}]"] = settings[key]
+    quiz_settings = settings.get("quiz_settings")
+    if isinstance(quiz_settings, dict):
+        for key in ("calculator_type", "one_at_a_time_type", "allow_backtracking",
+                    "shuffle_answers", "shuffle_questions", "require_student_access_code",
+                    "student_access_code", "has_time_limit", "session_time_limit_in_seconds"):
+            if key in quiz_settings:
+                settings_payload[f"quiz[quiz_settings][{key}]"] = quiz_settings[key]
+    if settings_payload:
+        url = f"{CANVAS_BASE_URL}/api/quiz/v1/courses/{CANVAS_COURSE_ID}/quizzes/{quiz_id}"
+        try:
+            resp = requests.patch(
+                url,
+                headers={
+                    "Authorization": f"Bearer {CANVAS_API_TOKEN}",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                data=settings_payload,
+                timeout=20,
+            )
+        except Exception as exc:
+            print(f"    ERROR updating New Quiz settings: {exc}")
+            return False
+        if resp.status_code >= 400:
+            print(f"    ERROR updating New Quiz settings: {resp.text[:300]}")
+            return False
+
+    existing = _get_new_quiz(
+        f"/courses/{CANVAS_COURSE_ID}/quizzes/{quiz_id}/items?per_page=100"
+    )
+    if not isinstance(existing, list):
+        print("    ERROR reading current New Quiz items")
+        return False
+    by_id = {str(item.get("id")): item for item in existing if item.get("id") is not None}
+    by_title = {
+        str((item.get("entry") or {}).get("title")): item
+        for item in existing
+        if item.get("entry_type") == "Item" and (item.get("entry") or {}).get("title")
+    }
+    source_items = sidecar.get("items") or []
+    seen_ids = set()
+    for source in source_items:
+        entry_type = source.get("entry_type", "Item")
+        if entry_type != "Item":
+            print(f"    SKIP read-only New Quiz item type: {entry_type}")
+            continue
+        source_id = str(source.get("id")) if source.get("id") is not None else None
+        title = str((source.get("entry") or {}).get("title", ""))
+        target = by_id.get(source_id) if source_id else None
+        target = target or by_title.get(title)
+        if target:
+            target_id = target.get("id")
+            result = _newquiz_write(
+                "PATCH",
+                f"/courses/{CANVAS_COURSE_ID}/quizzes/{quiz_id}/items/{target_id}",
+                _newquiz_item_payload(source),
+            )
+            action = "updated"
+        else:
+            result = _newquiz_write(
+                "POST",
+                f"/courses/{CANVAS_COURSE_ID}/quizzes/{quiz_id}/items",
+                _newquiz_item_payload(source),
+            )
+            action = "created"
+        if result.get("error"):
+            print(f"    ERROR {action} New Quiz item {title!r}: {result['error']}")
+            return False
+        if result.get("id") is not None:
+            seen_ids.add(str(result["id"]))
+        elif target and target.get("id") is not None:
+            seen_ids.add(str(target["id"]))
+        print(f"    New Quiz item {action}: {title or '<untitled>'}")
+
+    if os.getenv("CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE", "").lower() == "true":
+        source_ids = {str(item.get("id")) for item in source_items if item.get("id") is not None}
+        for target in existing:
+            if target.get("entry_type") != "Item":
+                continue
+            target_id = str(target.get("id"))
+            title = (target.get("entry") or {}).get("title", "<untitled>")
+            if target_id not in seen_ids and target_id not in source_ids:
+                result = _newquiz_write(
+                    "DELETE",
+                    f"/courses/{CANVAS_COURSE_ID}/quizzes/{quiz_id}/items/{target_id}",
+                    {},
+                )
+                if result.get("error"):
+                    print(f"    ERROR delete New Quiz item {title!r}: {result['error']}")
+                    return False
+                print(f"    New Quiz item deleted: {title}")
+    return True
+
+
 def _push_quiz(filepath: Path, meta: dict) -> bool:
     """Push classic quiz metadata via quizzes endpoint; dates via linked assignment endpoint."""
     canvas_id = meta.get("canvas_id")
@@ -1938,7 +2120,13 @@ def cmd_push(target: Optional[str] = None):
         if not path.exists():
             continue
         current_hash = _file_hash(path)
-        if current_hash != meta.get("hash"):
+        sidecar_changed = (
+            meta.get("type") == "NewQuiz"
+            and meta.get("settings_path")
+            and Path(meta["settings_path"]).exists()
+            and _file_hash(Path(meta["settings_path"])) != meta.get("sidecar_hash")
+        )
+        if current_hash != meta.get("hash") or sidecar_changed:
             push_candidates[filepath_str] = (path, meta)
 
     if not push_candidates:
@@ -1979,9 +2167,11 @@ def cmd_push(target: Optional[str] = None):
         elif item_type == "Quiz":
             ok = _push_quiz(path, meta)
         elif item_type == "NewQuiz":
-            print(f"    NewQuiz: pushing due/unlock/lock dates only "
-                  f"(content/description is Canvas-only — edit in the UI, API not supported)")
-            ok = _push_newquiz_dates(path, meta)
+            content_enabled = os.getenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "").lower() == "true"
+            print("    NewQuiz: pushing assignment dates"
+                  + (" plus API-backed quiz content" if content_enabled
+                     else " (content push opt-in — see _push_newquiz_content docstring)"))
+            ok = _push_newquiz_dates(path, meta) and _push_newquiz_content(path, meta)
         elif item_type in METADATA_ONLY_TYPES:
             print(f"    SKIP: {item_type} is metadata-only (manage in Canvas directly)")
             continue
@@ -1991,6 +2181,10 @@ def cmd_push(target: Optional[str] = None):
 
         if ok:
             index["files"][filepath_str]["hash"] = _file_hash(path)
+            if item_type == "NewQuiz" and meta.get("settings_path"):
+                sidecar = Path(meta["settings_path"])
+                if sidecar.exists():
+                    index["files"][filepath_str]["sidecar_hash"] = _file_hash(sidecar)
             print(f"    OK")
             pushed += 1
         else:
