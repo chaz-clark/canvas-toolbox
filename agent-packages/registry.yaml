@@ -9,7 +9,7 @@ packages:
   - audit
   - course-build
   - improve
-  tool_count: 39
+  tool_count: 40
 - id: grading
   version: 2.0.0
   name: Grading

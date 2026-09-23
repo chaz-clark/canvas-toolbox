@@ -343,6 +343,30 @@ data = {"quiz[due_at]": new_due, "quiz[lock_at]": None, "quiz[unlock_at]": None}
 
 `POST /courses/:cid/group_categories` with `self_signup=enabled`, `create_group_count=1`, `group_limit=4` returned `200` and echoed `self_signup` and `group_limit`; `GET /group_categories/:id/users?unassigned=true` returned `200`. Deleting the category removed its groups.
 
+### L26 — Quiz `points_possible` is derived from questions, not settable at creation
+
+**What Canvas does:** `POST /courses/:cid/quizzes` with `quiz[points_possible]` in the
+payload returns `201` and echoes back the value in-memory, but a follow-up `GET` shows
+`points_possible: null` — the field is ignored. An assignment created the same way
+(`POST /courses/:cid/assignments` with `assignment[points_possible]`) DOES persist the
+value exactly as sent. A Classic Quiz's points are the sum of its questions' points;
+with no questions yet (a fresh shell), there is nothing to sum, and the field cannot be
+pre-set to a target value the way an assignment's can.
+
+**Why it matters:** a tool that creates a quiz shell and trusts the `201`/its own
+echoed payload for `points_possible` would report success on a field that silently
+didn't take. `canvas_quiz_questions.py` is the tool that actually determines a quiz's
+points, by adding questions with their own point values.
+
+**How the toolkit handles it:** `canvas_shell_create.py` still accepts
+`points_possible` in a quiz draft (harmless to send, and Canvas doesn't reject it) but
+does not claim it as verified, and tells the operator directly: sent, but won't take
+effect until questions are added via `canvas_quiz_questions.py`.
+
+**Provenance:** sandbox 427808 probe, 2026-09-23 (issue #349) — an assignment and a
+quiz created via the identical code path, same field, only the assignment's value
+read back correctly.
+
 ---
 
 ## Cross-Cutting Patterns

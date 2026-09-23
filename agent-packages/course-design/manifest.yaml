@@ -24,6 +24,11 @@ tools:
   effect: canvas_content_write
   data_class: course_content
   approval: always
+- id: canvas-shell-create
+  command: lib/tools/canvas_shell_create.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
 - id: course-mirror
   command: lib/tools/course_mirror.py
   effect: canvas_content_write
