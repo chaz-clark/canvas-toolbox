@@ -521,7 +521,17 @@ def check_capability_consent(
     neither `--approve <id>` nor `--approve-all` covers it. `pending_approvals`
     is [(package_id, fingerprint, approved_by)] to persist via record_approval()
     AFTER a successful apply — never before, so a refused/failed run records
-    nothing."""
+    nothing.
+
+    `--approve`/`--approve-all` require an interactive terminal (#343). Same
+    reasoning as grader_push.py's require_typed_confirmation (HG-5, #241): a
+    flag an agent can pass on its own isn't evidence a human is present — a
+    `sys.stdin.isatty()` pipe/redirect/heredoc isn't a person. This ONLY gates
+    growth that's actually being approved this run; a package with no growth
+    is unaffected (an unattended `cb_flatten.py --apply` with nothing new to
+    approve keeps working — this is about the capability-*install* decision,
+    not about blocking unattended runs wholesale)."""
+    human_present = sys.stdin.isatty()
     approvals = load_approvals(root)
     messages: list[str] = []
     pending: list[tuple[str, dict, str]] = []
@@ -537,7 +547,18 @@ def check_capability_consent(
         diff = capability_diff(old_fp, new_fp)
         first_approval = old_fp is None
         if has_grown(diff):
-            if pkg_id in approve or approve_all:
+            claims_approval = pkg_id in approve or approve_all
+            if claims_approval and not human_present:
+                messages.append(
+                    f"REFUSED (no interactive terminal) — {pkg_id}:\n"
+                    + render_install_summary(package, diff, first_approval)
+                    + "\n  --approve/--approve-all only count from a real terminal "
+                      "(#343) — a pipe, redirect, or unattended/scheduled run isn't "
+                      "a human approving this. Relay the summary above to the "
+                      "instructor and re-run interactively once they say yes."
+                )
+                blocking = True
+            elif claims_approval:
                 messages.append(f"approved — {pkg_id}:\n"
                                 + render_install_summary(package, diff, first_approval))
                 pending.append((pkg_id, new_fp, "operator (relayed via --approve)"))

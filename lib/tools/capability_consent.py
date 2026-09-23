@@ -40,6 +40,16 @@ WHAT THIS DOES NOT DO
   be approved and its Canvas writer still refuse to run without going through
   grader_push.py — the manifest describes access, hooks and tools enforce it
   (docs/proposals/v2-agent-packaging-plan.md, "invariants that must hold").
+
+WHO MAY APPROVE (#343)
+  `--approve`/`--approve-all` require an interactive terminal — enforced in
+  `cb_flatten.py`'s `check_capability_consent()`, the one caller of
+  `record_approval()`. A flag an agent can pass on its own isn't evidence a
+  human is present; same reasoning as `grader_push.py`'s
+  `require_typed_confirmation` (HG-5, #241). An unattended/scheduled
+  `cb_flatten.py --apply --approve-all` run refuses on any capability growth
+  rather than silently approving it — approval only counts from a real
+  terminal, never a pipe, redirect, or cron invocation.
 """
 from __future__ import annotations
 

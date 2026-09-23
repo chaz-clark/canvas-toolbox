@@ -13,6 +13,23 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`--approve`/`--approve-all` now require an interactive terminal (#343).**
+
+`cb_flatten.py --apply --approve-all` had no technical control distinguishing a
+live-human-approved invocation from an unattended/scheduled one — approval was gated
+by a documented norm only (an agent must relay the summary and get real confirmation),
+never checked in code. Closed the same way `grader_push.py`'s HG-5 gate already closed
+an identical hole (#241): `check_capability_consent()` now refuses `--approve`/
+`--approve-all` on any capability growth when `sys.stdin.isatty()` is False, rather
+than silently downgrading to a no-op or (worse) silently approving. Only fires when
+approval is actually being claimed on real growth — a routine unattended
+`cb_flatten.py --apply` with nothing new to approve is unaffected, and the normal
+interactive path (agent-in-chat relaying to the instructor, approved at a real
+terminal) is unchanged. No scheduled/cron invocation path exists in canvas-toolbox
+today, so this was latent, not exploitable — closed ahead of Claude Code's own
+scheduling tooling making an unattended `cb_flatten`/`cb_update` run a plausible
+future feature.
+
 **`canvas_shell_create.py` — place an already-existing item into modules, incl. 2+ at once (#355).**
 
 Follow-on gap from #349–#351: module placement only ever fired inside `create_shell()`'s
