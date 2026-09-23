@@ -11,7 +11,7 @@ Course construction, synchronization, quality audits, instructional-design analy
 - **Entry prompt:** `agent-packages/course-design/AGENT.md`
 - **Data classes:** course_configuration, course_content, course_metadata
 - **Credentials:** CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID, MASTER_COURSE_ID, BLUEPRINT_COURSE_ID, S1_COURSE_ID, S2_COURSE_ID, S3_COURSE_ID, CANVAS_SANDBOX_ID
-- **Tools (41):** 19 read, 4 local write, 18 Canvas content write
+- **Tools (43):** 19 read, 4 local write, 20 Canvas content write
 
 ## Grading (`grading`)
 

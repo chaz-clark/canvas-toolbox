@@ -51,6 +51,8 @@ Complete reference for all toolkit tools. For agent/LLM usage guidance, see [AGE
 | Tool | Purpose | When to use |
 |---|---|---|
 | `canvas_quiz_questions.py` | Classic quiz question manager (push, list, clear) | Editing quiz questions outside Canvas UI |
+| `new_quiz_crud_probe.py` | Sandbox-only New Quiz API fixture: create/read/update/delete one unpublished quiz and one QuestionItem, with automatic cleanup | Verifying `/api/quiz/v1` write capability before building production sync |
+| `sandbox_new_quiz_fixtures.py` | Seeds or removes a marked, unpublished sandbox New Quiz containing true/false, choice, essay, and numeric QuestionItems | Populating real API fixtures for sync and serializer testing |
 
 ## Shared Modules
 

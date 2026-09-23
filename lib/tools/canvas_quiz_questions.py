@@ -55,7 +55,8 @@ Access modes (--mode):
 
 Notes:
     - --push always clears existing questions first (fully idempotent)
-    - Classic quizzes only. NewQuiz (external_tool) questions cannot be managed via REST API.
+    - Classic quizzes only. NewQuiz questions use the separate `/api/quiz/v1`
+      surface and are managed by the New Quiz sync workstream instead.
     - After pushing questions, Canvas recalculates points_possible on the quiz automatically.
     - student_view mode is designed for NGAI peer/QC agent workflows (Feature 2)
 """

@@ -71,6 +71,16 @@ tools:
   effect: canvas_content_write
   data_class: course_content
   approval: always
+- id: new-quiz-crud-probe
+  command: lib/tools/new_quiz_crud_probe.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
+- id: sandbox-new-quiz-fixtures
+  command: lib/tools/sandbox_new_quiz_fixtures.py
+  effect: canvas_content_write
+  data_class: course_content
+  approval: always
 - id: export-imscc
   command: lib/tools/export_imscc.py
   effect: canvas_content_write

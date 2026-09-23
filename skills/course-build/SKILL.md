@@ -60,8 +60,10 @@ The ones that matter here:
 - **`late_policy` PATCH is admin-only** — 403 for teacher tokens (L4).
 - **Classic quizzes have two IDs** (`quiz_id` + `assignment_id`); `points_possible`
   reads 0 until questions are pushed (L5, L6).
-- **NewQuiz / ExternalTool items can't be content-pushed via REST** (L8) — sync
-  tools warn-and-skip; edit those in the Canvas UI.
+- **NewQuiz / ExternalTool items use a separate REST surface** (L8) — the toolkit
+  currently pulls sidecars and has sandbox-proven CRUD coverage, but production
+  sync writes are still a separate roadmap item; do not assume `canvas_sync.py`
+  can push them yet.
 - **Blueprint resync can spawn `-N` slug orphan Pages and silently revert section
   page bodies** (L13, L14) — `blueprint_orphan_pages.py` detects both.
 - **Page title collisions auto-suffix** `-2`/`-4` (L15).

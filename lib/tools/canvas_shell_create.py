@@ -21,10 +21,10 @@ WHY THIS EXISTS
   exists). This file now covers all six: `quiz`, `assignment`, `page`, `discussion`,
   `module`, `assignment_group`.
 
-  New Quiz creation is deliberately out of scope, not missed — New Quizzes are
-  LTI-delivered with no content/settings write support via the API at all
-  (Canvas-only, edit in the UI; see `_push_newquiz_dates()`'s own docstring in
-  canvas_sync.py) — a platform ceiling, not a toolkit gap.
+  New Quiz creation is deliberately out of scope for this Classic/API-v1 shell
+  tool, not missed. New Quizzes use the separate `/api/quiz/v1` surface; their
+  content path belongs in `canvas_sync.py` / the New Quiz sync workstream, while
+  this tool continues to create only Classic Quiz shells.
 
   #355 closed a follow-on gap: module placement only ever fired inside
   create_shell()'s success path, once, at creation time — so there was no way to

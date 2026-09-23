@@ -39,7 +39,7 @@ The two are Instructure's own writing, in different forms (rendered docs vs. sou
 
 **Companions:** [`canvas_api_lessons_learned.md`](canvas_api_lessons_learned.md) (the empirical-findings half — paired file; every audit/sync workflow uses both), [`canvas_rubrics_api_survey.md`](../pre_knowledge/rubrics/canvas_rubrics_api_survey.md) (per-resource deep-dive sourced from Canvas docs), [`pages_api_survey.md`](../pre_knowledge/canvas_api/pages_api_survey.md) (per-resource deep-dive sourced from Canvas docs), [`rubrics_knowledge.md`](rubrics_knowledge.md) (rubric quality framework — uses the rubric API surface documented here).
 
-**Scope**: Canvas's REST API surface as Canvas documents it. Covers (a) the data-model facts Canvas's docs describe — three-resource pattern for rubrics, two-ID pattern for classic quizzes, two-step pattern for module items, NewQuiz/ExternalTool REST gap, (b) the universal patterns Canvas documents — pagination via Link header, role-based permission scopes, parameter encoding, (c) per-resource endpoint pointers to the canonical docs and per-resource surveys derived from them. Out of scope: behaviors Canvas does NOT document or documents incorrectly (live in `canvas_api_lessons_learned.md`), canvas-toolbox tool conventions, GraphQL.
+**Scope**: Canvas's REST API surface as Canvas documents it. Covers (a) the data-model facts Canvas's docs describe — three-resource pattern for rubrics, two-ID pattern for classic quizzes, two-step pattern for module items, and the separate New Quiz API namespace with its documented resource limits, (b) the universal patterns Canvas documents — pagination via Link header, role-based permission scopes, parameter encoding, (c) per-resource endpoint pointers to the canonical docs and per-resource surveys derived from them. Out of scope: behaviors Canvas does NOT document or documents incorrectly (live in `canvas_api_lessons_learned.md`), canvas-toolbox tool conventions, GraphQL.
 
 **Provenance**: Each fact in the frontmatter's `provenance.sources` cites either a `canvas.instructure.com/doc/api/<page>.html` URL or an `instructure/canvas-lms/blob/<sha>/app/controllers/<file>.rb` path with YARD-doc line reference. No empirical citations.
 
@@ -94,9 +94,15 @@ A Classic Quiz is documented in two REST contexts:
 
 Canvas's docs note `quiz_id` is used for quiz-engine operations and `assignment_id` for gradebook operations (including due dates). The two IDs are linked but distinct.
 
-### D4 — New Quizzes are LTI-based
+### D4 — New Quizzes use a separate API namespace
 
-Per Canvas's documentation, New Quizzes is delivered as an LTI 1.3 tool, not as REST resources. The Canvas Quizzes Next / New Quizzes documentation explicitly states that content for New Quizzes is managed in the New Quizzes UI (LTI launch), not via the Quizzes REST API. Same for arbitrary ExternalTool items — the LTI launch surface is the integration point.
+New Quizzes is delivered through an LTI-based experience, but current Canvas
+documentation also exposes a separate REST namespace at `/api/quiz/v1`. The New
+Quizzes API documents quiz list/create/retrieve/update/delete operations; the New
+Quiz Items API documents retrieval for all item types and CRUD for QuestionItems.
+This is distinct from Classic Quizzes under `/api/v1`. ExternalTool assignment
+metadata and module placement remain core Canvas resources, while quiz structure
+and item operations belong to the New Quiz API.
 
 ### D5 — Classic Quiz vs. Discussion date fields
 
@@ -212,7 +218,7 @@ Pointer table — full endpoint inventories live in per-resource surveys (or Can
 | **Peer Reviews** | `/doc/api/peer_reviews.html` | see D7 | `/courses/:id/assignments/:aid/peer_reviews`, `.../submissions/:sid/peer_reviews` |
 | **Group Categories** | `/doc/api/group_categories.html` | see D9 | `/courses/:id/group_categories`, `/group_categories/:id/users` |
 | **Classic Quizzes** | `/doc/api/quizzes.html` | (TBD survey) | `/courses/:id/quizzes`, `.../quiz_questions` |
-| **New Quizzes (LTI)** | `/doc/api/new_quizzes.html` (or noted as LTI) | n/a — REST gap | LTI 1.3 launch surface |
+| **New Quizzes** | `/doc/api/new_quizzes.html`, `/doc/api/new_quiz_items.html` | roadmap workstream | `/api/quiz/v1/courses/:id/quizzes`, `.../items` |
 | **Discussion Topics** | `/doc/api/discussion_topics.html` | (TBD survey) | `/courses/:id/discussion_topics` |
 | **Outcomes** | `/doc/api/outcomes.html` + `/doc/api/outcome_groups.html` | (TBD survey) | `/courses/:id/outcomes`, `/outcome_groups` |
 | **Files** | `/doc/api/files.html` | (TBD survey) | `/courses/:id/files` |
