@@ -161,6 +161,30 @@ If you're not sure whether your change fits the project's shape, **open a
 draft PR early** or use `cb-share` first — easier to course-correct before
 hours of code than after.
 
+### How PRs get reviewed here
+
+This toolkit reads and writes real student data (FERPA-protected) and makes
+live changes to real Canvas courses with enrolled students. That shapes how
+pull requests get reviewed, separately from whether the idea is good.
+
+**Small, minimal changes are the most likely to be merged as your own PR** —
+a one-line fix, a bug with an obvious small patch, a change contained to a
+single function. These are fully reviewable in minutes, low-risk even if
+something's missed, and get merged directly with you as the commit author.
+
+**Anything larger, or touching higher-risk surfaces, is more likely to be
+credited and implemented separately rather than merged as submitted** —
+regardless of size, this includes anything touching Canvas-write-gated code,
+FERPA de-id/re-id logic, or the `grade_guardian` hook. In these cases the
+maintainer reviews your PR, verifies it, and applies the fix directly —
+crediting you by name in the commit (`Co-authored-by:`) and the closing
+comment, same as an idea filed through `cb-share`.
+
+**This isn't a judgment on the contribution.** Both paths are equally welcome
+and equally credited — it's a statement about what gets a direct merge vs. a
+maintainer-applied patch, made explicit up front so it's not a surprise
+after you've done the work.
+
 ---
 
 ## What the maintainer is NOT looking for
