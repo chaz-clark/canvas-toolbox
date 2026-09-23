@@ -13,6 +13,41 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**New Quiz API completeness gaps closed: settings whitelist, item-type fixture coverage, hot-spot media endpoint (#364).**
+
+Follow-up to the New Quiz content-sync work above. `_push_newquiz_content()`'s
+settings whitelist was silently dropping `multiple_attempts`, `result_view_settings`,
+and `filter_ip_address` — all documented, pull-captured fields an instructor could
+edit in a local sidecar and see no-op on push, no error. Now pushed correctly
+(sandbox-confirmed): `multiple_attempts`/`result_view_settings` as individually
+form-expanded nested keys, `filter_ip_address` as a flat key.
+`quiz_settings.filters.ips` is deliberately left out — sandbox-confirmed the write
+silently no-ops on Canvas's side regardless of encoding tried (form bracket-list,
+JSON array, JSON string), so pushing it would report success while discarding the
+value.
+
+**Also found and fixed while verifying the above against live sandbox data:** every
+boolean in the settings whitelist (not just the new fields) was form-encoding as
+Python's `str(True)`/`str(False)` — capitalized `"True"`/`"False"` — which Canvas
+reads as truthy in both cases, silently flipping any pulled `False` to `true` on
+push. Confirmed live before the fix (an untouched `False` field came back `true`
+after a push) and after (came back `false` correctly).
+
+`sandbox_new_quiz_fixtures.py` now covers all 12 documented writable
+`interaction_type_slug` values (previously 4: true-false/choice/essay/numeric) —
+added multi-answer, matching, categorization, ordering, rich-fill-blank,
+file-upload, formula, and hot-spot, each sandbox-verified to create and round-trip
+correctly. `hot-spot` uses a placeholder `image_url`, not a real uploaded asset.
+
+New lessons in `canvas_api_lessons_learned.md`: L28 (the settings-push findings
+above) and L29 — `GET .../items/media_upload_url`, an undocumented presigned-S3-URL
+endpoint for hot-spot media with a 2-minute upload window, discovered and probed but
+not yet consumed by any tool.
+
+The open `student_analysis` reporting bug (`grader_fetch_nq_responses.py`) is
+unchanged — still needs a live Test Student attempt cycle or a Canvas support
+ticket, tracked separately on #364 item 4.
+
 **New Quiz API: confirmed `/api/quiz/v1` supports content writes, sandbox-verified — production sync push opt-in (`CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true`).**
 
 New Quizzes were documented in this project as having "no content/settings write

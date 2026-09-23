@@ -42,6 +42,11 @@ def _item(position: int, title: str, entry: dict, points: int = 1) -> dict:
 
 def _fixtures() -> list[dict]:
     choice_ids = [str(uuid4()) for _ in range(3)]
+    multi_answer_ids = [str(uuid4()) for _ in range(3)]
+    matching_question_id = str(uuid4())
+    categorization_ids = {name: str(uuid4()) for name in ("cat_a", "cat_b", "item_1", "item_2")}
+    ordering_ids = [str(uuid4()) for _ in range(3)]
+    blank_id = str(uuid4())
     return [
         _item(1, "True/false fixture", {
             "title": "True/false fixture",
@@ -91,6 +96,148 @@ def _fixtures() -> list[dict]:
             "scoring_data": {"value": [{"id": "1", "type": "exactResponse", "value": "1"}]},
             "scoring_algorithm": "Numeric",
         }),
+        _item(5, "Multi-answer fixture", {
+            "title": "Multi-answer fixture",
+            "item_body": "<p>Select all prime numbers.</p>",
+            "calculator_type": "none",
+            "interaction_type_slug": "multi-answer",
+            "interaction_data": {"choices": [
+                {"id": multi_answer_ids[0], "position": 1, "item_body": "<p>2</p>"},
+                {"id": multi_answer_ids[1], "position": 2, "item_body": "<p>4</p>"},
+                {"id": multi_answer_ids[2], "position": 3, "item_body": "<p>5</p>"},
+            ]},
+            "properties": {"shuffle_rules": {"choices": {"to_lock": [], "shuffled": False}}},
+            "scoring_data": {"value": [multi_answer_ids[0], multi_answer_ids[2]]},
+            "scoring_algorithm": "AllOrNothing",
+        }),
+        _item(6, "Matching fixture", {
+            "title": "Matching fixture",
+            "item_body": "<p>Match the API namespace to its purpose.</p>",
+            "calculator_type": "none",
+            "interaction_type_slug": "matching",
+            "interaction_data": {
+                "answers": ["Quiz engine", "Gradebook", "Distractor"],
+                "questions": [{"id": matching_question_id, "item_body": "/api/quiz/v1"}],
+            },
+            "properties": {"shuffle_rules": {"questions": {"shuffled": True}}},
+            "scoring_data": {
+                "value": {matching_question_id: "Quiz engine"},
+                "edit_data": {"matches": [], "distractors": ["Distractor"]},
+            },
+            "scoring_algorithm": "DeepEquals",
+        }),
+        _item(7, "Categorization fixture", {
+            "title": "Categorization fixture",
+            "item_body": "<p>Sort each term into its category.</p>",
+            "calculator_type": "none",
+            "interaction_type_slug": "categorization",
+            "interaction_data": {
+                "categories": {
+                    categorization_ids["cat_a"]: {"id": categorization_ids["cat_a"], "item_body": "Category A"},
+                    categorization_ids["cat_b"]: {"id": categorization_ids["cat_b"], "item_body": "Category B"},
+                },
+                "distractors": {
+                    categorization_ids["item_1"]: {"id": categorization_ids["item_1"], "item_body": "Item 1"},
+                    categorization_ids["item_2"]: {"id": categorization_ids["item_2"], "item_body": "Item 2"},
+                },
+                "category_order": [categorization_ids["cat_a"], categorization_ids["cat_b"]],
+            },
+            "properties": {"shuffle_rules": {"questions": {"shuffled": False}}},
+            "scoring_data": {
+                "value": [
+                    {"id": categorization_ids["cat_a"],
+                     "scoring_data": {"value": [categorization_ids["item_1"]]},
+                     "scoring_algorithm": "AllOrNothing"},
+                    {"id": categorization_ids["cat_b"],
+                     "scoring_data": {"value": [categorization_ids["item_2"]]},
+                     "scoring_algorithm": "AllOrNothing"},
+                ],
+                "score_method": "all_or_nothing",
+            },
+            "scoring_algorithm": "Categorization",
+        }),
+        _item(8, "Ordering fixture", {
+            "title": "Ordering fixture",
+            "item_body": "<p>Order the sync steps.</p>",
+            "calculator_type": "none",
+            "interaction_type_slug": "ordering",
+            "interaction_data": {
+                "choices": {
+                    ordering_ids[0]: {"id": ordering_ids[0], "item_body": "<p>Pull</p>"},
+                    ordering_ids[1]: {"id": ordering_ids[1], "item_body": "<p>Edit</p>"},
+                    ordering_ids[2]: {"id": ordering_ids[2], "item_body": "<p>Push</p>"},
+                }
+            },
+            "properties": {"top_label": "first", "bottom_label": "last", "shuffle_rules": None,
+                           "include_labels": True, "display_answers_paragraph": False},
+            "scoring_data": {"value": ordering_ids},
+            "scoring_algorithm": "DeepEquals",
+        }),
+        _item(9, "Rich fill-in-blank fixture", {
+            # Canvas parses backtick-delimited spans in item_body into blanks by
+            # position, then rewrites item_body to a <span id="blank_<uuid>"> on
+            # readback — sandbox-confirmed 2026-09-23 (issue #364).
+            "title": "Rich fill-in-blank fixture",
+            "item_body": "<p>The capital of France is `Paris`.</p>",
+            "calculator_type": "none",
+            "interaction_type_slug": "rich-fill-blank",
+            "interaction_data": {
+                "blanks": [{"id": blank_id, "answer_type": "openEntry"}],
+            },
+            "properties": {},
+            "scoring_data": {
+                "value": [
+                    {"id": blank_id,
+                     "scoring_data": {"value": "Paris", "blank_text": "Paris",
+                                      "ignore_case": True, "edit_distance": 1},
+                     "scoring_algorithm": "TextCloseEnough"},
+                ],
+                "working_item_body": "<p>The capital of France is `Paris`.</p>",
+            },
+            "scoring_algorithm": "MultipleMethods",
+        }),
+        _item(10, "File upload fixture", {
+            "title": "File upload fixture",
+            "item_body": "<p>Upload your submission.</p>",
+            "calculator_type": "none",
+            "interaction_type_slug": "file-upload",
+            "interaction_data": {"files_count": "1", "restrict_count": False},
+            "properties": {},
+            "scoring_data": {"value": ""},
+            "scoring_algorithm": "None",
+        }),
+        _item(11, "Formula fixture", {
+            "title": "Formula fixture",
+            "item_body": "<p>Compute 2 + y.</p>",
+            "calculator_type": "basic",
+            "interaction_type_slug": "formula",
+            "interaction_data": {},
+            "properties": {},
+            "scoring_data": {
+                "value": {
+                    "formula": "2 + y",
+                    "numeric": {"type": "marginOfError", "margin": "0", "margin_type": "absolute"},
+                    "variables": [{"max": "100", "min": "-100", "name": "y", "precision": 0}],
+                    "answer_count": "3",
+                    "generated_solutions": [{"inputs": [{"name": "y", "value": "-95"}], "output": "-93"}],
+                }
+            },
+            "scoring_algorithm": "Numeric",
+        }),
+        _item(12, "Hot spot fixture", {
+            # image_url is a placeholder, not a real uploaded media asset — the
+            # media_upload_url presign flow (canvas_api_lessons_learned.md L29) is
+            # not yet wired into this fixture set.
+            "title": "Hot spot fixture",
+            "item_body": "<p>Click the sync button.</p>",
+            "calculator_type": "none",
+            "interaction_type_slug": "hot-spot",
+            "interaction_data": {"image_url": "https://via.placeholder.com/400x300.png"},
+            "properties": {},
+            "scoring_data": {"value": {"type": "oval",
+                                        "coordinates": [{"x": 0.1, "y": 0.2}, {"x": 0.9, "y": 0.5}]}},
+            "scoring_algorithm": "HotSpot",
+        }),
     ]
 
 
@@ -103,7 +250,7 @@ def seed() -> int:
                  "Content-Type": "application/x-www-form-urlencoded"},
         data={
             "quiz[title]": title,
-            "quiz[points_possible]": "4",
+            "quiz[points_possible]": "12",
             "quiz[grading_type]": "points",
             "quiz[instructions]": "Automated unpublished fixture; do not publish.",
             "quiz[quiz_settings][calculator_type]": "none",

@@ -395,6 +395,68 @@ read back correctly.
 
 ---
 
+### L28 — New Quiz `quiz_settings.filters.ips` writes silently no-op; `multiple_attempts`/`result_view_settings` need per-field expansion
+
+**What Canvas does:** `PATCH /api/quiz/v1/courses/:cid/quizzes/:id` with
+`quiz[quiz_settings][multiple_attempts][...]` or
+`quiz[quiz_settings][result_view_settings][...]` sent as individually-expanded,
+form-encoded sub-keys (one key per nested field, e.g.
+`quiz[quiz_settings][multiple_attempts][max_attempts]=3`) writes and reads back
+correctly — confirmed for every sub-key both objects can return. But
+`quiz[quiz_settings][filters][ips]`, tried as a form bracket-list
+(`filters][ips][]=<ip>`), a JSON array, and a JSON string, all return `200` with the
+value silently dropped — `GET` afterward always reads back `"ips": []`.
+`filter_ip_address` (the sibling boolean toggle) writes correctly by itself; only the
+IP list is affected.
+
+**Why it matters:** `_pull_new_quiz_sidecar()` stores the full `GET` response
+verbatim, so an instructor who edits `multiple_attempts`/`result_view_settings`/
+`filters.ips` in a pulled sidecar and pushes would previously see ALL of it silently
+no-op (none were in the settings whitelist). Now that the whitelist covers the first
+two, an instructor editing `filters.ips` specifically would still see a silent no-op
+— worth flagging because it's the one field in this group that no encoding gets to
+stick, not a whitelist gap.
+
+**How the toolkit handles it:** `_push_newquiz_content()` in `canvas_sync.py` expands
+`multiple_attempts` and `result_view_settings` into individually-keyed form fields
+and includes `filter_ip_address`. `filters.ips` is deliberately left out of the push
+whitelist — pushing it would report success while silently discarding the value,
+which is worse than the pre-existing no-op-with-a-log-line the whole function already
+uses for genuinely unsupported cases.
+
+**Provenance:** sandbox probe, 2026-09-23 (issue #364) — created an unpublished
+sandbox quiz, PATCHed all three field groups with several encodings each, read the
+quiz back after each attempt.
+
+---
+
+### L29 — Hot-spot media upload is a two-step presigned-URL flow, not a direct POST
+
+**What Canvas does:** `GET /api/quiz/v1/courses/:cid/quizzes/:quiz_id/items/media_upload_url`
+(no query params required — `content_type`/`filename` params are accepted but don't
+change the response shape) returns `{"url": "<presigned S3 PUT URL>"}`. The URL
+carries `X-Amz-Expires=120` — **a 2-minute window** to `PUT` the actual file bytes to
+that S3 URL before it expires. The uploaded object's URL (the S3 URL minus its query
+string) is presumably what a hot-spot item's `interaction_data` then references, but
+that second half (referencing the uploaded media from an item payload) is untested —
+see issue #364 item 2 for the still-uncovered `hot-spot` item type.
+
+**Why it matters:** this endpoint isn't mentioned in either knowledge file, so a
+naive hot-spot implementation would look for a single upload endpoint and not find
+one. The 2-minute expiry also means the upload step can't be deferred — request the
+URL immediately before the PUT, not as a separate prep step.
+
+**How the toolkit handles it:** not yet consumed by any tool — `sandbox_new_quiz_fixtures.py`
+has no hot-spot fixture (issue #364 item 2, still open). Documented here so the next
+person building hot-spot support doesn't have to rediscover the endpoint or its
+expiry.
+
+**Provenance:** sandbox probe, 2026-09-23 (issue #364) — `GET` against an unpublished
+sandbox quiz with no items, three param variations, all returning the same presigned
+URL shape.
+
+---
+
 ## Cross-Cutting Patterns
 
 These are the toolkit conventions that bake defenses against the 20 lessons into every new tool.
