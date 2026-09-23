@@ -145,7 +145,12 @@ uv run python lib/tools/sync_to_new.py --apply --pages-only
 - sync_to_new.py restore logic: ~200 lines
 - Total: ~350 + tests
 
-**Note:** NewQuizzes cannot be restored (Canvas API limitation — questions not exposed)
+**Note:** NewQuizzes are still skipped by this tool as of 2026-09-23 — not because
+of a platform limitation (that was corrected in #365/#366; `/api/quiz/v1` documents
+quiz + QuestionItem CRUD and `canvas_sync.py --push` now uses it), but because
+`sync_to_new.py` itself hasn't been updated to call that write path when cloning
+into a brand-new course. See `docs/ROADMAP.md`'s New Quiz capability workstream,
+item 5 ("Cross-course propagation").
 
 ---
 
@@ -498,7 +503,10 @@ def create_quiz_question(course_id: str, quiz_id: int, question_data: dict, toke
 
 **Existing pattern location:** `canvas_quiz_questions.py` has quiz question reading patterns
 
-**NewQuizzes limitation:** Cannot create NewQuizzes via API (LTI tool). Skip with warning message.
+**NewQuizzes limitation:** `sync_to_new.py` doesn't call the New Quiz write path yet
+(see the Phase 3 note above) — skip with warning message until item 5 of the New
+Quiz capability workstream in `docs/ROADMAP.md` is built. Not a platform ceiling;
+`/api/quiz/v1` documents the CRUD `canvas_sync.py --push` already uses elsewhere.
 
 ---
 
@@ -930,7 +938,10 @@ def rollback_created_items(created_items: dict, course_id: str, token: str):
 ## Known Limitations
 
 ### Cannot Restore (Technical)
-1. **NewQuizzes** — LTI tool, no REST API support
+1. **NewQuizzes** — not a platform ceiling (`/api/quiz/v1` documents CRUD,
+   `canvas_sync.py --push` already uses it); `sync_to_new.py` just hasn't been
+   updated to call that path yet — see `docs/ROADMAP.md`'s New Quiz capability
+   workstream, item 5
 2. **External Tools** — LTI links are institution-specific
 3. **Course navigation customizations** — Complex Canvas UI state
 4. **Gradebook history** — Not course content

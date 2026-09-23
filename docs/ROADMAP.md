@@ -26,8 +26,10 @@ propagation, no standalone editor) · Group Categories/Groups (read-only — `pe
 tracking) · Content Migrations/Exports (`.imscc` + course clone) · Calendar Events
 (read-only, one tool) · Custom Gradebook Columns (read-only, one tool) · Sections
 (roster/enrollment tools) · Feature Flags (read-only — one gate check) · New Quizzes
-(assignment-shell dates plus read-only `/api/quiz/v1` sidecars; content writes under
-investigation)
+(assignment-shell dates, `/api/quiz/v1` sidecars, and settings/QuestionItem content
+writes — opt-in via `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE`, sandbox-verified across all
+12 documented writable item types, pending real-course field validation before
+default-on; see `canvas_sync.py`)
 
 ### ⛔ Never touched (zero tools, zero read-only usage)
 Conversations · Analytics · Grade Change Log · Gradebook History · Usage Rights ·
@@ -102,43 +104,59 @@ instructor goes into Canvas's UI grade-history view by hand. A read-only export
 
 **New Quiz API sync** ([quiz docs](https://canvas.instructure.com/doc/api/new_quizzes.html),
 [item docs](https://canvas.instructure.com/doc/api/new_quiz_items.html)).
-The sandbox confirmed that the separate API can retrieve New Quiz records and item
-collections for existing external-tool assignment shells. A controlled sandbox CRUD
-probe then created an unpublished, clearly marked test quiz and one fake QuestionItem,
-read both back, updated both, and deleted both successfully. The next step is a
-sanctioned production sync writer with local-source mapping, read-back verification,
-and rollback/delete behavior. Keep response/reporting work separate: structure CRUD
-does not establish per-student response access. **Status: candidate, Tier 2, M.**
+Updated 2026-09-23 — items 1–2 below shipped in #365/#366; this was stale since it
+described them as not-yet-built candidate work. The sandbox CRUD probe confirmed
+the API supports quiz and QuestionItem create/read/update/delete; `canvas_sync.py`'s
+`--push` now reconciles settings and QuestionItems for an existing New Quiz, opt-in
+via `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE` pending real-course field validation. Items
+4–5 remain genuinely unbuilt. **Status: items 1–2 shipped, item 3 partial (reporting
+API has an open Canvas-side bug, filed upstream as instructure/canvas-lms#2663),
+items 4–5 candidate, Tier 2, M–L.**
 
 **New Quiz capability workstream:**
 
-1. **Content adapter and local round-trip (M).** Extend the existing sidecar model
-   into a sanctioned `new_quiz_sync` path: quiz settings, assignment metadata,
-   module placement, QuestionItem create/update/delete, idempotent matching, and
-   read-back verification. Start with true/false, essay, choice, and numeric
-   questions; preserve unsupported structures instead of silently flattening them.
-2. **Question-type coverage (M).** Add explicit serializers/validators for the
-   documented question types and UUID-bearing interaction data. Stimulus, Bank,
-   and BankEntry items remain read-only until Canvas exposes write endpoints for
-   them; the tool must report those limits clearly.
-3. **Reports and response workflows (S–M).** Wrap asynchronous `student_analysis`
-   and `item_analysis` report generation, progress polling, download, caching, and
-   FERPA-safe de-identification. Keep this separate from content sync and reuse the
-   existing New Quiz reporting path where possible.
-4. **Accommodations (M).** Add guarded course-level and quiz-level tools for extra
-   time, extra attempts, reduced answer choices, and optional application to
-   in-progress sessions. This is per-student Canvas writing and must use the
+1. ~~**Content adapter and local round-trip (M).**~~ **Shipped (#365).** Sidecar
+   model extended into `canvas_sync.py`'s New Quiz push path: quiz settings,
+   QuestionItem create/update/delete, idempotent matching (Canvas ID first, exact
+   title second), read-back verification via `course_quality_check.py`. Stimulus,
+   Bank, and BankEntry items are preserved locally and reported read-only, not
+   silently flattened.
+2. ~~**Question-type coverage (M).**~~ **Shipped (#366).** All 12 documented
+   writable `interaction_type_slug` values have fixture coverage in
+   `sandbox_new_quiz_fixtures.py`, each sandbox-verified to create and round-trip
+   correctly (previously only 4: true-false/choice/essay/numeric). Stimulus, Bank,
+   and BankEntry items remain read-only — Canvas still doesn't document write
+   endpoints for them; this is a platform limit, not a gap in the toolkit.
+3. **Reports and response workflows (S–M).** `grader_fetch_nq_responses.py`
+   already wraps the asynchronous `student_analysis` report (progress polling,
+   download, caching, FERPA-safe de-identification). What's open: the report
+   generation job itself has a confirmed Canvas-side bug — it reports
+   `workflow_state: completed` at 100% but the resulting file was never written
+   (filed upstream as instructure/canvas-lms#2663). Blocked on Canvas, not
+   further toolkit work.
+4. **Accommodations (M).** Still unbuilt. Guarded course-level and quiz-level
+   tools for extra time, extra attempts, reduced answer choices, and optional
+   application to in-progress sessions on New Quizzes specifically — today,
+   `student_quiz_time_extension.py` only covers Classic quizzes; New Quiz
+   per-student time extensions are still Moderation-UI-only (see README's
+   "Note on New Quizzes (LTI)"). Per-student Canvas writing — must use the
    accommodations workflow and explicit scope confirmation.
-5. **Cross-course propagation (L).** After the adapter is stable, integrate master →
-   blueprint/section workflows with two-course verification, rollback behavior, and
-   tests against populated sandbox fixtures. Do not replace Canvas course-copy or
-   Blueprint behavior until this path proves equivalent for unsupported item types.
+5. **Cross-course propagation (L).** Still unbuilt. `sync_to_new.py` (clone a
+   course into a brand-new Canvas course) still skips New Quizzes entirely with
+   a warning (`docs/implementation/sync_to_new.md`) — it hasn't been updated to
+   use the write path items 1–2 shipped. After that adapter proves stable in the
+   field (see item 1's real-course validation gate), integrate master →
+   blueprint/section propagation with two-course verification and rollback
+   behavior. Do not replace Canvas course-copy or Blueprint behavior until this
+   path proves equivalent for unsupported item types.
 
 **Explicit API boundaries:** the current documented surface does not make every
 New Quiz UI feature automatable. Stimulus/Bank/BankEntry writes are not available,
-and direct per-student submission/result endpoints remain a separate reporting
-problem. “All abilities” therefore means complete coverage of the supported API,
-plus honest read-only preservation and UI/server-side fallbacks for the rest.
+and `quiz_settings.filters.ips` (IP-address filtering) accepts writes but silently
+drops them server-side regardless of encoding (see `canvas_api_lessons_learned.md`
+L28) — a platform bug, not a toolkit gap. “All abilities” therefore means complete
+coverage of the supported API, plus honest read-only preservation and UI/server-side
+fallbacks for the rest.
 
 **Analytics API** ([docs](https://canvas.instructure.com/doc/api/analytics.html)).
 Zero tooling today, but overlaps meaningfully with what `course_engagement_audit.py`
