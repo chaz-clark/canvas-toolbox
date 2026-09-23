@@ -438,8 +438,8 @@ change the response shape) returns `{"url": "<presigned S3 PUT URL>"}`. The URL
 carries `X-Amz-Expires=120` — **a 2-minute window** to `PUT` the actual file bytes to
 that S3 URL before it expires. The uploaded object's URL (the S3 URL minus its query
 string) is presumably what a hot-spot item's `interaction_data` then references, but
-that second half (referencing the uploaded media from an item payload) is untested —
-see issue #364 item 2 for the still-uncovered `hot-spot` item type.
+that second half — referencing a REAL uploaded media asset from an item payload —
+is still untested.
 
 **Why it matters:** this endpoint isn't mentioned in either knowledge file, so a
 naive hot-spot implementation would look for a single upload endpoint and not find
@@ -447,13 +447,52 @@ one. The 2-minute expiry also means the upload step can't be deferred — reques
 URL immediately before the PUT, not as a separate prep step.
 
 **How the toolkit handles it:** not yet consumed by any tool — `sandbox_new_quiz_fixtures.py`
-has no hot-spot fixture (issue #364 item 2, still open). Documented here so the next
-person building hot-spot support doesn't have to rediscover the endpoint or its
-expiry.
+has a hot-spot fixture (#366) that round-trips correctly, but it uses a placeholder
+`image_url`, not a real asset from this endpoint. Documented here so the next person
+wiring up real hot-spot media doesn't have to rediscover the endpoint or its expiry.
 
 **Provenance:** sandbox probe, 2026-09-23 (issue #364) — `GET` against an unpublished
 sandbox quiz with no items, three param variations, all returning the same presigned
 URL shape.
+
+---
+
+### L30 — New Quiz `student_analysis` report job reports `completed` on a file that was never written
+
+**What Canvas does:** `POST /api/quiz/v1/courses/:cid/quizzes/:id/reports` with
+`{"quiz_report": {"report_type": "student_analysis", "includes_all_versions": true}}`
+returns `201` with a `progress` object. Polling `GET /api/v1/progress/:id` reaches
+`workflow_state: completed` at `completion: 100.0`, with a `results.url` pointing to
+a real-looking inst-fs-hosted `student_analysis.csv` (signed URL, real `file_name`).
+But fetching that URL returns `200 text/csv` whose body is the literal JSON string
+`{"errors":["The specified resource does not exist"]}` — the export was never
+actually generated. Confirmed against a quiz with a real Test Student submission, so
+it isn't a missing-submission problem. The alternative flat (unwrapped) body shape
+`{"report_type": "student_analysis", "format": "csv"}` was also tried — that returns
+a clean `400 {"message": "invalid quiz report type"}` regardless of submission
+state, so it isn't the fix either.
+
+**Why it matters:** `grader_fetch_nq_responses.py` is the only path this toolkit has
+for per-student New Quiz item responses (New Quizzes don't expose them any other
+way). This bug blocks that path entirely, with no client-side workaround found —
+the request is correct and Canvas's own job pipeline is misreporting success.
+
+**How the toolkit handles it:** nothing to defend against client-side — this is
+filed upstream as **instructure/canvas-lms#2663**. `grader_fetch_nq_responses.py`'s
+docstring points here and at that issue. Revisit when the upstream issue gets a
+response, or opportunistically any time Canvas ships New Quiz Reporting API changes
+(no announcement should be assumed — just try `grader_fetch_nq_responses.py` again
+against a real submission).
+
+**Secondary finding, possibly related:** after this report job ran, `DELETE
+/api/quiz/v1/courses/:cid/quizzes/:id` started returning `502 Bad Gateway` for that
+same quiz, which had deleted cleanly before the report ran. `DELETE
+/api/v1/courses/:cid/assignments/:id` (the classic Assignments endpoint) worked as a
+workaround and fully removed both the quiz and its assignment shell.
+
+**Provenance:** sandbox probe, 2026-09-23 (issue #364, filed upstream as
+instructure/canvas-lms#2663) — real Test Student submission via Canvas Student View,
+full request/poll/download trace captured, both body shapes tried.
 
 ---
 
