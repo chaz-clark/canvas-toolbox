@@ -13,6 +13,36 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`canvas_shell_create.py` — create a Classic Quiz or Assignment shell, unpublished (#349).**
+
+`canvas_sync.py --push` only ever `PUT`s: `_push_quiz`/`_push_assignment` require a
+`canvas_id` already in `.canvas/index.json` and refuse otherwise. There was no way to
+create a new quiz or assignment through the toolkit at all — confirmed on a real course
+(m119-master), where the instructor keeps an unpublished "Project # (template)"
+assignment specifically to duplicate in the Canvas UI, and had to create three new
+reflection quizzes by hand.
+
+New tool takes a small local draft JSON (title, description, points, dates, quiz_type
+or submission_types, assignment_group_id), creates the object unpublished, reads it
+back to verify, and optionally places it in a module. Deliberately does **not**
+duplicate `canvas_sync.py`'s own module-walking file/index-writing logic — that already
+works and is more involved than it looks; instead it tells the operator to run
+`canvas_sync.py --pull` afterward, which picks up anything placed in a module using the
+existing, proven path. Dry run by default, idempotent by exact title,
+`canvas_course_guard`-gated.
+
+Caught before it ever reached a sandbox: an early draft built payloads with
+form-encoded bracket keys (`"assignment[name]"`) sent as a JSON body — Canvas's JSON
+parser doesn't understand that wire format and would have silently dropped every
+field. Fixed to nested dicts matching `canvas_sync.py`'s own `_post()`/`_put()`
+convention, pinned by a regression test.
+
+**New empirical finding (L26):** a quiz's `points_possible` is derived from its
+questions and cannot be set at creation — sent in the payload, `201` comes back, but a
+read-back shows `null`. An assignment created the identical way persists the value
+exactly as sent. Verified on a sandbox; the tool tells the operator this rather than
+claiming a field is set when it isn't.
+
 **AGENTS.md — Toyota Quality Loop promoted to its own no-override principle (P-011).**
 
 Make-AI-Agents (the sister repo this project's behavioral discipline is sourced from)
