@@ -32,6 +32,7 @@ import cb_flatten as cf  # noqa: E402
 from cb_flatten import (  # noqa: E402
     credentials_resolve,
     ensure_env_stub,
+    check_capability_consent,
     DistributionError,
     GI_END,
     GI_START,
@@ -1120,3 +1121,106 @@ def test_render_fresh_pyproject_is_parseable_toml():
     parsed = tomllib.loads(out)
     assert parsed["project"]["name"] == "some-course"
     assert parsed["project"]["dependencies"] == _CLONE_TOML["project"]["dependencies"]
+
+
+# ---------------------------------------------------------------------------
+# check_capability_consent — --approve/--approve-all require a TTY (#343)
+# ---------------------------------------------------------------------------
+
+class _FakeStdin:
+    """Same shape as test_grader_push_helpers.py's HG-5 fake — isatty() only,
+    nothing else consulted on the non-TTY path."""
+    def __init__(self, is_tty):
+        self._tty = is_tty
+
+    def isatty(self):
+        return self._tty
+
+
+_GROWTH_MANIFEST = """
+id: grading
+version: "2.0.0"
+name: Grading
+description: FERPA-safe grading.
+tools:
+  - id: grader-push
+    command: lib/tools/grader_push.py
+    effect: canvas_grade_comment_write
+    data_class: student_grade
+    approval: always
+credentials:
+  - CANVAS_API_TOKEN
+network:
+  - canvas_base_url_only
+"""
+
+
+def _consent_clone(tmp_path: Path, manifest_yaml: str = _GROWTH_MANIFEST) -> Path:
+    clone = tmp_path / "clone"
+    pkg_dir = clone / "agent-packages" / "grading"
+    pkg_dir.mkdir(parents=True)
+    (pkg_dir / "manifest.yaml").write_text(manifest_yaml, encoding="utf-8")
+    return clone
+
+
+def test_approve_all_refused_without_a_tty(monkeypatch, tmp_path):
+    """The core fix: --approve-all on growth with no interactive terminal is
+    refused, not silently treated as approved and not silently no-op'd."""
+    monkeypatch.setattr(cf.sys, "stdin", _FakeStdin(is_tty=False))
+    clone = _consent_clone(tmp_path)
+    ok, messages, pending = check_capability_consent(
+        clone, tmp_path, ["grading"], set(), True)
+    assert ok is False
+    assert any("REFUSED" in m and "interactive terminal" in m for m in messages)
+    assert pending == []  # nothing queued to be persisted as approved
+
+
+def test_approve_specific_id_refused_without_a_tty(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf.sys, "stdin", _FakeStdin(is_tty=False))
+    clone = _consent_clone(tmp_path)
+    ok, messages, pending = check_capability_consent(
+        clone, tmp_path, ["grading"], {"grading"}, False)
+    assert ok is False
+    assert pending == []
+
+
+def test_approve_all_succeeds_at_a_real_tty(monkeypatch, tmp_path):
+    """No regression: the normal interactive path (agent-in-chat relaying to
+    the instructor, then --approve-all at a real terminal) is unaffected."""
+    monkeypatch.setattr(cf.sys, "stdin", _FakeStdin(is_tty=True))
+    clone = _consent_clone(tmp_path)
+    ok, messages, pending = check_capability_consent(
+        clone, tmp_path, ["grading"], set(), True)
+    assert ok is True
+    assert any("approved" in m for m in messages)
+    assert len(pending) == 1 and pending[0][0] == "grading"
+
+
+def test_no_growth_unaffected_by_missing_tty(monkeypatch, tmp_path):
+    """This gates the capability-INSTALL decision, not unattended runs
+    wholesale — a package with no growth proceeds either way, TTY or not."""
+    monkeypatch.setattr(cf.sys, "stdin", _FakeStdin(is_tty=False))
+    clone = _consent_clone(tmp_path)
+    # Pre-approve so the second check sees no growth.
+    from capability_consent import compute_fingerprint, record_approval
+    import yaml
+    pkg = yaml.safe_load(_GROWTH_MANIFEST)
+    record_approval(tmp_path, "grading", compute_fingerprint(pkg), "operator (test setup)")
+
+    ok, messages, pending = check_capability_consent(
+        clone, tmp_path, ["grading"], set(), False)  # no --approve-all, no TTY
+    assert ok is True
+    assert pending == [("grading", compute_fingerprint(pkg), "auto (no capability growth)")]
+
+
+def test_needs_approval_message_unaffected_by_tty_when_not_claimed(monkeypatch, tmp_path):
+    """Growth with NEITHER --approve nor --approve-all: still the ordinary
+    'NEEDS APPROVAL' message, not the TTY-specific refusal — the TTY check
+    only fires when approval is actually being CLAIMED this run."""
+    monkeypatch.setattr(cf.sys, "stdin", _FakeStdin(is_tty=False))
+    clone = _consent_clone(tmp_path)
+    ok, messages, pending = check_capability_consent(
+        clone, tmp_path, ["grading"], set(), False)
+    assert ok is False
+    assert any("NEEDS APPROVAL" in m for m in messages)
+    assert not any("REFUSED" in m for m in messages)
