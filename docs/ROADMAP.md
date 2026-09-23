@@ -22,6 +22,33 @@
 
 ---
 
+## Known gaps: create vs. update parity
+
+Confirmed 2026-09-23, prompted by #349/#350 (`canvas_shell_create.py` — Classic Quiz +
+Assignment shell creation, shipped after an instructor was blocked hand-creating quizzes
+in the Canvas UI). Re-auditing `lib/tools/` for the same pattern — read support and
+update-an-existing-object support, but no "create a new one in a live, already-existing
+course" path outside `sync_to_new.py`'s whole-course clone — found **4 more object types**
+with the identical gap:
+
+1. **Wiki pages** in `canvas_sync.py`'s plain single-section push flow (`_push_page()`
+   requires an existing `page_url`; the create-capable `upsert_page()` already exists in
+   `canvas_pages.py` but is only wired into `blueprint_sync.py`/`course_mirror.py`).
+2. **Discussion topics / announcements** (`_push_discussion()` requires an existing
+   `canvas_id`; no create path anywhere for a live course).
+3. **Modules** (no standalone tool creates a new Module shell; `module_settings_sync.py`
+   only updates settings on modules that already exist).
+4. **Assignment groups** (read-only everywhere except inside `sync_to_new.py`'s clone).
+
+New Quiz creation is excluded deliberately, not missed (New Quizzes are LTI-delivered
+with no content/settings write support via the API at all — a platform ceiling, not a
+toolkit gap). File upload (#7) already closed the same shape of gap for Canvas Files.
+
+Full writeup, suggested build shape, and trigger condition: `handoffs/parkinglot.md`
+("Create-vs-update gap sweep — 4 object types still un-creatable in a live course").
+
+---
+
 ## Unexplored Canvas API Categories
 
 ### 📊 Analytics & Reporting

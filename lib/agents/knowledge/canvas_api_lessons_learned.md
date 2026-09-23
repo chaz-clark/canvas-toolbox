@@ -363,6 +363,32 @@ points, by adding questions with their own point values.
 does not claim it as verified, and tells the operator directly: sent, but won't take
 effect until questions are added via `canvas_quiz_questions.py`.
 
+### L27 — Assignment Groups API rejects the wrapped-key payload shape every other object type here uses
+
+**What Canvas does:** `POST /courses/:cid/assignment_groups` with a body wrapped in an
+`"assignment_group"` key — `{"assignment_group": {"name": ..., "group_weight": ...}}`,
+the same shape that works for quizzes, assignments, pages, and modules — returns `200`
+but silently ignores every field sent, creating a group named "Assignments" with
+`group_weight: 0`. The same request sent FLAT — `{"name": ..., "group_weight": ...}`,
+no wrapper key — creates the group exactly as asked. Discussion Topics (L-none, but see
+`_push_discussion()` in `canvas_sync.py`) is the only other endpoint in this project
+that takes a flat body; every other object type wraps.
+
+**Why it matters:** the wrapped-key convention was assumed to generalize from
+quiz/assignment/page/module (verified in #349, #351) to assignment groups without
+checking — and `sync_to_new.py`'s `create_assignment_group()`, shipped as part of the
+whole-course-clone tool, had carried this exact bug, untested, since it was written.
+Caught only because `canvas_shell_create.py` reads every create back and verifies the
+title before reporting success — a `200` was not proof the write landed as asked, same
+principle as L26, different failure shape (wrong values on a *different* object,
+not a null on the one sent).
+
+**How the toolkit handles it:** `canvas_shell_create.py`'s `build_assignment_group_payload()`
+sends the flat shape. `sync_to_new.py`'s `create_assignment_group()` was fixed
+alongside this finding (#351), with a regression test (`test_sync_to_new.py`) pinning
+it. **Do not assume a payload wrapper convention generalizes across Canvas object
+types without a sandbox read-back — verify per endpoint.**
+
 **Provenance:** sandbox 427808 probe, 2026-09-23 (issue #349) — an assignment and a
 quiz created via the identical code path, same field, only the assignment's value
 read back correctly.

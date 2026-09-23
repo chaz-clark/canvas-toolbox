@@ -1,48 +1,72 @@
 #!/usr/bin/env python3
 """
-canvas_shell_create.py — create a Classic Quiz or Assignment shell in Canvas (#349).
+canvas_shell_create.py — create a Canvas object shell that doesn't exist yet (#349, #351).
 
 WHY THIS EXISTS
-  canvas_sync.py's --push only ever PUTs: `_push_quiz`/`_push_assignment` require a
-  `canvas_id` already present in `.canvas/index.json` and refuse otherwise ("no
-  canvas_id in index"). There was no path to CREATE a new quiz or assignment through
-  the toolkit at all — confirmed against a real course (m119-master) where the
-  instructor had to create three new per-project reflection quizzes by hand in the
-  Canvas UI, and separately keeps an unpublished "Project # (template)" assignment
-  specifically so shells can be duplicated in the UI, evidence this gap isn't
-  quiz-specific.
+  canvas_sync.py's --push only ever PUTs: every `_push_*` function requires a
+  `canvas_id`/`page_url` already present in `.canvas/index.json` and refuses
+  otherwise ("no canvas_id in index"). There was no path to CREATE a new object
+  through the toolkit at all — confirmed against a real course (m119-master) where
+  the instructor had to create three new per-project reflection quizzes by hand in
+  the Canvas UI, and separately keeps an unpublished "Project # (template)"
+  assignment specifically so shells can be duplicated in the UI.
+
+  #349/#350 closed this for quiz/assignment shells. A follow-up sweep of the rest of
+  `lib/tools/` (documented in `handoffs/parkinglot.md` and `docs/ROADMAP.md`, #351)
+  found the identical shape in 4 more object types: read support and
+  update-an-existing-object support, but no create path outside `sync_to_new.py`'s
+  whole-course clone (a different tool solving a different problem — migrating an
+  entire course into a new shell, not adding one object to a course that already
+  exists). This file now covers all six: `quiz`, `assignment`, `page`, `discussion`,
+  `module`, `assignment_group`.
+
+  New Quiz creation is deliberately out of scope, not missed — New Quizzes are
+  LTI-delivered with no content/settings write support via the API at all
+  (Canvas-only, edit in the UI; see `_push_newquiz_dates()`'s own docstring in
+  canvas_sync.py) — a platform ceiling, not a toolkit gap.
 
 WHAT THIS DELIBERATELY DOES NOT DO
   Write the local `course/<module>/<slug>.json` file or `.canvas/index.json` entry
   that canvas_sync.py's normal pull/push cycle depends on. That logic already exists,
   is more involved than it looks (module-relative paths, markdown mirrors, hash
   tracking), and duplicating it here risks drifting from the real thing. Instead:
-  create the object (and optionally place it in a module), then tell the operator to
-  run `canvas_sync.py --pull` — the existing, proven path picks up anything sitting
-  in a module and writes the matching local file + index entry itself.
+  create the object (and optionally place it in a module, for the kinds that are
+  module-item-eligible), then tell the operator to run `canvas_sync.py --pull` — the
+  existing, proven path picks up anything sitting in a module and writes the
+  matching local file + index entry itself.
 
   This also means an item created with no --module-id is real in Canvas (visible in
   the Assignments list / SpeedGrader) but invisible to canvas_sync's own tracking
   until it's placed in a module — the same way canvas_sync's pull already works
   (module-walking, not a course-wide assignments scan). Not a new limitation; the
-  existing one, surfaced honestly rather than worked around here.
+  existing one, surfaced honestly rather than worked around here. `module` and
+  `assignment_group` shells are never module items themselves — Canvas has no such
+  relationship — so `--module-id` is refused for those two kinds.
 
 WHY UNPUBLISHED BY DEFAULT
   A student never sees an unpublished item. Same reasoning as every other creation
   tool in this project (peer_review_setup.py, grading_scheme_setup.py) — the instructor
-  publishes when ready, not this tool on their behalf.
+  publishes when ready, not this tool on their behalf. Assignment groups have no
+  publish state in Canvas (they're a grading category, not visible content) — the
+  unpublished-by-default reasoning doesn't apply and read-back skips that check only
+  for this one kind.
 
 WHY THE CREATE IS READ BACK
   Same reason course dates and grading schemes are (#182) — a 200 is not proof the
   write landed as asked. Read back the created object before reporting success.
 
 DRAFT FILE SHAPE (--draft PATH, JSON)
-  Common:      {"kind": "quiz" | "assignment", "title": "...", "description": "...",
-                "points_possible": 10, "due_at": "2026-10-01T05:59:00Z",
-                "lock_at": "...", "unlock_at": "...",
-                "assignment_group_id": 12345}
-  Quiz only:   "quiz_type" (default "assignment"), "time_limit", "allowed_attempts"
-  Assignment only: "submission_types" (default ["online_text_entry"]), "grading_type"
+  Common:            {"kind": "quiz" | "assignment" | "page" | "discussion" |
+                       "module" | "assignment_group", "title": "...",
+                       "description": "..."}
+  quiz/assignment only: "points_possible", "due_at", "lock_at", "unlock_at",
+                       "assignment_group_id"
+  Quiz only:         "quiz_type" (default "assignment"), "time_limit", "allowed_attempts"
+  Assignment only:   "submission_types" (default ["online_text_entry"]), "grading_type"
+  Page/Discussion:   "description" is the page body / discussion message
+  Discussion only:   "is_announcement" (bool, default false)
+  Module only:       "position" (int), "unlock_at"
+  Assignment group only: "position" (int), "group_weight" (number)
 
 Usage:
   # dry run (default) — validates the draft, shows what would be created
@@ -99,6 +123,31 @@ _TIMEOUT = 20
 _VALID_GRADING_TYPES = {"pass_fail", "percent", "letter_grade", "gpa_scale", "points", "not_graded"}
 _VALID_QUIZ_TYPES = {"practice_quiz", "assignment", "graded_survey", "survey"}
 _DATE_FIELDS = ("due_at", "lock_at", "unlock_at")
+_VALID_KINDS = {"quiz", "assignment", "page", "discussion", "module", "assignment_group"}
+# Module items in Canvas can only point at these types — module/assignment_group
+# shells are never module items themselves (no such relationship exists).
+_MODULE_ITEM_KINDS = {"quiz", "assignment", "page", "discussion"}
+# endpoint suffix, the field Canvas returns the title/name under
+_KIND_ENDPOINT = {
+    "quiz": "/quizzes",
+    "assignment": "/assignments",
+    "page": "/pages",
+    "discussion": "/discussion_topics",
+    "module": "/modules",
+    "assignment_group": "/assignment_groups",
+}
+_KIND_NAME_FIELD = {
+    "quiz": "title",
+    "assignment": "name",
+    "page": "title",
+    "discussion": "title",
+    "module": "name",
+    "assignment_group": "name",
+}
+# Canvas Pages are addressed by url slug, not numeric id, in API paths.
+_KIND_ID_FIELD = {"page": "url"}
+# Assignment groups have no publish state in Canvas — a grading category, not content.
+_KINDS_WITHOUT_PUBLISH_STATE = {"assignment_group"}
 
 
 def _headers() -> dict:
@@ -159,8 +208,8 @@ def validate_draft(draft: dict) -> list[str]:
     but the fields should still be sane before any write)."""
     errors = []
     kind = draft.get("kind")
-    if kind not in ("quiz", "assignment"):
-        errors.append('"kind" must be "quiz" or "assignment"')
+    if kind not in _VALID_KINDS:
+        errors.append(f'"kind" must be one of {sorted(_VALID_KINDS)}')
     if not (draft.get("title") or "").strip():
         errors.append('"title" is required and must be non-empty')
     pts = draft.get("points_possible")
@@ -179,6 +228,15 @@ def validate_draft(draft: dict) -> list[str]:
         v = draft.get(field)
         if v is not None and not isinstance(v, str):
             errors.append(f'"{field}" must be an ISO 8601 date string, e.g. "2026-10-01T05:59:00Z"')
+    ia = draft.get("is_announcement")
+    if ia is not None and not isinstance(ia, bool):
+        errors.append('"is_announcement" must be true or false')
+    pos = draft.get("position")
+    if pos is not None and (not isinstance(pos, int) or isinstance(pos, bool) or pos < 1):
+        errors.append('"position" must be a positive integer')
+    gw = draft.get("group_weight")
+    if gw is not None and (not isinstance(gw, (int, float)) or gw < 0):
+        errors.append('"group_weight" must be a non-negative number')
     return errors
 
 
@@ -229,12 +287,78 @@ def build_quiz_payload(draft: dict) -> dict:
     return {"quiz": quiz}
 
 
-def build_module_item_payload(kind: str, content_id: int, title: str) -> dict:
-    return {"module_item": {
-        "title": title,
-        "type": "Quiz" if kind == "quiz" else "Assignment",
-        "content_id": content_id,
+def build_page_payload(draft: dict) -> dict:
+    """Canvas's POST /pages shape. Same wrapper-key convention as quiz/assignment —
+    the existing canvas_pages.py's upsert_page() already proves this wire format."""
+    return {"wiki_page": {
+        "title": draft["title"],
+        "body": draft.get("description") or "",
+        "published": False,
     }}
+
+
+def build_discussion_payload(draft: dict) -> dict:
+    """Canvas's POST /discussion_topics shape — flat, NOT wrapped in a
+    "discussion_topic" key. Matches canvas_sync.py's own _push_discussion(), which
+    PUTs this same endpoint with a flat body; the Discussion Topics API (unlike
+    quizzes/assignments/pages) never uses a wrapper key."""
+    return {
+        "title": draft["title"],
+        "message": draft.get("description") or "",
+        "published": False,
+        "is_announcement": bool(draft.get("is_announcement", False)),
+    }
+
+
+def build_module_payload(draft: dict) -> dict:
+    """Canvas's POST /modules shape — proven wire format, already used by
+    sync_to_new.py's create_module() for whole-course clones."""
+    module: dict = {"name": draft["title"], "published": False}
+    if draft.get("position") is not None:
+        module["position"] = draft["position"]
+    if draft.get("unlock_at"):
+        module["unlock_at"] = draft["unlock_at"]
+    return {"module": module}
+
+
+def build_assignment_group_payload(draft: dict) -> dict:
+    """Canvas's POST /assignment_groups shape — FLAT, NOT wrapped in an
+    "assignment_group" key, unlike quiz/assignment/page/module. Caught on a sandbox,
+    not assumed: sync_to_new.py's create_assignment_group() wraps it (matching the
+    other 4 kinds' convention) and that assumption was wrong for this one endpoint —
+    a wrapped POST returns 200 but silently creates a group named "Assignments" with
+    group_weight 0, ignoring every field sent. No "published" field either —
+    assignment groups have no publish state in Canvas."""
+    ag: dict = {"name": draft["title"]}
+    if draft.get("position") is not None:
+        ag["position"] = draft["position"]
+    if draft.get("group_weight") is not None:
+        ag["group_weight"] = draft["group_weight"]
+    return ag
+
+
+_KIND_BUILDER = {
+    "quiz": lambda d: build_quiz_payload(d),
+    "assignment": lambda d: build_assignment_payload(d),
+    "page": lambda d: build_page_payload(d),
+    "discussion": lambda d: build_discussion_payload(d),
+    "module": lambda d: build_module_payload(d),
+    "assignment_group": lambda d: build_assignment_group_payload(d),
+}
+
+
+def build_module_item_payload(kind: str, content_id, title: str) -> dict:
+    """content_id is the Canvas numeric id for quiz/assignment/discussion, or the
+    page's url slug for a Page (Canvas's module-item API takes `page_url` instead
+    of `content_id` for that one type)."""
+    item_type = {"quiz": "Quiz", "assignment": "Assignment",
+                 "page": "Page", "discussion": "Discussion"}[kind]
+    item: dict = {"title": title, "type": item_type}
+    if kind == "page":
+        item["page_url"] = content_id
+    else:
+        item["content_id"] = content_id
+    return {"module_item": item}
 
 
 def print_plan(draft: dict) -> None:
@@ -248,14 +372,31 @@ def print_plan(draft: dict) -> None:
             print("                   this won't take effect until questions are added;")
             print("                   verified for real on a sandbox, #349)")
         print(f"  quiz_type:       {draft.get('quiz_type', 'assignment')}")
-    else:
+        for field in _DATE_FIELDS:
+            if draft.get(field):
+                print(f"  {field}:          {draft[field]}")
+        if draft.get("assignment_group_id"):
+            print(f"  assignment_group_id: {draft['assignment_group_id']}")
+    elif kind == "assignment":
         print(f"  points_possible: {draft.get('points_possible', '(none)')}")
         print(f"  submission_types:{draft.get('submission_types', ['online_text_entry'])}")
-    for field in _DATE_FIELDS:
-        if draft.get(field):
-            print(f"  {field}:          {draft[field]}")
-    if draft.get("assignment_group_id"):
-        print(f"  assignment_group_id: {draft['assignment_group_id']}")
+        for field in _DATE_FIELDS:
+            if draft.get(field):
+                print(f"  {field}:          {draft[field]}")
+        if draft.get("assignment_group_id"):
+            print(f"  assignment_group_id: {draft['assignment_group_id']}")
+    elif kind == "discussion":
+        print(f"  is_announcement: {bool(draft.get('is_announcement', False))}")
+    elif kind == "module":
+        if draft.get("position") is not None:
+            print(f"  position:        {draft['position']}")
+        if draft.get("unlock_at"):
+            print(f"  unlock_at:       {draft['unlock_at']}")
+    elif kind == "assignment_group":
+        if draft.get("position") is not None:
+            print(f"  position:        {draft['position']}")
+        if draft.get("group_weight") is not None:
+            print(f"  group_weight:    {draft['group_weight']}")
 
 
 # ---------------------------------------------------------------------------
@@ -265,9 +406,9 @@ def print_plan(draft: dict) -> None:
 def find_existing(course_id: str, kind: str, title: str) -> dict | None:
     """An object already carrying this exact title, if any — idempotency by title,
     same convention as every other creation tool in this project."""
-    endpoint = "/quizzes" if kind == "quiz" else "/assignments"
+    endpoint = _KIND_ENDPOINT[kind]
+    name_field = _KIND_NAME_FIELD[kind]
     for obj in _get(f"/courses/{course_id}{endpoint}") or []:
-        name_field = "title" if kind == "quiz" else "name"
         if isinstance(obj, dict) and (obj.get(name_field) or "").strip() == title.strip():
             return obj
     return None
@@ -275,19 +416,18 @@ def find_existing(course_id: str, kind: str, title: str) -> dict | None:
 
 def create_shell(course_id: str, draft: dict) -> tuple[dict | None, str]:
     kind = draft["kind"]
-    if kind == "quiz":
-        created, err = _post(f"/courses/{course_id}/quizzes", build_quiz_payload(draft))
-    else:
-        created, err = _post(f"/courses/{course_id}/assignments", build_assignment_payload(draft))
+    endpoint = _KIND_ENDPOINT[kind]
+    name_field = _KIND_NAME_FIELD[kind]
+    id_field = _KIND_ID_FIELD.get(kind, "id")
+
+    created, err = _post(f"/courses/{course_id}{endpoint}", _KIND_BUILDER[kind](draft))
     if not created:
         return None, err
-    endpoint = "/quizzes" if kind == "quiz" else "/assignments"
-    back = _get(f"/courses/{course_id}{endpoint}/{created['id']}")
-    name_field = "title" if kind == "quiz" else "name"
+    back = _get(f"/courses/{course_id}{endpoint}/{created[id_field]}")
     if not isinstance(back, dict) or (back.get(name_field) or "").strip() != draft["title"].strip():
         return None, (f"Canvas reported success but the {kind} did not read back intact "
-                      f"(id {created.get('id')}). Check it in Canvas before re-running.")
-    if back.get("published"):
+                      f"({id_field} {created.get(id_field)}). Check it in Canvas before re-running.")
+    if kind not in _KINDS_WITHOUT_PUBLISH_STATE and back.get("published"):
         return None, f"Canvas created the {kind} but it came back published, not unpublished as asked."
     return back, ""
 
@@ -305,15 +445,18 @@ def main() -> int:
     force_utf8_console()  # #123
 
     ap = argparse.ArgumentParser(
-        description="Create a Classic Quiz or Assignment shell in Canvas (unpublished).")
+        description="Create a Canvas object shell (quiz, assignment, page, discussion, "
+                    "module, or assignment group), unpublished.")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     ap.add_argument("--draft", required=True, metavar="PATH",
                     help="Local JSON file describing the shell — see this file's own "
                          "docstring for the shape.")
     ap.add_argument("--module-id", default=None,
-                    help="Add the created item to this module. Omit to create it "
-                         "unfiled (real in Canvas, but invisible to canvas_sync's "
-                         "own tracking until placed in a module).")
+                    help="Add the created item to this module. Only valid for "
+                         f"kind in {sorted(_MODULE_ITEM_KINDS)} — modules and "
+                         "assignment groups are never module items themselves. "
+                         "Omit to create it unfiled (real in Canvas, but invisible "
+                         "to canvas_sync's own tracking until placed in a module).")
     ap.add_argument("--target", default="CANVAS_COURSE_ID",
                     help="Env var holding the course id (default CANVAS_COURSE_ID)")
     ap.add_argument("--course-id", default=None, help="Literal course id; overrides --target")
@@ -345,15 +488,23 @@ def main() -> int:
             print(f"  - {e}")
         return 2
     kind = draft["kind"]
+    id_field = _KIND_ID_FIELD.get(kind, "id")
+    module_eligible = kind in _MODULE_ITEM_KINDS
 
-    print(f"{kind.capitalize()} shell: {draft['title']}"
+    if args.module_id and not module_eligible:
+        print(f"ERROR: --module-id is not valid for kind '{kind}' — modules and "
+              "assignment groups are never module items themselves.")
+        return 2
+
+    print(f"{kind.replace('_', ' ').capitalize()} shell: {draft['title']}"
           f"   ({'APPLYING' if args.apply else 'DRY RUN — pass --apply to write'})")
     print_plan(draft)
-    if args.module_id:
-        print(f"  module:          {args.module_id}")
-    else:
-        print("  module:          (none — will not be picked up by `canvas_sync.py "
-              "--pull` until placed in a module)")
+    if module_eligible:
+        if args.module_id:
+            print(f"  module:          {args.module_id}")
+        else:
+            print("  module:          (none — will not be picked up by `canvas_sync.py "
+                  "--pull` until placed in a module)")
 
     guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
                   mode="write" if args.apply else "read",
@@ -361,7 +512,7 @@ def main() -> int:
 
     existing = find_existing(course_id, kind, draft["title"])
     if existing:
-        print(f"\n  already exists (id {existing.get('id')}) — nothing to do. "
+        print(f"\n  already exists ({id_field} {existing.get(id_field)}) — nothing to do. "
               f"This tool never edits an existing {kind}; use canvas_sync.py --push "
               f"for that once it's tracked locally.")
         return 0
@@ -374,22 +525,28 @@ def main() -> int:
     if not created:
         print(f"\nERROR creating {kind}: {err}")
         return 1
-    cid = created["id"]
-    print(f"\n  ✓ {kind} created and verified (id {cid}, unpublished)")
+    ident = created[id_field]
+    status = "no publish state" if kind in _KINDS_WITHOUT_PUBLISH_STATE else "unpublished"
+    print(f"\n  ✓ {kind} created and verified ({id_field} {ident}, {status})")
 
     if args.module_id:
-        ok, err = add_to_module(course_id, args.module_id, kind, cid, draft["title"])
+        ok, err = add_to_module(course_id, args.module_id, kind, ident, draft["title"])
         if not ok:
             print(f"\nERROR adding to module {args.module_id}: {err}")
-            print(f"  The {kind} exists (id {cid}) but was not placed in a module. "
-                  f"Add it manually in Canvas, or re-run this tool's module-add step.")
+            print(f"  The {kind} exists ({id_field} {ident}) but was not placed in a "
+                  f"module. Add it manually in Canvas, or re-run this tool's "
+                  f"module-add step.")
             return 1
         print(f"  ✓ added to module {args.module_id}")
 
-    print(f"\nNext: run `uv run python lib/tools/canvas_sync.py --pull` to track this "
-          f"{kind} locally like everything else canvas_sync manages"
-          + ("." if args.module_id else
-             " — note it won't be picked up until it's placed in a module."))
+    if module_eligible:
+        print(f"\nNext: run `uv run python lib/tools/canvas_sync.py --pull` to track this "
+              f"{kind} locally like everything else canvas_sync manages"
+              + ("." if args.module_id else
+                 " — note it won't be picked up until it's placed in a module."))
+    else:
+        print(f"\nNext: run `uv run python lib/tools/canvas_sync.py --pull` to track this "
+              f"{kind} locally — {kind}s are pulled directly, no module placement needed.")
     return 0
 
 

@@ -400,7 +400,10 @@ def create_assignment_group(base_url: str, course_id: str, group_data: dict, tok
         Canvas assignment group object with new canvas_id, or None on error
     """
     url = f"{base_url}/api/v1/courses/{course_id}/assignment_groups"
-    payload = {"assignment_group": group_data}
+    # FLAT, not wrapped in "assignment_group" — unlike modules/assignments/quizzes.
+    # Caught on a sandbox (#351): a wrapped POST returns 200 but silently creates a
+    # group named "Assignments" with group_weight 0, ignoring every field sent.
+    payload = group_data
 
     result = _post(url, payload, token)
 
