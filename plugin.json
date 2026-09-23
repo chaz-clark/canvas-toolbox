@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "canvas-toolbox",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "Canvas LMS course-management toolkit: mirror, edit, audit, and push courses through sanctioned tools with FERPA and Canvas-write safety gates.",
   "author": {
     "name": "Chaz Clark",

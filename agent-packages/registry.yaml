@@ -18,7 +18,7 @@ packages:
   - grading
   - ferpa-deid
   - voicing
-  tool_count: 44
+  tool_count: 45
 - id: student-support
   version: 2.0.0
   name: Student Support

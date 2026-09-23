@@ -22,7 +22,7 @@ FERPA-safe grading preparation, review, and sanctioned delivery of grades and fe
 - **Entry prompt:** `agent-packages/grading/AGENT.md`
 - **Data classes:** course_content, deidentified_student_work, none, student_evaluation, student_roster, student_submission
 - **Credentials:** CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID
-- **Tools (44):** 13 read, 25 local write, 6 Canvas grade/comment write
+- **Tools (45):** 13 read, 26 local write, 6 Canvas grade/comment write
 
 ## Student Support (`student-support`)
 

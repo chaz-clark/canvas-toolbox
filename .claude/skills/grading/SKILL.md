@@ -195,6 +195,43 @@ grader_standing.py --csv standing.csv --assignment-id <id> --push --yes --allow-
   **echoing a name out of them is not** — report every student as `user_id` or
   `deid_code`. See the constitution's FERPA section (Zone 2-Adjacent).
 
+## Grading a course with no Canvas API (#339 Phase A)
+
+Some courses run on another LMS entirely (Brightspace/D2L) with no API and no
+export — inputs are local-only: the instructor's notes/posts as files, and a
+roster CSV. The Canvas de-id/re-id pipeline above doesn't apply (there's no
+fetch step to hook a rename into), but the re-identify half does, adapted:
+
+- **Declare the course's own Zone-2 files first.** `.claude/ferpa_zone2.txt`
+  is not Canvas-specific — it's a per-course extension point (#278). A
+  non-Canvas course has different name-bearing files than a Canvas one
+  (a roster CSV, a mixed discussion export, per-student submission `.txt`
+  files) and MUST list them there before any of this applies. An installed
+  hook covering none of your files is worse than no hook.
+- **The roster CSV is the map, read only by `local_feedback_join.py`.** Work
+  from codes: the roster's own id column (a D2L Classlist export's
+  `OrgDefinedId`, not a name) plays the same role Canvas's `user_id` does
+  elsewhere in this skill — draft results keyed by that code, never a name.
+- **`local_feedback_join.py`** joins names back in at output time: first name
+  only by default, "First L." only for students who actually share a first
+  name (computed against the whole roster, so a student's display name is
+  stable run to run). Its own console output — dry run and `--apply` alike —
+  never prints a name; the joined text exists only in the file `--output`
+  writes, for the instructor to open themselves.
+- **Splitting the source files is not yet built** (Phase B, #339) — a mixed
+  discussion export with per-student separators, or renaming already-
+  per-student submission files to codes, still needs to happen by hand or
+  by a not-yet-built tool. `local_feedback_join.py` only covers the
+  re-identify side once you already have code-keyed results.
+- **Why `grade_guardian` doesn't need new awareness for this:** its Canvas-
+  write bypass detector requires BOTH an HTTP write verb (`requests.post`,
+  `.put(`, etc.) AND Canvas-specific submission/grade-endpoint context
+  (`posted_grade`, `/assignments/.../submissions`). A purely local script —
+  reads a roster CSV, writes a local file, makes no network calls — never
+  matches either, so it's never mistaken for a hand-written Canvas bypass.
+  The roster/notes files are still protected, generically, by the ordinary
+  Zone-2 path-read block once declared above.
+
 ## Final-letter grading — split the write, two sanctioned tools
 
 A "final letter" workflow has two Canvas writes; do NOT hand-write a `fix_push.py`
@@ -234,6 +271,7 @@ questions. If the pending question is worth points, that's real grading → Spee
 | Rebuild the de-id master | `build_deid_master.py --force` |
 | Mirror the live gradebook locally (feeds standing/reconcile) | `grader_fetch_gradebook.py` |
 | Clear an auto-scored quiz stuck on a 0-point manual question | `grader_quiz_clear_pending.py --assignment-id <id> --apply` |
+| Join names into code-keyed feedback (no-Canvas-API course) | `local_feedback_join.py --roster <csv> --results <csv> --output <csv> --apply` |
 
 Full grading knowledge: [`lib/agents/knowledge/grader_hybrid_architecture.md`](../../lib/agents/knowledge/grader_hybrid_architecture.md)
 and [`lib/agents/knowledge/toolkit_reuse_knowledge.md`](../../lib/agents/knowledge/toolkit_reuse_knowledge.md).
