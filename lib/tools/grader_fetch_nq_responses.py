@@ -20,6 +20,15 @@ PIPELINE
   4. Parse the student_analysis CSV
   5. Return per-uid dict — never prints a name to stdout
 
+KNOWN BUG (Canvas-side, not this tool's) — tracked upstream as
+  instructure/canvas-lms#2663 (filed 2026-09-23). The report job reports
+  `workflow_state: completed` at 100%, with a valid-looking `results.url`,
+  but fetching that URL returns `{"errors":["The specified resource does
+  not exist"]}` instead of the CSV. Confirmed against a real Test Student
+  submission, so it isn't a missing-submission issue. See
+  canvas_api_lessons_learned.md L30 for the full repro. Blocked until
+  Canvas fixes it — no client-side workaround found.
+
 FERPA NOTE
   The student_analysis CSV carries student NAMES (the `Name` column) and
   the per-question answers (which can themselves carry PII — essay text,
