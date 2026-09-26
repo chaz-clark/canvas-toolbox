@@ -67,6 +67,8 @@ Use the subscription you **already have** so you don't pay twice. In your IDE, o
 
 > 💡 **A common mix-up:** GitHub Copilot is a *separate* Microsoft/GitHub subscription — it does **not** connect to a ChatGPT account, even though they're both AI tools. If you have ChatGPT Plus, install **Codex** (first row). If you have Copilot, install **Copilot** (third row). Each is tied to its own account.
 
+> ⚠️ **Codex sign-in:** the first time Codex runs, it may prompt you to sign in. Use the **"Sign in with ChatGPT"** browser option — don't paste an API key into that prompt. It's asking for *Codex's own* login, not your Canvas API token from Step 3; pasting your Canvas token there won't work and won't be needed. If Codex insists on an API key instead of showing a sign-in button, it isn't logged in yet — sign in first.
+
 > 🦙 **About Ollama + Continue.dev / Cline:** Both are open-source and fully agentic — they read files, run terminal commands, edit code, the same workflow as the cloud extensions above. **Continue.dev** is the safer first pick (Apache 2.0, broader adoption, more stable backend abstraction). **Cline** is a strong alternative — newer but capable for the same workflow. Both are local-first; nothing leaves your machine. Good fit for FERPA-strict institutions or cost-conscious workflows. The honest trade: today's local code models (e.g. `qwen2.5-coder`, `deepseek-coder-v2`, `codestral`) handle deterministic + structural work well, but need extra calibration for nuanced prose grading compared to Claude / GPT-4. Start with a recent code-focused model; tune from there.
 
 > 📓 **Positron users:** Positron has a built-in **Positron Assistant** — you don't need to install an extension for AI help. Skip Step 2 and go to Step 3.
