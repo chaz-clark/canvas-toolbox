@@ -10,11 +10,12 @@ WHY THIS EXISTS (#302)
   anything that isn't A/B/C/D/F — had to be set up by hand in the Canvas UI before
   any of the propagation was usable.
 
-  This closes that gap and nothing more. It creates ONE course-level grading
-  standard and, on request, sets it as the course default. It deliberately does
-  NOT batch-configure assignments: that is per-assignment policy, it changes how
-  already-earned grades DISPLAY to enrolled students, and it belongs behind the
-  same review the grading push surface gets rather than in a setup helper.
+  This closes that gap. It creates ONE course-level grading standard and, on
+  request, sets it as the course default and/or attaches it to an EXPLICIT list of
+  assignments (--assignment-ids, #372). Attaching changes how already-earned grades
+  DISPLAY to enrolled students, so it is never inferred: the caller names the
+  assignments, the default is a dry run, the course guard applies, and each
+  assignment is read back. points_possible is never touched.
 
 WHY THE WRITE IS READ BACK
   Same reason course dates are (#182): Canvas can answer 200 and not apply the
@@ -88,6 +89,14 @@ if _raw_url and not _raw_url.startswith("http"):
 CANVAS_BASE_URL = _raw_url
 
 _TIMEOUT = 30
+
+#: Named schemes so a course doesn't hand-type --tiers (#372).
+PRESETS = {
+    "performance-tiers": {
+        "title": "Industry Performance Tiers",
+        "tiers": "Leading:90,Strong:80,Solid:70,Building:60,Insufficient:0",
+    },
+}
 # Canvas stores tier lower bounds as fractions and may echo them rounded, so
 # read-back compares within a tolerance rather than by equality.
 _VALUE_TOL = 1e-4
@@ -193,7 +202,9 @@ def find_existing(course_id: str, title: str) -> dict | None:
 
 
 def entries_match(standard: dict, tiers: list[dict]) -> bool:
-    got = standard.get("grading_scheme_entry") or []
+    # POST sends grading_scheme_entry; GET returns the tiers as grading_scheme
+    # (verified live, #372) — reading only the former made every read-back fail.
+    got = standard.get("grading_scheme") or standard.get("grading_scheme_entry") or []
     if len(got) != len(tiers):
         return False
     for g, t in zip(got, tiers):
@@ -208,10 +219,48 @@ def create_standard(course_id: str, title: str,
                     tiers: list[dict]) -> tuple[dict | None, str]:
     return _post(f"/courses/{course_id}/grading_standards", {
         "title": title,
+        # POST takes PERCENT (90); GET echoes a fraction (0.9). Sending 0.9 makes
+        # Canvas divide again and store 0.009 (#372) — and there is no edit
+        # endpoint, so a bad scheme means recreating it and repointing everything.
         "grading_scheme_entry": [
-            {"name": t["name"], "value": t["percent"] / 100.0} for t in tiers
+            {"name": t["name"], "value": t["percent"]} for t in tiers
         ],
     })
+
+
+def scored_count(course_id: str, assignment_id: int) -> int:
+    """Submissions already carrying a score. Switching grading_type makes Canvas
+    REINTERPRET those scores (a 4/4 'complete' can read as 100% = top tier), so a
+    count is what the operator must see before converting (#372)."""
+    subs = _get(f"/courses/{course_id}/assignments/{assignment_id}/submissions") or []
+    return sum(1 for x in subs if isinstance(x, dict) and x.get("score") is not None)
+
+
+def attach_to_assignments(course_id: str, standard_id: int,
+                          assignment_ids: list[int]) -> list[str]:
+    """Point each assignment at the standard (grading_type=letter_grade), leaving
+    points_possible untouched, then READ EACH ONE BACK. Returns problem strings;
+    empty means every assignment reports the intended id."""
+    problems: list[str] = []
+    for aid in assignment_ids:
+        try:
+            requests.put(
+                f"{CANVAS_BASE_URL}/api/v1/courses/{course_id}/assignments/{aid}",
+                headers=_headers(), timeout=_TIMEOUT,
+                json={"assignment": {"grading_type": "letter_grade",
+                                     "grading_standard_id": standard_id}})
+        except Exception as e:
+            problems.append(f"assignment {aid}: {e}")
+            continue
+        after = _get(f"/courses/{course_id}/assignments/{aid}") or {}
+        if not (isinstance(after, dict)
+                and after.get("grading_standard_id") == standard_id
+                and after.get("grading_type") == "letter_grade"):
+            problems.append(
+                f"assignment {aid}: reads back grading_type="
+                f"{after.get('grading_type')!r}, grading_standard_id="
+                f"{after.get('grading_standard_id')!r}")
+    return problems
 
 
 def set_course_default(course_id: str, standard_id: int) -> tuple[bool, str]:
@@ -240,8 +289,10 @@ def main() -> int:
         description="Create a Canvas grading standard (custom grading scheme).")
     ap.add_argument("--version", action="version",
                     version=f"canvas-toolbox {__version__}")
-    ap.add_argument("--title", required=True, help="Scheme name as it appears in Canvas")
-    ap.add_argument("--tiers", required=True,
+    ap.add_argument("--preset", choices=sorted(PRESETS),
+                    help="Named scheme (fills --title/--tiers unless you pass them)")
+    ap.add_argument("--title", help="Scheme name as it appears in Canvas")
+    ap.add_argument("--tiers",
                     metavar="NAME:PCT,...",
                     help='Lower bounds, high to low, ending at 0. '
                          'e.g. "Leading:90,Strong:80,Solid:70,Building:60,Insufficient:0"')
@@ -252,9 +303,28 @@ def main() -> int:
                     help="Write to Canvas. Without this the run is a dry run.")
     ap.add_argument("--set-course-default", action="store_true",
                     help="Also point the course's grading_standard_id at this scheme")
+    ap.add_argument("--assignment-ids", metavar="ID,ID,...",
+                    help="Also attach the scheme to these assignments "
+                         "(grading_type=letter_grade; points_possible untouched)")
+    ap.add_argument("--convert-graded", action="store_true",
+                    help="Allow attaching to assignments that already have scored "
+                         "submissions (their displayed grades will be reinterpreted)")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Proceed even if the course has enrolled students")
     args = ap.parse_args()
+
+    if args.preset:
+        args.title = args.title or PRESETS[args.preset]["title"]
+        args.tiers = args.tiers or PRESETS[args.preset]["tiers"]
+    if not args.title or not args.tiers:
+        print("ERROR: give --preset, or both --title and --tiers.")
+        return 2
+    try:
+        assignment_ids = [int(x) for x in (args.assignment_ids or "").split(",")
+                          if x.strip()]
+    except ValueError:
+        print("ERROR: --assignment-ids must be comma-separated numbers.")
+        return 2
 
     if not CANVAS_API_TOKEN or not CANVAS_BASE_URL:
         print("ERROR: CANVAS_API_TOKEN and CANVAS_BASE_URL must be set.")
@@ -322,7 +392,34 @@ def main() -> int:
             if not ok:
                 return 1
 
-    if args.apply:
+    graded: dict[int, int] = {}
+    if assignment_ids:
+        for aid in assignment_ids:
+            a = _get(f"/courses/{course_id}/assignments/{aid}") or {}
+            n = scored_count(course_id, aid)
+            if n:
+                graded[aid] = n
+            print(f"  assignment {aid} {(a.get('name') or '?')[:40]!r}: "
+                  f"{a.get('grading_type')} -> letter_grade, {n} scored submission(s)")
+        if graded and not args.convert_graded:
+            print("\n  REFUSING to attach: assignments with scored work would have "
+                  "their existing grades reinterpreted. Re-run with --convert-graded "
+                  "if that is intended.")
+            return 2 if args.apply else 0
+    if assignment_ids:
+        if not args.apply:
+            print(f"  would attach it to {len(assignment_ids)} assignment(s): "
+                  f"{', '.join(map(str, assignment_ids))}")
+        else:
+            problems = attach_to_assignments(course_id, standard_id, assignment_ids)
+            if problems:
+                print("\n  Attach did not fully land:")
+                for p in problems:
+                    print(f"    {p}")
+                return 1
+            print(f"  ✓ attached to {len(assignment_ids)} assignment(s), verified")
+
+    if args.apply and not assignment_ids:
         print(f"\nUse it on an assignment with grading_type=letter_grade and "
               f"grading_standard_id={standard_id}.")
     return 0

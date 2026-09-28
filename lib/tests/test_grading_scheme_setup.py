@@ -14,7 +14,11 @@ _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
+import grading_scheme_setup  # noqa: E402
 from grading_scheme_setup import (  # noqa: E402
+    PRESETS,
+    attach_to_assignments,
+    create_standard,
     entries_match,
     parse_tiers,
     validate_tiers,
@@ -128,3 +132,58 @@ def test_read_back_detects_a_renamed_tier():
 def test_read_back_of_an_empty_response_is_not_a_match():
     """A create that silently did nothing must not read as success."""
     assert not entries_match({}, parse_tiers("Pass:80,Fail:0"))
+
+
+# --- POST payload (#372) ----------------------------------------------------
+
+def test_create_posts_percent_not_a_fraction(monkeypatch):
+    """Canvas's create endpoint takes 90, not 0.9; a fraction is divided again
+    and stored 100x too small, and a scheme can't be edited afterwards."""
+    sent = {}
+    monkeypatch.setattr(grading_scheme_setup, "_post",
+                        lambda ep, payload: (sent.update(payload) or {}, ""))
+    create_standard("1", "T", parse_tiers("Pass:80,Fail:0"))
+    assert [e["value"] for e in sent["grading_scheme_entry"]] == [80, 0]
+
+
+def test_performance_preset_is_a_valid_scale():
+    validate_tiers(parse_tiers(PRESETS["performance-tiers"]["tiers"]))
+
+
+# --- attaching to assignments -----------------------------------------------
+
+class _Resp:
+    status_code = 200
+
+
+def test_attach_sends_scheme_without_touching_points(monkeypatch):
+    puts = []
+    monkeypatch.setattr(grading_scheme_setup.requests, "put",
+                        lambda url, **kw: puts.append(kw["json"]) or _Resp())
+    monkeypatch.setattr(grading_scheme_setup, "_get", lambda ep: {
+        "grading_type": "letter_grade", "grading_standard_id": 7})
+    assert attach_to_assignments("1", 7, [10, 11]) == []
+    assert puts == [{"assignment": {"grading_type": "letter_grade",
+                                    "grading_standard_id": 7}}] * 2
+
+
+def test_attach_reports_assignment_that_did_not_read_back(monkeypatch):
+    monkeypatch.setattr(grading_scheme_setup.requests, "put",
+                        lambda url, **kw: _Resp())
+    monkeypatch.setattr(grading_scheme_setup, "_get", lambda ep: {
+        "grading_type": "points", "grading_standard_id": None})
+    problems = attach_to_assignments("1", 7, [10])
+    assert len(problems) == 1 and "10" in problems[0]
+
+
+def test_read_back_understands_the_key_canvas_actually_returns():
+    """Live Canvas GET returns `grading_scheme`, not `grading_scheme_entry`."""
+    echo = {"grading_scheme": [{"name": "Pass", "value": 0.8, "calculated_value": 80.0},
+                               {"name": "Fail", "value": 0.0, "calculated_value": 0.0}]}
+    assert entries_match(echo, parse_tiers("Pass:80,Fail:0"))
+
+
+def test_scored_count_counts_only_submissions_with_a_score(monkeypatch):
+    monkeypatch.setattr(grading_scheme_setup, "_get", lambda ep: [
+        {"score": 4.0}, {"score": 0}, {"score": None}, {}])
+    assert grading_scheme_setup.scored_count("1", 9) == 2
