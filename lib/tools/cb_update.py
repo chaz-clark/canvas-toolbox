@@ -55,10 +55,11 @@ try:
     from grade_guardian import zone2_summary as _zone2_summary
     from grade_guardian import load_zone2 as _load_zone2
     from grade_guardian import compile_zone2 as _compile_zone2
+    from grade_guardian import load_zone2_exempt as _load_zone2_exempt
     from grade_guardian import _ZONE2_EXTRA_FILE
 except ImportError:
     _ensure_guardian_hook = None
-    _zone2_summary = _load_zone2 = _compile_zone2 = None
+    _zone2_summary = _load_zone2 = _compile_zone2 = _load_zone2_exempt = None
     _ZONE2_EXTRA_FILE = ".claude/ferpa_zone2.txt"
 
 try:
@@ -340,12 +341,13 @@ def print_ignore_coverage(course_root: Path) -> None:
 
     LEAF FILENAMES ARE WITHHELD — a matched filename may itself carry a student
     name. Pattern, count and directory only."""
-    if _zone2_summary is None or _load_zone2 is None or _compile_zone2 is None:
+    if (_zone2_summary is None or _load_zone2 is None or _compile_zone2 is None
+            or _load_zone2_exempt is None):
         return
     if not (course_root / ".git").is_dir():
         return
     entries, _ = _load_zone2(course_root)
-    path_re, _ = _compile_zone2(entries)
+    path_re, _ = _compile_zone2(entries, _load_zone2_exempt(course_root))
 
     # --exclude-standard is load-bearing: without it `--others` lists IGNORED files
     # too, so this fires even on a correctly-covered repo — and a warning that always
@@ -629,6 +631,9 @@ def print_zone2_coverage(course_root: Path) -> None:
     s = _zone2_summary(course_root)
     extra = f" + {s['extra']} course-local" if s["extra"] else ""
     print(f"  FERPA Zone-2 patterns: {s['default']} built-in{extra}")
+    if s["exempt"]:
+        print(f"  FERPA Zone-2 exemptions: {s['exempt_default']} built-in + "
+              f"{s['exempt']} course-local (files only; never lifts the built-ins)")
     if s["invalid"]:
         print(f"  ⚠ {len(s['invalid'])} pattern(s) in {_ZONE2_EXTRA_FILE} are not valid "
               f"regex and are being IGNORED — you are not covered on those:")

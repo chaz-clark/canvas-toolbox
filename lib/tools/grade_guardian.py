@@ -196,6 +196,20 @@ _ZONE2_DEFAULT: list[tuple[str, bool]] = [
 # NEVER anchored: over-matching only blocks more reads, under-matching leaks.
 _ZONE2_EXTRA_FILE = ".claude/ferpa_zone2.txt"
 
+# Exemptions (#374). A course that lists a whole directory as Zone-2 (`grading/kc1/`)
+# also swallows the instructor-authored files inside it — the rubric and the assignment
+# spec are course DESIGN, not student data, and the agent that maintains the course has
+# to be able to edit them. A `!`-prefixed line in the extra file, or a default below,
+# exempts matching FILES. Two limits keep an exemption from widening the hole:
+#   - it lifts only COURSE-LISTED patterns, never `_ZONE2_DEFAULT` — no `!` line can
+#     un-protect `.deid_master.csv` or `submissions_raw/`;
+#   - it must match the END of the path/token, so it names a file, and a sibling
+#     `roster.csv` named in the same command stays blocked.
+_ZONE2_EXEMPT_DEFAULT: list[str] = [
+    r"(?:^|/)RUBRIC\.md",
+    r"(?:^|/)assignment_spec\.md",
+]
+
 
 def _course_root() -> Path | None:
     """The course root as Claude Code reports it to the hook. None outside a hook run."""
@@ -222,22 +236,92 @@ def load_zone2(course_root: Path | None = None) -> tuple[list[tuple[str, bool]],
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
+        body = line[1:].strip() if line.startswith("!") else line
         try:
-            re.compile(line)
+            re.compile(body)
         except re.error:
             invalid.append(line)
             continue
+        if line.startswith("!"):
+            continue                        # exemption — see load_zone2_exempt()
         entries.append((line, False))       # unanchored — see above
     return entries, invalid
 
 
-def compile_zone2(entries: list[tuple[str, bool]]) -> tuple[re.Pattern, re.Pattern]:
+def load_zone2_exempt(course_root: Path | None = None) -> list[str]:
+    """Shipped exemptions + the course's `!` lines (invalid ones dropped — fail-safe:
+    a dropped exemption blocks MORE, and load_zone2() reports it as invalid)."""
+    out = list(_ZONE2_EXEMPT_DEFAULT)
+    root = course_root if course_root is not None else _course_root()
+    if root is None:
+        return out
+    try:
+        text = (root / _ZONE2_EXTRA_FILE).read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return out
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("!") and line[1:].strip():
+            body = line[1:].strip()
+            try:
+                re.compile(body)
+            except re.error:
+                continue
+            out.append(body)
+    return out
+
+
+_TOKEN_STOP = "\\s\"'`;|&<>()"
+
+
+class Zone2Matcher:
+    """`.search()`-compatible matcher: built-in patterns always block; course-listed
+    patterns block unless the path (PATH form) or the shell TOKEN the match sits in
+    (FILE form) ends in an exempt file (#374)."""
+
+    def __init__(self, defaults: list[str], extras: list[str], exempt: list[str],
+                 whole_string: bool):
+        self._default = re.compile("|".join(defaults), re.IGNORECASE) if defaults else None
+        self._extra = re.compile("|".join(extras), re.IGNORECASE) if extras else None
+        self._exempt = [re.compile(f"(?:{e})$", re.IGNORECASE) for e in exempt]
+        self._whole = whole_string
+        self.pattern = "|".join(defaults + extras)
+
+    def _token(self, s: str, m: re.Match) -> str:
+        if self._whole:
+            return s
+        a, b = m.start(), m.end()
+        while a > 0 and s[a - 1] not in _TOKEN_STOP:
+            a -= 1
+        while b < len(s) and s[b] not in _TOKEN_STOP:
+            b += 1
+        return s[a:b]
+
+    def search(self, s: str):
+        if self._default and (m := self._default.search(s)):
+            return m
+        if self._extra:
+            for m in self._extra.finditer(s):
+                tok = self._token(s, m)
+                if not any(e.search(tok) for e in self._exempt):
+                    return m
+        return None
+
+
+def compile_zone2(entries: list[tuple[str, bool]],
+                  exempt: list[str] | tuple = ()) -> tuple[Zone2Matcher, Zone2Matcher]:
     """(PATH form, FILE form) from one entry list. Both IGNORECASE — the PATH form
     used to be case-sensitive, which on a case-insensitive filesystem (macOS default)
-    meant `Read .DEID_MASTER.csv` sailed through a block that `cat` caught."""
-    path_src = "|".join(p + ("$" if anchor else "") for p, anchor in entries)
-    file_src = "|".join(p for p, _ in entries)
-    return (re.compile(path_src, re.IGNORECASE), re.compile(file_src, re.IGNORECASE))
+    meant `Read .DEID_MASTER.csv` sailed through a block that `cat` caught.
+    `exempt` (from load_zone2_exempt) lifts course-listed patterns only."""
+    built_in = set(_ZONE2_DEFAULT)
+    dpath = [p + ("$" if a else "") for p, a in entries if (p, a) in built_in]
+    dfile = [p for p, a in entries if (p, a) in built_in]
+    xpath = [p + ("$" if a else "") for p, a in entries if (p, a) not in built_in]
+    xfile = [p for p, a in entries if (p, a) not in built_in]
+    ex = list(exempt)
+    return (Zone2Matcher(dpath, xpath, ex, whole_string=True),
+            Zone2Matcher(dfile, xfile, ex, whole_string=False))
 
 
 def zone2_summary(course_root: Path | None = None) -> dict:
@@ -249,12 +333,14 @@ def zone2_summary(course_root: Path | None = None) -> dict:
     return {
         "default": len(_ZONE2_DEFAULT),
         "extra": len(entries) - len(_ZONE2_DEFAULT),
+        "exempt_default": len(_ZONE2_EXEMPT_DEFAULT),
+        "exempt": len(load_zone2_exempt(course_root)) - len(_ZONE2_EXEMPT_DEFAULT),
         "invalid": invalid,
         "source": str(src) if src and src.is_file() else None,
     }
 
 
-_FERPA_PATH, _FERPA_FILE = compile_zone2(load_zone2()[0])
+_FERPA_PATH, _FERPA_FILE = compile_zone2(load_zone2()[0], load_zone2_exempt())
 
 
 # --------------------------------------------------------------------------
