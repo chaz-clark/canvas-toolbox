@@ -195,6 +195,23 @@ grader_standing.py --csv standing.csv --assignment-id <id> --push --yes --allow-
   **echoing a name out of them is not** — report every student as `user_id` or
   `deid_code`. See the constitution's FERPA section (Zone 2-Adjacent).
 
+## When the guardian blocks a file that isn't student data (#374)
+
+A course that lists a whole directory in `.claude/ferpa_zone2.txt` can end up
+blocking the instructor-authored files inside it — the rubric, the assignment spec.
+`RUBRIC.md` and `assignment_spec.md` are exempt by default. For anything else:
+
+1. **Don't route around the block** (no `cat`, no copying the file elsewhere).
+2. **Judge by filename and location only — never by reading it.** Safe candidates
+   are instructor-authored design files (README/PROCESS docs, answer keys).
+   Never propose exempting a roster, gradebook, keymap, grade/comment export,
+   per-student feedback, repo/participation data, or a script that handles them.
+3. **Tell the instructor the filename and why it looks safe**, and propose ONE `!`
+   line, e.g. `!grading/.*/PROCESS\.md`. Edit `.claude/ferpa_zone2.txt` only after
+   they approve.
+4. An exemption lifts course-listed patterns only — it can never un-protect the
+   built-in Zone-2 files. Check `cb_update`'s exemption count afterward.
+
 ## Grading a course with no Canvas API (#339 Phase A)
 
 Some courses run on another LMS entirely (Brightspace/D2L) with no API and no
