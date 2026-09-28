@@ -65,9 +65,9 @@ except ImportError:
         pass
 
 try:
-    from grade_guardian import load_zone2, compile_zone2, credential_path_re
+    from grade_guardian import load_zone2, load_zone2_exempt, compile_zone2, credential_path_re
 except ImportError:                      # standalone / partial vendoring
-    load_zone2 = compile_zone2 = credential_path_re = None
+    load_zone2 = load_zone2_exempt = compile_zone2 = credential_path_re = None
 
 _NULL_SHA = "0" * 40
 _SCAN_CONTENT_FLAG = ".claude/ferpa_scan_content"
@@ -125,6 +125,16 @@ def changed_paths(repo: Path, args: list[str]) -> list[str]:
     it is in the history being published either way."""
     out = _git(repo, "log", "--format=", "--name-only", *args)
     return sorted({ln.strip() for ln in out.splitlines() if ln.strip()})
+
+
+class _EitherMatches:
+    """`.search()` over two matchers — kept as objects, not a joined regex, so the
+    Zone-2 exemptions (#374) still apply to the Zone-2 half only."""
+    def __init__(self, a, b):
+        self._a, self._b = a, b
+
+    def search(self, s):
+        return self._a.search(s) or self._b.search(s)
 
 
 def match_paths(paths: list[str], path_re) -> list[str]:
@@ -284,13 +294,12 @@ def main() -> int:
         return 0
 
     entries, _ = load_zone2(repo)
-    zone2_re, _ = compile_zone2(entries)
+    zone2_re, _ = compile_zone2(entries, load_zone2_exempt(repo))
     # Credentials too (#288). `.env` is gitignored today — but #285 exists because an
     # ignore-rule restructure quietly stopped covering three paths, and a pushed token
     # is usable by anyone who finds it the moment it lands.
     cred_re = credential_path_re() if credential_path_re else None
-    path_re = re.compile(f"{zone2_re.pattern}|{cred_re.pattern}", re.IGNORECASE) \
-        if cred_re else zone2_re
+    path_re = _EitherMatches(zone2_re, cred_re) if cred_re else zone2_re
     scan_on = (repo / _SCAN_CONTENT_FLAG).exists()
     roster = _load_roster(repo) if scan_on else []
 

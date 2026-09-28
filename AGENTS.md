@@ -74,7 +74,9 @@ surface:
 line). The list above is Canvas filenames; a course on another LMS has different
 name-bearing files, and `grade_guardian` enforces only what it knows about — an
 installed hook covering none of your files is worse than no hook. `cb_update` prints
-the active pattern count so "present" can't be read as "covered".
+the active pattern count so "present" can't be read as "covered". A `!`-prefixed line
+exempts instructor-authored FILES (`RUBRIC.md` and `assignment_spec.md` are exempt by
+default) from a directory pattern; it can never lift the built-in list above.
 
 **The git layer is guarded too.** `grade_guardian` stops *you* reading these; it
 cannot see `git push`, and a push can't be undone. `cb_update` installs a
