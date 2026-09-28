@@ -675,6 +675,30 @@ def main() -> int:
     args = ap.parse_args()
 
     course_root, is_subdir = detect_course_context()
+    # Flat-layout consumer (#376): the toolkit is copied directly to course_root
+    # (no <course>/canvas-toolbox/ subdir), so REPO_ROOT.name != "canvas-toolbox"
+    # for THIS file too, and detect_course_context() reads it as the toolkit's
+    # own repo. The hidden pristine clone cb_flatten.py maintains is the tell — a
+    # repo that has one is a consumer, whatever its own root happens to be named.
+    try:
+        import cb_flatten as _cb_flatten
+    except ImportError:
+        _cb_flatten = None
+    is_flat = _cb_flatten is not None and (course_root / _cb_flatten.CLONE_DIR).is_dir()
+    if is_flat:
+        print(f"Flat-layout course repo ({_cb_flatten.CLONE_DIR}/ present) — this "
+              f"layout is maintained by cb_flatten.py, not the nested re-init "
+              f"below. Delegating …\n")
+        argv = ["--course-root", str(course_root)]
+        if args.pull:
+            argv.append("--pull")
+        if args.apply:
+            argv.append("--apply")
+        old_argv, sys.argv = sys.argv, [sys.argv[0], *argv]
+        try:
+            return _cb_flatten.main()
+        finally:
+            sys.argv = old_argv
     if not is_subdir:
         print("Standalone canvas-toolbox — skills already live at .claude/skills/; "
               "nothing to re-init. cb_update is for consumer course repos.")
