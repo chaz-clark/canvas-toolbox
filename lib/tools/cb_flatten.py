@@ -152,6 +152,10 @@ try:
     from grade_guardian import ensure_hook as _ensure_guardian_hook
 except ImportError:
     _ensure_guardian_hook = None
+try:
+    from ferpa_pre_push import ensure_pre_push_hook as _ensure_pre_push_hook
+except ImportError:
+    _ensure_pre_push_hook = None
 
 try:
     from _env_loader import _global_values as _global_credential_values
@@ -707,6 +711,23 @@ def canvas_smoke_test(course_root: Path) -> tuple[bool, str]:
     return smoke_test_canvas(token, base_url)
 
 
+def ensure_pre_push_hook(course_root: Path, apply: bool) -> str:
+    """Install `.git/hooks/pre-push` for the flat layout (#376). cb_flatten never
+    called this — only `ensure_guardian_hook` (the PreToolUse guard) — so a flat
+    repo's git hook, if it existed at all, was whatever `cb_update.py` last wrote
+    for a NESTED layout: a path pointing at a `canvas-toolbox/` subdir that does
+    not exist here. toolkit_subdir="" for the same reason as ensure_guardian_hook
+    above. Delegates the present/would-install/installed/skip-foreign/no-git
+    vocabulary to ferpa_pre_push.ensure_pre_push_hook, which already rewrites a
+    stale hook of ours (only a byte-identical hook reports "present")."""
+    if _ensure_pre_push_hook is None:
+        return "skipped-no-script"
+    guard = course_root / "lib" / "tools" / "ferpa_pre_push.py"
+    if not guard.is_file():
+        return "skipped-no-script"
+    return _ensure_pre_push_hook(course_root, "", apply)
+
+
 def ensure_guardian_hook(course_root: Path, apply: bool) -> str:
     """Wire the grade_guardian PreToolUse hook into .claude/settings.json.
     present/would-install/installed/skipped-no-script/bad-json — matching
@@ -1094,6 +1115,11 @@ def main() -> int:
     if hook_status == "installed":
         print("    ↳ Canvas grade/comment writes must now go through "
               "grader_push.py / grader_standing.py — enforced at the harness.")
+    pp_status = ensure_pre_push_hook(root, args.apply)
+    print(f"  FERPA pre-push hook (.git/hooks/pre-push): {pp_status}")
+    if pp_status == "installed":
+        print(f"    ↳ resolves to {root}/lib/tools/ferpa_pre_push.py (this checkout's "
+              f"version) on every push.")
     shim_link, shim_rel = plan_claude_shim(root)
     shim_status = install_claude_shim(shim_link, shim_rel, args.apply)
     print(f"  {CLAUDE_SHIM} shim -> {shim_rel}: {shim_status}")

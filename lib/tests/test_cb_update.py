@@ -627,3 +627,43 @@ def test_normalize_ignores_commented_lines_and_missing_file(tmp_path, monkeypatc
     target.parent.mkdir(parents=True)
     target.write_text("# CANVAS_API_TOKEN=commented_out\n", encoding="utf-8")
     assert normalize_global_config(apply=True) == "present"      # a comment isn't a setting
+
+
+# --- flat-layout consumer delegation (#376) ---------------------------------
+#
+# Before this: cb_update.main() called detect_course_context(), which reads a
+# repo's own root name — a flat consumer's toolkit IS its own root, so it read
+# as "standalone canvas-toolbox" and never re-inited anything (bug report's
+# step 2). Flat layout is maintained by cb_flatten.py, so cb_update should
+# delegate to it rather than run the nested-only steps below.
+
+def test_flat_consumer_is_delegated_to_cb_flatten(tmp_path, monkeypatch):
+    import types
+    root = tmp_path / "course"
+    (root / ".canvas-toolbox").mkdir(parents=True)
+    monkeypatch.setattr(_cbu, "detect_course_context", lambda: (root, False))
+    calls = {}
+    fake = types.ModuleType("cb_flatten")
+    fake.CLONE_DIR = ".canvas-toolbox"
+
+    def _main():
+        calls["argv"] = list(sys.argv)
+        return 0
+    fake.main = _main
+    monkeypatch.setitem(sys.modules, "cb_flatten", fake)
+    monkeypatch.setattr(sys, "argv", ["cb_update.py", "--pull", "--apply"])
+    rc = _cbu.main()
+    assert rc == 0
+    assert calls["argv"] == ["cb_update.py", "--course-root", str(root),
+                             "--pull", "--apply"]
+
+
+def test_flat_detection_does_not_fire_for_a_nested_consumer(tmp_path, monkeypatch, capsys):
+    """A real nested consumer (no .canvas-toolbox/) must still hit the ordinary
+    'standalone' short-circuit unchanged — this only redirects flat repos."""
+    root = tmp_path / "course"
+    root.mkdir()
+    monkeypatch.setattr(_cbu, "detect_course_context", lambda: (root, False))
+    monkeypatch.setattr(sys, "argv", ["cb_update.py"])
+    assert _cbu.main() == 0
+    assert "Standalone canvas-toolbox" in capsys.readouterr().out

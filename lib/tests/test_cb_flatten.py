@@ -1224,3 +1224,54 @@ def test_needs_approval_message_unaffected_by_tty_when_not_claimed(monkeypatch, 
     assert ok is False
     assert any("NEEDS APPROVAL" in m for m in messages)
     assert not any("REFUSED" in m for m in messages)
+
+
+# --- pre-push hook (#376) ----------------------------------------------------
+
+def _git_init(root):
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+
+
+def test_ensure_pre_push_hook_installs_at_flat_path(tmp_path):
+    root = tmp_path / "course"
+    root.mkdir()
+    _git_init(root)
+    (root / "lib" / "tools").mkdir(parents=True)
+    (root / "lib" / "tools" / "ferpa_pre_push.py").write_text("", encoding="utf-8")
+    assert cf.ensure_pre_push_hook(root, apply=False) == "would-install"
+    assert cf.ensure_pre_push_hook(root, apply=True) == "installed"
+    body = (root / ".git" / "hooks" / "pre-push").read_text(encoding="utf-8")
+    assert "canvas-toolbox FERPA pre-push guard" in body
+    assert "/lib/tools/ferpa_pre_push.py" in body
+    assert "canvas-toolbox/lib/tools" not in body   # no stray nested subdir
+
+
+def test_ensure_pre_push_hook_rewrites_a_stale_nested_hook(tmp_path):
+    """The exact #376 repro: an old hook pointing at <repo>/canvas-toolbox/…"""
+    root = tmp_path / "course"
+    root.mkdir()
+    _git_init(root)
+    (root / "lib" / "tools").mkdir(parents=True)
+    (root / "lib" / "tools" / "ferpa_pre_push.py").write_text("", encoding="utf-8")
+    hooks = root / ".git" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    (hooks / "pre-push").write_text(
+        "#!/bin/sh\n# canvas-toolbox FERPA pre-push guard (#285).\n"
+        "f=\"$(git rev-parse --show-toplevel)/canvas-toolbox/lib/tools/"
+        "ferpa_pre_push.py\"\n[ -f \"$f\" ] || exit 0\nexec python3 \"$f\"\n",
+        encoding="utf-8")
+    assert cf.ensure_pre_push_hook(root, apply=True) == "installed"
+    body = (hooks / "pre-push").read_text(encoding="utf-8")
+    assert "canvas-toolbox/lib/tools" not in body
+
+
+def test_ensure_pre_push_hook_skips_a_foreign_hook(tmp_path):
+    root = tmp_path / "course"
+    root.mkdir()
+    _git_init(root)
+    (root / "lib" / "tools").mkdir(parents=True)
+    (root / "lib" / "tools" / "ferpa_pre_push.py").write_text("", encoding="utf-8")
+    hooks = root / ".git" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    (hooks / "pre-push").write_text("#!/bin/sh\necho mine\n", encoding="utf-8")
+    assert cf.ensure_pre_push_hook(root, apply=True) == "skip-foreign"
