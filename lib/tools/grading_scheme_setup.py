@@ -228,6 +228,14 @@ def create_standard(course_id: str, title: str,
     })
 
 
+def scored_count(course_id: str, assignment_id: int) -> int:
+    """Submissions already carrying a score. Switching grading_type makes Canvas
+    REINTERPRET those scores (a 4/4 'complete' can read as 100% = top tier), so a
+    count is what the operator must see before converting (#372)."""
+    subs = _get(f"/courses/{course_id}/assignments/{assignment_id}/submissions") or []
+    return sum(1 for x in subs if isinstance(x, dict) and x.get("score") is not None)
+
+
 def attach_to_assignments(course_id: str, standard_id: int,
                           assignment_ids: list[int]) -> list[str]:
     """Point each assignment at the standard (grading_type=letter_grade), leaving
@@ -298,6 +306,9 @@ def main() -> int:
     ap.add_argument("--assignment-ids", metavar="ID,ID,...",
                     help="Also attach the scheme to these assignments "
                          "(grading_type=letter_grade; points_possible untouched)")
+    ap.add_argument("--convert-graded", action="store_true",
+                    help="Allow attaching to assignments that already have scored "
+                         "submissions (their displayed grades will be reinterpreted)")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Proceed even if the course has enrolled students")
     args = ap.parse_args()
@@ -381,6 +392,20 @@ def main() -> int:
             if not ok:
                 return 1
 
+    graded: dict[int, int] = {}
+    if assignment_ids:
+        for aid in assignment_ids:
+            a = _get(f"/courses/{course_id}/assignments/{aid}") or {}
+            n = scored_count(course_id, aid)
+            if n:
+                graded[aid] = n
+            print(f"  assignment {aid} {(a.get('name') or '?')[:40]!r}: "
+                  f"{a.get('grading_type')} -> letter_grade, {n} scored submission(s)")
+        if graded and not args.convert_graded:
+            print("\n  REFUSING to attach: assignments with scored work would have "
+                  "their existing grades reinterpreted. Re-run with --convert-graded "
+                  "if that is intended.")
+            return 2 if args.apply else 0
     if assignment_ids:
         if not args.apply:
             print(f"  would attach it to {len(assignment_ids)} assignment(s): "

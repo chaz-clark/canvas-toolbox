@@ -181,3 +181,9 @@ def test_read_back_understands_the_key_canvas_actually_returns():
     echo = {"grading_scheme": [{"name": "Pass", "value": 0.8, "calculated_value": 80.0},
                                {"name": "Fail", "value": 0.0, "calculated_value": 0.0}]}
     assert entries_match(echo, parse_tiers("Pass:80,Fail:0"))
+
+
+def test_scored_count_counts_only_submissions_with_a_score(monkeypatch):
+    monkeypatch.setattr(grading_scheme_setup, "_get", lambda ep: [
+        {"score": 4.0}, {"score": 0}, {"score": None}, {}])
+    assert grading_scheme_setup.scored_count("1", 9) == 2
