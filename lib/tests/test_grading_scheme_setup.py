@@ -174,3 +174,10 @@ def test_attach_reports_assignment_that_did_not_read_back(monkeypatch):
         "grading_type": "points", "grading_standard_id": None})
     problems = attach_to_assignments("1", 7, [10])
     assert len(problems) == 1 and "10" in problems[0]
+
+
+def test_read_back_understands_the_key_canvas_actually_returns():
+    """Live Canvas GET returns `grading_scheme`, not `grading_scheme_entry`."""
+    echo = {"grading_scheme": [{"name": "Pass", "value": 0.8, "calculated_value": 80.0},
+                               {"name": "Fail", "value": 0.0, "calculated_value": 0.0}]}
+    assert entries_match(echo, parse_tiers("Pass:80,Fail:0"))

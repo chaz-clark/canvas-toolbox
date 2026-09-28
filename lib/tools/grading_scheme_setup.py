@@ -202,7 +202,9 @@ def find_existing(course_id: str, title: str) -> dict | None:
 
 
 def entries_match(standard: dict, tiers: list[dict]) -> bool:
-    got = standard.get("grading_scheme_entry") or []
+    # POST sends grading_scheme_entry; GET returns the tiers as grading_scheme
+    # (verified live, #372) — reading only the former made every read-back fail.
+    got = standard.get("grading_scheme") or standard.get("grading_scheme_entry") or []
     if len(got) != len(tiers):
         return False
     for g, t in zip(got, tiers):
