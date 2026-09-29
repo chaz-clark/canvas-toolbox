@@ -756,3 +756,37 @@ def test_payload_strings_are_kept_not_stripped():
     from grade_guardian import _code_only
     src = 'import requests\nd = {"submission": {"posted_grade": "95"}}\n'
     assert "posted_grade" in _code_only(src)
+
+
+# --- #374 item 4: heredoc inside an outer quote (command substitution) -----
+#
+# `_segments`'s char-scan never even looks for `<<` while `quote` is set, so a
+# heredoc nested inside `"$(cat <<'TAG' ... TAG)"` was invisible to the existing
+# interpreter-vs-text-verb distinction above — the whole thing stayed ONE quoted
+# blob, and an EARLIER interpreter mention in the same line (`python lib/tools/
+# cb_report_bug.py --body "$(cat <<'TAG'`) got credited to a heredoc `cat` is
+# actually the one consuming, producing a false "read" on prose that only
+# MENTIONS a Zone-2 filename inside that heredoc's body.
+
+def test_quoted_heredoc_mentioning_zone2_name_is_not_a_read():
+    cmd = (f'echo "$(cat <<\'X\'\nthe fetch log json mentions {_Z} in prose only\n'
+           f'X\n)"')
+    assert evaluate("Bash", {"command": cmd}) is None, cmd
+
+
+def test_quoted_heredoc_fed_to_an_interpreter_still_denies_a_real_read():
+    cmd = (f'echo "$(python3 <<\'PY\'\nprint(open(\'{_Z}\').read())\nPY\n)"')
+    assert evaluate("Bash", {"command": cmd}) is not None, cmd
+
+
+def test_earlier_interpreter_mention_in_the_same_line_is_not_credited_to_a_later_cat():
+    """The exact #374 shape: `python` appears earlier in the line for an unrelated
+    reason (invoking the report tool itself), and must not make `cat`'s OWN
+    heredoc read as code."""
+    cmd = (f'python lib/tools/cb_report_bug.py --body "$(cat <<\'X\'\n'
+           f'mentions {_Z} in prose only\nX\n)"')
+    assert evaluate("Bash", {"command": cmd}) is None, cmd
+
+
+def test_a_real_path_read_outside_any_heredoc_is_still_denied():
+    assert evaluate("Bash", {"command": f"cat {_Z}"}) is not None
