@@ -445,6 +445,60 @@ _HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
 # that mentions a Zone-2 file by name is not a read of it (#338).
 _INTERPRETER = re.compile(
     r"\b(python3?|node|perl|ruby|php|Rscript|bash|sh|zsh|osascript)\b")
+_INTERPRETER_NAMES = {"python", "python3", "node", "perl", "ruby", "php",
+                      "Rscript", "bash", "sh", "zsh", "osascript"}
+
+# A command-start boundary: `;` `&&` `&` `||` `|` `(` a backtick, or `$(`. Used to
+# find the word that actually governs a `<<` heredoc, as opposed to an unrelated
+# interpreter name mentioned earlier in the same string (#374 item 4).
+_CMD_BOUNDARY = re.compile(r";|&&|&|\|\||\||\(|`|\$\(")
+
+
+def _heredoc_owner(pre: str) -> str:
+    """The command word immediately before a `<<` at the end of `pre` — the first
+    word after the LAST command-start boundary in `pre`, or after its own start if
+    there is none. `... --body "$(cat <<'BODY'` -> "cat", not "python3" from
+    earlier in the line — that's the #374 item-4 bug: an unanchored interpreter
+    search credited a heredoc to whichever command merely appeared anywhere
+    earlier, not to the one actually consuming it."""
+    last_end = 0
+    for bm in _CMD_BOUNDARY.finditer(pre):
+        last_end = bm.end()
+    wm = re.match(r"\s*([^\s;&|()`'\"]+)", pre[last_end:])
+    return wm.group(1) if wm else ""
+
+
+def _mask_quoted_heredocs(text: str) -> str:
+    """Heredocs the char-scan in `_segments` never sees, because they sit inside an
+    outer quote it hasn't closed yet — `--body "$(cat <<'BODY' ... BODY)"` is real,
+    common bash: a heredoc inside `$(...)` is lexed by the INNER command list
+    regardless of the quote wrapped around the whole substitution for word-splitting
+    (#374 item 4). Left alone, that body's literal text (a bug report mentioning
+    Zone-2 filenames in prose, say) sits in the segment same as real code and reads
+    as a match. Applies the SAME interpreter-vs-text-verb distinction `_segments`
+    already uses for the unquoted shape: `cat`/`tee`/`wc`/… feeding a heredoc are
+    building a STRING, so that body is masked before the read/path regexes see it;
+    an interpreter is still running CODE that may itself read a real file
+    (`$(python3 <<'PY' ... PY)`), so that body is left untouched and still scanned."""
+    out, pos = [], 0
+    for m in _HEREDOC.finditer(text):
+        tag = m.group(2)
+        nl = text.find("\n", m.end())
+        if nl == -1:
+            continue                        # no body on this line — not a real heredoc use
+        term = re.search(rf"(?m)^\s*{re.escape(tag)}\s*$", text[nl + 1:])
+        if not term:
+            continue                        # unterminated in view — fail open, don't guess
+        body_end = nl + 1 + term.end()
+        owner = _heredoc_owner(text[pos:m.start()]).rsplit("/", 1)[-1]
+        out.append(text[pos:m.end()])
+        if owner not in _INTERPRETER_NAMES:
+            out.append(re.sub(r"[^\n]", "x", text[m.end():body_end]))
+        else:
+            out.append(text[m.end():body_end])
+        pos = body_end
+    out.append(text[pos:])
+    return "".join(out)
 
 
 def _segments(cmd: str) -> list[tuple[str, str]]:
@@ -463,7 +517,7 @@ def _segments(cmd: str) -> list[tuple[str, str]]:
 
     def flush(next_sep: str) -> None:
         nonlocal cur, sep
-        segs.append((sep, "".join(cur)))
+        segs.append((sep, _mask_quoted_heredocs("".join(cur))))
         cur, sep = [], next_sep
 
     while i < n:
