@@ -83,7 +83,7 @@ def _newquiz_fixture(tmp_path, items):
     sidecar = tmp_path / "quiz.settings.json"
     sidecar.write_text(json.dumps({
         "quiz_engine": "new_quiz",
-        "settings": {"title": "Quiz 1", "points_possible": 10, "assignment_group_id": 77,
+        "settings": {"title": "Quiz 1", "points_possible": 10, "assignment_group_id": "77",   # the New Quiz API returns ids as strings
                      "quiz_settings": {"shuffle_answers": False}},
         "items": items,
     }), encoding="utf-8")
@@ -112,7 +112,10 @@ def test_newquiz_created_with_mapped_group_items_and_module_link(tmp_path, monke
         return _Resp(200, {"id": 555} if url.endswith("/quizzes") else {"id": 1})
 
     linked = []
+    patches = []
     monkeypatch.setattr(stn.requests, "post", fake_post)
+    monkeypatch.setattr(stn.requests, "patch",
+                        lambda url, **kw: patches.append((url, kw)) or _Resp(200, {}))
     monkeypatch.setattr(stn, "create_module_item",
                         lambda base, cid, mid, data, tok: linked.append((mid, data)) or {"id": 1})
     files = _newquiz_fixture(tmp_path, [_item(1, "Q1"), _item(2, "Stim", "Stimulus")])
@@ -122,7 +125,10 @@ def test_newquiz_created_with_mapped_group_items_and_module_link(tmp_path, monke
     assert mapping == {"m1/quiz.json": 555}
     quiz_url, quiz_kw = posts[0]
     assert quiz_url == "https://x/api/quiz/v1/courses/9/quizzes"
-    assert quiz_kw["data"]["quiz[assignment_group_id]"] == 900          # old id remapped
+    assert "quiz[assignment_group_id]" not in quiz_kw["data"]            # ignored on create
+    assert patches == [("https://x/api/quiz/v1/courses/9/quizzes/555",     # so it is PATCHed
+                        patches[0][1])]
+    assert patches[0][1]["data"] == {"quiz[assignment_group_id]": 900}    # old id remapped
     assert quiz_kw["data"]["quiz[quiz_settings][shuffle_answers]"] == "false"  # not "False"
     item_posts = [p for p in posts if p[0].endswith("/555/items")]
     assert len(item_posts) == 1                                          # Stimulus not created

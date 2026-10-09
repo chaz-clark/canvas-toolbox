@@ -145,12 +145,14 @@ uv run python lib/tools/sync_to_new.py --apply --pages-only
 - sync_to_new.py restore logic: ~200 lines
 - Total: ~350 + tests
 
-**Note:** NewQuizzes are still skipped by this tool as of 2026-09-23 — not because
-of a platform limitation (that was corrected in #365/#366; `/api/quiz/v1` documents
-quiz + QuestionItem CRUD and `canvas_sync.py --push` now uses it), but because
-`sync_to_new.py` itself hasn't been updated to call that write path when cloning
-into a brand-new course. See `docs/ROADMAP.md`'s New Quiz capability workstream,
-item 5 ("Cross-course propagation").
+**NewQuizzes (#367):** created in the new course when `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true`
+(the same opt-in as `canvas_sync.py --push`); otherwise skipped with a warning. Each quiz is
+created unpublished with its settings and question items (`canvas_sync`'s payload helpers),
+its assignment group is set with a follow-up PATCH (create ignores it — L32), and it is
+linked into its module. Stimulus/Bank/BankEntry items are read-only to the API and are
+reported, not created. Sandbox-verified on a clone of course 427808 into 427952; the one
+New Quiz there had no question items, so item creation is covered by unit tests, not yet
+by a live quiz with questions.
 
 ---
 
@@ -503,10 +505,7 @@ def create_quiz_question(course_id: str, quiz_id: int, question_data: dict, toke
 
 **Existing pattern location:** `canvas_quiz_questions.py` has quiz question reading patterns
 
-**NewQuizzes limitation:** `sync_to_new.py` doesn't call the New Quiz write path yet
-(see the Phase 3 note above) — skip with warning message until item 5 of the New
-Quiz capability workstream in `docs/ROADMAP.md` is built. Not a platform ceiling;
-`/api/quiz/v1` documents the CRUD `canvas_sync.py --push` already uses elsewhere.
+**NewQuizzes:** see the Phase 3 note above — built (#367), behind `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE`.
 
 ---
 
@@ -938,10 +937,8 @@ def rollback_created_items(created_items: dict, course_id: str, token: str):
 ## Known Limitations
 
 ### Cannot Restore (Technical)
-1. **NewQuizzes** — not a platform ceiling (`/api/quiz/v1` documents CRUD,
-   `canvas_sync.py --push` already uses it); `sync_to_new.py` just hasn't been
-   updated to call that path yet — see `docs/ROADMAP.md`'s New Quiz capability
-   workstream, item 5
+1. **NewQuiz Stimulus / Bank / BankEntry items** — NewQuizzes themselves are created
+   (#367), but the API documents no write endpoints for these item types
 2. **External Tools** — LTI links are institution-specific
 3. **Course navigation customizations** — Complex Canvas UI state
 4. **Gradebook history** — Not course content

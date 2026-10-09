@@ -141,10 +141,10 @@ items 4–5 candidate, Tier 2, M–L.**
    per-student time extensions are still Moderation-UI-only (see README's
    "Note on New Quizzes (LTI)"). Per-student Canvas writing — must use the
    accommodations workflow and explicit scope confirmation.
-5. **Cross-course propagation (L).** Still unbuilt. `sync_to_new.py` (clone a
-   course into a brand-new Canvas course) still skips New Quizzes entirely with
-   a warning (`docs/implementation/sync_to_new.md`) — it hasn't been updated to
-   use the write path items 1–2 shipped. After that adapter proves stable in the
+5. **Cross-course propagation (L).** Clone-into-a-new-course is built (#367):
+   `sync_to_new.py` creates New Quizzes behind the same
+   `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE` opt-in (`docs/implementation/sync_to_new.md`).
+   Master → blueprint/section propagation is still unbuilt. After that adapter proves stable in the
    field (see item 1's real-course validation gate), integrate master →
    blueprint/section propagation with two-course verification and rollback
    behavior. Do not replace Canvas course-copy or Blueprint behavior until this

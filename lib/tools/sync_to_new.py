@@ -625,8 +625,10 @@ def create_newquizzes_in_modules(
         settings = dict(sidecar.get("settings") or {})
         old_group_id = settings.pop("assignment_group_id", None)
         payload = cs._newquiz_settings_payload(settings)
-        if old_group_id in group_mapping:
-            payload["quiz[assignment_group_id]"] = group_mapping[old_group_id]
+        try:        # the New Quiz API returns ids as strings; the mapping is keyed by int
+            new_group_id = group_mapping.get(int(old_group_id))
+        except (TypeError, ValueError):
+            new_group_id = None
 
         try:
             resp = requests.post(
@@ -640,6 +642,15 @@ def create_newquizzes_in_modules(
             continue
         new_id = resp.json()["id"]
         mapping[path] = new_id
+        if new_group_id:
+            # Canvas ignores quiz[assignment_group_id] on create (sandbox-confirmed,
+            # canvas_api_lessons_learned.md L32) — it only takes on a PATCH.
+            gr = requests.patch(
+                f"{quiz_url}/{new_id}",
+                headers={**_headers(token), "Content-Type": "application/x-www-form-urlencoded"},
+                data={"quiz[assignment_group_id]": new_group_id}, timeout=30)
+            if gr.status_code >= 400:
+                print(f"    ⚠ could not set assignment group: {gr.text[:200]}", file=sys.stderr)
 
         created = failed = 0
         for item in sidecar.get("items") or []:
