@@ -126,6 +126,20 @@ def global_config_problems() -> list[str]:
     return out
 
 
+def _warn_dotenv_missing() -> None:
+    """python-dotenv is absent from THIS Python environment, so .env cannot load.
+    Say so when a .env is actually there to be skipped — silence made a valid token
+    read as missing (#381, #383). Typically a nested install run from the course root,
+    where uv picks the root environment instead of canvas-toolbox's own."""
+    cwd = Path.cwd().resolve()
+    if not any((d / ".env").is_file() for d in (cwd, *cwd.parents)):
+        return
+    print("⚠ python-dotenv is not installed in this Python environment, so .env was NOT "
+          "loaded. If canvas-toolbox/ has its own pyproject.toml, run with "
+          "`uv run --project canvas-toolbox python canvas-toolbox/lib/tools/<tool>.py`.",
+          file=sys.stderr)
+
+
 def load_env() -> Path | None:
     """Resolve and load the nearest .env, then fill gaps from ~/.canvas/config.
 
@@ -146,6 +160,7 @@ def load_env() -> Path | None:
     try:
         from dotenv import find_dotenv, load_dotenv
     except ImportError:
+        _warn_dotenv_missing()
         return None
 
     loaded: Path | None = None

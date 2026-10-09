@@ -529,6 +529,17 @@ def test_token_check_reports_no_token_without_a_network_call(tmp_path, monkeypat
     assert check_token() == "no-token"
 
 
+def test_token_check_says_no_dotenv_not_no_token_when_dotenv_is_missing(tmp_path, monkeypatch):
+    """#381/#383: a nested install run from the course root picks an environment without
+    python-dotenv, .env is silently skipped, and a valid token read as 'no-token'."""
+    import _env_loader
+    for v in ("CANVAS_API_TOKEN", "CANVAS_BASE_URL"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.setattr(_env_loader, "load_env", lambda: None)
+    monkeypatch.setitem(sys.modules, "dotenv", None)  # makes `import dotenv` raise ImportError
+    assert check_token() == "no-dotenv"
+
+
 def test_token_check_distinguishes_rejected_from_unreachable(monkeypatch):
     """The distinction that matters. cb_update has always worked offline; reporting
     a network failure as a bad token would send someone to regenerate a perfectly
