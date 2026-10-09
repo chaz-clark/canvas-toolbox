@@ -63,14 +63,11 @@ except ImportError:
 
 try:
     from _env_loader import load_env
-    from canvas_course_guard import verify_course_access, is_sandbox_course
 except ImportError:
     def load_env() -> None:
         pass
-    def verify_course_access(course_id: str, token: str) -> None:
-        pass
-    def is_sandbox_course(course_id: str) -> bool:
-        return False
+
+from canvas_course_guard import enforce as _course_guard
 
 _TIMEOUT = 60
 
@@ -923,20 +920,9 @@ def main() -> int:
     if not base_url or not course_id or not token:
         return 1
 
-    # Safety check
-    try:
-        verify_course_access(course_id, token)
-    except Exception as e:
-        print(f"ERROR: Cannot access course {course_id}: {e}", file=sys.stderr)
-        return 1
-
-    # Warn if production course
-    if not is_sandbox_course(course_id):
-        print(f"\n⚠ WARNING: Target is PRODUCTION course {course_id}")
-        confirm = input("Continue? Type 'yes' to proceed: ")
-        if confirm.lower() != "yes":
-            print("Aborted.")
-            return 0
+    # Safety check — refuses a write into an enrolled or Blueprint-child course
+    _course_guard(base_url, _headers(token), course_id,
+                  mode="write" if args.apply else "read")
 
     # Workflow reminder
     print("\n" + "="*70)
