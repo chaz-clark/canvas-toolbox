@@ -83,3 +83,66 @@ assignment:
     command = prs._command(schedule, apply=True)
     assert "--apply" in command
     assert "--allow-enrolled" in command
+
+
+# --- main(): the paths a scheduled job actually takes (#354) --------------------
+
+def _cfg(tmp_path):
+    path = tmp_path / "s.yml"
+    path.write_text(
+        "timezone: America/Denver\n"
+        "window: {start_date: 2026-10-01, end_date: 2026-12-15, lock_at: '18:00'}\n"
+        "assignment: {title: Prep ratings, group_set_id: 5}\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _main(monkeypatch, argv, course_id="9"):
+    ran = []
+    monkeypatch.setattr(sys, "argv", ["peer_review_schedule.py", *argv])
+    if course_id:
+        monkeypatch.setenv("CANVAS_COURSE_ID", course_id)
+    else:
+        monkeypatch.delenv("CANVAS_COURSE_ID", raising=False)
+    monkeypatch.setattr(prs.subprocess, "run",
+                        lambda cmd, **kw: ran.append(cmd) or type("R", (), {"returncode": 0})())
+    return prs.main(), ran
+
+
+def test_outside_the_window_is_a_clean_noop_that_never_calls_canvas(tmp_path, monkeypatch):
+    rc, ran = _main(monkeypatch, ["--config", str(_cfg(tmp_path)), "--now", "2026-09-01T18:00:00+00:00"])
+    assert rc == 0 and ran == []
+
+
+def test_inside_the_window_delegates_as_a_dry_run_by_default(tmp_path, monkeypatch):
+    rc, ran = _main(monkeypatch, ["--config", str(_cfg(tmp_path)), "--now", "2026-10-10T02:00:00+00:00"])
+    assert rc == 0 and len(ran) == 1 and "--apply" not in ran[0]
+
+
+def test_apply_is_passed_through_only_when_asked(tmp_path, monkeypatch):
+    rc, ran = _main(monkeypatch, ["--config", str(_cfg(tmp_path)), "--apply",
+                                  "--now", "2026-10-10T02:00:00+00:00"])
+    assert rc == 0 and "--apply" in ran[0]
+
+
+def test_a_failing_delegate_fails_the_job(tmp_path, monkeypatch):
+    """A non-zero peer_review_assign result must surface, not become a silent success."""
+    monkeypatch.setattr(sys, "argv", ["peer_review_schedule.py", "--config", str(_cfg(tmp_path)),
+                                      "--now", "2026-10-10T02:00:00+00:00"])
+    monkeypatch.setenv("CANVAS_COURSE_ID", "9")
+    monkeypatch.setattr(prs.subprocess, "run", lambda *a, **k: type("R", (), {"returncode": 2})())
+    assert prs.main() == 2
+
+
+def test_missing_course_id_inside_the_window_is_an_error_not_a_noop(tmp_path, monkeypatch):
+    rc, ran = _main(monkeypatch, ["--config", str(_cfg(tmp_path)), "--now", "2026-10-10T02:00:00+00:00"],
+                    course_id=None)
+    assert rc == 2 and ran == []
+
+
+def test_bad_config_exits_2(tmp_path, monkeypatch):
+    bad = tmp_path / "bad.yml"
+    bad.write_text("timezone: Not/AZone\n", encoding="utf-8")
+    rc, ran = _main(monkeypatch, ["--config", str(bad)])
+    assert rc == 2 and ran == []
