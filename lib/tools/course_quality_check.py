@@ -73,6 +73,16 @@ def _get_all(url: str, params: dict = None) -> list:
     return results
 
 
+def _quiz_has_no_questions(base: str, course_id: str, quiz_id) -> bool:
+    """True when the quiz's real question list is empty. A failed fetch counts as
+    empty so the check keeps its old behaviour rather than hiding a real empty shell."""
+    r = requests.get(f"{base}/api/v1/courses/{course_id}/quizzes/{quiz_id}/questions",
+                     headers=_h(), params={"per_page": 1}, timeout=30)
+    if r.status_code >= 400:
+        return True
+    return len(r.json()) == 0
+
+
 def _parse_dt(s: str):
     if not s:
         return None
@@ -517,9 +527,12 @@ def _audit_course(course_id: str) -> dict:
                 "action": "Set course start and end dates in Canvas Settings > Course Details"
             })
 
-    # Quiz questions — if a classic quiz has 0 questions it's an empty shell
+    # Quiz questions — if a classic quiz has 0 questions it's an empty shell.
+    # question_count is only a screen: Canvas reports 0 for quizzes built of essay
+    # questions (L26, #359), so a zero is confirmed against the real question list.
     for q in quizzes:
-        if q.get("quiz_type") != "assignment" and q.get("question_count", 1) == 0:
+        if (q.get("quiz_type") != "assignment" and q.get("question_count", 1) == 0
+                and _quiz_has_no_questions(base, course_id, q["id"])):
             manual_review.append({
                 "type": "empty_quiz",
                 "title": q["title"],

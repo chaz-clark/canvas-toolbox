@@ -582,6 +582,14 @@ When building a new Canvas-touching tool, run through this checklist:
 - [`rubrics_knowledge.md`](rubrics_knowledge.md) — L9 + the rubric-specific lessons in `canvas_rubrics_api_survey.md` feed the audit tags this file emits.
 - [`outcomes_quality_knowledge.md`](outcomes_quality_knowledge.md) — the alignment chain that walks the API surface uses both documented patterns (parent file) and the workaround patterns documented here.
 
+### L26 — Quiz `question_count` and `points_possible` don't reflect essay questions
+
+**What Canvas does:** on a classic quiz built entirely of `essay_question` items (a `graded_survey` reflection quiz, 4–7 questions each), `GET /courses/:cid/quizzes` reports `question_count: 0` and leaves `points_possible` at the `1.0` set when the shell was created, while `GET /courses/:cid/quizzes/:id/questions` lists every question. Stable for more than 24 hours, so it is not cache lag. Best guess, unconfirmed against Canvas docs: the denormalised fields count only auto-scorable question types.
+
+**Why it matters:** `question_count == 0` is not proof a quiz is empty. `course_quality_check` used it alone and flagged valid essay-only quizzes as empty shells. Any tool deciding emptiness should read the `/questions` list.
+
+**Provenance:** found in course 425166 (M119), issue #359; fixed by confirming zero counts against `/questions` in `course_quality_check`.
+
 ---
 
 ## References
