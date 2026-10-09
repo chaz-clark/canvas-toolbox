@@ -59,3 +59,15 @@ idempotent `peer_review_assign.py` tool.
   normal notification/history mechanisms.
 - The setup helper never uses `gh secret set --env-file .env`; it allowlists
   the three expected keys so unrelated `.env` values cannot be uploaded.
+
+## Known limits
+
+- **Scheduled workflows stop quietly.** GitHub only runs `schedule:` triggers from the
+  default branch, and disables them in a public repository after 60 days with no repo
+  activity. A stopped schedule produces no failure to notify you about — check the
+  Actions tab before each peer-review window.
+- **Verified so far (sandbox, no enrolled students):** the in-window dry run delegates
+  and prints counts only; a run outside the window is a no-op that exits 0; an unknown
+  assignment fails the job with exit 2. **Not yet verified:** real pairing under the
+  scheduler, which needs enrolled students (see `canvas_api_lessons_learned.md` L25).
+  Do that dry run on your own course before enabling the schedule.
