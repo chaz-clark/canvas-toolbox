@@ -585,6 +585,91 @@ def create_assignments_in_modules(
     return assignment_mapping
 
 
+def create_newquizzes_in_modules(
+    base_url: str,
+    course_id: str,
+    files: dict,
+    module_mapping: dict,
+    group_mapping: dict,
+    token: str,
+) -> dict:
+    """Create New Quizzes (settings + question items) in the new course and link them
+    to modules. Opt-in via `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true`, the same gate as
+    `canvas_sync.py --push` — the target course starts empty, so there is nothing to
+    match against; every quiz and every item is created.
+
+    The create/item payload helpers are canvas_sync's, so a New Quiz is written the
+    same way whichever tool does it. Stimulus/Bank/BankEntry items are read-only to
+    the API and are reported, not created. Quizzes are created unpublished.
+
+    Returns: mapping of local sidecar path -> new New Quiz (assignment) id."""
+    newquizzes = {path: meta for path, meta in files.items() if meta.get("type") == "NewQuiz"}
+    mapping: dict = {}
+    if not newquizzes:
+        return mapping
+    if os.environ.get("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "").lower() != "true":
+        print(f"  ⚠ Skipped {len(newquizzes)} New Quiz(zes): set "
+              "CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true to create them (see canvas_sync.py)")
+        return mapping
+
+    import canvas_sync as cs
+
+    quiz_url = f"{base_url}/api/quiz/v1/courses/{course_id}/quizzes"
+    for path, meta in newquizzes.items():
+        title = meta.get("title", path)
+        sidecar_path = Path(meta.get("settings_path") or "")
+        if not sidecar_path.is_file():
+            print(f"  ⚠ Skipped New Quiz '{title}': sidecar not found at {sidecar_path}")
+            continue
+        sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        settings = dict(sidecar.get("settings") or {})
+        old_group_id = settings.pop("assignment_group_id", None)
+        payload = cs._newquiz_settings_payload(settings)
+        if old_group_id in group_mapping:
+            payload["quiz[assignment_group_id]"] = group_mapping[old_group_id]
+
+        try:
+            resp = requests.post(
+                quiz_url, headers={**_headers(token), "Content-Type": "application/x-www-form-urlencoded"},
+                data=payload, timeout=30)
+        except requests.RequestException as exc:
+            print(f"  ✗ Failed to create New Quiz '{title}': {exc}", file=sys.stderr)
+            continue
+        if resp.status_code >= 400 or not resp.json().get("id"):
+            print(f"  ✗ Failed to create New Quiz '{title}': {resp.text[:200]}", file=sys.stderr)
+            continue
+        new_id = resp.json()["id"]
+        mapping[path] = new_id
+
+        created = failed = 0
+        for item in sidecar.get("items") or []:
+            if item.get("entry_type", "Item") != "Item":
+                print(f"    SKIP read-only New Quiz item type: {item.get('entry_type')}")
+                continue
+            r = requests.post(f"{quiz_url}/{new_id}/items", headers=_headers(token),
+                              json=cs._newquiz_item_payload(item), timeout=30)
+            if r.status_code >= 400:
+                failed += 1
+                print(f"    ✗ item {(item.get('entry') or {}).get('title', '<untitled>')!r}: "
+                      f"{r.text[:200]}", file=sys.stderr)
+            else:
+                created += 1
+        note = f", {failed} item(s) FAILED" if failed else ""
+        print(f"  ✓ Created New Quiz: {title} ({created} item(s){note})")
+
+        module_slug = meta.get("module_slug")
+        if module_slug and module_slug in module_mapping:
+            module_item = create_module_item(
+                base_url, course_id, module_mapping[module_slug],
+                {"title": title, "type": "Assignment", "content_id": new_id,
+                 "position": meta.get("module_item_position", 1),
+                 "indent": meta.get("indent", 0)},
+                token)
+            if module_item:
+                print(f"    → Linked to module: {module_slug}")
+    return mapping
+
+
 # ---------------------------------------------------------------------------
 # File copying and URL rewriting
 # ---------------------------------------------------------------------------
@@ -893,9 +978,15 @@ def preview_restoration(course_content: dict) -> None:
     # NewQuizzes (warn about skipping)
     newquizzes = [f for f in files.values() if f.get("type") == "NewQuiz"]
     if newquizzes:
-        print(f"\n⚠ NewQuizzes ({len(newquizzes)}) - will be SKIPPED:")
-        for nq in newquizzes:
-            print(f"  ○ {nq['title']} (cannot be created via API)")
+        if os.environ.get("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "").lower() == "true":
+            print(f"\nNewQuizzes ({len(newquizzes)}) - will be created (unpublished):")
+            for nq in newquizzes:
+                print(f"  ○ {nq['title']}")
+        else:
+            print(f"\n⚠ NewQuizzes ({len(newquizzes)}) - will be SKIPPED "
+                  "(set CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true to create them):")
+            for nq in newquizzes:
+                print(f"  ○ {nq['title']}")
 
     print("\n" + "="*60)
     print("Re-run with --apply to create these items")
@@ -1055,7 +1146,7 @@ def main() -> int:
     print(f"✓ Created {len(page_mapping)} pages\n")
 
     # Step 5: Create assignments (with URL rewriting)
-    print("Step 5/5: Creating assignments and linking to modules...")
+    print("Step 5/5: Creating assignments and New Quizzes and linking to modules...")
     assignment_mapping = create_assignments_in_modules(
         base_url,
         course_id,
@@ -1067,6 +1158,10 @@ def main() -> int:
         source_course_id=source_course_id
     )
 
+    newquiz_mapping = create_newquizzes_in_modules(
+        base_url, course_id, files, module_mapping, group_mapping, token
+    )
+
     print(f"\n{'='*60}")
     print("✓ Restoration complete!")
     print(f"{'='*60}")
@@ -1075,6 +1170,7 @@ def main() -> int:
     print(f"  • {len(file_mapping)} files copied")
     print(f"  • {len(page_mapping)} pages created")
     print(f"  • {len(assignment_mapping)} assignments created")
+    print(f"  • {len(newquiz_mapping)} New Quizzes created")
     print(f"\nView in Canvas: {base_url}/courses/{course_id}")
 
     return 0

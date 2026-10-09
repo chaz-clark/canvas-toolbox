@@ -1825,6 +1825,47 @@ def _newquiz_write(method: str, path: str, payload: dict) -> dict:
         return {}
 
 
+def _newquiz_settings_payload(settings: dict) -> dict:
+    """Form-encoded `quiz[...]` fields for a New Quiz create/update, from a pulled
+    sidecar's `settings`. Shared by `_push_newquiz_content` and `sync_to_new.py`."""
+    def _form_value(value):
+        # requests form-encodes Python True/False as the strings "True"/"False"
+        # (capitalized); Canvas treats any non-empty string as truthy, so a pulled
+        # `False` silently flips to true on push. Sandbox-confirmed 2026-09-23 —
+        # see canvas_api_lessons_learned.md L28.
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return value
+
+    settings_payload = {}
+    for key in ("title", "instructions", "assignment_group_id", "points_possible",
+                "due_at", "lock_at", "unlock_at", "grading_type"):
+        if key in settings:
+            settings_payload[f"quiz[{key}]"] = _form_value(settings[key])
+    quiz_settings = settings.get("quiz_settings")
+    if isinstance(quiz_settings, dict):
+        for key in ("calculator_type", "one_at_a_time_type", "allow_backtracking",
+                    "shuffle_answers", "shuffle_questions", "require_student_access_code",
+                    "student_access_code", "has_time_limit", "session_time_limit_in_seconds",
+                    "filter_ip_address"):
+            if key in quiz_settings:
+                settings_payload[f"quiz[quiz_settings][{key}]"] = _form_value(quiz_settings[key])
+        # multiple_attempts and result_view_settings are nested objects; Canvas only
+        # accepts them as individually-expanded form keys (sandbox-confirmed
+        # 2026-09-23 — see canvas_api_lessons_learned.md L28).
+        for nested_key in ("multiple_attempts", "result_view_settings"):
+            nested = quiz_settings.get(nested_key)
+            if isinstance(nested, dict):
+                for sub_key, sub_value in nested.items():
+                    settings_payload[f"quiz[quiz_settings][{nested_key}][{sub_key}]"] = _form_value(sub_value)
+        # quiz_settings.filters.ips is documented and readable but writes to it
+        # silently no-op on this endpoint regardless of encoding (form bracket-list,
+        # JSON array, JSON string all returned 200 with an empty list on readback —
+        # sandbox-confirmed 2026-09-23, see canvas_api_lessons_learned.md L28).
+        # Intentionally not pushed until Canvas documents or fixes the real shape.
+    return settings_payload
+
+
 def _push_newquiz_content(filepath: Path, meta: dict) -> bool:
     """Reconcile a pulled New Quiz sidecar's settings and QuestionItems.
 
@@ -1863,41 +1904,7 @@ def _push_newquiz_content(filepath: Path, meta: dict) -> bool:
         print(f"    ERROR: no New Quiz assignment/quiz id in {filepath}")
         return False
 
-    def _form_value(value):
-        # requests form-encodes Python True/False as the strings "True"/"False"
-        # (capitalized); Canvas treats any non-empty string as truthy, so a pulled
-        # `False` silently flips to true on push. Sandbox-confirmed 2026-09-23 —
-        # see canvas_api_lessons_learned.md L28.
-        if isinstance(value, bool):
-            return "true" if value else "false"
-        return value
-
-    settings_payload = {}
-    for key in ("title", "instructions", "assignment_group_id", "points_possible",
-                "due_at", "lock_at", "unlock_at", "grading_type"):
-        if key in settings:
-            settings_payload[f"quiz[{key}]"] = _form_value(settings[key])
-    quiz_settings = settings.get("quiz_settings")
-    if isinstance(quiz_settings, dict):
-        for key in ("calculator_type", "one_at_a_time_type", "allow_backtracking",
-                    "shuffle_answers", "shuffle_questions", "require_student_access_code",
-                    "student_access_code", "has_time_limit", "session_time_limit_in_seconds",
-                    "filter_ip_address"):
-            if key in quiz_settings:
-                settings_payload[f"quiz[quiz_settings][{key}]"] = _form_value(quiz_settings[key])
-        # multiple_attempts and result_view_settings are nested objects; Canvas only
-        # accepts them as individually-expanded form keys (sandbox-confirmed
-        # 2026-09-23 — see canvas_api_lessons_learned.md L28).
-        for nested_key in ("multiple_attempts", "result_view_settings"):
-            nested = quiz_settings.get(nested_key)
-            if isinstance(nested, dict):
-                for sub_key, sub_value in nested.items():
-                    settings_payload[f"quiz[quiz_settings][{nested_key}][{sub_key}]"] = _form_value(sub_value)
-        # quiz_settings.filters.ips is documented and readable but writes to it
-        # silently no-op on this endpoint regardless of encoding (form bracket-list,
-        # JSON array, JSON string all returned 200 with an empty list on readback —
-        # sandbox-confirmed 2026-09-23, see canvas_api_lessons_learned.md L28).
-        # Intentionally not pushed until Canvas documents or fixes the real shape.
+    settings_payload = _newquiz_settings_payload(settings)
     if settings_payload:
         url = f"{CANVAS_BASE_URL}/api/quiz/v1/courses/{CANVAS_COURSE_ID}/quizzes/{quiz_id}"
         try:
