@@ -119,3 +119,36 @@ def test_successful_comment_prints_the_comment_url_not_an_issue_number(monkeypat
                         lambda *a, **k: (200, {"url": "https://x/issues/5#issuecomment-1", "id": 1}))
     rc, out = _run(monkeypatch, capsys, ["--issue", "5", "--body", "b"])
     assert rc == 0 and "comment posted:" in out.out and "issuecomment" in out.out
+
+
+# --- anonymous reporter ID ----------------------------------------------------
+
+def test_reporter_id_is_stable_across_calls_and_not_the_raw_uuid(tmp_path, monkeypatch):
+    f = tmp_path / ".canvas" / "reporter_id"
+    monkeypatch.setattr(crb, "_REPORTER_ID_FILE", f)
+    first = crb._reporter_id()
+    assert first == crb._reporter_id()
+    assert len(first) == 8 and first != "unavailable"
+    assert first not in f.read_text(encoding="utf-8")
+
+
+def test_reporter_id_differs_per_install_and_resets_when_file_deleted(tmp_path, monkeypatch):
+    f = tmp_path / "reporter_id"
+    monkeypatch.setattr(crb, "_REPORTER_ID_FILE", f)
+    first = crb._reporter_id()
+    f.unlink()
+    assert crb._reporter_id() != first
+
+
+def test_reporter_id_degrades_when_home_is_unwritable(tmp_path, monkeypatch):
+    blocker = tmp_path / "file"
+    blocker.write_text("x")
+    monkeypatch.setattr(crb, "_REPORTER_ID_FILE", blocker / "sub" / "reporter_id")
+    assert crb._reporter_id() == "unavailable"
+
+
+def test_rendered_body_includes_reporter_line(tmp_path, monkeypatch):
+    monkeypatch.setattr(crb, "_REPORTER_ID_FILE", tmp_path / "reporter_id")
+    ns = type("A", (), {"from_log": None})()
+    body = crb._render_body("desc", crb._bundle_context(ns, ""))
+    assert f"reporter: `{crb._reporter_id()}`" in body

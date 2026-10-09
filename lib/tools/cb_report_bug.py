@@ -98,6 +98,7 @@ except ImportError:
     def force_utf8_console() -> None:
         pass  # No-op if _env_loader not available
 import getpass
+import hashlib
 import json
 import os
 import platform
@@ -106,6 +107,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
 import requests
@@ -156,6 +158,28 @@ def _local_user() -> str:
         return ""
 
 
+_REPORTER_ID_FILE = Path.home() / ".canvas" / "reporter_id"
+
+
+def _reporter_id() -> str:
+    """Anonymous per-install ID so a maintainer can tell reports from the same
+    install apart from others. A random UUID is generated once and stored
+    locally; only a truncated salted hash of it is sent, so it can't be traced
+    to a person or machine. Delete the file to reset it."""
+    try:
+        if _REPORTER_ID_FILE.is_file():
+            raw = _REPORTER_ID_FILE.read_text(encoding="utf-8").strip()
+        else:
+            raw = ""
+        if not raw:
+            raw = str(uuid.uuid4())
+            _REPORTER_ID_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _REPORTER_ID_FILE.write_text(raw + "\n", encoding="utf-8")
+        return hashlib.sha256(f"canvas-toolbox-reporter:{raw}".encode()).hexdigest()[:8]
+    except OSError:
+        return "unavailable"
+
+
 def _sanitize_path(p: str, local_user: str) -> str:
     """Replace `/Users/<u>` or `/home/<u>` with `~/...` shorthand."""
     if not p:
@@ -188,6 +212,7 @@ def _bundle_context(args, local_user: str) -> dict[str, str]:
         "python": py,
         "platform": plat,
         "cwd": cwd,
+        "reporter": _reporter_id(),
         "log_excerpt": log_excerpt,
     }
 
@@ -206,6 +231,7 @@ def _render_body(description: str, ctx: dict[str, str]) -> str:
     parts.append(f"- python: `{ctx['python']}`")
     parts.append(f"- platform: `{ctx['platform']}`")
     parts.append(f"- cwd: `{ctx['cwd']}`")
+    parts.append(f"- reporter: `{ctx['reporter']}` (anonymous per-install ID)")
     parts.append("")
     parts.append("</details>")
     if ctx.get("log_excerpt"):
