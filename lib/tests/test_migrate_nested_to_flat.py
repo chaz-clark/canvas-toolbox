@@ -8,15 +8,34 @@ detection function individually so a future change gets a fast, specific
 failure instead of only a slow end-to-end one.
 """
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+
+import pytest
 
 TOOLS = Path(__file__).resolve().parent.parent / "tools"
 if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 import migrate_nested_to_flat as mig  # noqa: E402
+
+
+def _can_symlink() -> bool:
+    """Windows creates symlinks only with Developer Mode or an elevated token
+    (WinError 1314 otherwise). The production code has a copy fallback for that;
+    these tests exercise the symlink branch specifically."""
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.symlink(Path(d) / "target", Path(d) / "link")
+            return True
+        except OSError:
+            return False
+
+
+requires_symlink = pytest.mark.skipif(not _can_symlink(), reason="no symlink privilege on this machine")
 
 
 def _git(d: Path, *a):
@@ -159,6 +178,7 @@ def test_remove_stale_skill_links_absent(tmp_path):
     assert all(status == "absent" for status in results.values())
 
 
+@requires_symlink
 def test_remove_stale_skill_links_removes_a_symlink(tmp_path):
     link = _nested_skill_symlink(tmp_path, "grading")
     results = dict(mig.remove_stale_skill_links(tmp_path, apply=True))
@@ -166,6 +186,7 @@ def test_remove_stale_skill_links_removes_a_symlink(tmp_path):
     assert not link.exists() and not link.is_symlink()
 
 
+@requires_symlink
 def test_remove_stale_skill_links_dry_run_writes_nothing(tmp_path):
     link = _nested_skill_symlink(tmp_path, "grading")
     results = dict(mig.remove_stale_skill_links(tmp_path, apply=False))
@@ -201,6 +222,7 @@ def test_remove_stale_claude_shim_absent(tmp_path):
     assert mig.remove_stale_claude_shim(tmp_path, apply=True) == "absent"
 
 
+@requires_symlink
 def test_remove_stale_claude_shim_removes_a_symlink(tmp_path):
     (tmp_path / "AGENTS.md").write_text("x", encoding="utf-8")
     link = tmp_path / ".claude" / "CLAUDE.md"
@@ -361,8 +383,7 @@ def test_rollback_post_finalize_reconstructs_the_nested_clone(tmp_path):
     nested = _make_nested_clone(tmp_path)
     dest = tmp_path / mig.flat.CLONE_DIR
     subprocess.run(["git", "clone", "-q", str(nested), str(dest)], check=True)
-    import shutil
-    shutil.rmtree(nested)                            # simulate finalize having run
+    mig._rmtree(nested)                              # simulate finalize having run (read-only git objects on Windows)
     (tmp_path / "lib" / "tools").mkdir(parents=True)
     (tmp_path / "lib" / "tools" / "flattened_marker.py").write_text("x", encoding="utf-8")
 

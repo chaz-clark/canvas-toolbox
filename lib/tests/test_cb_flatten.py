@@ -765,7 +765,8 @@ def test_verify_no_pending_collisions_reports_but_does_not_block(tmp_path):
     (tmp_path / "knowledge").mkdir()
     (tmp_path / "knowledge" / "x.md.pre-flatten-backup").write_text("x", encoding="utf-8")
     ok, msg = verify_no_pending_collisions(tmp_path)
-    assert ok and "knowledge/x.md.pre-flatten-backup" in msg
+    # the message embeds a list repr, so Windows backslashes appear doubled
+    assert ok and repr(str(Path("knowledge", "x.md.pre-flatten-backup")))[1:-1] in msg
 
 
 def test_verify_no_pending_collisions_ignores_the_hidden_clone(tmp_path):
@@ -913,7 +914,7 @@ def test_credentials_resolve_merges_across_env_file_and_global_config(tmp_path, 
     )
     resolved, where = credentials_resolve(tmp_path)
     assert resolved is True
-    assert str(tmp_path / ".env") in where and "canvas/config" in where
+    assert str(tmp_path / ".env") in where and str(Path("canvas", "config")) in where
 
 
 def test_credentials_resolve_false_when_a_key_is_missing_everywhere(tmp_path, monkeypatch):
