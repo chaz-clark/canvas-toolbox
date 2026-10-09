@@ -64,3 +64,96 @@ def test_main_does_not_ask_a_human_to_type_yes(monkeypatch):
     monkeypatch.setattr("builtins.input", lambda *a: (_ for _ in ()).throw(AssertionError("prompted")))
     monkeypatch.setattr(sys, "argv", ["sync_to_new.py"])
     assert stn.main() == 1
+
+# --- New Quizzes (#367) -------------------------------------------------------
+
+import json  # noqa: E402
+
+
+class _Resp:
+    def __init__(self, status=200, body=None):
+        self.status_code, self._body = status, body if body is not None else {}
+        self.text = json.dumps(self._body)
+
+    def json(self):
+        return self._body
+
+
+def _newquiz_fixture(tmp_path, items):
+    sidecar = tmp_path / "quiz.settings.json"
+    sidecar.write_text(json.dumps({
+        "quiz_engine": "new_quiz",
+        "settings": {"title": "Quiz 1", "points_possible": 10, "assignment_group_id": "77",   # the New Quiz API returns ids as strings
+                     "quiz_settings": {"shuffle_answers": False}},
+        "items": items,
+    }), encoding="utf-8")
+    return {"m1/quiz.json": {"type": "NewQuiz", "title": "Quiz 1", "module_slug": "m1",
+                             "settings_path": str(sidecar)}}
+
+
+def _item(item_id, title, entry_type="Item"):
+    return {"id": item_id, "entry_type": entry_type, "position": 1, "points_possible": 2,
+            "entry": {"title": title, "item_body": "<p>q</p>", "id": "read-only"}}
+
+
+def test_newquizzes_skipped_without_the_opt_in(tmp_path, monkeypatch):
+    monkeypatch.delenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", raising=False)
+    monkeypatch.setattr(stn.requests, "post", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no write")))
+    files = _newquiz_fixture(tmp_path, [_item(1, "Q1")])
+    assert stn.create_newquizzes_in_modules("https://x", "9", files, {"m1": 5}, {}, "tok") == {}
+
+
+def test_newquiz_created_with_mapped_group_items_and_module_link(tmp_path, monkeypatch):
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+    posts = []
+
+    def fake_post(url, **kw):
+        posts.append((url, kw))
+        return _Resp(200, {"id": 555} if url.endswith("/quizzes") else {"id": 1})
+
+    linked = []
+    patches = []
+    monkeypatch.setattr(stn.requests, "post", fake_post)
+    monkeypatch.setattr(stn.requests, "patch",
+                        lambda url, **kw: patches.append((url, kw)) or _Resp(200, {}))
+    monkeypatch.setattr(stn, "create_module_item",
+                        lambda base, cid, mid, data, tok: linked.append((mid, data)) or {"id": 1})
+    files = _newquiz_fixture(tmp_path, [_item(1, "Q1"), _item(2, "Stim", "Stimulus")])
+
+    mapping = stn.create_newquizzes_in_modules("https://x", "9", files, {"m1": 5}, {77: 900}, "tok")
+
+    assert mapping == {"m1/quiz.json": 555}
+    quiz_url, quiz_kw = posts[0]
+    assert quiz_url == "https://x/api/quiz/v1/courses/9/quizzes"
+    assert "quiz[assignment_group_id]" not in quiz_kw["data"]            # ignored on create
+    assert patches == [("https://x/api/quiz/v1/courses/9/quizzes/555",     # so it is PATCHed
+                        patches[0][1])]
+    assert patches[0][1]["data"] == {"quiz[assignment_group_id]": 900}    # old id remapped
+    assert quiz_kw["data"]["quiz[quiz_settings][shuffle_answers]"] == "false"  # not "False"
+    item_posts = [p for p in posts if p[0].endswith("/555/items")]
+    assert len(item_posts) == 1                                          # Stimulus not created
+    assert "id" not in item_posts[0][1]["json"]["item"]["entry"]         # read-only fields stripped
+    assert linked == [(5, {"title": "Quiz 1", "type": "Assignment", "content_id": 555,
+                           "position": 1, "indent": 0})]
+
+
+def test_newquiz_group_without_a_mapping_is_dropped_not_sent_stale(tmp_path, monkeypatch):
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+    seen = {}
+    monkeypatch.setattr(stn.requests, "post",
+                        lambda url, **kw: seen.setdefault("data", kw.get("data")) and _Resp(200, {"id": 1}))
+    monkeypatch.setattr(stn, "create_module_item", lambda *a, **k: None)
+    stn.create_newquizzes_in_modules("https://x", "9", _newquiz_fixture(tmp_path, []), {}, {}, "tok")
+    assert "quiz[assignment_group_id]" not in seen["data"]
+
+
+def test_failed_quiz_create_is_not_mapped_or_linked(tmp_path, monkeypatch):
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "true")
+    monkeypatch.setattr(stn.requests, "post", lambda *a, **k: _Resp(422, {"error": "bad"}))
+    monkeypatch.setattr(stn, "create_module_item", lambda *a, **k: pytest_fail())
+    files = _newquiz_fixture(tmp_path, [_item(1, "Q1")])
+    assert stn.create_newquizzes_in_modules("https://x", "9", files, {"m1": 5}, {}, "tok") == {}
+
+
+def pytest_fail():
+    raise AssertionError("must not link a quiz that was never created")

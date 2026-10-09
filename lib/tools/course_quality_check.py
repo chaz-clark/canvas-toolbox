@@ -529,7 +529,7 @@ def _audit_course(course_id: str) -> dict:
 
     # Quiz questions — if a classic quiz has 0 questions it's an empty shell.
     # question_count is only a screen: Canvas reports 0 for quizzes built of essay
-    # questions (L26, #359), so a zero is confirmed against the real question list.
+    # questions (L31, #359), so a zero is confirmed against the real question list.
     for q in quizzes:
         if (q.get("quiz_type") != "assignment" and q.get("question_count", 1) == 0
                 and _quiz_has_no_questions(base, course_id, q["id"])):
