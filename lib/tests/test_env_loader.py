@@ -329,3 +329,23 @@ def test_commit_hygiene_never_raises_when_course_root_is_not_a_repo(tmp_path):
     course_root = tmp_path / "course"
     (course_root / ".git").mkdir(parents=True)  # present but not a real repo
     _check_commit_hygiene(course_root)          # must not raise
+
+
+def test_load_env_warns_when_dotenv_missing_and_an_env_file_exists(tmp_path, monkeypatch, capsys):
+    """#381/#383: silently skipping .env made a valid token look missing."""
+    import _env_loader
+    (tmp_path / ".env").write_text("CANVAS_API_TOKEN=x\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setitem(sys.modules, "dotenv", None)
+    assert _env_loader.load_env() is None
+    err = capsys.readouterr().err
+    assert "python-dotenv" in err and "--project canvas-toolbox" in err
+
+
+def test_load_env_stays_quiet_when_dotenv_missing_and_no_env_file(tmp_path, monkeypatch, capsys):
+    import _env_loader
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "cwd", classmethod(lambda cls: tmp_path))
+    monkeypatch.setitem(sys.modules, "dotenv", None)
+    _env_loader.load_env()
+    assert capsys.readouterr().err == ""

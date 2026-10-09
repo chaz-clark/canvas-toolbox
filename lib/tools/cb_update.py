@@ -538,6 +538,8 @@ def check_token(timeout: float = 8.0) -> str:
                         full value only once, so an 'active' entry can look healthy
                         while the copy you hold is unusable)
       no-token        - nothing resolved from any source
+      no-dotenv       - python-dotenv missing from this environment, so .env was
+                        never read; the token may be fine (#381, #383)
       unreachable     - offline / DNS / timeout. NOT a token problem, and must not
                         be reported as one; cb_update has always worked offline and
                         a network call must not make it look broken.
@@ -559,6 +561,10 @@ def check_token(timeout: float = 8.0) -> str:
     token = os.environ.get("CANVAS_API_TOKEN", "")
     base = os.environ.get("CANVAS_BASE_URL", "").strip().rstrip("/")
     if not token:
+        try:
+            import dotenv  # noqa: F401
+        except ImportError:
+            return "no-dotenv"      # .env could not be read — not the same as no token
         return "no-token"
     if not base:
         return "no-base-url"
@@ -797,6 +803,11 @@ def main() -> int:
     if not args.no_token_check:
         status = check_token()
         print(f"  token check: {status}")
+        if status == "no-dotenv":
+            print("    ↳ python-dotenv isn't installed in this Python environment, so .env "
+                  "was not read — this says nothing about your token. Re-run with "
+                  "`uv run --project canvas-toolbox python canvas-toolbox/lib/tools/"
+                  "cb_update.py` (nested install).")
         if status == "REJECTED":
             print("    ↳ Canvas returned 'Invalid access token' — it does not have this "
                   "string. Three causes look identical from here:")
