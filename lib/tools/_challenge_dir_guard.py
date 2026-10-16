@@ -57,8 +57,14 @@ FERPA_GUARD_REFUSED_EXIT = 7
 
 def _toolkit_root() -> Path:
     """The canvas-toolbox install directory's root. Computed from __file__'s
-    location: lib/tools/_challenge_dir_guard.py → lib/tools/ → lib/ → root."""
-    return Path(__file__).resolve().parent.parent.parent
+    location: lib/tools/_challenge_dir_guard.py → lib/tools/ → lib/ → root.
+
+    Flat layout (issue #392): the tools live at the COURSE root, which has a
+    hidden pristine clone at `.canvas-toolbox/`. The course root is where
+    `grading/` belongs, so the directory to protect is the hidden clone."""
+    root = Path(__file__).resolve().parent.parent.parent
+    clone = root / ".canvas-toolbox"
+    return clone if clone.is_dir() else root
 
 
 def _inside(child: Path, parent: Path) -> bool:
