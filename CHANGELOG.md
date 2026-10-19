@@ -13,6 +13,22 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`grader_post_policy.py`: review-first drafts — hold grades hidden, then release and restore.**
+
+`grader_push` on an AUTOMATIC posting policy (the Canvas default) makes every grade and
+comment student-visible the instant it is written, and nothing in the toolkit could change
+the policy or warned about it. New tool `grader_post_policy.py` (grading package, dry-run by
+default, `--apply` to write, `canvas_course_guard` before any write): `--status` (read-only:
+policy, recorded hold, count of graded-but-hidden submissions), `--hold` (switch to MANUAL
+and record the previous policy), `--release` (post graded work via GraphQL
+`postAssignmentGrades`, then restore the recorded policy), `--restore` (put the policy back
+without posting). Verifies by read-back after every policy write; if posting fails the
+policy is NOT restored so the work stays hidden. Counts only on the console; the state file
+holds course id, assignment id and one boolean. Writes no grades or comments, so it is
+registered `canvas_content_write` / `approval: always` and is deliberately NOT added to
+`CONSTITUTIONAL_WRITERS` (maintainer decision: it controls student visibility of grades).
+Grading skill gains a "Review-first draft" section. 29 unit tests. Version 2.0.22.
+
 **New Quiz API completeness gaps closed: settings whitelist, item-type fixture coverage, hot-spot media endpoint (#364).**
 
 Follow-up to the New Quiz content-sync work above. `_push_newquiz_content()`'s

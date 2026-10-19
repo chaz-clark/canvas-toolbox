@@ -74,6 +74,25 @@ cannot click either for them, and you cannot self-attest.
    `grade_guardian` hook fires a **second** pop-up; the instructor **clicks Allow** — that
    click authorizes the write (#264). No terminal, ever.
 
+### Review-first draft — keep it hidden from students while you review
+
+On an **AUTOMATIC** posting policy (the Canvas default) every grade and comment
+`grader_push` writes is student-visible the instant it lands. To review in SpeedGrader
+first, hold the assignment on MANUAL posting around the push — in code, not by hand:
+
+```
+grader_post_policy.py --assignment-id <id>                  # status: policy + hidden count (read-only)
+grader_post_policy.py --assignment-id <id> --hold --apply   # BEFORE the push: switch to MANUAL, remember the old policy
+grader_push.py ... --mark-reviewed ... --push               # entered but hidden from students
+                                                            # (review in SpeedGrader)
+grader_post_policy.py --assignment-id <id> --release --apply  # post graded work, then restore the old policy
+grader_post_policy.py --assignment-id <id> --restore --apply  # OR abandon: restore without posting
+```
+
+Dry-run by default; `--allow-enrolled` applies as for the other writers. `--release` is
+the only student-visible step — if posting fails it does NOT restore the policy, so the
+work stays hidden. It prints counts only and writes no grades or comments.
+
 ## What the code enforces (so the protocol isn't docs-only)
 
 - **`--yes` is honored on every path — including AI-drafted comments (#264).** You run
@@ -288,6 +307,7 @@ questions. If the pending question is worth points, that's real grading → Spee
 | Rebuild the de-id master | `build_deid_master.py --force` |
 | Mirror the live gradebook locally (feeds standing/reconcile) | `grader_fetch_gradebook.py` |
 | Clear an auto-scored quiz stuck on a 0-point manual question | `grader_quiz_clear_pending.py --assignment-id <id> --apply` |
+| Review in SpeedGrader before students see anything | `grader_post_policy.py --assignment-id <id> --hold --apply`, push, then `--release --apply` |
 | Join names into code-keyed feedback (no-Canvas-API course) | `local_feedback_join.py --roster <csv> --results <csv> --output <csv> --apply` |
 
 Full grading knowledge: [`lib/agents/knowledge/grader_hybrid_architecture.md`](../../lib/agents/knowledge/grader_hybrid_architecture.md)
