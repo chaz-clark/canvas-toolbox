@@ -43,6 +43,11 @@ tools:
   effect: canvas_grade_comment_write
   data_class: student_evaluation
   approval: always
+- id: grader-post-policy
+  command: lib/tools/grader_post_policy.py
+  effect: canvas_content_write
+  data_class: student_evaluation
+  approval: always
 - id: grader-fetch
   command: lib/tools/grader_fetch.py
   effect: read
