@@ -13,6 +13,16 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`github_actions_setup.py` falls back to `~/.canvas/config` for a blank token or base URL.**
+
+The helper that saves Canvas settings as GitHub Actions secrets read only the course `.env`, so
+an install that keeps its token in the per-user `~/.canvas/config` (the file the toolkit rotates
+the token in) failed with "missing CANVAS_API_TOKEN" even though every other tool worked. A blank
+`CANVAS_API_TOKEN` or `CANVAS_BASE_URL` now falls back to that file; the course `.env` still wins,
+and `CANVAS_COURSE_ID` never falls back (enforced in the helper, not just by the loader). The
+dry run now prints where each value comes from (`<- ~/.canvas/config` or the `.env` path),
+never the value. 4 tests; the suite now ignores the developer's real global config. Version 2.1.3.
+
 **Grading runs on the instructor's own AI subscription — the `grading` skill now says so, and `grader_grade.py` points there (#402).**
 
 A faculty member on a FERPA-covered enterprise ChatGPT account asked the agent to grade
