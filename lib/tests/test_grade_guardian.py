@@ -790,3 +790,12 @@ def test_earlier_interpreter_mention_in_the_same_line_is_not_credited_to_a_later
 
 def test_a_real_path_read_outside_any_heredoc_is_still_denied():
     assert evaluate("Bash", {"command": f"cat {_Z}"}) is not None
+
+
+def test_asks_on_release_apply_but_not_on_dry_run_hold_or_status():
+    base = "uv run python lib/tools/grader_post_policy.py --assignment-id 7"
+    assert ask_reason("Bash", {"command": f"{base} --release --apply"}) is not None
+    assert "Release gate" in ask_reason("Bash", {"command": f"{base} --release --apply"})
+    for cmd in (f"{base} --release", f"{base} --status", f"{base} --hold --apply",
+                f"{base} --restore --apply"):
+        assert ask_reason("Bash", {"command": cmd}) is None, cmd

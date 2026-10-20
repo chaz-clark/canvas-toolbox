@@ -7,6 +7,8 @@ Source: lib/tools/grader_push.py
 """
 import sys
 from pathlib import Path
+
+import pytest
 from datetime import datetime, timedelta, timezone
 
 _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
@@ -1184,3 +1186,42 @@ def test_load_roster_comments(tmp_path):
     assert ("111", "Great work") in pairs
     assert ("222", "See you next term.") in pairs
     assert len(pairs) == 2                     # the no-comment and no-user_id rows dropped
+
+
+# --- review-first draft is the default for --push --------------------------
+
+def _run_push_main(monkeypatch, tmp_path, extra, hold):
+    """Drive main() up to the hold hook with Canvas faked; returns (rc, hold_calls)."""
+    import grader_post_policy as _GPP
+    calls = []
+    monkeypatch.setenv("CANVAS_API_TOKEN", "t")
+    monkeypatch.setenv("CANVAS_BASE_URL", "https://canvas.test")
+    monkeypatch.setenv("CANVAS_COURSE_ID", "42")
+    monkeypatch.setattr(_GP, "guard_enforce", lambda *a, **k: None)
+    monkeypatch.setattr(_GPP, "ensure_review_hold",
+                        lambda *a: calls.append(a) or hold)
+    challenge = tmp_path / "ch"
+    challenge.mkdir()
+    monkeypatch.setattr(sys, "argv", ["grader_push.py", "--challenge-dir", str(challenge),
+                                      "--assignment-id", "7", "--push", *extra])
+    try:
+        rc = _GP.main()
+    except BaseException as e:  # past the hook the fake course has nothing to push
+        rc = type(e).__name__
+    return rc, calls
+
+
+def test_push_holds_for_review_by_default(monkeypatch, tmp_path):
+    rc, calls = _run_push_main(monkeypatch, tmp_path, [], (True, "switched to MANUAL"))
+    assert len(calls) == 1 and calls[0][3] == "7"
+
+
+def test_push_aborts_before_writing_when_hold_fails(monkeypatch, tmp_path):
+    rc, calls = _run_push_main(monkeypatch, tmp_path, [], (False, "could not read the posting policy"))
+    assert rc == 1 and len(calls) == 1
+
+
+@pytest.mark.parametrize("flag", ["--publish-now", "--post"])
+def test_push_opt_out_skips_the_hold(monkeypatch, tmp_path, flag):
+    rc, calls = _run_push_main(monkeypatch, tmp_path, [flag], (False, "should not be called"))
+    assert calls == []

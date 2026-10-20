@@ -74,24 +74,32 @@ cannot click either for them, and you cannot self-attest.
    `grade_guardian` hook fires a **second** pop-up; the instructor **clicks Allow** — that
    click authorizes the write (#264). No terminal, ever.
 
-### Review-first draft — keep it hidden from students while you review
+### Review-first draft — the default, so faculty review in SpeedGrader first
 
-On an **AUTOMATIC** posting policy (the Canvas default) every grade and comment
-`grader_push` writes is student-visible the instant it lands. To review in SpeedGrader
-first, hold the assignment on MANUAL posting around the push — in code, not by hand:
+**`grader_push --push` now holds first, by default.** On an **AUTOMATIC** posting policy
+(the Canvas default) every grade and comment would be student-visible the instant it
+lands, so `--push` switches the assignment to **MANUAL** posting (verified by read-back,
+old policy recorded in `.canvas/`) *before* writing anything. Grades and comments are
+entered and visible to the instructor in SpeedGrader, hidden from students. If the policy
+can't be read or the hold doesn't stick, the push aborts with nothing written (fail closed).
 
 ```
-grader_post_policy.py --assignment-id <id>                  # status: policy + hidden count (read-only)
-grader_post_policy.py --assignment-id <id> --hold --apply   # BEFORE the push: switch to MANUAL, remember the old policy
-grader_push.py ... --mark-reviewed ... --push               # entered but hidden from students
-                                                            # (review in SpeedGrader)
-grader_post_policy.py --assignment-id <id> --release --apply  # post graded work, then restore the old policy
-grader_post_policy.py --assignment-id <id> --restore --apply  # OR abandon: restore without posting
+grader_push.py ... --mark-reviewed ... --push            # holds first; entered but hidden
+                                                         # (review in SpeedGrader)
+grader_post_policy.py --assignment-id <id> --release --apply   # post graded work, restore old policy
+grader_post_policy.py --assignment-id <id> --restore --apply   # OR abandon: restore without posting
+grader_post_policy.py --assignment-id <id>                     # status: policy + hidden count (read-only)
 ```
 
-Dry-run by default; `--allow-enrolled` applies as for the other writers. `--release` is
-the only student-visible step — if posting fails it does NOT restore the policy, so the
-work stays hidden. It prints counts only and writes no grades or comments.
+After a draft push, tell the instructor plainly: the work is in SpeedGrader, students can't
+see it yet, and release is a separate step they approve. **`--release --apply` is the only
+student-visible step** and `grade_guardian` prompts the instructor to click before it runs;
+if posting fails it does NOT restore the policy, so the work stays hidden. It prints counts
+only and writes no grades or comments.
+
+**Opt out with `--publish-now`** (post straight to students) or `--post` (push, then release
+immediately) — only when the instructor asks for that. Never add either on your own.
+`--allow-enrolled` applies as for the other writers.
 
 ## What the code enforces (so the protocol isn't docs-only)
 
@@ -307,7 +315,7 @@ questions. If the pending question is worth points, that's real grading → Spee
 | Rebuild the de-id master | `build_deid_master.py --force` |
 | Mirror the live gradebook locally (feeds standing/reconcile) | `grader_fetch_gradebook.py` |
 | Clear an auto-scored quiz stuck on a 0-point manual question | `grader_quiz_clear_pending.py --assignment-id <id> --apply` |
-| Review in SpeedGrader before students see anything | `grader_post_policy.py --assignment-id <id> --hold --apply`, push, then `--release --apply` |
+| Review in SpeedGrader before students see anything | automatic: `grader_push --push` holds first; then `grader_post_policy.py --assignment-id <id> --release --apply` |
 | Join names into code-keyed feedback (no-Canvas-API course) | `local_feedback_join.py --roster <csv> --results <csv> --output <csv> --apply` |
 
 Full grading knowledge: [`lib/agents/knowledge/grader_hybrid_architecture.md`](../../lib/agents/knowledge/grader_hybrid_architecture.md)

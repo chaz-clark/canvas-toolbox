@@ -271,3 +271,39 @@ def test_status_is_read_only_and_warns_on_automatic(monkeypatch, tmp_path, capsy
     out = capsys.readouterr().out
     assert rc == 0 and cv.sets == [] and cv.posts == 0
     assert "AUTOMATIC" in out and "student-visible" in out
+
+
+# --- ensure_review_hold: the draft-by-default hook grader_push calls ---------
+
+def test_ensure_hold_switches_automatic_to_manual_and_records(monkeypatch, tmp_path):
+    cv = Canvas(manual=False); cv.install(monkeypatch)
+    ok, msg = gpp.ensure_review_hold(BASE, CID, H, AID, tmp_path)
+    assert ok and cv.sets == [True] and cv.manual is True
+    assert gpp.read_state(gpp.state_path(tmp_path, CID, AID))["previous_post_manually"] is False
+
+
+def test_ensure_hold_already_manual_writes_nothing_but_remembers(monkeypatch, tmp_path):
+    cv = Canvas(manual=True); cv.install(monkeypatch)
+    ok, _ = gpp.ensure_review_hold(BASE, CID, H, AID, tmp_path)
+    assert ok and cv.sets == []
+    assert gpp.read_state(gpp.state_path(tmp_path, CID, AID))["previous_post_manually"] is True
+
+
+def test_ensure_hold_keeps_an_existing_record_when_rerun(monkeypatch, tmp_path):
+    cv = Canvas(manual=False); cv.install(monkeypatch)
+    gpp.ensure_review_hold(BASE, CID, H, AID, tmp_path)            # first push: was AUTOMATIC
+    ok, _ = gpp.ensure_review_hold(BASE, CID, H, AID, tmp_path)    # second push: now MANUAL
+    assert ok and cv.sets == [True]
+    assert gpp.read_state(gpp.state_path(tmp_path, CID, AID))["previous_post_manually"] is False
+
+
+def test_ensure_hold_fails_closed_when_policy_unreadable(monkeypatch, tmp_path):
+    cv = Canvas(manual=None); cv.install(monkeypatch)
+    ok, _ = gpp.ensure_review_hold(BASE, CID, H, AID, tmp_path)
+    assert ok is False and cv.sets == []
+
+
+def test_ensure_hold_fails_when_readback_mismatches(monkeypatch, tmp_path):
+    cv = Canvas(manual=False, sets_stick=False); cv.install(monkeypatch)
+    ok, _ = gpp.ensure_review_hold(BASE, CID, H, AID, tmp_path)
+    assert ok is False and not gpp.state_path(tmp_path, CID, AID).exists()

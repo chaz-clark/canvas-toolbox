@@ -1292,6 +1292,12 @@ def main() -> int:
                          "grades' action (GraphQL postAssignmentGrades). Needed when the assignment "
                          "uses a MANUAL posting policy — otherwise grades are entered but hidden "
                          "from students and read as 'needs grading' (issue #199).")
+    ap.add_argument("--publish-now", action="store_true",
+                    help="Skip the default review-first draft: do NOT hold the assignment on "
+                         "MANUAL posting, so grades and comments are student-visible the "
+                         "moment they are written (on an AUTOMATIC-policy assignment). "
+                         "Without this flag --push holds first; release with "
+                         "grader_post_policy.py --release --apply after reviewing in SpeedGrader.")
     ap.add_argument("--yes", action="store_true",
                     help="Skip the terminal confirmation prompt — honored on ALL paths, "
                          "including the AI-drafted (LLM-comment) --mark-reviewed / --push "
@@ -1538,6 +1544,19 @@ def main() -> int:
     # canvas_course_guard: refuse enrolled-course writes unless --allow-enrolled
     if guard_enforce and (args.push or args.test_user is not None):
         guard_enforce(base, headers, cid, mode="write", allow_override=args.allow_enrolled)
+
+    # Review-first draft is the default: hold the assignment on MANUAL posting so what
+    # we write is visible in SpeedGrader but hidden from students until released
+    # (grader_post_policy.py --release). Fails closed if the policy can't be read.
+    if args.push and args.test_user is None and not (args.publish_now or args.post):
+        from grader_post_policy import ensure_review_hold
+        held_ok, held_msg = ensure_review_hold(base, cid, headers, args.assignment_id, ".canvas")
+        if not held_ok:
+            print(f"⛔ Could not hold grades for review: {held_msg}. Nothing was written. "
+                  "Fix the cause, or re-run with --publish-now to post straight to students.",
+                  file=sys.stderr)
+            return 1
+        print(f"📝 Draft mode: {held_msg}.")
 
     # --- roster-keyed comments (#269): reach students BY user_id, incl. non-submitters ---
     # The file-keyed .review.csv path can't see a student with no submission; this posts
@@ -2189,9 +2208,10 @@ def main() -> int:
             print(f"  ✅ Released grades to students {detail}" if ok
                   else f"  ⚠️  Post-grades FAILED {detail} — use the Gradebook 'Post grades' action.")
         else:
-            print(f"\n⚠️  MANUAL posting policy: the {pushed} grade(s) are ENTERED but NOT "
-                  "posted — students can't see them and the gradebook shows 'needs grading'. "
-                  "Release them via the Gradebook 'Post grades' action, or re-run with --post.")
+            print(f"\n📝 {pushed} grade(s) are ENTERED but NOT posted — students can't see them "
+                  "yet. Review in SpeedGrader, then release: "
+                  f"grader_post_policy.py --assignment-id {args.assignment_id} --release --apply "
+                  "(or the Gradebook 'Post grades' action). To abandon the draft: --restore --apply.")
 
     # Issue #226: a resubmission-after-grading can leave workflow_state stuck at
     # "submitted" even though the grade posted (Canvas doesn't always transition on

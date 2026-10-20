@@ -782,12 +782,22 @@ _CHECKPOINT_REASONS = {
         "a LIVE course. Approve only after reviewing the comments and the old→new grade "
         "preview the agent showed you. Allow = send; Deny = hold."
     ),
+    "release": (
+        "Release gate: this POSTS the held grades and comments to students on a LIVE "
+        "course — the moment they become visible. Approve only after you reviewed the "
+        "draft in SpeedGrader. Allow = students see it; Deny = keep it hidden."
+    ),
 }
 
 
 def _grader_push_checkpoint(cmd: str) -> str | None:
-    """Return 'push' or 'review' if this grader_push command is an AI-drafted
-    human-checkpoint moment, else None. --push wins if both flags are present."""
+    """Return 'push', 'review' or 'release' if this command is a human-checkpoint
+    moment, else None. --push wins if both flags are present. 'release' is
+    grader_post_policy --release --apply (a dry run posts nothing)."""
+    if "grader_post_policy" in cmd:
+        if re.search(r"--release\b", cmd) and re.search(r"--apply\b", cmd):
+            return "release"
+        return None
     if "grader_push" not in cmd:
         return None
     if any(re.search(re.escape(f) + r"\b", cmd)
