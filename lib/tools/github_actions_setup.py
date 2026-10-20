@@ -2,7 +2,8 @@
 """
 github_actions_setup.py — copy Canvas connection settings into GitHub Actions.
 
-Reads only the named values from a course repo's .env:
+Reads only the named values from a course repo's .env (CANVAS_API_TOKEN and
+CANVAS_BASE_URL fall back to ~/.canvas/config when the .env leaves them blank):
   CANVAS_API_TOKEN  -> GitHub Actions repository secret
   CANVAS_BASE_URL   -> GitHub Actions repository secret
   CANVAS_COURSE_ID  -> GitHub Actions repository variable
@@ -26,10 +27,13 @@ from pathlib import Path
 from dotenv import dotenv_values
 
 try:
-    from _env_loader import force_utf8_console
+    from _env_loader import _global_values, force_utf8_console
 except ImportError:
     def force_utf8_console() -> None:
         pass
+
+    def _global_values() -> tuple[dict, list[str]]:
+        return {}, []
 
 from __toolbox_version__ import __version__
 
@@ -43,7 +47,11 @@ def read_settings(path: Path) -> dict[str, str]:
         raw = dotenv_values(path)
     except OSError as exc:
         raise ValueError(f"cannot read {path}: {exc}") from exc
-    settings = {key: str(raw.get(key) or "").strip()
+    # The course .env wins; a blank token/base URL falls back to ~/.canvas/config
+    # (the per-user file the toolbox rotates the token in). The course id never does.
+    global_values, _ = _global_values()
+    settings = {key: str(raw.get(key) or (global_values.get(key) if key in SECRET_KEYS else "")
+                         or "").strip()
                 for key in (*SECRET_KEYS, *VARIABLE_KEYS)}
     missing = [key for key, value in settings.items() if not value]
     if missing:
@@ -103,8 +111,11 @@ def main() -> int:
 
     print(f"repository: {repo}")
     print(f"source: {args.env}")
-    print("secrets: CANVAS_API_TOKEN, CANVAS_BASE_URL")
-    print("variables: CANVAS_COURSE_ID")
+    env_values = dotenv_values(args.env)
+    for key in (*SECRET_KEYS, *VARIABLE_KEYS):
+        origin = str(args.env) if env_values.get(key) else "~/.canvas/config"
+        kind = "secret" if key in SECRET_KEYS else "variable"
+        print(f"{kind}: {key}  <- {origin}")
     if not args.apply:
         print("DRY RUN — re-run with --apply --yes to save these settings to GitHub.")
         return 0
