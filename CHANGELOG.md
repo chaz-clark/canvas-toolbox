@@ -13,6 +13,18 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`COURSE_AUDIENCE=faculty`: a documented setting for faculty-only courses enrolled under the Student role (#403).**
+
+A course whose participants are faculty still reports them to Canvas as student enrollments,
+so `canvas_course_guard` called them "enrolled students" and pointed at section-ID advice that
+doesn't apply. Set `COURSE_AUDIENCE=faculty` in the course's `.env` (documented in
+`.env.example`) and the guard explains the context instead: "Faculty-only course … the
+Student-role enrollments are faculty, not students. Write safeguards are unchanged." It is
+**wording only**: the verdict, the write refusal and `--allow-enrolled` are untouched —
+faculty-only never authorizes a write by itself — and a Blueprint child keeps the stock
+text because that risk is content propagation regardless of who is enrolled. 5 tests.
+Version 2.1.1.
+
 **`grader_push --push` is now a review-first draft by default (minor).**
 
 Pushing grades and comments to a live course now holds the assignment on MANUAL posting

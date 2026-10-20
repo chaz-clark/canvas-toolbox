@@ -177,3 +177,51 @@ def test_enforce_rejects_bad_mode(monkeypatch):
     _mock(monkeypatch, total_students=0)
     with pytest.raises(ValueError):
         enforce(_BASE, _HEADERS, _CID, mode="delete")
+
+
+# ---------------------------------------------------------------------------
+# COURSE_AUDIENCE=faculty — context only, never an authorization (#403)
+# ---------------------------------------------------------------------------
+
+
+def test_faculty_only_write_is_still_refused_without_override(monkeypatch, capsys):
+    monkeypatch.setenv("COURSE_AUDIENCE", "faculty")
+    _mock(monkeypatch, total_students=12, workflow_state="available")
+    with pytest.raises(SystemExit) as exc:
+        enforce(_BASE, _HEADERS, _CID, mode="write")
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "Faculty-only course" in err and "--allow-enrolled" in err
+    assert "S#_COURSE_ID" not in err          # the section-ID advice doesn't apply here
+
+
+def test_faculty_only_write_proceeds_only_with_the_override(monkeypatch, capsys):
+    monkeypatch.setenv("COURSE_AUDIENCE", "faculty")
+    _mock(monkeypatch, total_students=12, workflow_state="available")
+    enforce(_BASE, _HEADERS, _CID, mode="write", allow_override=True)
+    assert "proceeding with write despite" in capsys.readouterr().err
+
+
+def test_faculty_only_read_advisory_names_the_audience(monkeypatch, capsys):
+    monkeypatch.setenv("COURSE_AUDIENCE", "faculty")
+    _mock(monkeypatch, total_students=12, workflow_state="available")
+    enforce(_BASE, _HEADERS, _CID, mode="read")
+    err = capsys.readouterr().err
+    assert "Faculty-only course" in err and "S#_COURSE_ID" not in err
+
+
+def test_faculty_only_does_not_soften_a_blueprint_child(monkeypatch, capsys):
+    monkeypatch.setenv("COURSE_AUDIENCE", "faculty")
+    _mock(monkeypatch, total_students=12, subs=[{"id": 1}])
+    with pytest.raises(SystemExit) as exc:
+        enforce(_BASE, _HEADERS, _CID, mode="write")
+    assert exc.value.code == 2
+    assert "Faculty-only course" not in capsys.readouterr().err
+
+
+def test_default_audience_keeps_the_stock_message(monkeypatch, capsys):
+    monkeypatch.delenv("COURSE_AUDIENCE", raising=False)
+    _mock(monkeypatch, total_students=12, workflow_state="available")
+    enforce(_BASE, _HEADERS, _CID, mode="read")
+    err = capsys.readouterr().err
+    assert "S#_COURSE_ID" in err and "Faculty-only" not in err
