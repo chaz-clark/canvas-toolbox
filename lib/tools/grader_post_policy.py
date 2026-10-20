@@ -21,9 +21,9 @@ WHAT THIS DOES (it writes no grades and no comments)
   --restore   Put the policy back WITHOUT posting (abandon the draft). Hidden
               grades stay hidden; Canvas does not post them on a policy change.
 
-  The intended flow:
-      grader_post_policy.py --assignment-id N --hold    --apply
-      grader_push.py ... --mark-reviewed ... --push      # hidden from students
+  The intended flow (grader_push --push now holds first by default, via
+  ensure_review_hold(); --hold here is for holding by hand or ahead of time):
+      grader_push.py ... --mark-reviewed ... --push      # holds, then hidden from students
       (review in SpeedGrader)
       grader_post_policy.py --assignment-id N --release --apply
 
@@ -260,6 +260,30 @@ def do_hold(base, cid, headers, aid, spath, apply: bool) -> int:
     print("✓ Now MANUAL (verified). Grades and comments written from here stay "
           "hidden until --release.")
     return 0
+
+
+def ensure_review_hold(base, cid, headers, aid, state_dir) -> tuple[bool, str]:
+    """Make sure grades written next stay hidden from students (review-first draft).
+
+    Used by grader_push so a draft is the default, not something to remember.
+      AUTOMATIC -> switch to MANUAL (verified), record the old policy.
+      MANUAL    -> leave it; record "was manual" only if no hold is recorded yet.
+      unknown   -> FAIL CLOSED: if the policy can't be read, the push could be
+                   student-visible, so the caller must not write.
+    Returns (ok, message). ok=False means do not push."""
+    current = get_post_manually(base, cid, headers, aid)
+    if current is None:
+        return False, "could not read the posting policy"
+    spath = state_path(Path(state_dir), cid, aid)
+    if current is True:
+        if not read_state(spath):
+            write_state(spath, cid, aid, True)
+        return True, "already MANUAL — grades will stay hidden until released"
+    ok, err = _set_and_verify(base, cid, headers, aid, True)
+    if not ok:
+        return False, err
+    write_state(spath, cid, aid, False)
+    return True, "switched to MANUAL (was AUTOMATIC) — grades will stay hidden until released"
 
 
 def do_release(base, cid, headers, aid, spath, apply: bool) -> int:

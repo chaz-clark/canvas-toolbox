@@ -13,6 +13,24 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`grader_push --push` is now a review-first draft by default (minor).**
+
+Pushing grades and comments to a live course now holds the assignment on MANUAL posting
+first, so faculty see the work in SpeedGrader before students do. Previously an
+AUTOMATIC-policy assignment (the Canvas default) made everything student-visible the instant
+it was written. `grader_push` calls the new `grader_post_policy.ensure_review_hold()` before
+any write: AUTOMATIC is switched to MANUAL and verified by read-back (previous policy
+recorded in `.canvas/`), already-MANUAL is left alone, and an unreadable policy or a hold
+that doesn't stick **aborts the push with nothing written** (fail closed). Release with
+`grader_post_policy.py --release --apply`; abandon with `--restore --apply`. Opt out with
+`--publish-now` (or `--post`, which releases immediately) — an explicit instructor choice.
+`grade_guardian` now prompts the instructor to click before `--release --apply`, the one step
+that makes grades visible. `--release` is deliberately NOT added to `CONSTITUTIONAL_WRITERS`
+(it writes no grades or comments; the regression test would correctly reject the label).
+The end-of-push MANUAL-policy notice now reads as the expected next step, not a warning.
+Tests: 5 for `ensure_review_hold`, 4 for the `grader_push` wiring, 1 for the guardian prompt.
+Version 2.1.0.
+
 **`grader_post_policy.py`: review-first drafts — hold grades hidden, then release and restore.**
 
 `grader_push` on an AUTOMATIC posting policy (the Canvas default) makes every grade and
