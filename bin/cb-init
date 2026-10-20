@@ -12,4 +12,11 @@
 #   ln -s "$(pwd)/bin/cb-init" ~/.local/bin/cb-init
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec uv run --project "$HERE/.." python "$HERE/../lib/tools/cb_init.py" "$@"
+if command -v uv >/dev/null 2>&1; then
+  exec uv run --project "$HERE/.." python "$HERE/../lib/tools/cb_init.py" "$@"
+elif command -v python3 >/dev/null 2>&1; then
+  exec python3 "$HERE/../lib/tools/cb_init.py" "$@"
+else
+  echo "cb-init requires either uv or python3 to start." >&2
+  exit 127
+fi

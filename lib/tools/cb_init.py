@@ -174,10 +174,12 @@ def detect_course_context() -> tuple[Path, bool]:
         return REPO_ROOT, False
 
     # Common development folder names where standalone canvas-toolbox lives
-    dev_folders = {"GitHub", "github", "repos", "repositories", "projects", "src", "code", "dev", "Documents"}
+    dev_folders = {
+        "github", "repos", "repositories", "projects", "src", "code", "dev", "documents",
+    }
 
     parent = REPO_ROOT.parent
-    if parent.name in dev_folders:
+    if parent.name.lower() in dev_folders:
         # Standalone mode: ~/GitHub/canvas-toolbox or ~/Documents/GitHub/canvas-toolbox
         return REPO_ROOT, False
 

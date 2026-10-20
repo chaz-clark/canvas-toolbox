@@ -66,6 +66,23 @@ def test_guardian_hook_installed_when_vendored_toolkit_present(tmp_path):
 # detect_mode_from_remote
 # ---------------------------------------------------------------------------
 
+@pytest.mark.parametrize("parent_name", ["Repos", "repositories", "Documents", "GitHub"])
+def test_detect_course_context_treats_common_development_folders_as_standalone(
+    monkeypatch, tmp_path, parent_name,
+):
+    repo_root = tmp_path / parent_name / "canvas-toolbox"
+    monkeypatch.setattr(cb_init, "REPO_ROOT", repo_root)
+
+    assert cb_init.detect_course_context() == (repo_root, False)
+
+
+def test_detect_course_context_treats_course_parent_as_subdirectory(monkeypatch, tmp_path):
+    repo_root = tmp_path / "DS460" / "canvas-toolbox"
+    monkeypatch.setattr(cb_init, "REPO_ROOT", repo_root)
+
+    assert cb_init.detect_course_context() == (repo_root.parent, True)
+
+
 def test_detect_maintainer_ssh_remote():
     assert detect_mode_from_remote("git@github.com:chaz-clark/canvas-toolbox.git") == "maintainer"
 
@@ -318,6 +335,11 @@ def test_credentials_do_not_resolve_when_token_missing(monkeypatch, tmp_path):
     hazard test_env_loader.py documents)."""
     import _env_loader
     monkeypatch.setattr(_env_loader, "GLOBAL_CONFIG", tmp_path / "nope")
+    # load_env() also falls back to a __file__-anchored walk that finds the repo's own
+    # .env regardless of CWD — stub it out so a developer's populated .env can't
+    # satisfy the lookup either.
+    monkeypatch.setattr(_env_loader.Path, "exists", lambda self: False)
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
     monkeypatch.setenv("CANVAS_BASE_URL", "https://x.instructure.com")
     assert cb_init.credentials_already_resolve()[0] is False

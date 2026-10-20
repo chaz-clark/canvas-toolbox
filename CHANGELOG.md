@@ -13,6 +13,15 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`cb-init` bootstraps on a machine without `uv` and recognizes `~/Documents/Repos` as a development folder.**
+
+The `bin/cb-init` wrapper now falls back to `python3` when `uv` isn't on the PATH, and exits 127 with a
+plain message when neither exists. `detect_course_context` compared the parent folder name
+case-sensitively, so a toolkit checkout under `Repos/` was treated as living inside a course repo;
+the match is now case-insensitive. Also isolates `test_credentials_do_not_resolve_when_token_missing`
+from the developer's repo `.env` (it failed on any machine with a populated `.env`). 6 tests.
+Version 2.1.4.
+
 **`github_actions_setup.py` falls back to `~/.canvas/config` for a blank token or base URL.**
 
 The helper that saves Canvas settings as GitHub Actions secrets read only the course `.env`, so
