@@ -30,6 +30,7 @@ helper pattern.
 
 from __future__ import annotations
 
+import os
 import sys
 
 import requests
@@ -53,6 +54,21 @@ _SAFE_ALTERNATIVE = (
     "Sections belong in S#_COURSE_ID (S1_COURSE_ID, S2_COURSE_ID, …), "
     "not CANVAS_COURSE_ID."
 )
+
+# Some courses are for faculty (a training course, a cohort of instructors) but Canvas
+# enrolls the participants under the Student role. COURSE_AUDIENCE=faculty in the
+# course's .env tells the guard so its messages stop calling them students and stop
+# pointing at the section-ID advice. It is context ONLY: the verdict, the write refusal
+# and --allow-enrolled are unchanged — faculty-only never authorizes a write by itself.
+_FACULTY_AUDIENCE_NOTE = (
+    "Faculty-only course (COURSE_AUDIENCE=faculty): the Student-role enrollments are "
+    "faculty, not students. Write safeguards are unchanged."
+)
+
+
+def is_faculty_only() -> bool:
+    """True when the course's .env declares COURSE_AUDIENCE=faculty."""
+    return os.environ.get("COURSE_AUDIENCE", "").strip().lower() == "faculty"
 
 
 def check_course_safety(
@@ -154,10 +170,14 @@ def enforce(
 
     header = (f"⚠️  canvas_course_guard: {label} {course_id} ('{name}') "
               f"flagged as {verdict.replace('_', ' ')} — {reason_str}.")
+    # Faculty-only is context for a plain ENROLLED verdict. A Blueprint child is a
+    # content-propagation risk regardless of who is enrolled, so it keeps the stock text.
+    faculty = is_faculty_only() and verdict == ENROLLED
+    advice = _FACULTY_AUDIENCE_NOTE if faculty else _SAFE_ALTERNATIVE
 
     if mode == "read":
         print(header, file=sys.stderr)
-        print(f"    Read-only operation — proceeding with advisory. {_SAFE_ALTERNATIVE}",
+        print(f"    Read-only operation — proceeding with advisory. {advice}",
               file=sys.stderr)
         return
 
@@ -171,6 +191,6 @@ def enforce(
     print(f"🔴 canvas_course_guard: REFUSING WRITE to {label} {course_id} "
           f"('{name}').", file=sys.stderr)
     print(f"    Reason: {reason_str}.", file=sys.stderr)
-    print(f"    {_SAFE_ALTERNATIVE}", file=sys.stderr)
+    print(f"    {advice}", file=sys.stderr)
     print("    To override knowingly: re-run with --allow-enrolled.", file=sys.stderr)
     sys.exit(2)
