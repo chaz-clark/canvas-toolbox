@@ -13,6 +13,19 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**Grading runs on the instructor's own AI subscription — the `grading` skill now says so, and `grader_grade.py` points there (#402).**
+
+A faculty member on a FERPA-covered enterprise ChatGPT account asked the agent to grade
+de-identified submissions "without sending them to an AI provider," and it refused. The skill's
+step 1 sent it to `grader_grade.py`, which calls the Anthropic API (a vendor outside that
+agreement) and needs a key faculty don't have; the keyless session path was documented only in
+`canvas_grader.md`, so the agent read "grade it" as "use an external provider." The skill now
+has a "How grading runs" section: the session's agent *is* the grader (desktop app or IDE
+extension, no API key, data stays in the course folder), `grader_grade.py` is not for faculty,
+and "no AI provider" means no service beyond the session. `grader_grade.py` also names the
+keyless path when `ANTHROPIC_API_KEY` is missing and prints a startup note that it sends text to
+the API. Local-model grading stays unsupported. 2 tests. Version 2.1.2.
+
 **`COURSE_AUDIENCE=faculty`: a documented setting for faculty-only courses enrolled under the Student role (#403).**
 
 A course whose participants are faculty still reports them to Canvas as student enrollments,

@@ -142,6 +142,12 @@ except ImportError:
 # Provider abstraction (adjustment 1 — provider-agnostic interface)
 # ---------------------------------------------------------------------------
 
+_KEYLESS_NOTE = ("Faculty grading does not need this tool: the agent in your session "
+                 "(desktop app or IDE extension, on your own AI subscription) runs the "
+                 "grading passes itself and writes feedback/_grader<n>.csv. See the "
+                 "`grading` skill.")
+
+
 class GraderLLM:
     """Thin interface for an LLM that grades a single submission per call.
 
@@ -167,7 +173,7 @@ class AnthropicGraderLLM(GraderLLM):
             sys.exit(1)
         if not os.environ.get("ANTHROPIC_API_KEY"):
             print("ANTHROPIC_API_KEY not set in .env. The orchestrator needs it to make "
-                  "grading calls.", file=sys.stderr)
+                  f"grading calls. {_KEYLESS_NOTE}", file=sys.stderr)
             sys.exit(1)
         self.client = Anthropic()
         self.model = model
@@ -625,6 +631,8 @@ def main() -> int:
     print(f"Mode: {'single (calibration)' if single else f'bulk N={n_passes}'} · "
           f"{len(submissions)} submissions · provider={args.provider} model={args.model}"
           f"{label_info}{bts_info}")
+    print(f"NOTE: this tool sends submission text to the {args.provider} API, a separate "
+          f"vendor from your session's AI subscription. {_KEYLESS_NOTE}")
     print(f"Writing artifacts under: {feedback_dir}")
 
     # Wellbeing aggregation across ALL passes (union by (key, category)) — if pass 1
