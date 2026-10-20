@@ -8,6 +8,21 @@ description: Use for ANY grading work in a Canvas course — fetching submission
 Grading with AI is **decision support, not autonomy.** A human decides every grade
 that reaches a student. This skill is the operating manual for that discipline.
 
+## How grading runs — you are the grader, on the instructor's subscription
+
+Toolkit grading is done by **the agent in this session** (desktop app or an IDE
+extension, VS Code preferred) using the instructor's own AI subscription. There is no API
+key and no separate AI provider: the data stays in the course folder and is read by the
+session the instructor is already using. **That is the sanctioned path, not an egress
+to avoid.** If the instructor says "don't send this to an AI provider, just grade it,"
+they mean *no extra service beyond this session* — so grade it yourself; don't refuse.
+
+- **Don't run `grader_grade.py`.** It is an optional key-holder tool that sends text to the
+  Anthropic API, a different vendor from the session. Faculty don't use it.
+- **Local deterministic checks** (file present, fields filled, counts) need no AI at all —
+  script them over the de-identified files.
+- **A model running on the instructor's own machine** is not supported.
+
 ## Fresh data before any grading decision
 
 A grading decision is only as good as the data under it. A stale cache — a
@@ -59,8 +74,9 @@ flow yourself (never send the instructor to a terminal), and the instructor clic
 in-chat pop-up at TWO points: to attest the review, and to authorize the push. You
 cannot click either for them, and you cannot self-attest.
 
-1. **Grade** — `grader_fetch.py --challenge-dir grading/<name>` → 3-pass consensus
-   (`grader_grade.py --bulk` → `grader_consensus.py`). Single-pass LLM grading
+1. **Grade** — `grader_fetch.py --challenge-dir grading/<name>` → 3-pass consensus:
+   **you** run the three passes (see "How grading runs" below), each writing
+   `feedback/_grader<n>.csv`, then `grader_consensus.py`. Single-pass LLM grading
    drifts; consensus is the default.
 2. **Show the review surface in the conversation — mandatory, never skip it.** Present
    `feedback/_all_comments.md` + the per-student `<KEY>.md` and the **old→new grade
