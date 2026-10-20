@@ -102,6 +102,12 @@ gh pr create --title "Fix validation" --base main
 gh pr merge --squash --delete-branch
 ```
 
+**Merge from the CLI with `--delete-branch`.** GitHub deletes the remote branch on merge, but only
+`--delete-branch` also removes your local copy. Merging with the web button leaves the local branch
+behind, and a squash-merge rewrites the commit so `git branch --merged` won't flag it. Tidy up with
+`git fetch --prune`, then delete any local branch whose PR is merged (check the tip matches the PR
+head first). `git config --global fetch.prune true` keeps remote-tracking refs from piling up.
+
 ### Release Branches (Optional)
 
 Two patterns:
