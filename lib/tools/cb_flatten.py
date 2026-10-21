@@ -276,6 +276,23 @@ def _git(clone: Path, *args: str) -> str:
                           check=True).stdout
 
 
+def explain_pull_failure(stderr: str) -> str:
+    """Plain-language next step for a failed `git pull`, or "" if unrecognised.
+
+    Codex on Windows runs commands as a hidden sandbox account that can read the
+    repo but not write `.git` — so the pull dies on FETCH_HEAD though git and the
+    remote are fine. The fix is to re-run outside the sandbox, not to touch git.
+    """
+    low = stderr.lower()
+    if "permission denied" in low or "unable to create" in low \
+            or "unable to append" in low or "dubious ownership" in low:
+        return ("The update could not write to the toolkit folder (a file-permission "
+                "block, common when the AI tool runs in a restricted sandbox). Nothing "
+                "was changed. Re-run this same command with full access / outside the "
+                "sandbox — in Codex, approve the escalation prompt.")
+    return ""
+
+
 def manifest(clone: Path) -> set[str]:
     """The toolkit's own file list at the clone's current HEAD — this IS the
     ownership boundary. A path in here is toolkit-owned and replaceable; a path
@@ -1015,7 +1032,14 @@ def main() -> int:
     if args.pull:
         print(f"pulling {CLONE_DIR}/ …")
         if args.apply:
-            out = _git(clone, "pull", "--ff-only")
+            try:
+                out = _git(clone, "pull", "--ff-only")
+            except subprocess.CalledProcessError as e:
+                hint = explain_pull_failure(e.stderr or "")
+                if not hint:
+                    raise
+                print(f"  ✗ {hint}")
+                return 2
             print("  " + (out.strip().splitlines()[-1] if out.strip() else "pulled"))
         else:
             print("  (dry-run: not pulling)")

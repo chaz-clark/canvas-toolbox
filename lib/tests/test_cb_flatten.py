@@ -1276,3 +1276,13 @@ def test_ensure_pre_push_hook_skips_a_foreign_hook(tmp_path):
     hooks.mkdir(parents=True, exist_ok=True)
     (hooks / "pre-push").write_text("#!/bin/sh\necho mine\n", encoding="utf-8")
     assert cf.ensure_pre_push_hook(root, apply=True) == "skip-foreign"
+
+
+def test_pull_permission_failure_gets_plain_language_hint():
+    err = "error: cannot open '.git/FETCH_HEAD': Permission denied"
+    assert "full access" in cf.explain_pull_failure(err)
+    assert "dubious ownership" not in cf.explain_pull_failure(err)
+
+
+def test_unrecognised_pull_failure_gets_no_hint():
+    assert cf.explain_pull_failure("fatal: Could not resolve host") == ""
