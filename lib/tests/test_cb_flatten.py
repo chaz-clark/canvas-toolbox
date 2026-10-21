@@ -1286,3 +1286,9 @@ def test_pull_permission_failure_gets_plain_language_hint():
 
 def test_unrecognised_pull_failure_gets_no_hint():
     assert cf.explain_pull_failure("fatal: Could not resolve host") == ""
+
+
+def test_half_updated_notice_only_when_clone_was_pulled():
+    assert cf.half_updated_notice(False) == ""
+    note = cf.half_updated_notice(True)
+    assert "no files were copied" in note and "--apply" in note

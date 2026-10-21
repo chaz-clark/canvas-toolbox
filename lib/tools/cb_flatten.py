@@ -293,6 +293,20 @@ def explain_pull_failure(stderr: str) -> str:
     return ""
 
 
+def half_updated_notice(pulled: bool) -> str:
+    """Line explaining the state when consent refused AFTER the clone was pulled.
+
+    The pull runs before the consent check (the check needs the new manifest), so a
+    refusal leaves the hidden clone at the new version with nothing copied to the
+    course root. Re-running without --pull completes it once approval is given.
+    """
+    if not pulled:
+        return ""
+    return (f"Note: the hidden clone ({CLONE_DIR}/) was already updated, but no files "
+            "were copied to the course yet. Once approved, finish with: "
+            "uv run python lib/tools/cb_flatten.py --apply --approve <package-id>")
+
+
 def manifest(clone: Path) -> set[str]:
     """The toolkit's own file list at the clone's current HEAD — this IS the
     ownership boundary. A path in here is toolkit-owned and replaceable; a path
@@ -1029,6 +1043,7 @@ def main() -> int:
         print("  (dry-run: nothing else can be planned until the clone exists)")
         return 0
 
+    pulled = False
     if args.pull:
         print(f"pulling {CLONE_DIR}/ …")
         if args.apply:
@@ -1040,6 +1055,7 @@ def main() -> int:
                     raise
                 print(f"  ✗ {hint}")
                 return 2
+            pulled = True
             print("  " + (out.strip().splitlines()[-1] if out.strip() else "pulled"))
         else:
             print("  (dry-run: not pulling)")
@@ -1087,9 +1103,11 @@ def main() -> int:
             "\n🔴 capability growth needs approval before this can proceed — see "
             "NEEDS APPROVAL above.\n   AGENT: relay each summary to the instructor in "
             "chat. On their explicit yes, re-run with `--approve <package-id>` (or "
-            "`--approve-all`).\n   Nothing was written.",
+            "`--approve-all`).\n   Nothing was written to the course.",
             file=sys.stderr,
         )
+        if half_updated_notice(pulled):
+            print(half_updated_notice(pulled), file=sys.stderr)
         return 2
 
     counts = apply_sync(clone, root, to_copy, to_delete, args.apply, previously_owned=old)
