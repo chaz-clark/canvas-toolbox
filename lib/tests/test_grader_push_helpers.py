@@ -845,6 +845,35 @@ def test_validate_grade_letter_grade_rejects_invalid_letter():
         assert status == "invalid"
 
 
+def test_validate_grade_letter_grade_accepts_points_and_percent():
+    """#417: Canvas reads a bare number as points and "NN%" as a percentage on a
+    letter_grade assignment, then maps it through the attached grading scheme.
+    A custom scheme (grading_scheme_setup's performance-tiers preset) has no
+    letter names the validator knows, so numbers must be legal or it can never
+    be pushed to."""
+    for s in ("2.5", "2.0", "1.25", "0", "4", ".5", "62.5%", "100%", "+3"):
+        status, reason = validate_grade_for_grading_type(s, "letter_grade")
+        assert status == "ok", f"expected ok for {s!r}, got {status!r}: {reason}"
+
+
+def test_validate_grade_letter_grade_still_rejects_non_numbers():
+    """Widening to numbers must not widen to junk: nan/inf slip through float(),
+    so the check is a regex. Stray letters, scientific notation and
+    comma decimals stay refused."""
+    for s in ("nan", "inf", "-inf", "2.5.1", "abc", "%", "1e3", "2,5", "Solid!", "E"):
+        status, reason = validate_grade_for_grading_type(s, "letter_grade")
+        assert status == "invalid", f"expected invalid for {s!r}, got {status!r}"
+        assert "number / percent" in reason
+
+
+def test_validate_grade_letter_grade_sentinels_still_hold():
+    """A held/blank row is still a sentinel (not a push) and never reaches the
+    numeric branch."""
+    for s in ("", "(held)"):
+        status, _ = validate_grade_for_grading_type(s, "letter_grade")
+        assert status == "sentinel"
+
+
 def test_validate_grade_not_graded_refuses_everything():
     """grading_type=not_graded means Canvas refuses grades at the source
     of truth. Don't even try."""

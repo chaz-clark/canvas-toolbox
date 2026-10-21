@@ -13,6 +13,18 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`grader_push` accepts numeric / percent grades on `letter_grade` assignments (#417).**
+
+`validate_grade_for_grading_type` (#99) allowed only the 13 standard letters for a
+`letter_grade` assignment, so every score on a custom-scheme assignment was refused
+(`'2.5' is not a recognized letter grade`) — including the toolkit's own
+`grading_scheme_setup.py --preset performance-tiers`. Canvas reads a bare number as points and
+`NN%` as a percentage on a `letter_grade` assignment and maps the score through the attached
+scheme, so numbers are now legal there (regex, not `float()`, so `nan`/`inf` stay refused);
+junk like `E`, `P`, `2.5.1` and `1e3` is still refused. `grader_reidentify` reuses the same
+validator, so its earlier warning is fixed too. It failed safe (nothing reached Canvas), but
+blocked grading. Three new tests. Version 2.1.8.
+
 **`github_actions_setup.py` falls back to `~/.canvas/config` for a blank token or base URL.**
 
 The helper that saves Canvas settings as GitHub Actions secrets read only the course `.env`, so
