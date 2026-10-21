@@ -54,4 +54,15 @@ Tests for A use real temporary git repos (init-only, wrong remote, healthy clone
 
 ## Results
 
-_(fill in per row: date, platform, pass/fail, issue link)_
+_2026-10-21, scripted rows, real fixtures, branch `feat/clone-health-check` (#415)._
+
+| # | Mac | Windows 11 (Parallels, `prlctl exec` as SYSTEM) | Notes |
+|---|---|---|---|
+| 3 | pass | pass | `git init` folder -> `no-commits` + repair incl. `remote add origin`. Found + fixed: it used to read as DIRTY first ("inspect and reset it"); health check now runs before that. |
+| 4 | pass (no-origin) | pass (no-origin) | no-upstream covered by unit test (real temp repos) on both. |
+| 5 | unit test only | unit test only | #414 notice is tested as a helper; no end-to-end `main()` run with a real consent refusal yet. |
+| 7 | skip | pass | Reproduced "dubious ownership" for real; it was being misreported as `no-commits`. Added `unsafe-owner` status + `safe.directory` fix. |
+| 10 | full suite only | not run | Nested->flat migration not re-run on the VM this pass. |
+
+**Not run — need a real IDE session (you):** 1, 2, 6, 8, 9. The VM has no snapshots, so the
+clean no-Git snapshot for row 2 still has to be created.
