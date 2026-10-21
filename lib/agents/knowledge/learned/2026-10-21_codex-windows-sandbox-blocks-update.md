@@ -30,3 +30,13 @@ move — it holds `.env` (the Canvas token). Don't ask faculty to open a termina
 
 **If git is missing entirely.** Tell the agent to install Git for Windows
 (`winget install --id Git.Git -e`), then retry.
+
+## Follow-on: the toolkit folder was never a real clone (#415)
+
+The same colleague's next failure: "master has no upstream, no local commit". A real
+clone is on `main` tracking `origin/main`; `master` with no commits is what `git init`
+produces. Git was missing at install time, so the files arrived some other way (ZIP,
+copy) and were `git init`ed. `clone_health.py` now detects this (status `no-commits`,
+also `no-git`, `not-a-repo`, `no-origin`, `no-upstream`) and prints the repair; the
+README setup prompt says to install Git rather than substitute a ZIP or `git init`.
+The remote URL is deliberately not checked — adopters may use a private fork.

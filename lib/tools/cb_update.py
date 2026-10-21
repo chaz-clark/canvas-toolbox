@@ -48,6 +48,7 @@ except ImportError:
     __version__ = "0.0.0+unknown"
 
 from cb_init import detect_course_context, REPO_ROOT
+from clone_health import clone_health
 from sync_grading_protocol import inject_grading_pointer
 
 try:
@@ -716,6 +717,11 @@ def main() -> int:
         # hand-typed `cd`. Then re-exec the freshly-pulled tool (no --pull) so its
         # updated logic + pointer text apply this run, not next.
         toolkit_dir = course_root / toolkit_subdir
+        health, health_msg = clone_health(toolkit_dir)
+        if health != "ok":
+            print(f"🔴 {toolkit_subdir}/ cannot be updated ({health}): {health_msg}",
+                  file=sys.stderr)
+            return 2
         print(f"Pulling {toolkit_subdir}/ (the vendored toolkit) …")
         r = subprocess.run(["git", "-C", str(toolkit_dir), "pull", "--ff-only"],
                            capture_output=True, text=True)

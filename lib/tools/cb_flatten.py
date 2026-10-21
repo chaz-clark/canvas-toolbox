@@ -137,6 +137,7 @@ from cb_init import env_stub_content, smoke_test_canvas
 # alone (no cb_update.py run yet) had an AGENTS.md Claude Code would never read —
 # not just missing course content, the WHOLE constitution invisible at session
 # start. No circular import: cb_update.py does not import this module.
+from clone_health import clone_health
 from cb_update import CLAUDE_SHIM, install_claude_shim, plan_claude_shim
 
 from capability_consent import (
@@ -1031,6 +1032,15 @@ def main() -> int:
 
     root: Path = args.course_root
     clone = root / CLONE_DIR
+
+    if (clone / ".git").exists():
+        # Before ensure_clone: a `git init` folder reads as DIRTY (every file is
+        # untracked), and "inspect it, then reset it" doesn't say what is wrong.
+        health, health_msg = clone_health(clone)
+        if health != "ok" and (args.pull or health in ("no-git", "no-commits")):
+            print(f"\n🔴 {CLONE_DIR}/ cannot be updated ({health}): {health_msg}",
+                  file=sys.stderr)
+            return 2
 
     status = ensure_clone(root, args.remote, args.apply)
     print(f"hidden clone {CLONE_DIR}/: {status}")
