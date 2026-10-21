@@ -2009,10 +2009,15 @@ def _push_quiz(filepath: Path, meta: dict) -> bool:
         payload["shuffle_answers"] = data["shuffle_answers"]
     if "allowed_attempts" in data:
         payload["allowed_attempts"] = data["allowed_attempts"]
+    if "published" in data:
+        payload["published"] = data["published"]
     result = _put(f"/courses/{CANVAS_COURSE_ID}/quizzes/{canvas_id}", {
         "quiz": payload
     })
     if result.get("error"):
+        if data.get("published") is False and "unpublish" in result["error"].lower():
+            print("    ERROR (unpublish): Canvas refuses to unpublish a quiz that has "
+                  "student submissions — the quiz stays published.")
         print(f"    ERROR: {result['error']}")
         _hint_rebind(result["error"])
         return False

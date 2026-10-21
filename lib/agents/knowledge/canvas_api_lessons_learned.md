@@ -600,6 +600,14 @@ When building a new Canvas-touching tool, run through this checklist:
 
 **Provenance:** sandbox 427952, cloning the 427808 DS 250 sandbox, issue #367. Create then read-back showed the default group; the PATCH fixed it.
 
+### L33 — Classic quiz `published` must be in the quiz PUT; unpublish is refused once students have submitted
+
+**What Canvas does:** `PUT /courses/:cid/quizzes/:id` with `quiz[published]=true|false` publishes or unpublishes. A mirror that pushes only description/title/points/time/attempts and leaves `published` out returns `200` and changes nothing. Unpublishing a quiz with student submissions is rejected: `"Can't unpublish if there are student submissions"`.
+
+**Why it matters:** `canvas_sync --push` printed `OK` for a `"published": true` edit in a quiz JSON while the quiz stayed unpublished; students got "access denied". Read the quiz back (`GET /courses/:cid/quizzes/:id` → `published`) before reporting a publish as done.
+
+**Provenance:** found in course M119, issue #411; fixed in `_push_quiz`, which now sends `published` and names the unpublish refusal distinctly.
+
 ---
 
 ## References
