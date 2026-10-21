@@ -72,3 +72,16 @@ def test_no_commits_repair_adds_origin_when_missing(tmp_path):
     assert "remote add origin" in clone_health(d)[1]
     _git(d, "remote", "add", "origin", "https://example.com/x.git")
     assert "remote add origin" not in clone_health(d)[1]
+
+
+def test_dubious_ownership_is_not_reported_as_no_commits(tmp_path, monkeypatch):
+    """Real behaviour verified on Windows (repo owned by another user); a fake git
+    call stands in because a different-owner repo can't be made portably."""
+    import clone_health as ch
+    d = tmp_path / "tb"
+    (d / ".git").mkdir(parents=True)
+    ok = subprocess.CompletedProcess([], 0, "git version 2", "")
+    bad = subprocess.CompletedProcess([], 128, "", "fatal: detected dubious ownership in repository")
+    monkeypatch.setattr(ch, "_git", lambda p, *a: ok if a == ("--version",) else bad)
+    status, msg = ch.clone_health(d)
+    assert status == "unsafe-owner" and "safe.directory" in msg

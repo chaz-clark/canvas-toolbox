@@ -34,7 +34,7 @@ def _repair(p: str, has_origin: bool) -> str:
 
 def clone_health(path: Path) -> tuple[str, str]:
     """Return (status, message). status is "ok" or one of: no-git, not-a-repo,
-    no-commits, no-origin, no-upstream. message is "" when ok."""
+    no-commits, unsafe-owner, no-origin, no-upstream. message is "" when ok."""
     p = str(path)
     probe = _git(path, "--version")
     if probe is None or probe.returncode != 0:
@@ -44,6 +44,12 @@ def clone_health(path: Path) -> tuple[str, str]:
     if not (path / ".git").exists():
         return ("not-a-repo", f"{p} is not a git clone, so it cannot be updated. "
                 "Re-clone the toolkit; do not run `git init` over the files.")
+    if (r := _git(path, "rev-parse", "--git-dir")) is not None and r.returncode != 0 \
+            and "dubious ownership" in r.stderr:
+        return ("unsafe-owner", f"Git refuses {p} because it is owned by a different "
+                "Windows/OS user than the one running the update (\"dubious ownership\"). "
+                "Nothing is wrong with the files. If you trust this folder, run: "
+                f"git config --global --add safe.directory {path.as_posix()}")
     if (r := _git(path, "rev-parse", "--verify", "HEAD")) is None or r.returncode != 0:
         return ("no-commits", f"{p} is a git repo with no commits — it was set up with "
                 "`git init` (or an interrupted clone), not `git clone`, so there is nothing "
