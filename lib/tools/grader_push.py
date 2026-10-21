@@ -463,6 +463,9 @@ def extract_hold_token(feedback_file: str) -> str | None:
 # the integer rank. Two-character strings ("A-", "B+") are checked BEFORE
 # single-character strings so "A-" doesn't get split as "A" + extra. The map
 # is case-insensitive at lookup time.
+# A bare number ("2.5") or percent ("62.5%") as Canvas accepts it for posted_grade.
+_NUMERIC_GRADE_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)%?")
+
 _LETTER_GRADE_RANK: dict[str, int] = {
     "F":  0,
     "D-": 1, "D": 2, "D+": 3,
@@ -635,9 +638,18 @@ def validate_grade_for_grading_type(grade: str | None, grading_type: str | None)
     if gt == "letter_grade":
         if s.upper() in _LETTER_GRADE_RANK:
             return "ok", ""
+        # On a letter_grade assignment Canvas reads a bare number as POINTS and
+        # "NN%" as a percentage, then maps the score through whatever grading
+        # scheme is attached (the default one or a custom one such as
+        # grading_scheme_setup.py's performance-tiers preset). Refusing numbers
+        # made every custom-scheme assignment un-pushable (#417). Regex, not
+        # float(): float() would let "nan" / "inf" through.
+        if _NUMERIC_GRADE_RE.fullmatch(s):
+            return "ok", ""
         return "invalid", (
             f"{s!r} is not a recognized letter grade "
-            "(F / D- / D / D+ / C- / C / C+ / B- / B / B+ / A- / A / A+)"
+            "(F / D- / D / D+ / C- / C / C+ / B- / B / B+ / A- / A / A+) "
+            "or a number / percent (read as points / %)"
         )
     return "unknown_type", f"unrecognized grading_type {gt!r}; proceeding without validation"
 
