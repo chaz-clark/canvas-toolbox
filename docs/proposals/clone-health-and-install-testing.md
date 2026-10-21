@@ -60,9 +60,9 @@ _2026-10-21, scripted rows, real fixtures, branch `feat/clone-health-check` (#41
 |---|---|---|---|
 | 3 | pass | pass | `git init` folder -> `no-commits` + repair incl. `remote add origin`. Found + fixed: it used to read as DIRTY first ("inspect and reset it"); health check now runs before that. |
 | 4 | pass (no-origin) | pass (no-origin) | no-upstream covered by unit test (real temp repos) on both. |
-| 5 | unit test only | unit test only | #414 notice is tested as a helper; no end-to-end `main()` run with a real consent refusal yet. |
+| 5 | pass | not run | 2026-10-21, real run: clone pulled 2.1.5 -> 2.1.8, consent refused (rc 2), "clone already updated, no files copied" notice printed, 0 files copied to the course root. The notice's finish command (`--apply --approve`) refuses from a non-terminal and does not re-pull (as designed; #343/#413). |
 | 7 | skip | pass | Reproduced "dubious ownership" for real; it was being misreported as `no-commits`. Added `unsafe-owner` status + `safe.directory` fix. |
-| 10 | full suite only | not run | Nested->flat migration not re-run on the VM this pass. |
+| 10 | pass | not run | 2026-10-21: nested clone at v2.0.22 on `main` -> `migrate_nested_to_flat --apply` (295 copied, all verification checks green) -> `--finalize`; course-owned files (.env, course/) intact; migrated clone health = ok and tracks main; next `--pull` works. **Finding:** migration records no capability approvals, so the first `cb_flatten` update after it stops at NEEDS APPROVAL for every package (needs a real terminal). Design question, not changed here. A detached-HEAD fixture (tag checkout) also confirmed `no-upstream` on a real clone. |
 
-**Not run — need a real IDE session (you):** 1, 2, 6, 8, 9. The VM has no snapshots, so the
+**Not run — need a real IDE session (you):** 1, 2, 6, 8, 9. Rows 5 and 10 also still need a Windows VM run. The VM has no snapshots, so the
 clean no-Git snapshot for row 2 still has to be created.
