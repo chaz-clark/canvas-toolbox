@@ -83,6 +83,8 @@ Use the subscription you **already have** so you don't pay twice. In your IDE, o
 
 > *"Help me set up Canvas Toolbox for my Canvas course. Please clone https://github.com/chaz-clark/canvas-toolbox into this folder, run `cb-init` to bootstrap everything, and walk me through filling in my Canvas credentials when it pauses."*
 
+> 💡 **If setup stalls:** the assistant needs **Git** to clone. If Git isn't installed, have it install Git for you (Windows: `winget install --id Git.Git -e`; Mac: `xcode-select --install`) — don't let it download a ZIP or run `git init` instead, because that folder can't be updated later. If a command fails with a permissions error, tell the assistant to run it again with full access (outside the sandbox) and approve the prompt.
+
 That's it. `cb-init` is our one-command bootstrap — it installs `uv` and Python, writes a `.env` stub, syncs dependencies, smoke-tests your Canvas API token, and is **idempotent** (safe to re-run). You'll just need to provide three pieces of information when it asks:
 
 - **Course ID** — the number after `/courses/` in your Canvas course URL

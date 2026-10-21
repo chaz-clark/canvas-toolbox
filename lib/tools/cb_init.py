@@ -101,6 +101,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from clone_health import clone_health
+
 try:
     from _env_loader import force_utf8_console
 except ImportError:
@@ -1052,6 +1054,9 @@ def main() -> int:
     print("=== canvas-toolbox cb-init v" + __version__ + " ===")
     print("    cwd:       " + str(cwd))
     print("    repo root: " + str(REPO_ROOT))
+    health, health_msg = clone_health(REPO_ROOT)
+    if health != "ok":
+        print("    ⚠ toolkit clone: " + health + " — updates will fail. " + health_msg)
 
     # Mode resolution — an explicit --mode always wins (e.g. forcing adopter
     # mode while testing from a maintainer checkout); auto-detection is the
