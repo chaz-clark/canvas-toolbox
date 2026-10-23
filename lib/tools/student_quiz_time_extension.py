@@ -48,6 +48,13 @@ USAGE — dry-run by default (use --apply to actually write)
   uv run python lib/tools/student_quiz_time_extension.py \\
     --user-id 900001 --multiplier 1.25 --all-timed --apply
 
+  # ONE extra attempt on ONE quiz (no multiplier needed; works on untimed
+  # quizzes too). Canvas cannot delete a classic submission, so this is the
+  # only route. The quiz's score-keeping policy (highest vs latest) decides
+  # whether the old attempt still counts.
+  uv run python lib/tools/student_quiz_time_extension.py \\
+    --deid-code S-68BC40 --quiz-id 12345 --extra-attempts 1 --apply
+
 REQUIRES in .env: CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID
 
 Resolves SAS catalog keys: extra_time_1.5x, extra_time_2.0x
@@ -167,16 +174,27 @@ def resolve_user_id_from_master(master_path: Path, deid_code: str) -> int:
     )
 
 
-def build_extension_payload(user_id: int, extra_time_minutes: int) -> dict:
+def build_extension_payload(user_id: int,
+                            extra_time_minutes: int | None = None,
+                            extra_attempts: int | None = None,
+                            manually_unlocked: bool = False,
+                            extend_from_end_at: int | None = None) -> dict:
     """Build the POST body for a quiz extension.
 
     Canvas quirk: extensions are submitted as an array of objects, so
-    the form-encoded keys use [] suffix.
+    the form-encoded keys use [] suffix. Only fields that were asked for
+    are sent.
     """
-    return {
-        "quiz_extensions[][user_id]": user_id,
-        "quiz_extensions[][extra_time]": extra_time_minutes,
-    }
+    payload: dict = {"quiz_extensions[][user_id]": user_id}
+    if extra_time_minutes is not None:
+        payload["quiz_extensions[][extra_time]"] = extra_time_minutes
+    if extra_attempts is not None:
+        payload["quiz_extensions[][extra_attempts]"] = extra_attempts
+    if manually_unlocked:
+        payload["quiz_extensions[][manually_unlocked]"] = "true"
+    if extend_from_end_at is not None:
+        payload["quiz_extensions[][extend_from_end_at]"] = extend_from_end_at
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -249,9 +267,17 @@ def main() -> int:
     scope.add_argument("--quiz-id", type=int, help="ONE specific quiz id")
     scope.add_argument("--all-timed", action="store_true",
                        help="ALL classic quizzes that have a time limit")
-    ap.add_argument("--multiplier", type=float, required=True,
+    ap.add_argument("--multiplier", type=float,
                     help="time multiplier — 1.5 for 50%% extra time, "
                          "2.0 for double time, 1.25 for 25%% extra, etc.")
+    ap.add_argument("--extra-attempts", type=int, metavar="N",
+                    help="grant N extra attempts (requires --quiz-id)")
+    ap.add_argument("--manually-unlock", action="store_true",
+                    help="manually unlock the quiz for this student "
+                         "(requires --quiz-id)")
+    ap.add_argument("--extend-from-end-at", type=int, metavar="MINUTES",
+                    help="extend the student's time MINUTES past the quiz "
+                         "end date (requires --quiz-id)")
     ap.add_argument("--master", type=Path, default=_DEFAULT_MASTER,
                     help=f"deid master path (default {str(_DEFAULT_MASTER)!r})")
     ap.add_argument("--apply", action="store_true",
@@ -263,7 +289,21 @@ def main() -> int:
                     help="skip forcing recalculation (faster, but extensions may not take effect)")
     args = ap.parse_args()
 
-    if args.multiplier <= 1.0:
+    attempt_opts = (args.extra_attempts is not None or args.manually_unlock
+                    or args.extend_from_end_at is not None)
+    if args.multiplier is None and not attempt_opts:
+        print("ERROR: give --multiplier and/or one of --extra-attempts, "
+              "--manually-unlock, --extend-from-end-at.", file=sys.stderr)
+        return 2
+    if attempt_opts and not args.quiz_id:
+        print("ERROR: --extra-attempts / --manually-unlock / "
+              "--extend-from-end-at need --quiz-id (never course-wide).",
+              file=sys.stderr)
+        return 2
+    if args.extra_attempts is not None and args.extra_attempts < 1:
+        print("ERROR: --extra-attempts must be >= 1.", file=sys.stderr)
+        return 2
+    if args.multiplier is not None and args.multiplier <= 1.0:
         print(f"ERROR: --multiplier must be > 1.0 (got {args.multiplier}). "
               f"1.0 means no extension; use 1.5 or 2.0 for typical SAS asks.",
               file=sys.stderr)
@@ -292,11 +332,13 @@ def main() -> int:
         quizzes = fetch_timed_quizzes(base_url, course_id, token)
     else:
         one = fetch_quiz(base_url, course_id, args.quiz_id, token)
-        quizzes = filter_timed_quizzes([one])
+        # Attempt grants apply to untimed quizzes too.
+        quizzes = [one] if attempt_opts else filter_timed_quizzes([one])
 
     apply_ = "APPLY" if args.apply else "DRY-RUN"
-    print(f"student user_id={uid} | {len(quizzes)} timed quiz(zes) "
-          f"| multiplier {args.multiplier}x | {apply_}")
+    mult = f"multiplier {args.multiplier}x" if args.multiplier else "no time change"
+    print(f"student user_id={uid} | {len(quizzes)} quiz(zes) "
+          f"| {mult} | {apply_}")
 
     if not quizzes:
         print("No timed quizzes matched. Nothing to do.")
@@ -307,21 +349,36 @@ def main() -> int:
     for q in quizzes:
         qid = q["id"]
         tl = q.get("time_limit")
-        extra = compute_extra_minutes(tl, args.multiplier)
-        if extra is None or extra <= 0:
-            print(f"  [SKIP] quiz {qid}: no time_limit or multiplier <= 1.0")
-            continue
+        extra = None
+        if args.multiplier is not None:
+            extra = compute_extra_minutes(tl, args.multiplier)
+            if (extra is None or extra <= 0) and not attempt_opts:
+                print(f"  [SKIP] quiz {qid}: no time_limit or multiplier <= 1.0")
+                continue
+            if extra is not None and extra <= 0:
+                extra = None
         title = q.get("title", "")[:40]
+        parts = []
+        if extra:
+            parts.append(f"+{extra} min")
+        if args.extra_attempts is not None:
+            parts.append(f"+{args.extra_attempts} attempt(s)")
+        if args.manually_unlock:
+            parts.append("manually unlocked")
+        if args.extend_from_end_at is not None:
+            parts.append(f"{args.extend_from_end_at} min from end_at")
+        what = ", ".join(parts) or "nothing"
         if not args.apply:
-            print(f"  [DRY] quiz {qid} ({title}): "
-                  f"would add {extra} min (base {tl} min × {args.multiplier})")
+            print(f"  [DRY] quiz {qid} ({title}): would grant {what}")
             continue
-        payload = build_extension_payload(uid, extra)
+        payload = build_extension_payload(
+            uid, extra, args.extra_attempts, args.manually_unlock,
+            args.extend_from_end_at)
         code, body = post_extension(base_url, course_id, qid, payload, token)
         ok = "OK " if code in (200, 201) else "FAIL"
         if code not in (200, 201):
             fails += 1
-        print(f"  [{ok}] quiz {qid} ({title}): +{extra} min (HTTP {code})")
+        print(f"  [{ok}] quiz {qid} ({title}): {what} (HTTP {code})")
 
         # Track assignment_id for graded quizzes (needed for recalc)
         if code in (200, 201) and q.get("assignment_id"):
