@@ -134,10 +134,11 @@ items 4–5 candidate, Tier 2, M–L.**
    `workflow_state: completed` at 100% but the resulting file was never written
    (filed upstream as instructure/canvas-lms#2663). Blocked on Canvas, not
    further toolkit work.
-4. **Accommodations (M).** Still unbuilt. Guarded course-level and quiz-level
+4. **Accommodations (M).** Partly built. Guarded course-level and quiz-level
    tools for extra time, extra attempts, reduced answer choices, and optional
    application to in-progress sessions on New Quizzes specifically — today,
-   `student_quiz_time_extension.py` only covers Classic quizzes; New Quiz
+   `student_quiz_time_extension.py` covers Classic quizzes only (extra time, and
+   per-quiz extra attempts / manual unlock since #421); New Quiz
    per-student time extensions are still Moderation-UI-only (see README's
    "Note on New Quizzes (LTI)"). Per-student Canvas writing — must use the
    accommodations workflow and explicit scope confirmation.
