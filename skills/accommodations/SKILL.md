@@ -27,6 +27,7 @@ Output discipline: ✅ "Applied 1.5× time for deid_code S-68BC40" · ❌ "…fo
 | Intervention | Tool |
 |---|---|
 | Quiz time extension (e.g. 1.5× / 2× on timed quizzes) | `student_quiz_time_extension.py --deid-code <code> --multiplier 1.5 --all-timed --apply` |
+| Extra quiz attempt / manual unlock (one quiz) | `student_quiz_time_extension.py --deid-code <code> --quiz-id <id> --extra-attempts 1 [--manually-unlock] [--extend-from-end-at <min>] --apply` — Canvas can't delete a classic submission; check the quiz's score-keeping policy (highest vs latest) to know whether the old attempt still counts |
 | Late-work grace / reopen past-due assignments | `student_late_accommodation.py --deid-code <code> --from-days-ago 14 --apply` |
 | SAS / disability-office accommodation dispatcher (processes letters) | `apply_sas_accommodations.py --apply` |
 | Exempt a student from an assignment by date | `exempt_by_date.py …` |

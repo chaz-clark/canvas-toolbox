@@ -13,6 +13,12 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`student_quiz_time_extension` can grant extra attempts (#421).** New `--extra-attempts N`,
+`--manually-unlock`, `--extend-from-end-at MINUTES` (same `/extensions` endpoint). They
+require `--quiz-id` (never course-wide), work on untimed quizzes, and `--multiplier` is now
+optional when one of them is given. `accommodations` skill documents the highest-vs-latest
+score-keeping caveat.
+
 **`grader_push` accepts numeric / percent grades on `letter_grade` assignments (#417).**
 
 `validate_grade_for_grading_type` (#99) allowed only the 13 standard letters for a

@@ -175,3 +175,31 @@ def test_payload_canvas_array_syntax():
     payload = build_extension_payload(user_id=1, extra_time_minutes=30)
     for key in payload:
         assert "[]" in key, f"missing array syntax in key: {key}"
+
+
+# ---------------------------------------------------------------------------
+# build_extension_payload — attempt / unlock / end_at options (#421)
+# ---------------------------------------------------------------------------
+
+def test_payload_time_only_unchanged():
+    assert build_extension_payload(7, 30) == {
+        "quiz_extensions[][user_id]": 7,
+        "quiz_extensions[][extra_time]": 30,
+    }
+
+
+def test_payload_extra_attempts_only_omits_extra_time():
+    p = build_extension_payload(7, extra_attempts=1)
+    assert p == {
+        "quiz_extensions[][user_id]": 7,
+        "quiz_extensions[][extra_attempts]": 1,
+    }
+
+
+def test_payload_all_options():
+    p = build_extension_payload(7, 30, extra_attempts=2,
+                                manually_unlocked=True, extend_from_end_at=60)
+    assert p["quiz_extensions[][extra_attempts]"] == 2
+    assert p["quiz_extensions[][manually_unlocked]"] == "true"
+    assert p["quiz_extensions[][extend_from_end_at]"] == 60
+    assert p["quiz_extensions[][extra_time]"] == 30
