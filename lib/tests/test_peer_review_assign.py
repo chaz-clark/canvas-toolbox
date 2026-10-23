@@ -195,3 +195,34 @@ def test_unreadable_canvas_data_changes_nothing(monkeypatch, capsys):
     c.get_all = lambda ep, params=None: None if ep.endswith("/enrollments") else real(ep, params)
     rc, canvas, out = _run(monkeypatch, capsys, ["--apply"], c)
     assert rc == 1 and canvas.posts == [] and "Nothing was changed" in out.out
+
+
+def test_format_group_sets_lists_id_name_and_signup_style():
+    cats = [{"id": 7, "name": "Pods", "self_signup": "enabled"},
+            {"id": 9, "name": "Teams", "self_signup": None}, "junk", {"name": "no id"}]
+    assert pra.format_group_sets(cats) == [
+        "  7  Pods  (self sign-up)", "  9  Teams  (instructor-assigned)"]
+
+
+# ---------------------------------------------------------------------------
+# --only-user-ids (#424): late submitters
+# ---------------------------------------------------------------------------
+
+def test_only_users_pairs_just_the_selected_student_both_ways():
+    groups = {1: [1, 2, 3], 2: [4, 5]}
+    out = plan_pairs(groups, {1, 2, 3, 4, 5}, _subs(1, 2, 3, 4, 5), set(),
+                     only_users={3})
+    assert {(r, e) for r, e, _ in out["create"]} == {(3, 1), (3, 2), (1, 3), (2, 3)}
+    assert out["counts"]["selected_not_in_groups"] == 0
+
+
+def test_only_users_skips_pairs_between_other_groupmates():
+    out = plan_pairs({1: [1, 2, 3]}, {1, 2, 3}, _subs(1, 2, 3), set(), only_users={3})
+    assert (1, 2) not in {(r, e) for r, e, _ in out["create"]}
+
+
+def test_only_users_leaves_existing_pairs_and_other_groups_alone():
+    out = plan_pairs({1: [1, 2], 2: [3, 4]}, {1, 2, 3, 4}, _subs(1, 2, 3, 4),
+                     {(1, 2)}, only_users={2})
+    # (1,2) already exists so only the missing reverse is made; group 2 is untouched
+    assert {(r, e) for r, e, _ in out["create"]} == {(2, 1)}

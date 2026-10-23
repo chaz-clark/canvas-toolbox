@@ -13,6 +13,19 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`peer_review_assign.py --only-user-ids` for late submissions (#424).** Creates only the
+missing pairs involving the named students (they review their groupmates, groupmates review
+them); other groups and pairs are untouched. Counts-only output and the dry-run /
+`--apply --allow-enrolled` gates are unchanged.
+
+**`grade_guardian` no longer blocks read-only use of toolkit scripts; `peer_review_assign.py --list-group-sets` (#423).**
+The run-catch exempted toolkit scripts only when the `*.py` token's TEXT contained
+`/lib/tools/`, so a bare `peer_review_assign.py` (a mention, or a shell sitting in
+`lib/tools/`) was read, matched its legitimate submission-comment write, and denied as
+"writes grades directly". It now exempts by where the file RESOLVES — an identically named
+script outside `lib/tools/` is still blocked. New read-only `--list-group-sets` finds the
+`--group-set-id` without scripting.
+
 **`student_quiz_time_extension` can grant extra attempts (#421).** New `--extra-attempts N`,
 `--manually-unlock`, `--extend-from-end-at MINUTES` (same `/extensions` endpoint). They
 require `--quiz-id` (never course-wide), work on untimed quizzes, and `--multiplier` is now

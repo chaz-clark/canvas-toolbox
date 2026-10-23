@@ -799,3 +799,24 @@ def test_asks_on_release_apply_but_not_on_dry_run_hold_or_status():
     for cmd in (f"{base} --release", f"{base} --status", f"{base} --hold --apply",
                 f"{base} --restore --apply"):
         assert ask_reason("Bash", {"command": cmd}) is None, cmd
+
+
+def test_run_catch_exempts_bare_name_resolving_into_lib_tools(tmp_path, monkeypatch):
+    """#423: a bare `peer_review_assign.py` (a mention, or a shell sitting in
+    lib/tools/) has no `/lib/tools/` in its text but resolves INTO the reviewed
+    tooling — whose body legitimately carries Canvas writes. Exempt by where it
+    resolved, not by how it was spelled."""
+    tools = tmp_path / "lib" / "tools"
+    tools.mkdir(parents=True)
+    (tools / "peer_review_assign.py").write_text(_BYPASS_BODY, encoding="utf-8")
+    monkeypatch.chdir(tools)
+    assert evaluate("Bash", {"command": "python -I - <<'EOF'\n"
+                    "# read-only, uses peer_review_assign.py helpers\nEOF"}) is None
+
+
+def test_run_catch_still_denies_same_body_outside_lib_tools(tmp_path, monkeypatch):
+    """The #423 exemption is the location, never the filename: an identically
+    named bypass outside lib/tools/ is still blocked."""
+    (tmp_path / "peer_review_assign.py").write_text(_BYPASS_BODY, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert evaluate("Bash", {"command": "python peer_review_assign.py"}) is not None
