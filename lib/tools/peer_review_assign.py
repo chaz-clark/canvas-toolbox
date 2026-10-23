@@ -36,11 +36,18 @@ LIVE COURSES
   explicitly asks for `--allow-enrolled`.
 
 Usage:
+  # find the --group-set-id (read-only; set names and counts, never students)
+  uv run python lib/tools/peer_review_assign.py --list-group-sets
+
   # dry run (default) — counts only
   uv run python lib/tools/peer_review_assign.py --title "Prep ratings" --group-set-id 123
 
   # write the pairings
   uv run python lib/tools/peer_review_assign.py --title ... --group-set-id 123 --apply
+
+  # late submitters only: pair just the missing reviews involving these students
+  uv run python lib/tools/peer_review_assign.py --title ... --group-set-id 123 \\
+    --only-user-ids 111,222 --apply
 
 Requires in .env: CANVAS_API_TOKEN, CANVAS_BASE_URL, and the env var named by
 --target (default CANVAS_COURSE_ID).
@@ -133,19 +140,23 @@ def _post(endpoint: str, form: dict) -> tuple[bool, str]:
 
 def plan_pairs(groups: dict[int, list[int]], eligible: set[int],
                submissions: dict[int, dict], existing: set[tuple[int, int]],
-               include_unsubmitted: bool = False) -> dict:
+               include_unsubmitted: bool = False,
+               only_users: set[int] | None = None) -> dict:
     """Decide which (reviewer, reviewee) pairs to create.
 
     groups       group id -> member user ids
     eligible     active student user ids; other members are left out
     submissions  user id -> {"id": submission id, "workflow_state": str}
     existing     (reviewer id, reviewee id) pairs Canvas already has
+    only_users   if given, create only pairs where one side is one of these users
+                 (late submitters: they review groupmates, groupmates review them)
 
     Returns {"create": [(reviewer, reviewee, submission_id)], "counts": {...}}."""
     create: list[tuple[int, int, int]] = []
     wanted: set[tuple[int, int]] = set()
     c: Counter = Counter()
     c["groups"] = len(groups)
+    found: set[int] = set()
 
     for members in groups.values():
         kept = sorted({m for m in members if m in eligible})
@@ -154,6 +165,10 @@ def plan_pairs(groups: dict[int, list[int]], eligible: set[int],
         if len(kept) < 2:
             c["groups_too_small"] += 1
             continue
+        if only_users is not None:
+            found |= only_users & set(kept)
+            if not only_users & set(kept):
+                continue          # nobody selected here — leave the group alone
         for reviewee in kept:
             sub = submissions.get(reviewee)
             if not sub or not sub.get("id"):
@@ -165,12 +180,16 @@ def plan_pairs(groups: dict[int, list[int]], eligible: set[int],
             for reviewer in kept:
                 if reviewer == reviewee:
                     continue
+                if only_users is not None and not {reviewer, reviewee} & only_users:
+                    continue
                 wanted.add((reviewer, reviewee))
                 if (reviewer, reviewee) in existing:
                     c["already_paired"] += 1
                 else:
                     create.append((reviewer, reviewee, sub["id"]))
     c["to_create"] = len(create)
+    if only_users is not None:
+        c["selected_not_in_groups"] = len(only_users - found)
     c["existing_outside_groups"] = len(existing - wanted)
     return {"create": create, "counts": dict(c)}
 
@@ -188,6 +207,7 @@ _LABELS = (
     ("groups_too_small", "groups skipped (fewer than 2 eligible members)"),
     ("reviewees_not_submitted_yet", "reviewees skipped (not submitted yet)"),
     ("reviewees_without_submission_record", "reviewees skipped (no submission record)"),
+    ("selected_not_in_groups", "selected students not in any group with a groupmate"),
     ("already_paired", "pairs already in Canvas"),
     ("existing_outside_groups", "existing pairs not in the current groups (left as is)"),
     ("to_create", "pairs to create"),
@@ -211,6 +231,13 @@ def find_assignment(course_id: str, title: str) -> dict | None:
     return None
 
 
+def format_group_sets(cats: list) -> list[str]:
+    """One line per group set: id, name, sign-up style. Set names only — no student data."""
+    return [f"  {c['id']}  {c.get('name')}"
+            f"  ({'self sign-up' if c.get('self_signup') else 'instructor-assigned'})"
+            for c in cats if isinstance(c, dict) and c.get("id")]
+
+
 def main() -> int:
     force_utf8_console()  # #123
 
@@ -218,14 +245,21 @@ def main() -> int:
         description="Pair every group member as a peer reviewer of their groupmates.")
     ap.add_argument("--version", action="version",
                     version=f"canvas-toolbox {__version__}")
-    which = ap.add_mutually_exclusive_group(required=True)
+    which = ap.add_mutually_exclusive_group()
     which.add_argument("--assignment-id", type=int, help="The peer-review assignment")
     which.add_argument("--title", help="Its exact title")
-    ap.add_argument("--group-set-id", type=int, required=True,
+    ap.add_argument("--group-set-id", type=int,
                     help="Group set whose groups define who reviews whom")
+    ap.add_argument("--list-group-sets", action="store_true",
+                    help="Read-only: list this course's group sets (to find --group-set-id) "
+                         "and exit")
     ap.add_argument("--include-unsubmitted", action="store_true",
                     help="Also pair reviewees who have not submitted (Canvas documents "
                          "pairing after submission; behavior before that is untested)")
+    ap.add_argument("--only-user-ids", metavar="ID,ID",
+                    help="Late submissions: create only the missing pairs involving these "
+                         "Canvas user ids (they review their groupmates, groupmates "
+                         "review them); everyone else is left alone")
     ap.add_argument("--target", default="CANVAS_COURSE_ID",
                     help="Env var holding the course id (default CANVAS_COURSE_ID)")
     ap.add_argument("--course-id", default=None, help="Literal course id; overrides --target")
@@ -234,6 +268,19 @@ def main() -> int:
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Proceed even if the course has enrolled students")
     args = ap.parse_args()
+    if not args.list_group_sets and not (
+            (args.assignment_id or args.title) and args.group_set_id):
+        ap.error("--assignment-id/--title and --group-set-id are required "
+                 "(or use --list-group-sets)")
+
+    only_users = None
+    if args.only_user_ids is not None:
+        try:
+            only_users = {int(x) for x in args.only_user_ids.split(",") if x.strip()}
+        except ValueError:
+            only_users = set()
+        if not only_users:
+            ap.error("--only-user-ids takes comma-separated numeric Canvas user ids")
 
     if not CANVAS_API_TOKEN or not CANVAS_BASE_URL:
         print("ERROR: CANVAS_API_TOKEN and CANVAS_BASE_URL must be set.")
@@ -244,6 +291,15 @@ def main() -> int:
         print(f"ERROR: course ID not found via {source}.")
         print("       Set the env var, or pass --course-id <id> directly.")
         return 2
+
+    if args.list_group_sets:
+        cats = _get_all(f"/courses/{course_id}/group_categories")
+        if not isinstance(cats, list):
+            print("ERROR: could not read the course's group sets from Canvas.")
+            return 1
+        print(f"Group sets in course {course_id}:")
+        print("\n".join(format_group_sets(cats)) or "  (none)")
+        return 0
 
     guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=course_id,
                   mode="write" if args.apply else "read",
@@ -292,7 +348,7 @@ def main() -> int:
     submissions = {s["user_id"]: {"id": s.get("id"), "workflow_state": s.get("workflow_state")}
                    for s in subs if isinstance(s, dict) and s.get("user_id")}
     plan = plan_pairs(groups, eligible, submissions, existing_pairs(reviews),
-                      args.include_unsubmitted)
+                      args.include_unsubmitted, only_users)
     counts = plan["counts"]
 
     print(f"Peer review pairing: {assignment.get('name')}"

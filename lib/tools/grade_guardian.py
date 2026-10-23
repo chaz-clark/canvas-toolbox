@@ -621,11 +621,9 @@ def _extract_script_paths(cmd: str) -> list:
     return list(dict.fromkeys(_SCRIPT_TOKEN.findall(cmd)))
 
 
-def _read_script(path: str) -> str:
-    """Best-effort read of a script the command executes, so the run-catch can see a
-    Canvas write hidden INSIDE the file. Resolves a relative path against
-    CLAUDE_PROJECT_DIR and CWD. Returns "" on any failure — fail OPEN, never brick a
-    session because a path didn't resolve."""
+def _resolve_script(path: str) -> str | None:
+    """The first existing file `path` names — as given, then against
+    CLAUDE_PROJECT_DIR and CWD. None if it doesn't resolve."""
     import os
     tried = []
     for base in ("", os.environ.get("CLAUDE_PROJECT_DIR") or "", os.getcwd()):
@@ -633,12 +631,23 @@ def _read_script(path: str) -> str:
         if c in tried:
             continue
         tried.append(c)
-        try:
-            with open(c, "r", encoding="utf-8", errors="ignore") as fh:
-                return fh.read(_MAX_SCRIPT_BYTES)
-        except (OSError, ValueError):
-            continue
-    return ""
+        if os.path.isfile(c):
+            return os.path.abspath(c)
+    return None
+
+
+def _read_script(path: str) -> str:
+    """Best-effort read of a script the command executes, so the run-catch can see a
+    Canvas write hidden INSIDE the file. Returns "" on any failure — fail OPEN, never
+    brick a session because a path didn't resolve."""
+    c = _resolve_script(path)
+    if not c:
+        return ""
+    try:
+        with open(c, "r", encoding="utf-8", errors="ignore") as fh:
+            return fh.read(_MAX_SCRIPT_BYTES)
+    except (OSError, ValueError):
+        return ""
 
 
 def _redirect(what: str) -> str:
@@ -711,6 +720,12 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
         for script in _extract_script_paths(cmd):
             if "/lib/tools/" in ("/" + script.replace("\\", "/")):
                 continue  # the reviewed tooling — running it is the safe path
+            # A bare `peer_review_assign.py` (a mention, or a shell sitting in
+            # lib/tools/) has no `/lib/tools/` in its TEXT but resolves INTO the
+            # reviewed tooling — same exemption, judged by where it resolved (#423).
+            resolved = _resolve_script(script)
+            if resolved and "/lib/tools/" in resolved.replace("\\", "/"):
+                continue
             body = _code_only(_read_script(script))   # prose is not executable (#297)
             if body and _WRITE_VERB.search(body) and _CANVAS_CTX.search(body):
                 return _redirect(f"running {script} — it writes grades to Canvas directly")
