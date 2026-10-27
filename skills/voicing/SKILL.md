@@ -96,6 +96,29 @@ or more course profiles repeating the same rules — offer to promote:
 
 Never promote a rule that names a course, tier, assignment type, or tool.
 
+## Learn from edits
+
+The voice is learned, not written once. After the instructor edits drafted comments and
+the edits are synced back (the roundtrip in `grader_voice_knowledge.md` §4), do step 4
+yourself — don't leave it for someone to remember:
+
+1. Compare the drafts to the instructor's edited text and extract **patterns**: words they
+   cut, phrasings they shortened, structure they always changed, a dial that moved.
+2. Decide the layer for each:
+   - Only makes sense for this course (a tier frame, an opener, an assignment shape) →
+     `grading/FEEDBACK_VOICE.md`.
+   - Would hold in any course (a banned word, a tone shift) → `~/.canvas/FEEDBACK_VOICE.md`.
+   - Unsure → the course file; when the same pattern shows up in a second course's
+     edits, promote it (see above).
+3. **Show the instructor each proposed addition and write it only once they agree.** The
+   voice shapes what students read, so nothing is recorded silently.
+
+Record the **pattern, never the evidence.** A voice file is committed or kept in a home
+directory, so no student name, user_id, score or quoted student text goes into it — write
+"cut 'leverage'", not the comment it came from. Learned voice belongs in the voice files,
+not in the course `AGENTS.md` learning section, where it would be stranded in prose and
+never reach the next comment.
+
 ## Where this plugs in
 
 - **Grading feedback** (`grader_push` comments, `grader_letter_comments` End-Letter
