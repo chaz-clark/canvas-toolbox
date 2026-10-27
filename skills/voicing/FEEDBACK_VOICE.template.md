@@ -7,6 +7,10 @@ rules + real examples, not abstractions. Zone-1: it's the instructor's voice, NO
 student PII, so it's safe to commit — but keep student names OUT of the examples.
 Derived from the shared structure of the DS250 / ITM327 / DS460 voice files.
 Delete these comments as you fill it in.
+
+If the instructor has a ~/.canvas/FEEDBACK_VOICE.md (see INSTRUCTOR_VOICE.template.md),
+this file holds ONLY what differs for this course — don't restate their shared rules;
+the course layer overrides the instructor layer where they conflict.
 -->
 
 ## Framing — where this voice comes from

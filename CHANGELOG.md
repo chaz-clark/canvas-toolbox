@@ -13,6 +13,14 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`voicing` loads a two-layer voice: instructor + course (2.2.0).** The same dial settings,
+banned phrases and poka-yoke were copy-pasted across the DS250 / ITM327 / DS460 profiles.
+The skill now reads `~/.canvas/FEEDBACK_VOICE.md` (the instructor layer, new
+`INSTRUCTOR_VOICE.template.md`) first, then the course's `grading/FEEDBACK_VOICE.md`, which
+wins on conflict; either alone still works. Adds a "promote shared rules" step so the
+agent moves the repeated sections up for the instructor. The file is deliberately not
+`~/.canvas/config`, which stays credentials-only.
+
 **`cb_report_bug` redacts Windows home paths (#429).** The bundled cwd leaked `C:\Users\<name>` because only `/Users` and `/home` were handled, and `getpass` isn't the profile owner under the Codex sandbox. Also documents the Codex-on-Windows network + `UV_CACHE_DIR` prerequisites (learned note + README).
 
 **`peer_review_assign.py --only-user-ids` for late submissions (#424).** Creates only the

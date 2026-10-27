@@ -31,15 +31,31 @@ full names. The test is necessity for navigation, not convenience: if removing i
 wouldn't make the artifact harder to find, it isn't scaffolding. It lives under an
 already-gitignored path. See the constitution's FERPA section for the full rule.
 
-## Find the profile (check, in order)
+## Find the profile — two layers
 
-1. **`grading/FEEDBACK_VOICE.md`** — the canonical location (what DS250 / ITM327 use)
-2. `grading/tasks/feedback_voice*.md` or `agents/knowledge/student_feedback_voice*.md`
+A voice has two parts, and they live in two places:
+
+| Layer | Location | Holds |
+|---|---|---|
+| **Instructor** | `~/.canvas/FEEDBACK_VOICE.md` | What stays true across every course the instructor teaches: core principles, dial settings, banned jargon and phrases, the "never recite scores" and poka-yoke rules |
+| **Course** | `grading/FEEDBACK_VOICE.md` | Only what differs for this course: comment shapes per assignment type, template openers, tier names, course-specific rules and examples |
+
+**Load both, instructor first, then the course.** Where they conflict the **course wins**
+— it overrides, it doesn't silently merge. If only one exists, use it alone: a course
+profile that stands by itself (the DS250 / ITM327 / DS460 style) is still valid, so a
+fresh clone or a TA on another machine isn't left without a voice.
+
+The instructor layer is the instructor's own file in their home directory — never
+committed to a course repo, and not a credential (that is `~/.canvas/config`, which you
+never read). Neither layer is student PII, so both are safe to read.
+
+Fallbacks when `grading/FEEDBACK_VOICE.md` is absent, in order:
+1. `grading/tasks/feedback_voice*.md` or `agents/knowledge/student_feedback_voice*.md`
    — older/alt spots some courses used before the convention settled
-3. A location the course `AGENTS.md` names (some courses point to their own)
+2. A location the course `AGENTS.md` names (some courses point to their own)
 
-The profile is course context (the instructor's voice — **not** student PII), so it's
-Zone-1: safe to read and to commit. Read it fully before you write.
+Read the files fully before you write. A course profile should not restate the instructor
+layer — if you see the same rule in both, drop it from the course file.
 
 ## The standard structure
 
@@ -66,6 +82,19 @@ Do **not** silently invent one. Instead:
    how blunt to be — **and** from their existing edited comments if any are available.
 3. Save it to **`grading/FEEDBACK_VOICE.md`** so every future comment reuses it — that's
    the whole point. Confirm the save with the instructor.
+
+## Promoting shared rules to the instructor layer
+
+When an instructor has a profile and **no** `~/.canvas/FEEDBACK_VOICE.md` — or has two
+or more course profiles repeating the same rules — offer to promote:
+
+1. Copy `INSTRUCTOR_VOICE.template.md` to `~/.canvas/FEEDBACK_VOICE.md`.
+2. Move into it the sections that read the same in every course (core principles, dial
+   settings, banned jargon/phrases, universal hard rules). Show the instructor what
+   moves; do it for them — don't hand them a dotfile to edit.
+3. Delete those lines from the course file, leaving only what is course-specific.
+
+Never promote a rule that names a course, tier, assignment type, or tool.
 
 ## Where this plugs in
 
