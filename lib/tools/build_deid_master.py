@@ -373,8 +373,9 @@ def ensure_grading_gitignore(grading_dir: Path) -> None:
     if not gi.exists():
         gi.write_text("# Auto-written by build_deid_master.py — FERPA tier 2\n"
                       "# Every file in this directory is gitignored EXCEPT\n"
-                      "# this .gitignore itself. Commit only this file.\n"
-                      "*\n!.gitignore\n", encoding="utf-8")
+                      "# this .gitignore itself and FEEDBACK_VOICE.md (the\n"
+                      "# instructor's own voice profile — no student data).\n"
+                      "*\n!.gitignore\n!FEEDBACK_VOICE.md\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
