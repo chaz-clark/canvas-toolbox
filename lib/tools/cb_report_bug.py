@@ -102,6 +102,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -180,10 +181,16 @@ def _reporter_id() -> str:
         return "unavailable"
 
 
+_WIN_HOME_RE = re.compile(r"^[A-Za-z]:[\\/]+Users[\\/]+[^\\/]+", re.IGNORECASE)
+
+
 def _sanitize_path(p: str, local_user: str) -> str:
-    """Replace `/Users/<u>` or `/home/<u>` with `~/...` shorthand."""
+    """Replace `/Users/<u>`, `/home/<u>` or `C:\\Users\\<u>` with `~` shorthand."""
     if not p:
         return p
+    # Windows: match any profile dir, not just getpass's user — under a sandbox
+    # (e.g. Codex's CodexSandboxOffline) getuser() isn't the profile owner (#429).
+    p = _WIN_HOME_RE.sub("~", p, count=1)
     if local_user:
         for prefix in (f"/Users/{local_user}", f"/home/{local_user}"):
             if p.startswith(prefix):
