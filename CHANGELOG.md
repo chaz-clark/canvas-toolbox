@@ -13,6 +13,8 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`voicing` learns from the instructor's edits (2.2.1).** After comments are edited and synced back, the skill now extracts the patterns (cut words, shortened phrasings, moved dials), routes each to the course or instructor layer, and writes it only after the instructor agrees. Patterns go in, never student names, scores or quoted text. Learned voice lives in the voice files, not the course `AGENTS.md` learning section.
+
 **`voicing` loads a two-layer voice: instructor + course (2.2.0).** The same dial settings,
 banned phrases and poka-yoke were copy-pasted across the DS250 / ITM327 / DS460 profiles.
 The skill now reads `~/.canvas/FEEDBACK_VOICE.md` (the instructor layer, new
