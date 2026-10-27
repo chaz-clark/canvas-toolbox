@@ -152,3 +152,13 @@ def test_rendered_body_includes_reporter_line(tmp_path, monkeypatch):
     ns = type("A", (), {"from_log": None})()
     body = crb._render_body("desc", crb._bundle_context(ns, ""))
     assert f"reporter: `{crb._reporter_id()}`" in body
+
+
+@pytest.mark.parametrize("raw", [
+    r"C:\Users\travis040fm\Documents\GitHub\course",
+    "c:/users/travis040fm/Documents/GitHub/course",
+])
+def test_windows_home_is_redacted_even_when_getuser_differs(raw):
+    out = crb._sanitize_path(raw, "CodexSandboxOffline")
+    assert "travis040fm" not in out
+    assert out.startswith("~")

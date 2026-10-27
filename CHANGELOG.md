@@ -13,6 +13,8 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+**`cb_report_bug` redacts Windows home paths (#429).** The bundled cwd leaked `C:\Users\<name>` because only `/Users` and `/home` were handled, and `getpass` isn't the profile owner under the Codex sandbox. Also documents the Codex-on-Windows network + `UV_CACHE_DIR` prerequisites (learned note + README).
+
 **`peer_review_assign.py --only-user-ids` for late submissions (#424).** Creates only the
 missing pairs involving the named students (they review their groupmates, groupmates review
 them); other groups and pairs are untouched. Counts-only output and the dry-run /
