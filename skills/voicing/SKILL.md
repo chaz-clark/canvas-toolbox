@@ -54,6 +54,13 @@ Fallbacks when `grading/FEEDBACK_VOICE.md` is absent, in order:
    — older/alt spots some courses used before the convention settled
 2. A location the course `AGENTS.md` names (some courses point to their own)
 
+**Is the course file tracked?** `grading/` is often fully gitignored on purpose — the
+`.gitignore` that `build_deid_master.py` writes there is `*`, which also hides
+`FEEDBACK_VOICE.md`. Check with `git check-ignore grading/FEEDBACK_VOICE.md`. If it is
+ignored, add the single line `!FEEDBACK_VOICE.md` to `grading/.gitignore` (new courses get
+it automatically) and commit the file. Never loosen anything else in that file — every
+other entry guards a name-bearing artifact.
+
 Read the files fully before you write. A course profile should not restate the instructor
 layer — if you see the same rule in both, drop it from the course file.
 

@@ -26,6 +26,7 @@ from build_deid_master import (  # noqa: E402
     deid_code_for,
     dedupe_users,
     detect_collisions,
+    ensure_grading_gitignore,
     is_withdrawn,
     render_csv_rows,
     render_known_names_lines,
@@ -465,3 +466,24 @@ def test_older_master_without_org_id_still_parses():
     old = "deid_code,user_id,sortable_name,withdrawn\nS-AAA,1,\"Alpha, A\",0\n"
     row = next(csv.DictReader(io.StringIO(old)))
     assert row["user_id"] == "1" and row.get("org_id") is None
+
+
+def test_grading_gitignore_ignores_everything_but_the_voice_file(tmp_path):
+    """The fallback `*` ignore must still hide name-bearing files, but the
+    instructor's own voice profile (no student data) has to be committable."""
+    import subprocess
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    grading = tmp_path / "grading"
+    ensure_grading_gitignore(grading)
+    for name in ("FEEDBACK_VOICE.md", ".deid_master.csv", ".known_names.txt",
+                 "RUBRIC.md"):
+        (grading / name).write_text("x", encoding="utf-8")
+
+    def ignored(name):
+        return subprocess.run(["git", "-C", str(tmp_path), "check-ignore", "-q",
+                               f"grading/{name}"]).returncode == 0
+
+    assert not ignored("FEEDBACK_VOICE.md")
+    assert ignored(".deid_master.csv")
+    assert ignored(".known_names.txt")
+    assert ignored("RUBRIC.md")
