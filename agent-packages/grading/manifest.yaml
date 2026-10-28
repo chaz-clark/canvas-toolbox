@@ -23,6 +23,11 @@ tools:
   effect: canvas_grade_comment_write
   data_class: student_evaluation
   approval: always
+- id: grader-correct
+  command: lib/tools/grader_correct.py
+  effect: canvas_grade_comment_write
+  data_class: student_evaluation
+  approval: always
 - id: grader-push-comments
   command: lib/tools/grader_push_comments.py
   effect: canvas_grade_comment_write

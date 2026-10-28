@@ -13,6 +13,13 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+### Added
+- **`grader_correct.py` (2.3.0, #434)** — sanctioned writer for instructor-directed grade
+  corrections to already-graded work. Explicit `user_id,new_grade[,comment]` CSV, user_id-only
+  old → new preview, `--allow-change` to overwrite an existing grade (up or down), supersede-safe
+  comments, Test-Student/inactive refusal, a ledger of old/new values, and post-write
+  verification against Canvas. `grade_guardian` asks for a click on `--push`.
+
 **A course's `grading/FEEDBACK_VOICE.md` can be committed (2.2.2).** The `grading/.gitignore` that `build_deid_master.py` writes is `*`, which silently hid the voice profile the `voicing` skill says to commit (found by itm327-master, which force-added it). New courses now get a `!FEEDBACK_VOICE.md` exception for that one instructor-authored file; every name-bearing artifact stays ignored, and a test checks both with `git check-ignore`. Existing `.gitignore` files aren't rewritten, so the `voicing` skill now tells the agent to check and add the line.
 
 **`voicing` learns from the instructor's edits (2.2.1).** After comments are edited and synced back, the skill now extracts the patterns (cut words, shortened phrasings, moved dials), routes each to the course or instructor layer, and writes it only after the instructor agrees. Patterns go in, never student names, scores or quoted text. Learned voice lives in the voice files, not the course `AGENTS.md` learning section.

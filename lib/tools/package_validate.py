@@ -58,6 +58,7 @@ CANVAS_EFFECTS = frozenset(
 CONSTITUTIONAL_WRITERS = {
     "lib/tools/grader_push.py": "canvas_grade_comment_write",
     "lib/tools/grader_standing.py": "canvas_grade_comment_write",
+    "lib/tools/grader_correct.py": "canvas_grade_comment_write",
     # Verified by reading each tool's actual Canvas write calls (v2, #317 Phase 3) —
     # AGENTS.md previously named only the two above; these four are equally
     # sanctioned grade/comment writers and belong under the same protection, or a

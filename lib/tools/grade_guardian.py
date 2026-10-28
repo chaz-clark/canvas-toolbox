@@ -797,6 +797,12 @@ _CHECKPOINT_REASONS = {
         "a LIVE course. Approve only after reviewing the comments and the old→new grade "
         "preview the agent showed you. Allow = send; Deny = hold."
     ),
+    "correct": (
+        "Correction gate (#434): this OVERWRITES already-posted grades on a LIVE course "
+        "with exact instructor-supplied values (up or down). Approve only after you "
+        "reviewed the old→new preview the agent showed you for every student. "
+        "Allow = change the grades; Deny = hold."
+    ),
     "release": (
         "Release gate: this POSTS the held grades and comments to students on a LIVE "
         "course — the moment they become visible. Approve only after you reviewed the "
@@ -806,13 +812,15 @@ _CHECKPOINT_REASONS = {
 
 
 def _grader_push_checkpoint(cmd: str) -> str | None:
-    """Return 'push', 'review' or 'release' if this command is a human-checkpoint
+    """Return 'push', 'review', 'correct' or 'release' if this command is a human-checkpoint
     moment, else None. --push wins if both flags are present. 'release' is
     grader_post_policy --release --apply (a dry run posts nothing)."""
     if "grader_post_policy" in cmd:
         if re.search(r"--release\b", cmd) and re.search(r"--apply\b", cmd):
             return "release"
         return None
+    if "grader_correct" in cmd:
+        return "correct" if re.search(r"--push\b", cmd) else None
     if "grader_push" not in cmd:
         return None
     if any(re.search(re.escape(f) + r"\b", cmd)
