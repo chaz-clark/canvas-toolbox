@@ -196,7 +196,8 @@ inference, no "all students". Dry-run prints a user_id-only old → new preview 
 FIRST / same). `--push` needs the grade_guardian click; overwriting a different existing
 grade needs **`--allow-change`** (up or down). Comments are supersede-safe (re-runs never
 stack), every write is logged to `grading/.grade_corrections.md` (old + new value), and the
-grades are re-read from Canvas and verified. Test Student / inactive enrollments are refused.
+grades are re-read from Canvas and verified. Test Student / inactive enrollments are refused
+(sandbox validation only: `--test-user <id>` allows exactly the course's real Test Student).
 
 ## grader_standing — the "your grade" column
 

@@ -138,9 +138,10 @@ def classify_change(current, new) -> str:
 
 
 def plan_corrections(rows, index, active, test_id, current_by_uid, grading_type,
-                     points_possible):
+                     points_possible, allow_test=False):
     """Resolve and classify every row. Returns (plan, fatal) where each plan item is
-    {uid, grade, comment, current, change}. Anything in `fatal` aborts the run."""
+    {uid, grade, comment, current, change}. Anything in `fatal` aborts the run.
+    `allow_test` (operator-explicit --test-user) lifts the Test Student refusal."""
     plan, fatal, seen = [], [], set()
     for raw_key, grade, comment in rows:
         k = raw_key.lower()
@@ -155,10 +156,10 @@ def plan_corrections(rows, index, active, test_id, current_by_uid, grading_type,
             fatal.append(f"user {uid}: appears more than once in the CSV")
             continue
         seen.add(uid)
-        if test_id is not None and uid == test_id:
+        if test_id is not None and uid == test_id and not allow_test:
             fatal.append(f"user {uid}: is the Test Student — refused")
             continue
-        if uid not in active:
+        if uid not in active and not (allow_test and uid == test_id):
             fatal.append(f"user {uid}: enrollment is not active — refused")
             continue
         if uid not in current_by_uid:
@@ -199,6 +200,9 @@ def main() -> int:
     ap.add_argument("--key-column", default=None)
     ap.add_argument("--grade-column", default=None)
     ap.add_argument("--comment-column", default=None)
+    ap.add_argument("--test-user", type=int, default=None,
+                    help="operator-explicit: write to the course's Test Student (must be "
+                         "its real id). Refuses any other row — for sandbox validation.")
     ap.add_argument("--disclosure", default=None, choices=sorted(DISCLOSURE_TAGS),
                     help="provenance tag appended to comments (default: "
                          "$CANVAS_DISCLOSURE_DEFAULT, else 'ai'). 'script' = a script "
@@ -243,7 +247,17 @@ def main() -> int:
     index, _ = fetch_roster_index(base, cid, headers)
     active, _inactive, test_id = fetch_active_filter(base, cid, headers)
     current = {s["user_id"]: s for s in fetch_submissions(base, cid, headers, aid)}
-    plan, fatal = plan_corrections(rows, index, active, test_id, current, gtype, pposs)
+    if args.test_user is not None:
+        if test_id is None or args.test_user != test_id:
+            print(f"⛔ --test-user {args.test_user} is not this course's Test Student.",
+                  file=sys.stderr)
+            return 1
+        index[str(test_id)] = test_id
+    plan, fatal = plan_corrections(rows, index, active, test_id, current, gtype, pposs,
+                                   allow_test=args.test_user is not None)
+    if args.test_user is not None:
+        fatal += [f"user {p['uid']}: --test-user allows only the Test Student"
+                  for p in plan if p["uid"] != test_id]
 
     for p in plan:
         mark = {"same": "same ", "first": "FIRST", "up": "UP   ",

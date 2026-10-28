@@ -90,3 +90,12 @@ def test_guardian_asks_on_correct_push_only():
     dry = "uv run python lib/tools/grader_correct.py --csv x.csv --assignment-id 5"
     assert ask_reason("Bash", {"command": push}) is not None
     assert ask_reason("Bash", {"command": dry}) is None
+
+
+def test_test_student_only_with_explicit_allow():
+    cur = dict(CUR)
+    plan, fatal = plan_corrections([("9", "20", "")], INDEX, ACTIVE, 9, cur, "points", 100,
+                                   allow_test=True)
+    assert fatal == [] and plan[0]["uid"] == 9 and plan[0]["change"] == "up"
+    _, fatal = plan_corrections([("9", "20", "")], INDEX, ACTIVE, 9, cur, "points", 100)
+    assert any("Test Student" in m for m in fatal)
