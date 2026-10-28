@@ -160,7 +160,8 @@ skip a gate you hit.
 ## Never hand-write a Canvas write (the field failure mode)
 
 Grades and comments reach Canvas **only** through `grader_push.py` (feedback) or
-`grader_standing.py` (the standing column) — never a custom `requests`/`curl`
+`grader_standing.py` (the standing column), or `grader_correct.py` (instructor-directed
+corrections to already-graded work) — never a custom `requests`/`curl`
 script, an inline `python -c`, or a `/tmp/*.py`. A direct write skips **every**
 safeguard at once: the review gate, the duplicate-comment Andon, Test-Student
 exclusion (#61), grade validation, `canvas_course_guard`, the disclosure tag.
@@ -185,6 +186,18 @@ surface the blocker to the instructor. Do **not** route around it.
 A course that grades one way every time can set `CANVAS_DISCLOSURE_DEFAULT=hybrid`
 in its `.env` and skip the flag; an explicit `--disclosure` still wins. The chosen
 tag prints in the pre-push banner. It won't stack if you switch graders mid-stream.
+
+## grader_correct — instructor-directed corrections (#434)
+
+When the instructor finds wrong grades on work that is already graded and not
+resubmitted (`grader_push --regrade` refuses it), use **`grader_correct.py`**. Input is an
+explicit CSV — `user_id`, `new_grade`, optional `comment` (instructor-supplied text). No
+inference, no "all students". Dry-run prints a user_id-only old → new preview (UP / DOWN /
+FIRST / same). `--push` needs the grade_guardian click; overwriting a different existing
+grade needs **`--allow-change`** (up or down). Comments are supersede-safe (re-runs never
+stack), every write is logged to `grading/.grade_corrections.md` (old + new value), and the
+grades are re-read from Canvas and verified. Test Student / inactive enrollments are refused
+(sandbox validation only: `--test-user <id>` allows exactly the course's real Test Student).
 
 ## grader_standing — the "your grade" column
 
@@ -328,6 +341,7 @@ questions. If the pending question is worth points, that's real grading → Spee
 | Push feedback | `grader_push.py --challenge-dir grading/<name> --push` |
 | Re-grade a resubmission | add `--regrade` |
 | Update the "your grade" column | `grader_standing.py --csv <f> --assignment-id <id> --push` |
+| Correct already-graded grades to exact values (up or down) | `grader_correct.py --csv <f> --assignment-id <id>` (dry-run) → `--push --allow-change` |
 | Rebuild the de-id master | `build_deid_master.py --force` |
 | Mirror the live gradebook locally (feeds standing/reconcile) | `grader_fetch_gradebook.py` |
 | Clear an auto-scored quiz stuck on a 0-point manual question | `grader_quiz_clear_pending.py --assignment-id <id> --apply` |
