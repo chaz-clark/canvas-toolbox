@@ -13,6 +13,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+### Fixed
+- **`submit_on_behalf.py` (2.3.1)** — loads credentials via the shared `_env_loader` (so the `~/.canvas` token is found) instead of a bare `.env` read that reported "Missing Canvas credentials".
+
 ### Added
 - **`grader_correct.py` (2.3.0, #434)** — sanctioned writer for instructor-directed grade
   corrections to already-graded work. Explicit `user_id,new_grade[,comment]` CSV, user_id-only
