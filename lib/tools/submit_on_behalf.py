@@ -353,10 +353,11 @@ def main() -> int:
 
     args = ap.parse_args()
 
-    # Load .env from current directory
+    # Shared loader: .env (any depth) plus the ~/.canvas credential store, so the
+    # token is found the same way every other tool finds it.
     try:
-        from dotenv import load_dotenv
-        load_dotenv(Path.cwd() / ".env")
+        from _env_loader import load_env
+        load_env()
     except ImportError:
         pass
 
