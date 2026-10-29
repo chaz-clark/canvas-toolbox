@@ -111,6 +111,7 @@ except ImportError:
 from grader_deidentify_databricks import (  # noqa: E402
     EMAIL_RE,
     USERPATH_RE,
+    redact_handle_urls,
     SECRET_PREFIX_RE,
     SECRET_ASSIGN_RE,
     expand_name_terms,
@@ -239,6 +240,7 @@ def scrub_comment(body: str, extra_names: list[str]) -> tuple[str, int]:
         n += k
     body, k1 = EMAIL_RE.subn("[REDACTED]", body)
     body, k2 = USERPATH_RE.subn("[REDACTED]", body)
+    body, kU = redact_handle_urls(body)
     body, k3 = SECRET_PREFIX_RE.subn("[REDACTED-SECRET]", body)
     body, k4 = SECRET_ASSIGN_RE.subn(r"\1=[REDACTED-SECRET]", body)
     # Issue #94 (FERPA): safety-net scrub for greeting-position names that
@@ -249,7 +251,7 @@ def scrub_comment(body: str, extra_names: list[str]) -> tuple[str, int]:
         lambda m: f"{m.group('greeting')}{m.group('sep')}[REDACTED]",
         body,
     )
-    return body, n + k1 + k2 + k3 + k4 + k5
+    return body, n + k1 + k2 + k3 + k4 + kU + k5
 
 
 def leak_count(scrubbed: str, roster_names: list[str]) -> int:

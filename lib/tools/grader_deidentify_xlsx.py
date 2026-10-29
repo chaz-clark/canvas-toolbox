@@ -72,6 +72,7 @@ except ImportError:
 from grader_deidentify_databricks import (  # noqa: E402
     EMAIL_RE,
     USERPATH_RE,
+    redact_handle_urls,
     SECRET_PREFIX_RE,
     SECRET_ASSIGN_RE,
     key_for,
@@ -262,9 +263,10 @@ def scrub(text: str, terms: list[str]) -> tuple[str, int]:
         n += k
     text, k1 = EMAIL_RE.subn("[REDACTED]", text)
     text, k2 = USERPATH_RE.subn("[REDACTED]", text)
+    text, kU = redact_handle_urls(text)
     text, k3 = SECRET_PREFIX_RE.subn("[REDACTED-SECRET]", text)
     text, k4 = SECRET_ASSIGN_RE.subn(r"\1=[REDACTED-SECRET]", text)
-    return text, n + k1 + k2 + k3 + k4
+    return text, n + k1 + k2 + k3 + k4 + kU
 
 
 def main() -> int:

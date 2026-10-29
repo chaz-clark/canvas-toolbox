@@ -14,6 +14,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Fixed
+- **De-id redacts GitHub/Gist/Colab URL handles (2.3.3, #396)** — every de-id adapter now replaces `github.com/<user>/…`, `gist.github.com/…`, Colab gist/github links, and `*.github.io` URLs with `[LINK REDACTED]`; a handle is often a real name and is not a roster entry, so the roster pass never caught it. `grader_name_leak_check` now flags any that remain (counts only, exit 2).
+- **`grader_fetch` builds `.deid_master.csv` when missing (2.3.3, #395)** — via `build_deid_master.py`, credentials passed in the environment; prints the exact command if the build fails.
+- **`assignment_spec.md` captures sibling module pages (2.3.3, #398)** — other `.html` pages in the task page's directory (project / discussion / intro), each with its source URL, capped at 8; `--no-sibling-pages` turns it off.
 - **Migration records capability approvals; bug reports drop folder names (2.3.2, #420, #429)** — `migrate_nested_to_flat.py` now records approvals for the packages it installs (the instructor already ran those tools), so the first flat `cb_flatten --pull --apply` no longer stops at NEEDS APPROVAL for all three; later capability growth still hits the gate. `cb_report_bug` bundles only where the cwd sits (`~/…`), not the folder names under it.
 - **`submit_on_behalf.py` (2.3.1)** — loads credentials via the shared `_env_loader` (so the `~/.canvas` token is found) instead of a bare `.env` read that reported "Missing Canvas credentials".
 

@@ -10,6 +10,8 @@ is a hand-rolled list of dicts).
 """
 import csv
 import sys
+
+import pytest
 from pathlib import Path
 
 _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
@@ -680,3 +682,81 @@ def test_needs_refetch_remote_attempt_older_no_refetch():
         recorded_submitted_at="2026-06-25T10:00:00Z",
         remote_submitted_at="2026-06-25T10:00:00Z",
     ) is False
+
+
+# ---------------------------------------------------------------------------
+# ensure_deid_master — #395
+# ---------------------------------------------------------------------------
+
+def test_ensure_deid_master_present_runs_nothing(tmp_path, monkeypatch):
+    import grader_fetch as gf
+    master = tmp_path / ".deid_master.csv"
+    master.write_text("deid_code,user_id\n")
+    monkeypatch.setattr(gf.subprocess, "run", lambda *a, **k: pytest.fail("must not run"))
+    assert gf.ensure_deid_master(master, "t", "1", "https://x") == "present"
+
+
+def test_ensure_deid_master_builds_with_credentials_in_env_not_argv(tmp_path, monkeypatch):
+    import grader_fetch as gf
+    master = tmp_path / ".deid_master.csv"
+    seen = {}
+
+    def fake_run(cmd, env, **kw):
+        seen["cmd"], seen["env"] = cmd, env
+        master.write_text("deid_code,user_id\n")
+        return type("R", (), {"returncode": 0})()
+
+    monkeypatch.setattr(gf.subprocess, "run", fake_run)
+    assert gf.ensure_deid_master(master, "SECRET-TOKEN", "42", "https://x") == "built"
+    assert "SECRET-TOKEN" not in " ".join(seen["cmd"])
+    assert seen["env"]["CANVAS_API_TOKEN"] == "SECRET-TOKEN"
+    assert seen["env"]["CANVAS_COURSE_ID"] == "42"
+    assert str(master) in seen["cmd"]
+
+
+def test_ensure_deid_master_reports_failure(tmp_path, monkeypatch):
+    import grader_fetch as gf
+    monkeypatch.setattr(gf.subprocess, "run",
+                        lambda *a, **k: type("R", (), {"returncode": 2})())
+    assert gf.ensure_deid_master(tmp_path / ".deid_master.csv", "t", "1", "https://x") == "failed"
+
+
+# ---------------------------------------------------------------------------
+# Sibling module pages — issue #398
+# ---------------------------------------------------------------------------
+
+_MODULE_INDEX = """
+<a href="project.html">Project</a>
+<a href="/m1/discussion.html#top">Discussion</a>
+<a href="https://other.site/m1/intro.html">Elsewhere</a>
+<a href="../m2/project.html">Other module</a>
+<a href="overview.html">This page</a>
+<a href="data.csv">Data</a>
+<a href="project.html?x=1">Dup</a>
+"""
+
+
+def test_extract_sibling_page_urls_same_directory_only():
+    from grader_fetch import extract_sibling_page_urls
+    out = extract_sibling_page_urls(_MODULE_INDEX, "https://course.site/m1/overview.html")
+    assert out == ["https://course.site/m1/project.html",
+                   "https://course.site/m1/discussion.html"]
+
+
+def test_extract_sibling_page_urls_is_capped():
+    from grader_fetch import _MAX_SIBLING_PAGES, extract_sibling_page_urls
+    html = "".join(f'<a href="p{i}.html">x</a>' for i in range(_MAX_SIBLING_PAGES + 5))
+    assert len(extract_sibling_page_urls(html, "https://c.site/m/o.html")) == _MAX_SIBLING_PAGES
+
+
+def test_render_spec_includes_sibling_pages_with_source_urls():
+    out = render_assignment_spec(
+        "<p>d</p>", "https://c.site/m/o.html", "overview text",
+        [("https://c.site/m/project.html", "stakeholder questions")])
+    assert "## Related Module Page" in out
+    assert "https://c.site/m/project.html" in out and "stakeholder questions" in out
+
+
+def test_render_spec_without_siblings_is_unchanged():
+    assert "Related Module Page" not in render_assignment_spec(
+        "<p>d</p>", "https://c.site/m/o.html", "overview text")
