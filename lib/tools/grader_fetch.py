@@ -767,10 +767,57 @@ def fetch_task_page_text(url: str, timeout: int = 30) -> str:
     return markdownify(r.text, heading_style="ATX")
 
 
+_MAX_SIBLING_PAGES = 8
+
+
+def extract_sibling_page_urls(page_html: str, page_url: str) -> list[str]:
+    """Issue #398: links on the task page that point at other .html pages in the
+    SAME directory (the same module). Case-study courses keep the real
+    requirements there (project / discussion / intro), and the task page is only
+    an index. Same host + same directory only, fragment/query dropped, the page
+    itself excluded, document order, capped."""
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:  # pragma: no cover — bs4 is a required dep
+        return []
+    base = urllib.parse.urlsplit(page_url)
+    base_dir = base.path.rsplit("/", 1)[0]
+    found: list[str] = []
+    for a in BeautifulSoup(page_html or "", "html.parser").find_all("a", href=True):
+        u = urllib.parse.urlsplit(urllib.parse.urljoin(page_url, a["href"].strip()))
+        if (u.scheme, u.netloc) != (base.scheme, base.netloc):
+            continue
+        if not u.path.lower().endswith((".html", ".htm")) or u.path.rsplit("/", 1)[0] != base_dir:
+            continue
+        clean = urllib.parse.urlunsplit((u.scheme, u.netloc, u.path, "", ""))
+        if u.path == base.path or clean in found:
+            continue
+        found.append(clean)
+    return found[:_MAX_SIBLING_PAGES]
+
+
+def fetch_sibling_pages(task_page_url: str, timeout: int = 30) -> list[tuple[str, str]]:
+    """Issue #398: (url, markdown) for each sibling page of the task page.
+    Fail-soft per page — one unreachable page is skipped, not fatal."""
+    try:
+        r = requests.get(task_page_url, timeout=timeout, allow_redirects=True)
+        r.raise_for_status()
+    except requests.RequestException:
+        return []
+    pages: list[tuple[str, str]] = []
+    for url in extract_sibling_page_urls(r.text, task_page_url):
+        try:
+            pages.append((url, fetch_task_page_text(url, timeout=timeout)))
+        except requests.RequestException:
+            continue
+    return pages
+
+
 def render_assignment_spec(
     canvas_description_html: str,
     task_page_url: str | None,
     task_page_text: str | None,
+    sibling_pages: list[tuple[str, str]] | None = None,
 ) -> str:
     """Issue #102: render the assignment_spec.md content (pure function — no
     file I/O). Caller writes to disk separately so this is unit-testable
@@ -812,6 +859,9 @@ def render_assignment_spec(
             parts.append(
                 "_(task page fetch failed — review the URL above manually before grading.)_"
             )
+        for url, text in sibling_pages or []:
+            parts.extend(["", "## Related Module Page", "", f"**URL:** {url}", "",
+                          text.strip() or "_(empty page)_"])
     else:
         parts.extend([
             "",
@@ -829,6 +879,7 @@ def write_assignment_spec_md(
     canvas_description_html: str,
     task_page_url: str | None,
     task_page_text: str | None,
+    sibling_pages: list[tuple[str, str]] | None = None,
 ) -> Path:
     """Issue #102: write <challenge-dir>/assignment_spec.md.
 
@@ -838,7 +889,7 @@ def write_assignment_spec_md(
     """
     out = challenge_dir / "assignment_spec.md"
     content = render_assignment_spec(
-        canvas_description_html, task_page_url, task_page_text
+        canvas_description_html, task_page_url, task_page_text, sibling_pages
     )
     out.write_text(content, encoding="utf-8")
     return out
@@ -1159,6 +1210,24 @@ def run_chain_step(name: str, cmd: list[str]) -> int:
     return proc.returncode
 
 
+def ensure_deid_master(master: Path, tok: str, cid: str, base: str) -> str:
+    """#395: the course-wide user_id <-> name map that re-identify and push join
+    on. Nothing else in the fetch/sync flow builds it, so build it when missing
+    via build_deid_master.py (the sanctioned builder; credentials go in the
+    environment, never argv). Returns 'present', 'built', or 'failed'. Output
+    carries no names."""
+    if master.is_file():
+        return "present"
+    cmd = [sys.executable, str(Path(__file__).with_name("build_deid_master.py")),
+           "--out", str(master)]
+    env = {**os.environ, "CANVAS_API_TOKEN": tok, "CANVAS_COURSE_ID": cid,
+           "CANVAS_BASE_URL": base}
+    result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    if result.returncode == 0 and master.is_file():
+        return "built"
+    return "failed"
+
+
 def update_known_names(path: Path, new_names: list[str]) -> int:
     """Append display names to .known_names.txt, dedup case-insensitively.
     Returns count of names added."""
@@ -1212,6 +1281,10 @@ def main() -> int:
                     help="Skip the default course-roster pre-fetch that populates "
                          ".known_names.txt with ALL enrolled students (peer-mention "
                          "scrub for non-submitters too). Default: roster fetch ON.")
+    ap.add_argument("--no-sibling-pages", action="store_true",
+                    help="Do not also capture the other pages in the task page's "
+                         "module directory (project / discussion / intro) into "
+                         "assignment_spec.md. Default: captured (#398).")
     ap.add_argument("--no-chain", action="store_true",
                     help="Skip the default chain into deidentify + name_leak_check after "
                          "download. Default: chain ON — a single grader_fetch.py call "
@@ -1272,6 +1345,16 @@ def main() -> int:
                   "peer-mention scrub may be incomplete. "
                   "Continuing with submitter-only roster.", file=sys.stderr)
 
+    master = cd.parent / ".deid_master.csv"
+    master_status = ("present" if args.no_roster or args.test_student_only
+                     else ensure_deid_master(master, tok, cid, base))
+    if master_status == "built":
+        print(f"Built {master} (course-wide roster map; gitignored, never read by AI).")
+    elif master_status == "failed":
+        print(f"WARNING: {master} is missing and could not be built. Re-identify and "
+              f"push need it. Run: uv run python lib/tools/build_deid_master.py "
+              f"--out {master}", file=sys.stderr)
+
     # ── Branch by submission_type. One up-front call to the assignment
     # endpoint tells us whether this is a regular attachment-based assignment,
     # a graded discussion (entries live in /discussion_topics/:tid/view),
@@ -1319,8 +1402,13 @@ def main() -> int:
                   f"assignment_spec.md will reference the URL only — "
                   f"review the link manually before grading.",
                   file=sys.stderr)
+    sibling_pages: list[tuple[str, str]] = []
+    if task_page_text is not None and not args.no_sibling_pages:
+        sibling_pages = fetch_sibling_pages(task_page_url)
+        if sibling_pages:
+            print(f"Module pages captured alongside the task page: {len(sibling_pages)}")
     spec_path = write_assignment_spec_md(
-        cd, canvas_desc_html, task_page_url, task_page_text
+        cd, canvas_desc_html, task_page_url, task_page_text, sibling_pages
     )
     print(f"Assignment spec captured -> {spec_path.relative_to(cd)} "
           f"(task page = source of truth for what is REQUIRED; "

@@ -61,6 +61,22 @@ except ImportError:
 MODEL_RE = re.compile(r"__DATABRICKS_NOTEBOOK_MODEL\s*=\s*(['\"])(.*?)\1", re.DOTALL)
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 USERPATH_RE = re.compile(r"/Users/[^/\s\"']+")
+# GitHub/Gist/Colab/github.io URLs carry the author's handle, which is often a real
+# name and is not a roster entry (#396). The whole URL goes; trailing sentence
+# punctuation stays.
+HANDLE_URL_RE = re.compile(
+    r"(?:https?://)?(?:www\.)?"
+    r"(?:colab\.research\.google\.com/(?:gist|github)/|gist\.github\.com/|github\.com/"
+    r"|raw\.githubusercontent\.com/|[A-Za-z0-9-]+\.github\.io)"
+    r"(?:[^\s\"'<>)]*[^\s\"'<>).,;:!?])?",
+    re.IGNORECASE,
+)
+
+
+def redact_handle_urls(text: str) -> tuple[str, int]:
+    return HANDLE_URL_RE.subn("[LINK REDACTED]", text)
+
+
 # Credentials that must never reach the cloud (not FERPA, but students hardcode tokens/keys)
 SECRET_PREFIX_RE = re.compile(r"\b(?:github_pat_[A-Za-z0-9_]+|gh[opsru]_[A-Za-z0-9]+|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]+)\b")
 SECRET_ASSIGN_RE = re.compile(
@@ -224,10 +240,11 @@ def scrub(text: str, terms: list[str]) -> tuple[str, int]:
     # belt-and-suspenders: any residual email/userpath
     text, k1 = EMAIL_RE.subn("[REDACTED]", text)
     text, k2 = USERPATH_RE.subn("[REDACTED]", text)
+    text, kU = redact_handle_urls(text)
     # credentials students hardcode — never send to the cloud
     text, k3 = SECRET_PREFIX_RE.subn("[REDACTED-SECRET]", text)
     text, k4 = SECRET_ASSIGN_RE.subn(r"\1=[REDACTED-SECRET]", text)
-    return text, n + k1 + k2 + k3 + k4
+    return text, n + k1 + k2 + k3 + k4 + kU
 
 
 def key_for(filename: str, prefix: str) -> str:

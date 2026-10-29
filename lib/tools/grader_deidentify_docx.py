@@ -66,6 +66,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from grader_deidentify_databricks import (  # noqa: E402
     EMAIL_RE,
     USERPATH_RE,
+    redact_handle_urls,
     SECRET_PREFIX_RE,
     SECRET_ASSIGN_RE,
     key_for,
@@ -212,6 +213,7 @@ def scrub(text: str, structural_names: list[str], extra_names: list[str]) -> tup
     # the name-token pass leaves the domain behind.
     text, k1 = EMAIL_RE.subn("[REDACTED]", text)
     text, k2 = USERPATH_RE.subn("[REDACTED]", text)
+    text, kU = redact_handle_urls(text)
     text, k3 = SECRET_PREFIX_RE.subn("[REDACTED-SECRET]", text)
     text, k4 = SECRET_ASSIGN_RE.subn(r"\1=[REDACTED-SECRET]", text)
     n_count = 0
@@ -220,7 +222,7 @@ def scrub(text: str, structural_names: list[str], extra_names: list[str]) -> tup
         # ordinary words ("same"/"evidence").
         text, k = re.compile(rf"(?<![A-Za-z]){re.escape(t)}(?![A-Za-z])", re.I).subn("[REDACTED]", text)
         n_count += k
-    return text, n_count + k1 + k2 + k3 + k4
+    return text, n_count + k1 + k2 + k3 + k4 + kU
 
 
 def main() -> int:

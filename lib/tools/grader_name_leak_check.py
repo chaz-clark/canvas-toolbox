@@ -77,6 +77,7 @@ except ImportError:
 # Reuse the helpers from the scrub-source-of-truth — keeps name decomposition
 # + word-boundary matching consistent across deid AND leak check (issue #49).
 from grader_deidentify_databricks import (  # noqa: E402
+    HANDLE_URL_RE,
     expand_name_terms,
     name_aware_count,
 )
@@ -240,7 +241,7 @@ def main() -> int:
           f"({roster_term_count} decomposed terms after first/last split) "
           f"+ filename tokens for legacy-named files.", file=sys.stderr)
 
-    clean = flagged = heuristic_flagged = missing = 0
+    clean = flagged = heuristic_flagged = url_flagged = missing = 0
     for key, fname in sorted(keymap.items()):
         md = deid_dir / f"{key}.md"
         if not md.exists():
@@ -269,16 +270,24 @@ def main() -> int:
                   f"capitalized name) — review locally; if real name, add to "
                   f".known_names.txt")
             heuristic_flagged += 1
+        elif HANDLE_URL_RE.search(text):
+            # #396: a GitHub/Gist/Colab URL carries the author's handle, which is
+            # often a real name and is not a roster entry, so the roster pass above
+            # cannot see it. Count only; never echo the URL.
+            print(f"  {key}: {len(HANDLE_URL_RE.findall(text))} GitHub/Gist/Colab URL(s) "
+                  f"remain (handle may be a real name) — re-run the deidentify tool, "
+                  f"or review locally")
+            url_flagged += 1
         else:
             clean += 1
 
     # Counts only — no names ever to stdout
     print(f"\n{clean} clean, {flagged} roster-flagged, {heuristic_flagged} "
-          f"heuristic-flagged, {missing} missing (of {len(keymap)} keys).")
+          f"heuristic-flagged, {url_flagged} URL-flagged, {missing} missing (of {len(keymap)} keys).")
     # P-003 stop-on-defect: exit 2 if any flag (roster OR heuristic), 1 if
     # missing-only, 0 if clean. Heuristic hits are also leaks until the
     # operator confirms they're false positives.
-    if flagged or heuristic_flagged:
+    if flagged or heuristic_flagged or url_flagged:
         return 2
     if missing:
         return 1
