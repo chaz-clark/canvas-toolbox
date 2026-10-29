@@ -21,6 +21,7 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 - **`submit_on_behalf.py` (2.3.1)** — loads credentials via the shared `_env_loader` (so the `~/.canvas` token is found) instead of a bare `.env` read that reported "Missing Canvas credentials".
 
 ### Added
+- **`grader_setup.py` + `cb_init.py --grading` (2.4.0, #440)** — the grading on-ramp. One idempotent pass checks the Canvas token, installs the guardian hook, shows FERPA Zone-2 coverage, creates `grading/` with its own `.gitignore`, builds `.deid_master.csv` when missing, and reports the voicing profile and grading-package approval; one plain line per step, no names. Dry-run by default, `--apply` writes. The grading skill now recognizes intent phrases ("I want to grade", "set up grading", "help me grade", "push grades", …) and runs it first. `cb_init.py --grading` runs it at install time. Capability approval is reported, never performed — that stays with `cb_flatten`'s consent gate.
 - **`grader_correct.py` (2.3.0, #434)** — sanctioned writer for instructor-directed grade
   corrections to already-graded work. Explicit `user_id,new_grade[,comment]` CSV, user_id-only
   old → new preview, `--allow-change` to overwrite an existing grade (up or down), supersede-safe

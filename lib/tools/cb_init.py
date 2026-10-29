@@ -925,6 +925,18 @@ These files are for human review and cross-session continuity.
     return True
 
 
+def step_15_grading(*, course_root: Path, check_only: bool, with_grading: bool) -> bool:
+    """Optional (--grading): run grader_setup so the course is ready to grade at
+    install time (#440). Imported lazily — grader_setup pulls in cb_flatten, which
+    imports this module."""
+    if not with_grading:
+        return True
+    print()
+    print("Step 15 (optional, --grading): grading setup")
+    from grader_setup import run
+    return run(course_root, apply=not check_only) == 0
+
+
 def step_14_slash_commands(*, course_root: Path, check_only: bool) -> bool:
     """Copy slash commands from scaffold/.claude/commands/ to course .claude/commands/."""
     target_dir = course_root / ".claude" / "commands"
@@ -1047,6 +1059,11 @@ def main() -> int:
         help="Create handoffs/ directory and course-level AGENTS.md for AI session tracking. "
              "Optional: most users don't need this (dev/power-user feature).",
     )
+    parser.add_argument(
+        "--grading", action="store_true",
+        help="Also get the course ready to grade: guardian hook, grading/ folder, "
+             "de-id master. Same as running grader_setup.py --apply (#440).",
+    )
     args = parser.parse_args()
 
     cwd = Path.cwd()
@@ -1099,6 +1116,7 @@ def main() -> int:
         lambda: step_12_generate_agents_md(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, mode=mode, check_only=args.check),
         lambda: step_13_handoffs(course_root=COURSE_ROOT, is_subdir=IS_SUBDIRECTORY, with_handoffs=args.with_handoffs, check_only=args.check),
         lambda: step_14_slash_commands(course_root=COURSE_ROOT, check_only=args.check),
+        lambda: step_15_grading(course_root=COURSE_ROOT, check_only=args.check, with_grading=args.grading),
     ]
 
     for fn in step_funcs:

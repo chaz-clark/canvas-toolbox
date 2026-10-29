@@ -1,12 +1,26 @@
 ---
 name: grading
-description: Use for ANY grading work in a Canvas course — fetching submissions, running consensus grading, reviewing feedback, pushing grades/comments to Canvas (grader_push), the "your grade" standing column (grader_standing), de-identifying submissions before the LLM, or re-identifying results. Carries the HG-5 human-in-the-loop protocol, the push gates, the disclosure-tag menu, and the FERPA de-id/re-id flow. Load this before touching any grade that could reach a student.
+description: Use for ANY grading work in a Canvas course, and whenever the instructor says they want to grade ("I want to grade", "let's grade", "set up grading", "grade the <assignment>", "help me grade", "use AI to grade", "give feedback on student work", "review submissions", "push grades", "final grades") — fetching submissions, running consensus grading, reviewing feedback, pushing grades/comments to Canvas (grader_push), the "your grade" standing column (grader_standing), de-identifying submissions before the LLM, or re-identifying results. Carries the HG-5 human-in-the-loop protocol, the push gates, the disclosure-tag menu, and the FERPA de-id/re-id flow. Load this before touching any grade that could reach a student.
 ---
 
 # Grading
 
 Grading with AI is **decision support, not autonomy.** A human decides every grade
 that reaches a student. This skill is the operating manual for that discipline.
+
+## Getting started — "I want to grade" (#440)
+
+When the instructor says any of the phrases in this skill's description, run the
+readiness check FIRST, before asking which assignment:
+
+`uv run python lib/tools/grader_setup.py` — read-only. Relay each line in plain
+language. If it lists steps still to do, run it again with `--apply` (it only creates
+the missing local pieces: guardian hook, `grading/` with its own `.gitignore`, and
+`grading/.deid_master.csv`). If it reports **needs you**, say what the line says and
+stop — do not work around it (a token that Canvas rejects, a grading package not yet
+approved, an invalid Zone-2 pattern). A course installed with `cb_init.py --grading`
+has already done this once; re-running is safe. Only when it prints "Ready to grade"
+ask which assignment and continue below.
 
 ## How grading runs — you are the grader, on the instructor's subscription
 
@@ -336,6 +350,7 @@ questions. If the pending question is worth points, that's real grading → Spee
 
 | Ask | Command |
 |---|---|
+| Get ready to grade (first time, or "is it set up?") | `grader_setup.py` (check) → `grader_setup.py --apply` |
 | Grade an assignment | `grader_fetch.py --challenge-dir grading/<name>` → consensus |
 | Attest review | `grader_push.py --challenge-dir grading/<name> --mark-reviewed` |
 | Push feedback | `grader_push.py --challenge-dir grading/<name> --push` |
