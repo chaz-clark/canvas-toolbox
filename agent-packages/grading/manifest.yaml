@@ -118,6 +118,11 @@ tools:
   effect: read
   data_class: course_content
   approval: none
+- id: grader-setup
+  command: lib/tools/grader_setup.py
+  effect: local_write
+  data_class: student_roster
+  approval: none
 - id: build-deid-master
   command: lib/tools/build_deid_master.py
   effect: local_write
