@@ -392,3 +392,55 @@ def test_rollback_post_finalize_reconstructs_the_nested_clone(tmp_path):
     assert status == "rolled-back-post-finalize"
     assert (tmp_path / mig.NESTED_DIR_NAME / ".git").is_dir()
     assert (tmp_path / "lib" / "tools" / "flattened_marker.py").is_file()  # not removed
+
+
+# ---------------------------------------------------------------------------
+# record_installed_approvals — #420
+# ---------------------------------------------------------------------------
+
+def _write_package(clone: Path, pkg_id: str, tool_ids: list[str]) -> None:
+    d = clone / "agent-packages" / pkg_id
+    d.mkdir(parents=True, exist_ok=True)
+    tools = "".join(
+        f"  - {{id: {t}, effect: canvas_grade_comment_write, data_class: student_pii}}\n"
+        for t in tool_ids
+    )
+    (d / "manifest.yaml").write_text(
+        f"id: {pkg_id}\nname: {pkg_id}\nversion: '1'\ntools:\n{tools}", encoding="utf-8")
+
+
+def test_migration_approvals_make_first_flat_update_gate_free(tmp_path):
+    from cb_flatten import check_capability_consent
+    root, clone = tmp_path / "course", tmp_path / "course" / ".canvas-toolbox"
+    root.mkdir()
+    _write_package(clone, "grading", ["grader_push"])
+
+    recorded = mig.record_installed_approvals(root, clone, ["grading"])
+    assert recorded == ["grading"]
+
+    ok, messages, _ = check_capability_consent(clone, root, ["grading"], set(), False)
+    assert ok and not any("NEEDS APPROVAL" in m for m in messages)
+
+
+def test_capability_growth_after_migration_still_needs_approval(tmp_path):
+    from cb_flatten import check_capability_consent
+    root, clone = tmp_path / "course", tmp_path / "course" / ".canvas-toolbox"
+    root.mkdir()
+    _write_package(clone, "grading", ["grader_push"])
+    mig.record_installed_approvals(root, clone, ["grading"])
+
+    _write_package(clone, "grading", ["grader_push", "grader_new_writer"])
+    ok, messages, _ = check_capability_consent(clone, root, ["grading"], set(), False)
+    assert not ok
+    assert any("NEEDS APPROVAL" in m and "grader_new_writer" in m for m in messages)
+
+
+def test_record_installed_approvals_keeps_an_existing_approval(tmp_path):
+    from capability_consent import load_approvals, record_approval
+    root, clone = tmp_path / "course", tmp_path / "course" / ".canvas-toolbox"
+    root.mkdir()
+    _write_package(clone, "grading", ["grader_push"])
+    record_approval(root, "grading", {"canvas_writers": []}, "instructor")
+
+    assert mig.record_installed_approvals(root, clone, ["grading"]) == []
+    assert load_approvals(root)["grading"]["approved_by"] == "instructor"

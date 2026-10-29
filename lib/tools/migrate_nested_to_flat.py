@@ -87,6 +87,8 @@ import sys
 from pathlib import Path
 
 import cb_flatten as flat
+import yaml
+from capability_consent import compute_fingerprint, load_approvals, record_approval
 from cb_update import SKILLS, _managed_copy, _managed_shim
 
 try:
@@ -306,6 +308,27 @@ def fix_stale_guardian_hook(course_root: Path, apply: bool) -> str:
 # Step 6 — finalize (the one irreversible step) / rollback
 # ---------------------------------------------------------------------------
 
+def record_installed_approvals(course_root: Path, clone: Path, package_ids: list[str]) -> list[str]:
+    """Record approvals for the packages this migration just installed (#420).
+
+    The instructor was already running these exact tools from the nested clone,
+    so the migration adds no capability: the approved fingerprint is the one the
+    clone ships. Growth in a LATER update still diffs against it and hits the
+    consent gate. A package that already has an approval is left alone, and a
+    package without a manifest is skipped (nothing to fingerprint)."""
+    existing = load_approvals(course_root)
+    recorded: list[str] = []
+    for pkg_id in package_ids:
+        manifest_path = clone / "agent-packages" / pkg_id / "manifest.yaml"
+        if pkg_id in existing or not manifest_path.is_file():
+            continue
+        package = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+        record_approval(course_root, pkg_id, compute_fingerprint(package),
+                        "migration (tools already installed in the nested layout)")
+        recorded.append(pkg_id)
+    return recorded
+
+
 def finalize_migration(course_root: Path) -> str:
     """no-flat-clone/nested-already-gone/not-verified/finalized/
     finalized-merge-pending.
@@ -483,6 +506,10 @@ def main() -> int:
               "canvas-toolbox/ was NOT removed; nothing is lost. Fix the issue "
               "and re-run, or use --rollback.", file=sys.stderr)
         return 2
+
+    recorded = record_installed_approvals(root, clone, packages)
+    if recorded:
+        print(f"capability approvals recorded for tools already installed: {', '.join(recorded)}")
 
     print(f"\nVerified. canvas-toolbox/ is preserved until you run --finalize. "
           f"{flat.RELOAD_NOTICE}")

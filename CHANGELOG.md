@@ -14,6 +14,7 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Fixed
+- **Migration records capability approvals; bug reports drop folder names (2.3.2, #420, #429)** — `migrate_nested_to_flat.py` now records approvals for the packages it installs (the instructor already ran those tools), so the first flat `cb_flatten --pull --apply` no longer stops at NEEDS APPROVAL for all three; later capability growth still hits the gate. `cb_report_bug` bundles only where the cwd sits (`~/…`), not the folder names under it.
 - **`submit_on_behalf.py` (2.3.1)** — loads credentials via the shared `_env_loader` (so the `~/.canvas` token is found) instead of a bare `.env` read that reported "Missing Canvas credentials".
 
 ### Added
