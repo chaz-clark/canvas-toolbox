@@ -162,3 +162,12 @@ def test_windows_home_is_redacted_even_when_getuser_differs(raw):
     out = crb._sanitize_path(raw, "CodexSandboxOffline")
     assert "travis040fm" not in out
     assert out.startswith("~")
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("~", "~"),
+    ("~/OneDrive - BYU-Idaho/Desktop/AI and Canvas", "~/\u2026"),
+    ("/srv/courses/ds460", "(outside home directory)"),
+])
+def test_summarize_cwd_drops_folder_names(raw, expected):
+    assert crb._summarize_cwd(raw) == expected

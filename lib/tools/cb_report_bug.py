@@ -198,9 +198,20 @@ def _sanitize_path(p: str, local_user: str) -> str:
     return p
 
 
+def _summarize_cwd(p: str) -> str:
+    """Folder names under the home dir can name a course or an institution
+    (#429 follow-up), so the report keeps only where cwd sits, not what it's
+    called."""
+    if p == "~":
+        return "~"
+    if p.startswith("~"):
+        return "~/\u2026"
+    return "(outside home directory)"
+
+
 def _bundle_context(args, local_user: str) -> dict[str, str]:
     """Toolkit version + machine summary + cwd shorthand + optional log."""
-    cwd = _sanitize_path(str(Path.cwd().resolve()), local_user)
+    cwd = _summarize_cwd(_sanitize_path(str(Path.cwd().resolve()), local_user))
     py = sys.version.split()[0]
     plat = f"{platform.system()} {platform.release()}"
 
