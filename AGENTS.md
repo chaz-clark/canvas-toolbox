@@ -255,6 +255,9 @@ the `course-build` skill.
   only `CANVAS_API_TOKEN` and `CANVAS_BASE_URL` (`chmod 600`), so each course's `.env`
   needs just its own `CANVAS_COURSE_ID`. Never put a course ID in the global file
   (the loader ignores it by design).
+  Set it up by running `uv run python lib/tools/cb_secure_token.py` (dry run first, then
+  `--apply`). It is the **one sanctioned reader** of the token: never open `.env` or
+  the global file yourself to move a secret.
 - **Changes go through the toolbox**: edit local files, then push. If the instructor
   says they edited in Canvas directly, `--pull` first, since a push from stale local
   files overwrites those edits (local wins). When a course is finished, recommend

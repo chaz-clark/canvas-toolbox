@@ -15,6 +15,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
@@ -122,6 +124,7 @@ def test_a_course_id_in_the_global_file_is_reported_not_swallowed(tmp_path, monk
     assert "configured last" in problems          # says the CONSEQUENCE, not just "no"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="no POSIX mode bits on Windows; see cb_secure_token")
 def test_world_readable_credentials_are_flagged(tmp_path, monkeypatch):
     """It holds an API token. ~/.ssh refuses outright; this warns with the exact
     command, since blocking a faculty member out of their own tools is worse."""
