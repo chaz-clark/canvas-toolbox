@@ -248,7 +248,10 @@ the `course-build` skill.
 - **State your scope at session start**: the course ID(s) from this folder's `.env`.
   Act only on those. If a request names or implies a different course, or the folder
   or `.env` doesn't match, **stop and ask** — never switch courses silently or "also"
-  update another. If the folder seems to hold more than one course, say so; one
+  update another. The toolkit enforces this: `canvas_course_guard.enforce()` refuses a
+  write to any course id not declared in the folder's `.env`. `CB_COURSE_SWITCH=<id>`
+  on one command overrides it for that id; set it only on the instructor's explicit,
+  specific say-so, like `--allow-enrolled`. If the folder seems to hold more than one course, say so; one
   course per folder is the supported setup.
 - **Multiple courses → recommend `~/.canvas/config`.** If the instructor works more
   than one course, offer to set up `~/.canvas/config` in their user profile holding
