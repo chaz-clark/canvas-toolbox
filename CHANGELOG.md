@@ -13,6 +13,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+### Changed
+- **Single-course scope + source-of-truth guidance (2.5.0, #444, #445)** — one course = one folder = one `.env` = one IDE window, now in the README, the constitution, and the `course-build` skill; edit through the toolbox and `--pull` after any Canvas-side edit; push the finished course to Master as a preserved second source of truth; agent rules for recovering from a dropped connection without duplicating writes (lesson L34). Guidance only; the enforced session lock and retry logic stay tracked in #444 and #445.
+
 ### Fixed
 - **De-id redacts GitHub/Gist/Colab URL handles (2.3.3, #396)** — every de-id adapter now replaces `github.com/<user>/…`, `gist.github.com/…`, Colab gist/github links, and `*.github.io` URLs with `[LINK REDACTED]`; a handle is often a real name and is not a roster entry, so the roster pass never caught it. `grader_name_leak_check` now flags any that remain (counts only, exit 2).
 - **`grader_fetch` builds `.deid_master.csv` when missing (2.3.3, #395)** — via `build_deid_master.py`, credentials passed in the environment; prints the exact command if the build fails.

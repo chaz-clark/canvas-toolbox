@@ -608,6 +608,16 @@ When building a new Canvas-touching tool, run through this checklist:
 
 **Provenance:** found in course M119, issue #411; fixed in `_push_quiz`, which now sends `published` and names the unpublish refusal distinctly.
 
+### L34 — A dropped connection does not mean the write failed
+
+**What happens:** during long tasks the connection to Canvas sometimes drops. A `POST` that times out or loses its connection may have already been committed server-side. Create endpoints (announcements, assignments, pages) are not idempotent, so re-sending creates a duplicate.
+
+**Why it matters:** a retry loop that simply re-runs the request double-posts announcements and duplicates assignments. Resuming a batch from the start repeats every item already done.
+
+**Defence:** after any ambiguous failure, read back state (match by title) before re-issuing; resume only items verified as missing; bound retries, then report done / not done / unsure. Tool-level handling is tracked in issue #445.
+
+**Provenance:** field reports from faculty training, issue #445.
+
 ---
 
 ## References

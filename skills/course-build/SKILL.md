@@ -18,6 +18,51 @@ The local working folder is authoritative; **Canvas is the sync target.** Pull t
 mirror, edit locally, push to apply. Canvas has no version history — the local
 files + git are your history.
 
+**This holds only if changes are made through the toolbox.** Faculty who also edit
+in Canvas by hand break the chain. The rule for the instructor, in plain language:
+
+1. **Preferred:** make changes locally (or ask the agent to) and push. Canvas stays
+   in step with the local files.
+2. **If they edited in Canvas anyway:** `canvas_sync.py --pull` *before* any local
+   edit or push. The conflict rule is local-wins, so pushing stale local files
+   erases the Canvas edits.
+3. **Preserve it:** once the course is in its final state, push it to the **Master**
+   course (and onward via `blueprint_sync`). Master is a second, Canvas-side source
+   of truth beside the git repo. A course lives in two places, and neither is the
+   live section students are using.
+
+## One course per session
+
+**One course = one folder = one `.env` = one IDE window.** At session start, read
+`.env`, state which course ID(s) are in scope, and act on nothing else.
+
+- A request that names or implies another course, or a working folder or `.env`
+  that doesn't match: **stop and ask.** Do not switch, and do not "also" update the
+  other course.
+- A folder that appears to hold several courses' config: tell the instructor it is
+  unsupported and that each course needs its own folder and window.
+- If the instructor teaches more than one course, **recommend `~/.canvas/config`** in
+  their user profile with `CANVAS_API_TOKEN` and `CANVAS_BASE_URL` only (`chmod 600`;
+  `_env_loader` reads it as a fallback). Each course keeps its own `CANVAS_COURSE_ID`
+  in that folder's `.env`. A course ID in the global file is ignored on purpose, so
+  a repo with a missing `.env` can't inherit the last-configured course.
+- This is the soft layer on top of `canvas_course_guard`; restate course + target
+  (master / blueprint / section) before every write.
+
+## Dropped connections
+
+Canvas calls sometimes drop, especially in long tasks. A request that dropped may
+have already succeeded.
+
+1. **Never blindly re-run a write** (creating an announcement, assignment, page).
+   First read back state, matching by title, to see whether it landed.
+2. Resume only the steps verified as not done. Never replay a whole batch.
+3. Retry transient failures a bounded number of times with a pause, then **stop and
+   report** instead of looping.
+4. Prefer the local-first flow (pull, edit, push) so most work never touches the
+   live API.
+5. End an interrupted task with a plain done / not done / unsure summary.
+
 ## The multi-course model
 
 | Term | What | `.env` id | Folder |
