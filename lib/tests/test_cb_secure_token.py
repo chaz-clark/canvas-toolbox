@@ -95,3 +95,21 @@ def test_loader_does_not_false_warn_on_windows(paths, monkeypatch):
     glob.chmod(0o666)
     monkeypatch.setattr(_env_loader.sys, "platform", "win32")
     assert not any("readable by other users" in p for p in _env_loader.global_config_problems())
+
+
+def test_test_mode_never_touches_real_global_file(paths, tmp_path, monkeypatch, capsys):
+    env, glob = paths
+    cst.write_global(glob, {"CANVAS_API_TOKEN": "REAL", "CANVAS_BASE_URL": URL})
+    real_before = glob.read_bytes()
+    monkeypatch.setattr(cst, "verify_token", lambda t, b: pytest.fail("network used in test mode"))
+    sandbox = tmp_path / "sandbox"
+    assert cst.run(env, apply=True, replace=False, test_dir=sandbox) == 0
+    assert glob.read_bytes() == real_before                     # real file untouched
+    assert f"export CANVAS_API_TOKEN={TOKEN}" in (sandbox / "config").read_text()
+    assert env.read_bytes() == b"CANVAS_COURSE_ID=999\r\n# keep me\r\n"
+    assert "TEST MODE" in capsys.readouterr().out
+
+
+def test_test_mode_refuses_real_folder(paths):
+    env, glob = paths
+    assert cst.run(env, apply=True, replace=False, test_dir=glob.parent) == 1

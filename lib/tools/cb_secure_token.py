@@ -12,6 +12,9 @@ reads that token: it runs in-process, never prints a value, and removes the keys
   uv run python lib/tools/cb_secure_token.py --apply    # move it
   ... --env path/to/.env      # default: ./.env
   ... --replace               # let the .env value overwrite a DIFFERENT global one
+  ... --test-dir DIR          # TEST MODE: use DIR/config instead of ~/.canvas/config
+                              #   and skip the network check, so fake keys work and
+                              #   your real global file is never read or written
 
 Order of operations (a failure leaves .env untouched):
   1. read CANVAS_API_TOKEN / CANVAS_BASE_URL from .env (and the global file)
@@ -117,8 +120,14 @@ def strip_keys(env_path: Path) -> int:
     return removed
 
 
-def run(env_path: Path, apply: bool, replace: bool) -> int:
-    global_path = _env_loader.GLOBAL_CONFIG
+def run(env_path: Path, apply: bool, replace: bool, test_dir: Path | None = None) -> int:
+    real = _env_loader.GLOBAL_CONFIG
+    global_path = real if test_dir is None else test_dir / "config"
+    if test_dir is not None:
+        if global_path.resolve() == real.resolve():
+            print("Refusing: --test-dir points at your real ~/.canvas folder.")
+            return 1
+        print(f"TEST MODE: using {global_path}; token check skipped; real global file untouched.")
     if not env_path.is_file():
         print(f"No .env at {env_path}")
         return 1
@@ -145,7 +154,7 @@ def run(env_path: Path, apply: bool, replace: bool) -> int:
         print("Dry run. Re-run with --apply to do it.")
         return 0
 
-    if not verify_token(merged["CANVAS_API_TOKEN"], merged["CANVAS_BASE_URL"]):
+    if test_dir is None and not verify_token(merged["CANVAS_API_TOKEN"], merged["CANVAS_BASE_URL"]):
         print("Token check failed (GET /users/self). Nothing was changed.")
         return 1
     note = write_global(global_path, merged)
@@ -161,8 +170,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--apply", action="store_true", help="make the change (default: dry run)")
     ap.add_argument("--replace", action="store_true",
                     help="overwrite a different value already in the global file")
+    ap.add_argument("--test-dir", type=Path,
+                    help="test mode: use <dir>/config as the global file, skip the network check")
     args = ap.parse_args(argv)
-    return run(args.env, args.apply, args.replace)
+    return run(args.env, args.apply, args.replace, args.test_dir)
 
 
 if __name__ == "__main__":
