@@ -47,6 +47,8 @@ An **IDE** ("integrated development environment") is the app you'll work in. Pic
 
 > 🐳 **Advanced — running the toolkit across several courses at once:** If you teach multiple courses and want to work them in parallel, **[Orca](https://github.com/stablyai/orca)** ([onorca.dev](https://onorca.dev)) is an alternative to a single IDE. It's an agent-orchestration workspace — desktop app plus a mobile companion, on macOS / Windows / Linux — that runs several AI coding agents at the same time, each in its own isolated git worktree. You can drive one course's grading run while another course's health audit runs beside it, then review and merge each independently. It's agent-agnostic (not locked to any one AI vendor) and integrates with GitHub directly. This is power-user territory — most faculty should start with **Visual Studio Code** above and reach for Orca only once juggling several course repos becomes the bottleneck.
 
+> 🔒 **One course = one folder = one `.env` = one IDE window.** This is the single most important habit. Give every course its own folder, its own `.env`, and its own VS Code (or Antigravity / Positron) window, and only ever work on that course in that window. Don't point one folder or one window at several courses, and don't keep other courses' IDs in the same `.env`. When the AI can see more than one course, it can start changing the wrong one. Orca (above) is the safe way to run several courses side by side, because each course stays isolated in its own worktree. Need a second course? Make a second folder and open a second window.
+
 ---
 
 ## Step 2 — Pick your AI assistant
@@ -296,7 +298,7 @@ Canvas Toolbox is the third option: **AI-assisted grading you train, review, and
 - **AI disclosure, no opt-out** — every AI-drafted feedback comment posts with `— AI drafted, instructor reviewed` appended. You own the judgment and review/edit the words, but the disclosure itself has no off switch. Students are never led to believe feedback was solely yours when AI drafted it — honesty runs both directions (the tag is only added to AI-drafted comments, never to your own hand-written notes).
 - **Brain-agnostic LLM** — Claude, GPT, Gemini, or local Ollama. You're not locked into a vendor.
 - **Read-only by default for audits** — every audit reports findings; none of them change anything in your Canvas course.
-- **Local files are source of truth** — Canvas is the sync target, not the source. Nothing pushes without your explicit approval.
+- **Local files are source of truth** — Canvas is the sync target, not the source. Nothing pushes without your explicit approval. This holds only if changes are made *through the toolbox*: edit locally, then push. If you do edit in Canvas directly, `--pull` before you do anything else, because a push from stale local files overwrites what you changed in Canvas. Then push the finished course to your Master course, so Canvas keeps a second, preserved copy besides your git history.
 - **Trusted-operator token model** — cb reads `CANVAS_API_TOKEN` from your environment and calls Canvas directly; it assumes *you* run it. If an autonomous agent runs cb, keep the token out of the agent's environment and isolate it at the deployment layer — cb can't (and won't pretend to) hide a secret from a process that can read files.
 
 ### Grading safety gates (the highest-stakes workflow)

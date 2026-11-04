@@ -29,6 +29,8 @@ This file contains the **detailed explanations and motivating cases** for projec
 
 **Application**: Always work from local files (`course/`, `grading/`, etc.). Only query Canvas when explicitly pulling fresh state.
 
+**Caveat**: this only holds if changes are made through the toolbox. If an instructor edits in Canvas directly, `--pull` before any further local edit or push (local wins on conflict, so a stale push erases the Canvas edits). Push the finished course to the Master course as a second, preserved source of truth. See the `course-build` skill.
+
 ---
 
 ## 2. Ground pedagogical work in the knowledge base — don't free-style it

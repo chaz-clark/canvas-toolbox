@@ -240,6 +240,26 @@ name)`); deterministic-first grader design (Python over LLM when deterministic).
 
 ---
 
+## ⚠️ One course per session, one source of truth (constitutional)
+
+**One course = one folder = one `.env` = one IDE window.** Detail and recovery steps:
+the `course-build` skill.
+
+- **State your scope at session start**: the course ID(s) from this folder's `.env`.
+  Act only on those. If a request names or implies a different course, or the folder
+  or `.env` doesn't match, **stop and ask** — never switch courses silently or "also"
+  update another. If the folder seems to hold more than one course, say so; one
+  course per folder is the supported setup.
+- **Changes go through the toolbox**: edit local files, then push. If the instructor
+  says they edited in Canvas directly, `--pull` first, since a push from stale local
+  files overwrites those edits (local wins). When a course is finished, recommend
+  pushing it to the Master course so Canvas holds a preserved second copy.
+- **After a connection drop, never blindly re-run a write.** Read back state (match
+  by title) to learn what already landed, resume only what didn't, retry a bounded
+  number of times, then stop and report done / not done / unsure.
+
+---
+
 ## Toyota Quality Loop (P-011 — no-override)
 
 Every task completes the loop: **Prevent (Poka-yoke) → Detect (Jidoka) → Verify
