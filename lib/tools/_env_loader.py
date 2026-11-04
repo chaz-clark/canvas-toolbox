@@ -109,7 +109,9 @@ def global_config_problems() -> list[str]:
         return out
     try:
         mode = GLOBAL_CONFIG.stat().st_mode
-        if mode & 0o077:
+        # Windows reports 0o666 for every file (no POSIX bits), so this would always
+        # warn there; cb_secure_token restricts the ACL with icacls instead.
+        if sys.platform != "win32" and mode & 0o077:
             out.append(f"{GLOBAL_CONFIG} is readable by other users. "
                        f"It holds an API token — run: chmod 600 {GLOBAL_CONFIG}")
     except OSError:

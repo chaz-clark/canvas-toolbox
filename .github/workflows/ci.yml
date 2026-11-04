@@ -109,3 +109,18 @@ jobs:
       # who didn't install the hook locally.
       - name: actionlint (.github/workflows)
         uses: raven-actions/actionlint@v2
+
+  # Credential tooling touches OS-specific behavior (file permissions, ACLs, CRLF),
+  # so it is also tested on the platforms faculty actually use.
+  credentials-cross-platform:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --group dev
+      - run: uv run pytest lib/tests/test_cb_secure_token.py lib/tests/test_env_loader.py -v

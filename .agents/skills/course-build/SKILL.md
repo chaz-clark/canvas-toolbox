@@ -46,6 +46,9 @@ in Canvas by hand break the chain. The rule for the instructor, in plain languag
   `_env_loader` reads it as a fallback). Each course keeps its own `CANVAS_COURSE_ID`
   in that folder's `.env`. A course ID in the global file is ignored on purpose, so
   a repo with a missing `.env` can't inherit the last-configured course.
+  `cb_secure_token.py` does the move (dry run, then `--apply`): it verifies the token,
+  writes the global file, and deletes the token and base URL from `.env`. It is the
+  only sanctioned reader of the secret; never read or paste the token yourself.
 - This is the soft layer on top of `canvas_course_guard`; restate course + target
   (master / blueprint / section) before every write.
 
