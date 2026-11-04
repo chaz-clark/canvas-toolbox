@@ -49,6 +49,8 @@ An **IDE** ("integrated development environment") is the app you'll work in. Pic
 
 > 🔒 **One course = one folder = one `.env` = one IDE window.** This is the single most important habit. Give every course its own folder, its own `.env`, and its own VS Code (or Antigravity / Positron) window, and only ever work on that course in that window. Don't point one folder or one window at several courses, and don't keep other courses' IDs in the same `.env`. When the AI can see more than one course, it can start changing the wrong one. Orca (above) is the safe way to run several courses side by side, because each course stays isolated in its own worktree. Need a second course? Make a second folder and open a second window.
 
+> 🔑 **Teaching several courses? Keep your token in one place.** Put your Canvas token and base URL once in `~/.canvas/config` (a `.canvas` folder in your user profile), and each course folder's `.env` then only needs its own course ID. The token is yours and the same for every course. **Never put a course ID in that file** — the toolkit ignores it there on purpose, so a course can't be picked up by accident. Ask your AI agent to set this up for you.
+
 ---
 
 ## Step 2 — Pick your AI assistant
@@ -63,7 +65,7 @@ Use the subscription you **already have** so you don't pay twice. In your IDE, o
 |---|---|---|---|
 | **ChatGPT** *(Plus / Pro / Business / Edu / Enterprise)* | **Codex — OpenAI's coding agent** | your ChatGPT account | [Marketplace](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt) |
 | **Claude** *(Pro / Team / Max)* | **Claude Code** *(official Anthropic extension)* | your Claude account | [Marketplace](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code) |
-| **Google / Gemini** *(Google AI subscription or free Gemini access)* | **Antigravity extension** *(search "Antigravity" in the Extensions panel)* | your Google account | Extensions panel |
+| **Google / Gemini** *(Google AI subscription or free Gemini access)* | **Antigravity extension** *(Google)* | your Google account | [Antigravity](https://marketplace.visualstudio.com/items?itemName=Google.google-antigravity) |
 | **GitHub Copilot** | **GitHub Copilot** + **GitHub Copilot Chat** | your GitHub account | [Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) · [Copilot Chat](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) |
 | **Local models (Ollama)** *(no subscription, no cloud, data stays on your machine)* | **Continue.dev** (preferred) — or **Cline** as an alternative — both open-source agentic extensions; configure with your local Ollama models | no account — set the Ollama backend in the extension's settings | [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.continue) · [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev) · [Ollama](https://ollama.com) |
 | **None of those** | Use **Antigravity IDE** instead of VS Code (from Step 1) — it's free, no extension to install, Gemini is built in | a Google account | [antigravityide.org](https://antigravityide.org/) |

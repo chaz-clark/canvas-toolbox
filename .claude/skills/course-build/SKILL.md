@@ -41,6 +41,11 @@ in Canvas by hand break the chain. The rule for the instructor, in plain languag
   other course.
 - A folder that appears to hold several courses' config: tell the instructor it is
   unsupported and that each course needs its own folder and window.
+- If the instructor teaches more than one course, **recommend `~/.canvas/config`** in
+  their user profile with `CANVAS_API_TOKEN` and `CANVAS_BASE_URL` only (`chmod 600`;
+  `_env_loader` reads it as a fallback). Each course keeps its own `CANVAS_COURSE_ID`
+  in that folder's `.env`. A course ID in the global file is ignored on purpose, so
+  a repo with a missing `.env` can't inherit the last-configured course.
 - This is the soft layer on top of `canvas_course_guard`; restate course + target
   (master / blueprint / section) before every write.
 

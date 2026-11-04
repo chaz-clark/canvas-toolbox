@@ -250,6 +250,11 @@ the `course-build` skill.
   or `.env` doesn't match, **stop and ask** — never switch courses silently or "also"
   update another. If the folder seems to hold more than one course, say so; one
   course per folder is the supported setup.
+- **Multiple courses → recommend `~/.canvas/config`.** If the instructor works more
+  than one course, offer to set up `~/.canvas/config` in their user profile holding
+  only `CANVAS_API_TOKEN` and `CANVAS_BASE_URL` (`chmod 600`), so each course's `.env`
+  needs just its own `CANVAS_COURSE_ID`. Never put a course ID in the global file
+  (the loader ignores it by design).
 - **Changes go through the toolbox**: edit local files, then push. If the instructor
   says they edited in Canvas directly, `--pull` first, since a push from stale local
   files overwrites those edits (local wins). When a course is finished, recommend
