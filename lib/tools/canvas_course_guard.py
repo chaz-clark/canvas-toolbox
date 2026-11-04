@@ -31,6 +31,7 @@ helper pattern.
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 import requests
@@ -69,6 +70,48 @@ _FACULTY_AUDIENCE_NOTE = (
 def is_faculty_only() -> bool:
     """True when the course's .env declares COURSE_AUDIENCE=faculty."""
     return os.environ.get("COURSE_AUDIENCE", "").strip().lower() == "faculty"
+
+
+# ── Session scope lock (#444) ───────────────────────────────────────────────────
+# One folder = one course family. The course ids this folder's .env declares
+# (CANVAS_COURSE_ID, MASTER_/BLUEPRINT_/S1_… COURSE_ID) ARE the session's scope. A
+# write aimed at any other course id is refused — the field failure was an agent
+# working in one course and starting to change a different one. Reads only warn: the
+# harm is a write to the wrong course, not looking at it.
+#
+# The explicit switch is CB_COURSE_SWITCH=<id>[,<id>] on that one command, per id, so
+# permission is never blanket. Like --allow-enrolled it is for the instructor to
+# authorize, not for the agent to reach for on its own.
+_COURSE_ID_VAR = re.compile(r"^[A-Z0-9_]*COURSE_ID$")
+
+
+def session_course_ids() -> set[str]:
+    """Course ids this folder's environment declares. Empty set = nothing declared."""
+    return {v.strip() for k, v in os.environ.items()
+            if _COURSE_ID_VAR.match(k) and v.strip().isdigit()}
+
+
+def check_session_scope(course_id: str, mode: str, label: str = "course") -> None:
+    """Refuse a write to a course outside the folder's declared scope (#444)."""
+    scope = session_course_ids()
+    cid = str(course_id).strip()
+    if not scope or cid in scope:
+        return
+    switched = {x.strip() for x in os.environ.get("CB_COURSE_SWITCH", "").split(",")}
+    if cid in switched:
+        print(f"ℹ️  canvas_course_guard: {label} {cid} is outside this folder's course "
+              f"scope; CB_COURSE_SWITCH allows it for this command.", file=sys.stderr)
+        return
+    msg = (f"{label} {cid} is not one of this folder's courses "
+           f"({', '.join(sorted(scope))}).")
+    if mode == "read":
+        print(f"⚠️  canvas_course_guard: {msg} Read-only; proceeding.", file=sys.stderr)
+        return
+    print(f"🔴 canvas_course_guard: REFUSING WRITE — {msg}", file=sys.stderr)
+    print("    One folder is one course. Open that course's own folder/window, or, if "
+          "the instructor explicitly wants this, re-run with "
+          f"CB_COURSE_SWITCH={cid}.", file=sys.stderr)
+    sys.exit(2)
 
 
 def check_course_safety(
@@ -148,6 +191,8 @@ def enforce(
     On guard error -> warning, continue (never block on guard failure)."""
     if mode not in ("read", "write"):
         raise ValueError(f"mode must be 'read' or 'write', got {mode!r}")
+
+    check_session_scope(course_id, mode, label)
 
     verdict, reasons, name = check_course_safety(base_url, headers, course_id)
 
