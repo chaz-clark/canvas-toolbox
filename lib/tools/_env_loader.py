@@ -210,12 +210,19 @@ def load_env() -> Path | None:
 # ~94 of ~120 tools already call load_env().
 # ---------------------------------------------------------------------------
 
-_STALENESS_CHECK_INTERVAL_DAYS = 7
+_STALENESS_CHECK_INTERVAL_DAYS = 1
 _STALENESS_MARKER = "canvas-toolbox-update-check"
 
 
+_UPDATE_NOTICE = (
+    "canvas-toolbox: an update is available. AGENT: tell the instructor and ask "
+    "whether to update now; if yes, run `uv run python lib/tools/cb_flatten.py "
+    "--pull --apply` from the course root."
+)
+
+
 def _check_toolkit_staleness(course_root: Path) -> None:
-    """A one-line, at-most-weekly nudge that the hidden `.canvas-toolbox/` clone
+    """A one-line, at-most-daily nudge that the hidden `.canvas-toolbox/` clone
     is behind its remote. FAILS OPEN, UNCONDITIONALLY: a staleness notice must
     never become a reason a tool run breaks, hangs, or blocks — this can only
     ever print an extra line or do nothing.
@@ -244,6 +251,17 @@ def _check_toolkit_staleness(course_root: Path) -> None:
             import time
             age_days = (time.time() - marker.stat().st_mtime) / 86400
             if age_days < _STALENESS_CHECK_INTERVAL_DAYS:
+                # No network today, but a known-behind verdict keeps being reported
+                # (a local compare only) until the clone actually moves, so one missed
+                # stderr line doesn't hide the update for a whole day.
+                known = marker.read_text(encoding="utf-8").strip()
+                if known:
+                    import subprocess
+                    here = subprocess.run(
+                        ["git", "-C", str(clone), "rev-parse", "HEAD"],
+                        capture_output=True, text=True, timeout=3)
+                    if here.returncode == 0 and here.stdout.strip() != known:
+                        print(_UPDATE_NOTICE, file=sys.stderr)
                 return
 
         import subprocess
@@ -260,11 +278,8 @@ def _check_toolkit_staleness(course_root: Path) -> None:
             return
         remote_sha = remote.stdout.split()[0] if remote.stdout.strip() else ""
         if remote_sha and remote_sha != local.stdout.strip():
-            print(
-                "canvas-toolbox: an update is available — run `uv run python "
-                "lib/tools/cb_flatten.py --pull --apply` from the course root.",
-                file=sys.stderr,
-            )
+            marker.write_text(remote_sha, encoding="utf-8")  # remembered: behind
+            print(_UPDATE_NOTICE, file=sys.stderr)
     except Exception:  # noqa: BLE001 — a staleness check must never break a tool run
         pass
 
