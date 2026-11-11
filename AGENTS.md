@@ -49,6 +49,7 @@ playbook (tools, gates, order of operations) so you don't operate from half-memo
 | **`ferpa-deid`** | De-id/re-id machinery | `build_deid_master`, de-identify artifacts, re-identify by key, name-leak check |
 | **`title-iv`** | Federal engagement / withdrawal compliance | `course_engagement_audit` (UW/UF/R2T4), Title IV snapshot |
 | **`voicing`** | Writing student-facing text in the instructor's voice | load the course's voicing profile for grading comments / notes — never invent a voice |
+| **`printing`** | Printing student work for manual review | `grader_print` — Word → PDF → printer; the tool prints, you never read the files |
 | **`improve`** | Logging & tracking course improvements | the `IMPROVEMENTS.md` kanban — audit findings + user notes as cards, Backlog → Ready → In Progress → In Review → Done |
 
 Meta/lifecycle tools (`cb_init` setup, `cb_report_bug`, `vote_feature`) are governed

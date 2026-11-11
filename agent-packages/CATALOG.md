@@ -18,11 +18,11 @@ Course construction, synchronization, quality audits, instructional-design analy
 FERPA-safe grading preparation, review, and sanctioned delivery of grades and feedback.
 
 - **Version:** 2.0.0
-- **Skills:** grading, ferpa-deid, voicing
+- **Skills:** grading, ferpa-deid, voicing, printing
 - **Entry prompt:** `agent-packages/grading/AGENT.md`
 - **Data classes:** course_content, deidentified_student_work, none, student_evaluation, student_roster, student_submission
 - **Credentials:** CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID
-- **Tools (48):** 13 read, 27 local write, 1 Canvas content write, 7 Canvas grade/comment write
+- **Tools (49):** 13 read, 28 local write, 1 Canvas content write, 7 Canvas grade/comment write
 
 ## Student Support (`student-support`)
 

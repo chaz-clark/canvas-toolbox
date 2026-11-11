@@ -76,7 +76,7 @@ except ImportError:
     _global_problems = None
 
 SKILLS = ["grading", "course-build", "audit", "accommodations", "ferpa-deid",
-          "title-iv", "voicing", "improve"]
+          "title-iv", "voicing", "improve", "printing"]
 
 
 def plan_skill_symlinks(course_root: Path, toolkit_subdir: str,

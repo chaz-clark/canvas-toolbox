@@ -137,7 +137,7 @@ def default_course_content(*, flat: bool) -> str:
             "and behavioral principles — live above, in this same file's constitution "
             "half. Mode-specific procedure lives in **operating-mode skills** under "
             "`.claude/skills/`: `grading`, `course-build`, `audit`, `accommodations`, "
-            "`ferpa-deid`, `title-iv`, `voicing`, `improve`. Load the skill that "
+            "`ferpa-deid`, `title-iv`, `voicing`, `improve`, `printing`. Load the skill that "
             "matches your task.\n\n"
             "**Grading is HG-5 — the instructor decides.** AI grading is decision "
             "support, not autonomy: grade → **show the feedback in chat** → "
