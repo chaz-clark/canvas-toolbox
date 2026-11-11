@@ -207,6 +207,20 @@ def test_staleness_check_notices_when_behind(tmp_path, capsys):
     assert "update is available" in capsys.readouterr().err
 
 
+def test_behind_verdict_repeats_until_updated_without_network(tmp_path, capsys):
+    origin, course_root = _origin_and_clone(tmp_path)
+    (origin / "f.txt").write_text("y", encoding="utf-8")
+    _git(origin, "add", "-A")
+    _git(origin, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "update")
+    _check_toolkit_staleness(course_root)
+    assert "AGENT: tell the instructor" in capsys.readouterr().err
+    _check_toolkit_staleness(course_root)            # same day: marker fresh, still behind
+    assert "update is available" in capsys.readouterr().err
+    _git(course_root / ".canvas-toolbox", "pull", "-q")   # the update happens
+    _check_toolkit_staleness(course_root)
+    assert capsys.readouterr().err == ""
+
+
 def test_staleness_check_skips_network_when_marker_is_fresh(tmp_path, monkeypatch):
     _origin, course_root = _origin_and_clone(tmp_path)
     marker = course_root / ".git" / _STALENESS_MARKER

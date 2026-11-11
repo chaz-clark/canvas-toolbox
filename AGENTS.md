@@ -383,6 +383,10 @@ not prose. Essentials:
 
 ## Continuous improvement
 
+**Updates:** tools check the toolkit's remote once a day. If stderr says an update is
+available, tell the instructor in plain language and ask whether to update now; only on
+a yes, run the command it names. Never update silently, and never mid-task.
+
 Two capture channels. **`cb_report_bug.py`** files a scrubbed, maintainer-routed
 issue (no GitHub account needed) — title prefix `bug:` or `enhancement:`. **`lib/agents/knowledge/learned/`**
 holds durable session lessons; a lesson referenced a second time is the signal to
