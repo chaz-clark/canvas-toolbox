@@ -123,4 +123,4 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --group dev
-      - run: uv run pytest lib/tests/test_cb_secure_token.py lib/tests/test_env_loader.py -v
+      - run: uv run pytest lib/tests/test_cb_secure_token.py lib/tests/test_env_loader.py lib/tests/test_grader_print.py -v
