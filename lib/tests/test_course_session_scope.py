@@ -84,3 +84,38 @@ def test_enforce_refuses_write_from_parent_folder(tmp_path, monkeypatch, capsys)
         g.enforce("https://x", {}, "111", mode="write")
     assert e.value.code == 2
     assert "one course folder per VS Code Window" in capsys.readouterr().err
+
+
+# ── The guard must be recoverable: every refusal has a fix that actually unblocks ──
+# A guard that blocks and then stays blocked (sticky state, cached verdict) would be
+# worse than none. It is stateless, so these prove each documented fix works in the
+# SAME process right after a refusal.
+
+def test_scope_refusal_clears_when_course_is_added_to_env(monkeypatch):
+    with pytest.raises(SystemExit):
+        g.check_session_scope("999", "write")
+    monkeypatch.setenv("S2_COURSE_ID", "999")        # the instructor fixes their .env
+    g.check_session_scope("999", "write")            # no exit now
+
+
+def test_scope_refusal_clears_with_the_explicit_switch_then_returns(monkeypatch):
+    with pytest.raises(SystemExit):
+        g.check_session_scope("999", "write")
+    monkeypatch.setenv("CB_COURSE_SWITCH", "999")
+    g.check_session_scope("999", "write")            # allowed for this command
+    monkeypatch.delenv("CB_COURSE_SWITCH")
+    with pytest.raises(SystemExit):                  # and not sticky: blocked again
+        g.check_session_scope("999", "write")
+
+
+def test_parent_folder_refusal_clears_after_opening_a_course_folder(tmp_path, monkeypatch):
+    for n in ("a", "b"):
+        (tmp_path / n).mkdir()
+        (tmp_path / n / ".env").write_text("X=1\n")
+    monkeypatch.setattr(g, "check_course_safety", lambda *a: (g.SAFE, [], "c"))
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit):
+        g.enforce("https://x", {}, "111", mode="write")      # opened too high
+    monkeypatch.chdir(tmp_path / "a")                        # the fix: open one course
+    monkeypatch.setenv("CANVAS_COURSE_ID", "111")
+    g.enforce("https://x", {}, "111", mode="write")          # proceeds
