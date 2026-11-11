@@ -56,3 +56,31 @@ def test_enforce_applies_the_lock_before_any_api_call(monkeypatch):
                         lambda *a: pytest.fail("API called before scope check"))
     with pytest.raises(SystemExit):
         g.enforce("https://x", {}, "999", mode="write")
+
+
+def test_parent_folder_with_several_courses_is_detected(tmp_path):
+    for n in ("course1", "course2", "course3"):
+        (tmp_path / n).mkdir()
+        (tmp_path / n / ".env").write_text("CANVAS_COURSE_ID=1\n")
+    assert g.opened_above_courses(tmp_path)
+    assert not g.opened_above_courses(tmp_path / "course1")      # inside a course: fine
+
+
+def test_single_child_or_course_root_is_not_flagged(tmp_path):
+    (tmp_path / "only").mkdir()
+    (tmp_path / "only" / "AGENTS.md").write_text("x")
+    assert not g.opened_above_courses(tmp_path)                  # one course: not ambiguous
+    (tmp_path / "AGENTS.md").write_text("x")
+    assert not g.opened_above_courses(tmp_path)                  # the folder is itself a course
+
+
+def test_enforce_refuses_write_from_parent_folder(tmp_path, monkeypatch, capsys):
+    for n in ("a", "b"):
+        (tmp_path / n).mkdir()
+        (tmp_path / n / ".env").write_text("X=1\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(g, "check_course_safety", lambda *a: pytest.fail("API called"))
+    with pytest.raises(SystemExit) as e:
+        g.enforce("https://x", {}, "111", mode="write")
+    assert e.value.code == 2
+    assert "one course folder per VS Code Window" in capsys.readouterr().err

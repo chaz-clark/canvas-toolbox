@@ -114,6 +114,34 @@ def check_session_scope(course_id: str, mode: str, label: str = "course") -> Non
     sys.exit(2)
 
 
+# ── Wrong-folder guard (#444) ───────────────────────────────────────────────────
+# Opening a folder that CONTAINS several course folders means no AGENTS.md, skills or
+# grade_guardian hook load (they live in each course folder) and tools resolve .env by
+# their own location, so there is no single course to lock to. Detect it and say so.
+PARENT_FOLDER_MESSAGE = (
+    "Please open one course folder per VS Code Window (or your IDE of Choice), this "
+    "tool cannot be used if opened from a higher level folder with multiple courses."
+)
+
+
+def _is_course_folder(d) -> bool:
+    return (d / ".env").is_file() or (d / "AGENTS.md").is_file()
+
+
+def opened_above_courses(cwd=None) -> bool:
+    """True when the working folder is not inside a course folder but holds two or
+    more course folders directly beneath it."""
+    from pathlib import Path
+    here = Path(cwd or os.getcwd()).resolve()
+    if any(_is_course_folder(d) for d in (here, *here.parents)):
+        return False
+    try:
+        kids = [c for c in here.iterdir() if c.is_dir() and _is_course_folder(c)]
+    except OSError:
+        return False
+    return len(kids) >= 2
+
+
 def check_course_safety(
     base_url: str, headers: dict, course_id: str,
 ) -> tuple[str, list[str], str]:
@@ -191,6 +219,13 @@ def enforce(
     On guard error -> warning, continue (never block on guard failure)."""
     if mode not in ("read", "write"):
         raise ValueError(f"mode must be 'read' or 'write', got {mode!r}")
+
+    if opened_above_courses():
+        if mode == "write":
+            print(f"🔴 canvas_course_guard: REFUSING WRITE — {PARENT_FOLDER_MESSAGE}",
+                  file=sys.stderr)
+            sys.exit(2)
+        print(f"⚠️  canvas_course_guard: {PARENT_FOLDER_MESSAGE}", file=sys.stderr)
 
     check_session_scope(course_id, mode, label)
 

@@ -49,6 +49,7 @@ in Canvas by hand break the chain. The rule for the instructor, in plain languag
   `cb_secure_token.py` does the move (dry run, then `--apply`): it verifies the token,
   writes the global file, and deletes the token and base URL from `.env`. It is the
   only sanctioned reader of the secret; never read or paste the token yourself.
+- Opened from a folder that contains several courses: stop and tell the instructor to open one course folder per window. `enforce()` refuses writes from there.
 - Enforced: a write to a course id not declared in this folder's `.env` exits 2
   (reads only warn). `CB_COURSE_SWITCH=<id>` overrides it for one command; use it only
   when the instructor explicitly names that course.

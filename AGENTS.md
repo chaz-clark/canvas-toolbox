@@ -245,6 +245,7 @@ name)`); deterministic-first grader design (Python over LLM when deterministic).
 **One course = one folder = one `.env` = one IDE window.** Detail and recovery steps:
 the `course-build` skill.
 
+- **If the opened folder holds several course folders** (no `AGENTS.md`/`.env` of its own), this file and its safeguards did not load for that folder. Tell the instructor: "Please open one course folder per VS Code Window (or your IDE of Choice), this tool cannot be used if opened from a higher level folder with multiple courses." The toolkit also refuses writes from there.
 - **State your scope at session start**: the course ID(s) from this folder's `.env`.
   Act only on those. If a request names or implies a different course, or the folder
   or `.env` doesn't match, **stop and ask** — never switch courses silently or "also"
