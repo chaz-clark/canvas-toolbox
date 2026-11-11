@@ -49,6 +49,8 @@ An **IDE** ("integrated development environment") is the app you'll work in. Pic
 
 > 🔒 **One course = one folder = one `.env` = one IDE window.** This is the single most important habit. Give every course its own folder, its own `.env`, and its own VS Code (or Antigravity / Positron) window, and only ever work on that course in that window. Don't point one folder or one window at several courses, and don't keep other courses' IDs in the same `.env`. When the AI can see more than one course, it can start changing the wrong one. Orca (above) is the safe way to run several courses side by side, because each course stays isolated in its own worktree. Need a second course? Make a second folder and open a second window.
 
+> **Please open one course folder per VS Code Window (or your IDE of Choice), this tool cannot be used if opened from a higher level folder with multiple courses.** Open the course folder itself, never the folder that contains all your courses. Your AI assistant only loads a course's rules and safeguards from the folder you open.
+
 > 🔑 **Teaching several courses? Keep your token in one place.** Put your Canvas token and base URL once in `~/.canvas/config` (a `.canvas` folder in your user profile), and each course folder's `.env` then only needs its own course ID. The token is yours and the same for every course. **Never put a course ID in that file** — the toolkit ignores it there on purpose, so a course can't be picked up by accident. Ask your AI agent to run `cb_secure_token.py` for you: it moves the token and base URL out of the course's `.env` into that file (after checking the token works), so the AI can run the toolkit without ever seeing your key.
 
 ---
