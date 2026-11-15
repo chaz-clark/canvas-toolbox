@@ -10,6 +10,8 @@ Never creates, deletes, or edits content — only:
 Target / scope (all default to the prior ITM-327 behavior if omitted):
   --target <course_id>     course to plan/write (default: MASTER_COURSE_ID env)
   --module-prefix <str>    slug prefix selecting modules (default: "sprint-")
+  --yes                    apply without the APPLY prompt (caller already confirmed the plan with the instructor)
+  --allow-enrolled         write to a live course / Blueprint child (the course guard refuses otherwise)
   --rename-match <str>     enable self-assessment rename-discovery, matching
                            item titles containing <str> (default: OFF — no
                            rename-discovery unless this is given)
@@ -49,6 +51,8 @@ import re
 import sys
 
 import requests
+
+import canvas_course_guard as guard
 
 from __toolbox_version__ import __version__
 
@@ -445,6 +449,13 @@ def main():
                     help="course id to plan/write (default: MASTER_COURSE_ID env)")
     ap.add_argument("--module-prefix", default="sprint-",
                     help="slug prefix selecting modules (default: 'sprint-')")
+    ap.add_argument("--yes", action="store_true",
+                    help="apply without the interactive APPLY prompt. Only for a caller that has "
+                         "ALREADY shown this exact plan to the instructor and had them confirm it "
+                         "(e.g. the desktop app's confirm sheet). Never add it on your own judgment.")
+    ap.add_argument("--allow-enrolled", action="store_true",
+                    help="write even though the target has enrolled students or is a Blueprint "
+                         "child (the course guard refuses otherwise). Instructor's explicit say-so only.")
     ap.add_argument("--rename-match", default="",
                     help="enable self-assessment rename-discovery, matching item "
                          "titles containing this substring (default: OFF). "
@@ -453,6 +464,11 @@ def main():
 
     target = args.target or MASTER_COURSE_ID
     _check_env(args.policy, target)
+    # Same course guard as every other writer: refuses a live (enrolled, published) course or a Blueprint
+    # child on --apply unless --allow-enrolled. Before this, the tool wrote to any course after "APPLY".
+    guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=target,
+                  mode="write" if args.apply else "read",
+                  allow_override=args.allow_enrolled, label="module settings target")
 
     result = build_plan(args.policy, target, args.module_prefix,
                         args.rename_match)
@@ -469,10 +485,14 @@ def main():
     print(f"\n--apply will WRITE the above to course {target} "
           f"(live), policy={args.policy}, module-prefix='{args.module_prefix}', "
           f"rename-match={rm_disp}. Content is NOT touched — settings only.")
-    try:
-        confirm = input('Type "APPLY" to proceed: ').strip()
-    except (EOFError, KeyboardInterrupt):
-        confirm = ""
+    if args.yes:
+        print("--yes: the caller confirmed this plan with the instructor; not prompting.")
+        confirm = "APPLY"
+    else:
+        try:
+            confirm = input('Type "APPLY" to proceed: ').strip()
+        except (EOFError, KeyboardInterrupt):
+            confirm = ""
     if confirm != "APPLY":
         print("Aborted — no changes written.")
         return
