@@ -111,6 +111,11 @@ tools:
   effect: canvas_content_write
   data_class: course_configuration
   approval: always
+- id: section-crosslist
+  command: lib/tools/section_crosslist.py
+  effect: canvas_content_write
+  data_class: course_configuration
+  approval: always
 - id: grading-scheme-setup
   command: lib/tools/grading_scheme_setup.py
   effect: canvas_content_write
