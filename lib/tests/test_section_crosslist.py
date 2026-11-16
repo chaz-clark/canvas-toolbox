@@ -166,3 +166,83 @@ def test_apply_reports_failure_when_section_did_not_land(monkeypatch):
     monkeypatch.setattr(sc, "_get_all", lambda e, p=None: [{"id": 50}])  # 60 never showed up
     plan = [{"source": "2", "section_id": 60, "name": "B", "students": 1, "action": "crosslist"}]
     assert sc.apply_plan("1", plan) is False
+
+
+# ── --undo ─────────────────────────────────────────────────────────────────────
+
+def test_undo_plan_only_includes_sections_that_came_from_a_listed_source(monkeypatch):
+    monkeypatch.setattr(sc, "_get_all", lambda e, p=None: [
+        {"id": 50, "name": "native", "nonxlist_course_id": None},
+        {"id": 60, "name": "from2", "nonxlist_course_id": 2, "total_students": 4},
+        {"id": 70, "name": "from-other", "nonxlist_course_id": 999},
+    ])
+    plan = sc.build_undo_plan("1", ["2", "3"])
+    assert [(r["section_id"], r["source"], r["action"]) for r in plan] == [(60, "2", "uncrosslist")]
+
+
+def test_apply_undo_deletes_crosslist_and_verifies(monkeypatch):
+    deleted = []
+
+    class Resp:
+        status_code = 200
+        text = ""
+
+    monkeypatch.setattr(sc, "CANVAS_BASE_URL", "https://canvas.example")
+    monkeypatch.setattr(sc.requests, "delete", lambda url, **kw: deleted.append(url) or Resp())
+    monkeypatch.setattr(sc, "_get_all", lambda e, p=None: [{"id": 50}])  # 60 is gone from dest
+    plan = [{"source": "2", "section_id": 60, "name": "B", "students": 1, "action": "uncrosslist"}]
+    assert sc.apply_undo("1", plan) is True
+    assert deleted == ["https://canvas.example/api/v1/sections/60/crosslist"]
+
+
+def test_apply_undo_reports_failure_when_section_is_still_in_destination(monkeypatch):
+    class Resp:
+        status_code = 200
+        text = ""
+
+    monkeypatch.setattr(sc, "CANVAS_BASE_URL", "https://canvas.example")
+    monkeypatch.setattr(sc.requests, "delete", lambda url, **kw: Resp())
+    monkeypatch.setattr(sc, "_get_all", lambda e, p=None: [{"id": 60}])
+    plan = [{"source": "2", "section_id": 60, "name": "B", "students": 1, "action": "uncrosslist"}]
+    assert sc.apply_undo("1", plan) is False
+
+
+@pytest.fixture
+def run_undo(monkeypatch):
+    seen = {"guard": [], "undone": 0, "crosslisted": 0, "prompted": 0}
+    monkeypatch.setattr(sc, "CANVAS_BASE_URL", "https://canvas.example")
+    monkeypatch.setattr(sc, "CANVAS_API_TOKEN", "fake")
+    monkeypatch.setattr(sc, "build_undo_plan", lambda d, s: [
+        {"source": "2", "section_id": 60, "name": "B", "students": 0, "action": "uncrosslist"}])
+    monkeypatch.setattr(sc, "build_plan", lambda d, s: pytest.fail("undo must not build a cross-list plan"))
+    monkeypatch.setattr(sc, "apply_undo", lambda d, p: seen.__setitem__("undone", seen["undone"] + 1) or True)
+    monkeypatch.setattr(sc, "apply_plan", lambda d, p: pytest.fail("undo must not cross-list"))
+    monkeypatch.setattr(sc.guard, "enforce", lambda **kw: seen["guard"].append(kw))
+
+    def go(argv, typed=""):
+        def fake_input(prompt):
+            seen["prompted"] += 1
+            return typed
+        monkeypatch.setattr("builtins.input", fake_input)
+        monkeypatch.setattr(sys, "argv", ["section_crosslist.py", "--courses", "1,2,3", "--undo", *argv])
+        sc.main()
+        return seen
+    return go
+
+
+def test_undo_plain_run_writes_nothing(run_undo):
+    s = run_undo([])
+    assert s["undone"] == 0 and s["prompted"] == 0
+    assert all(g["mode"] == "read" for g in s["guard"])
+
+
+def test_undo_apply_is_guarded_in_write_mode_on_every_course_and_needs_APPLY(run_undo):
+    s = run_undo(["--apply"], typed="nope")
+    assert [g["course_id"] for g in s["guard"]] == ["1", "2", "3"]
+    assert all(g["mode"] == "write" for g in s["guard"])
+    assert s["prompted"] == 1 and s["undone"] == 0
+
+
+def test_undo_apply_with_APPLY_or_yes_undoes(run_undo):
+    assert run_undo(["--apply"], typed="APPLY")["undone"] == 1
+    assert run_undo(["--apply", "--yes"])["undone"] == 2
