@@ -1866,6 +1866,13 @@ def _newquiz_settings_payload(settings: dict) -> dict:
     return settings_payload
 
 
+def newquiz_write_enabled() -> bool:
+    """New Quiz content writes are ON by default; set `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE`
+    to false/0/no/off to turn them off (dates still push)."""
+    return os.getenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "").strip().lower() not in (
+        "false", "0", "no", "off")
+
+
 def _push_newquiz_content(filepath: Path, meta: dict) -> bool:
     """Reconcile a pulled New Quiz sidecar's settings and QuestionItems.
 
@@ -1876,22 +1883,14 @@ def _push_newquiz_content(filepath: Path, meta: dict) -> bool:
     Stimulus, Bank, and BankEntry items are preserved locally and reported as
     read-only because Canvas does not document write endpoints for them.
 
-    WHY THE WHOLE FUNCTION IS OPT-IN (`CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true`)
-    Content writes are sandbox-CRUD-verified (create/read/update/delete all
-    confirmed against a real New Quiz) but not yet production-sync-validated:
-    no fixture coverage exists for 8 of the 12 documented writable item types
-    (only true-false/choice/essay/numeric are exercised), and this function's
-    own matching/create/update/delete branching has no unit test coverage
-    independent of the sandbox. Silently defaulting this on the first time a
-    NewQuiz sidecar's hash changes would attempt a live write against
-    unvalidated logic with no operator opt-in — the same reasoning the delete
-    flag above already applies, extended to the create/update path it was
-    inconsistently missing from.
+    ON BY DEFAULT; OPT-OUT with `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false`.
+    Content writes are sandbox-CRUD-verified (create/read/update/delete) but fixture
+    coverage is only true-false/choice/essay/numeric of the 12 writable item types.
+    Deletion stays separately opt-in (`CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE=true`).
     """
-    if os.getenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "").lower() != "true":
-        print("    SKIP: New Quiz content push requires "
-              "CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true (not yet production-validated — "
-              "see canvas_api_lessons_learned.md L8). Dates were still pushed above.")
+    if not newquiz_write_enabled():
+        print("    SKIP: New Quiz content push disabled by "
+              "CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false. Dates were still pushed above.")
         return True
     sidecar_path = Path(meta.get("settings_path", ""))
     if not sidecar_path.exists():
@@ -2202,10 +2201,10 @@ def cmd_push(target: Optional[str] = None):
         elif item_type == "Quiz":
             ok = _push_quiz(path, meta)
         elif item_type == "NewQuiz":
-            content_enabled = os.getenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "").lower() == "true"
+            content_enabled = newquiz_write_enabled()
             print("    NewQuiz: pushing assignment dates"
                   + (" plus API-backed quiz content" if content_enabled
-                     else " (content push opt-in — see _push_newquiz_content docstring)"))
+                     else " (content push disabled by CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false)"))
             ok = _push_newquiz_dates(path, meta) and _push_newquiz_content(path, meta)
         elif item_type in METADATA_ONLY_TYPES:
             print(f"    SKIP: {item_type} is metadata-only (manage in Canvas directly)")

@@ -96,8 +96,8 @@ def _item(item_id, title, entry_type="Item"):
             "entry": {"title": title, "item_body": "<p>q</p>", "id": "read-only"}}
 
 
-def test_newquizzes_skipped_without_the_opt_in(tmp_path, monkeypatch):
-    monkeypatch.delenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", raising=False)
+def test_newquizzes_skipped_when_opted_out(tmp_path, monkeypatch):
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "false")
     monkeypatch.setattr(stn.requests, "post", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no write")))
     files = _newquiz_fixture(tmp_path, [_item(1, "Q1")])
     assert stn.create_newquizzes_in_modules("https://x", "9", files, {"m1": 5}, {}, "tok") == {}

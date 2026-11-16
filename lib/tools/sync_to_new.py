@@ -594,7 +594,7 @@ def create_newquizzes_in_modules(
     token: str,
 ) -> dict:
     """Create New Quizzes (settings + question items) in the new course and link them
-    to modules. Opt-in via `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true`, the same gate as
+    to modules. On by default; opt out with `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false`, the same gate as
     `canvas_sync.py --push` — the target course starts empty, so there is nothing to
     match against; every quiz and every item is created.
 
@@ -607,12 +607,12 @@ def create_newquizzes_in_modules(
     mapping: dict = {}
     if not newquizzes:
         return mapping
-    if os.environ.get("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "").lower() != "true":
-        print(f"  ⚠ Skipped {len(newquizzes)} New Quiz(zes): set "
-              "CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true to create them (see canvas_sync.py)")
+    import canvas_sync as cs
+    if not cs.newquiz_write_enabled():
+        print(f"  ⚠ Skipped {len(newquizzes)} New Quiz(zes): disabled by "
+              "CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false")
         return mapping
 
-    import canvas_sync as cs
 
     quiz_url = f"{base_url}/api/quiz/v1/courses/{course_id}/quizzes"
     for path, meta in newquizzes.items():
@@ -989,13 +989,14 @@ def preview_restoration(course_content: dict) -> None:
     # NewQuizzes (warn about skipping)
     newquizzes = [f for f in files.values() if f.get("type") == "NewQuiz"]
     if newquizzes:
-        if os.environ.get("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "").lower() == "true":
+        import canvas_sync as cs
+        if cs.newquiz_write_enabled():
             print(f"\nNewQuizzes ({len(newquizzes)}) - will be created (unpublished):")
             for nq in newquizzes:
                 print(f"  ○ {nq['title']}")
         else:
             print(f"\n⚠ NewQuizzes ({len(newquizzes)}) - will be SKIPPED "
-                  "(set CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true to create them):")
+                  "(disabled by CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false):")
             for nq in newquizzes:
                 print(f"  ○ {nq['title']}")
 
