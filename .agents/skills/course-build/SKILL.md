@@ -90,6 +90,7 @@ defends against it, but naming the target explicitly is on you.
 | Master → Blueprint propagation | `blueprint_sync.py` |
 | Validate a blueprint sync | `validate_blueprint_sync.py` + `blueprint_exception_report.py` |
 | Module prerequisites / completion | `module_settings_sync.py` |
+| Cross-list sections of several courses into one course | `section_crosslist.py` (plan first; `--apply` after the instructor confirms; courses = `S#_COURSE_ID` in `.env` or `--courses`) |
 | Create a custom grading scheme, optionally attach it to assignments | `grading_scheme_setup.py --preset performance-tiers [--assignment-ids 1,2] --apply` (or `--title ... --tiers ...`) |
 | Create a peer-review assignment + peer rubric (unpublished) | `peer_review_setup.py --title ... --criteria "Prepared?:yesno;Effort:1-5" --apply` — enrolled course needs `--allow-enrolled`, only on the instructor's explicit say-so |
 | Pair group members as peer reviewers of each other (counts-only output) | `peer_review_assign.py --title ... --group-set-id N --apply` — same `--allow-enrolled` rule; re-run after late submissions or group changes |
