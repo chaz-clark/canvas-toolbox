@@ -226,6 +226,11 @@ tools:
   effect: local_write
   data_class: course_content
   approval: none
+- id: cb-snapshot
+  command: lib/tools/cb_snapshot.py
+  effect: local_write
+  data_class: course_content
+  approval: none
 - id: course-map-build
   command: lib/tools/course_map_build.py
   effect: local_write

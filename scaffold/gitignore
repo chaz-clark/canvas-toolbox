@@ -10,6 +10,9 @@ course_src/
 # Canvas ID indexes and push logs — course-specific, never committed
 .canvas/
 
+# Local course snapshot zips (cb_snapshot.py)
+snapshots/
+
 # Secrets and local config
 .env
 
