@@ -14,6 +14,7 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Changed
+- **New Quiz content push is now ON by default (2.9.0)** — `canvas_sync --push` and `sync_to_new` write New Quiz settings and question items out of the box; no env flag needed. Opt out with `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false` (dates still push). Deleting items stays separately opt-in (`CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE=true`). Stimulus/Bank/BankEntry items remain read-only. Fixture coverage is still only true-false/choice/essay/numeric of the 12 writable types.
 - **Daily update check that asks (2.7.1)** — the toolkit staleness check runs daily (was weekly), the notice now tells the agent to ask the instructor before updating, and a known-behind verdict keeps being reported (local compare, no network) until the clone actually moves. Constitution rule: never update silently or mid-task.
 - **Single-course scope + source-of-truth guidance (2.5.0, #444, #445)** — one course = one folder = one `.env` = one IDE window, now in the README, the constitution, and the `course-build` skill; edit through the toolbox and `--pull` after any Canvas-side edit; push the finished course to Master as a preserved second source of truth; agent rules for recovering from a dropped connection without duplicating writes (lesson L34). Guidance only; the enforced session lock and retry logic stay tracked in #444 and #445.
 

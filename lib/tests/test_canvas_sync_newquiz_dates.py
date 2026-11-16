@@ -206,10 +206,21 @@ class _BlockRealPatch:
         raise AssertionError("test must not reach a real requests.patch() call")
 
 
-def test_content_push_skipped_by_default(monkeypatch, tmp_path, capsys):
-    """The core fix: without the opt-in flag, no network call happens at all —
-    not the settings PATCH, not a single item read or write."""
+def test_write_enabled_by_default_and_opt_out_values(monkeypatch):
     monkeypatch.delenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", raising=False)
+    assert canvas_sync.newquiz_write_enabled() is True
+    for v in ("true", "1", ""):
+        monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", v)
+        assert canvas_sync.newquiz_write_enabled() is True
+    for v in ("false", "FALSE", "0", "no", "off"):
+        monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", v)
+        assert canvas_sync.newquiz_write_enabled() is False
+
+
+def test_content_push_skipped_when_opted_out(monkeypatch, tmp_path, capsys):
+    """With the opt-out flag, no network call happens at all —
+    not the settings PATCH, not a single item read or write."""
+    monkeypatch.setenv("CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE", "false")
     calls = []
     monkeypatch.setattr(canvas_sync, "requests",
                         type("R", (), {"patch": staticmethod(lambda *a, **k: calls.append(1))}))
@@ -221,7 +232,7 @@ def test_content_push_skipped_by_default(monkeypatch, tmp_path, capsys):
 
     assert ok is True
     assert calls == []
-    assert "CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true" in capsys.readouterr().out
+    assert "CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false" in capsys.readouterr().out
 
 
 def test_content_push_runs_when_flag_enabled(monkeypatch, tmp_path):

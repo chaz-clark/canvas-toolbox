@@ -27,9 +27,8 @@ tracking) · Content Migrations/Exports (`.imscc` + course clone) · Calendar Ev
 (read-only, one tool) · Custom Gradebook Columns (read-only, one tool) · Sections
 (roster/enrollment tools) · Feature Flags (read-only — one gate check) · New Quizzes
 (assignment-shell dates, `/api/quiz/v1` sidecars, and settings/QuestionItem content
-writes — opt-in via `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE`, sandbox-verified across all
-12 documented writable item types, pending real-course field validation before
-default-on; see `canvas_sync.py`)
+writes — on by default since 2.9.0, opt out via `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false`;
+sandbox-verified across all 12 documented writable item types; see `canvas_sync.py`)
 
 ### ⛔ Never touched (zero tools, zero read-only usage)
 Conversations · Analytics · Grade Change Log · Gradebook History · Usage Rights ·
@@ -107,8 +106,8 @@ instructor goes into Canvas's UI grade-history view by hand. A read-only export
 Updated 2026-09-23 — items 1–2 below shipped in #365/#366; this was stale since it
 described them as not-yet-built candidate work. The sandbox CRUD probe confirmed
 the API supports quiz and QuestionItem create/read/update/delete; `canvas_sync.py`'s
-`--push` now reconciles settings and QuestionItems for an existing New Quiz, opt-in
-via `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE` pending real-course field validation. Items
+`--push` now reconciles settings and QuestionItems for an existing New Quiz, (on by default since 2.9.0; opt out via
+`CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false`). Items
 4–5 remain genuinely unbuilt. **Status: items 1–2 shipped, item 3 partial (reporting
 API has an open Canvas-side bug, filed upstream as instructure/canvas-lms#2663),
 items 4–5 candidate, Tier 2, M–L.**
@@ -143,8 +142,8 @@ items 4–5 candidate, Tier 2, M–L.**
    "Note on New Quizzes (LTI)"). Per-student Canvas writing — must use the
    accommodations workflow and explicit scope confirmation.
 5. **Cross-course propagation (L).** Clone-into-a-new-course is built (#367):
-   `sync_to_new.py` creates New Quizzes behind the same
-   `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE` opt-in (`docs/implementation/sync_to_new.md`).
+   `sync_to_new.py` creates New Quizzes on by default (opt out with
+   `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false`; `docs/implementation/sync_to_new.md`).
    Master → blueprint/section propagation is still unbuilt. After that adapter proves stable in the
    field (see item 1's real-course validation gate), integrate master →
    blueprint/section propagation with two-course verification and rollback

@@ -113,9 +113,10 @@ The ones that matter here:
 - **Classic quizzes have two IDs** (`quiz_id` + `assignment_id`); `points_possible`
   reads 0 until questions are pushed (L5, L6).
 - **NewQuiz / ExternalTool items use a separate REST surface** (L8) — the toolkit
-  currently pulls sidecars and has sandbox-proven CRUD coverage, but production
-  sync writes are still a separate roadmap item; do not assume `canvas_sync.py`
-  can push them yet.
+  pulls `.newquiz.json` sidecars and `--push` writes their settings and question
+  items back (on by default; `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false` opts out,
+  deletions need `CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE=true`). Stimulus/Bank/BankEntry
+  items are read-only.
 - **Blueprint resync can spawn `-N` slug orphan Pages and silently revert section
   page bodies** (L13, L14) — `blueprint_orphan_pages.py` detects both.
 - **Page title collisions auto-suffix** `-2`/`-4` (L15).

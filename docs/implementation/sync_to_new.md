@@ -145,8 +145,8 @@ uv run python lib/tools/sync_to_new.py --apply --pages-only
 - sync_to_new.py restore logic: ~200 lines
 - Total: ~350 + tests
 
-**NewQuizzes (#367):** created in the new course when `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=true`
-(the same opt-in as `canvas_sync.py --push`); otherwise skipped with a warning. Each quiz is
+**NewQuizzes (#367):** created in the new course by default (the same gate as `canvas_sync.py --push`);
+skipped with a warning only if `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false`. Each quiz is
 created unpublished with its settings and question items (`canvas_sync`'s payload helpers),
 its assignment group is set with a follow-up PATCH (create ignores it — L32), and it is
 linked into its module. Stimulus/Bank/BankEntry items are read-only to the API and are
@@ -505,7 +505,7 @@ def create_quiz_question(course_id: str, quiz_id: int, question_data: dict, toke
 
 **Existing pattern location:** `canvas_quiz_questions.py` has quiz question reading patterns
 
-**NewQuizzes:** see the Phase 3 note above — built (#367), behind `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE`.
+**NewQuizzes:** see the Phase 3 note above — built (#367), on by default (opt out: `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false`).
 
 ---
 
