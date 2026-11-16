@@ -27,19 +27,12 @@ What it does NOT do
     Cross-list before students have started work.
   - Carry over section-level due-date overrides (they belong to the source course's
     assignments).
-
-Undo (--undo)
-  Sends cross-listed sections back to where they came from (DELETE
-  /sections/:id/crosslist). Same course list, same plan-first / --apply / guards. Only
-  sections in the destination that Canvas marks as coming from one of the OTHER listed
-  courses are touched — a section that was always in the destination is never moved.
-  Re-run after a partial failure: sections already back are simply not listed.
+  - Un-cross-list (DELETE /sections/:id/crosslist) — do that in Canvas for now.
 
 Usage:
     uv run python lib/tools/section_crosslist.py                    # plan (read-only), S# courses from .env
     uv run python lib/tools/section_crosslist.py --courses 111,222,333
     uv run python lib/tools/section_crosslist.py --apply            # write (confirmation-gated)
-    uv run python lib/tools/section_crosslist.py --courses 111,222,333 --undo [--apply]
 
     --yes             apply without the APPLY prompt (caller already confirmed the plan with the instructor)
     --allow-enrolled  write to a live course / Blueprint child (the course guard refuses otherwise)
@@ -135,56 +128,19 @@ def build_plan(dest: str, sources: list[str]) -> list[dict]:
     return plan
 
 
-def build_undo_plan(dest: str, sources: list[str]) -> list[dict]:
-    """One row per section in the destination that Canvas says came from a listed source."""
-    plan = []
-    for s in _get_all(f"/courses/{dest}/sections", {"include[]": "total_students"}):
-        origin = str(s.get("nonxlist_course_id") or "")
-        if origin in sources:
-            plan.append({"source": origin, "section_id": s["id"], "name": s.get("name", ""),
-                         "students": s.get("total_students") or 0, "action": "uncrosslist"})
-    return plan
-
-
-def print_plan(dest: str, plan: list[dict], undo: bool = False) -> int:
-    act = "uncrosslist" if undo else "crosslist"
+def print_plan(dest: str, plan: list[dict]) -> int:
     print(f"\nDestination course: {dest}")
-    print(f"{'source':>10}  {'section':>10}  {'students':>8}  action       name")
+    print(f"{'source':>10}  {'section':>10}  {'students':>8}  action     name")
     for r in plan:
         sid = r["section_id"] if r["section_id"] is not None else "-"
         note = "already in destination" if r["action"] == "skip" else r["name"]
-        print(f"{r['source']:>10}  {sid:>10}  {r['students']:>8}  {r['action']:<11}  {note}")
-    todo = sum(1 for r in plan if r["action"] == act)
-    if undo:
-        print(f"\n{todo} section(s) to send back to their original course.")
-        return todo
+        print(f"{r['source']:>10}  {sid:>10}  {r['students']:>8}  {r['action']:<9}  {note}")
+    todo = sum(1 for r in plan if r["action"] == "crosslist")
     print(f"\n{todo} section(s) to cross-list into {dest}.")
     if todo:
         print("Heads-up: moved students see the destination course's content; their work "
               "in the source course stays there. Section date overrides don't carry over.")
     return todo
-
-
-def apply_undo(dest: str, plan: list[dict]) -> bool:
-    """De-cross-list each planned section, then re-read the destination to verify."""
-    failed = []
-    for r in plan:
-        resp = requests.delete(
-            f"{CANVAS_BASE_URL}/api/v1/sections/{r['section_id']}/crosslist",
-            headers=_headers(), timeout=20)
-        if resp.status_code >= 400:
-            print(f"  FAILED section {r['section_id']}: {resp.status_code} {resp.text[:200]}")
-            failed.append(r["section_id"])
-        else:
-            print(f"  sent section {r['section_id']} ({r['name']}) back to course {r['source']}")
-    still_in = {s["id"] for s in _get_all(f"/courses/{dest}/sections")}
-    stuck = [r["section_id"] for r in plan if r["section_id"] in still_in]
-    if stuck or failed:
-        print(f"\nNOT all moved back. Still in destination: {stuck or 'none'}; errors: "
-              f"{failed or 'none'}. Re-run --undo to retry only what's left.")
-        return False
-    print(f"\nVerified: those sections are no longer in course {dest}.")
-    return True
 
 
 def apply_plan(dest: str, plan: list[dict]) -> bool:
@@ -222,11 +178,8 @@ def main():
                          "(default: every S#_COURSE_ID in .env, S1 first)")
     ap.add_argument("--into", default="",
                     help="destination course id (default: the first course)")
-    ap.add_argument("--undo", action="store_true",
-                    help="send the cross-listed sections back to their original courses "
-                         "(plan by default; add --apply to write)")
     ap.add_argument("--apply", action="store_true",
-                    help="write the change (default is a read-only plan)")
+                    help="write the cross-listing (default is a read-only plan)")
     ap.add_argument("--yes", action="store_true",
                     help="apply without the interactive APPLY prompt. Only for a caller that has "
                          "ALREADY shown this exact plan to the instructor and had them confirm it. "
@@ -251,8 +204,8 @@ def main():
         guard.enforce(base_url=CANVAS_BASE_URL, headers=_headers(), course_id=src, mode=mode,
                       allow_override=args.allow_enrolled, label="cross-list source")
 
-    plan = build_undo_plan(dest, sources) if args.undo else build_plan(dest, sources)
-    todo = print_plan(dest, plan, undo=args.undo)
+    plan = build_plan(dest, sources)
+    todo = print_plan(dest, plan)
 
     if not args.apply:
         print("\nREAD-ONLY: nothing written. Re-run with --apply to write.")
@@ -261,12 +214,8 @@ def main():
         print("\nNothing to apply.")
         return
 
-    if args.undo:
-        print(f"\n--apply will send {todo} section(s) out of course {dest} back to "
-              f"{', '.join(sources)}.")
-    else:
-        print(f"\n--apply will cross-list {todo} section(s) into course {dest} "
-              f"(from {', '.join(sources)}).")
+    print(f"\n--apply will cross-list {todo} section(s) into course {dest} "
+          f"(from {', '.join(sources)}).")
     if args.yes:
         print("--yes: the caller confirmed this plan with the instructor; not prompting.")
         confirm = "APPLY"
@@ -278,7 +227,7 @@ def main():
     if confirm != "APPLY":
         print("Aborted — no changes written.")
         return
-    if not (apply_undo if args.undo else apply_plan)(dest, plan):
+    if not apply_plan(dest, plan):
         sys.exit(1)
 
 

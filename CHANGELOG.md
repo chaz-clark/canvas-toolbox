@@ -14,7 +14,7 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Added
-- **`section_crosslist.py` — cross-list several courses' sections into one course (2.10.0)** — takes the folder's `S#_COURSE_ID` courses (or `--courses`), first = destination, and calls Canvas's cross-list endpoint for each source section. Plan by default; `--apply` is confirmation-gated, runs the course guard on every course involved, skips sections already in the destination (safe re-run), and re-reads the destination to verify. `--undo` sends cross-listed sections back to their original courses (plan by default, same guards, verifies; only touches sections Canvas marks as coming from a listed course).
+- **`section_crosslist.py` — cross-list several courses' sections into one course (2.10.0)** — takes the folder's `S#_COURSE_ID` courses (or `--courses`), first = destination, and calls Canvas's cross-list endpoint for each source section. Plan by default; `--apply` is confirmation-gated, runs the course guard on every course involved, skips sections already in the destination (safe re-run), and re-reads the destination to verify. No un-cross-list yet.
 
 ### Changed
 - **New Quiz content push is now ON by default (2.9.0)** — `canvas_sync --push` and `sync_to_new` write New Quiz settings and question items out of the box; no env flag needed. Opt out with `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false` (dates still push). Deleting items stays separately opt-in (`CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE=true`). Stimulus/Bank/BankEntry items remain read-only. Fixture coverage is still only true-false/choice/essay/numeric of the 12 writable types.
