@@ -54,6 +54,17 @@ NON_OBSERVABLE = {
 NON_OBSERVABLE_PHRASES = ["be aware of", "be familiar with", "have knowledge of",
                           "gain an understanding", "develop an appreciation"]
 
+# Verbs naming a step that software / AI now performs reliably on the student's
+# behalf (outcomes_quality_knowledge.md "Beyond Bloom" → AI durability). An
+# outcome LED by one of these may measure a step the workplace has automated.
+# Advisory only: hand calculation can be the point (building intuition).
+# "translate" is deliberately absent — "translate a problem into a model" is
+# formulation, the opposite of automatable.
+AI_AUTOMATABLE = {
+    "calculate", "compute", "list", "define", "summarize", "paraphrase",
+    "restate", "recall", "memorize", "tabulate", "convert",
+}
+
 _BLOOM_RE = re.compile(
     r"\b(" + "|".join(sorted(_VERB_TO_LEVEL, key=len, reverse=True)) + r")\w*\b",
     re.IGNORECASE,
@@ -95,6 +106,30 @@ def all_bloom_levels(text: str) -> set[str]:
         if lvl:
             levels.add(lvl)
     return levels
+
+
+def _base_verb(tok: str, known: set[str] | dict) -> str | None:
+    """`tok` or its -s/-es/-ed/-ing-stripped base, if that base is in `known`."""
+    for base in (tok, tok[:-1], tok[:-2], tok[:-3]):
+        if base in known:
+            return base
+    return None
+
+
+def primary_verb(text: str) -> str | None:
+    """The outcome's leading action verb (Bloom or AI-automatable), or None.
+    Unlike detect_bloom (highest level ANYWHERE in the text), this is the verb
+    the outcome is built on — 'Calculate X to support decisions' → 'calculate'."""
+    plain = _strip(text).strip().lower()
+    plain = re.sub(r"^.*?\bwill\s+be\s+able\s+to\b\s*", "", plain)
+    plain = re.sub(r"^.*?\b(students?|learners?|you|the\s+student)\s+will\b\s*", "", plain)
+    plain = plain.lstrip("•-–*0123456789.): ")
+    known = set(_VERB_TO_LEVEL) | AI_AUTOMATABLE
+    for t in re.findall(r"[a-z]+", plain)[:3]:
+        base = _base_verb(t, known)
+        if base:
+            return base
+    return None
 
 
 def leading_nonobservable(text: str) -> str | None:

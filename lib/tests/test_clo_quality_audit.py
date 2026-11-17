@@ -95,3 +95,51 @@ def test_multiple_flags_needs_revision():
         f"Expected needs_revision for 2+ flags, got: {result['verdict']}"
     assert len(result["hard_flags"]) >= 2, \
         f"Expected at least 2 hard flags, got: {result['hard_flags']}"
+
+
+# --- Beyond Bloom advisories (outcomes_quality_knowledge.md "Beyond Bloom") ---
+
+from clo_quality_audit import audit_clos
+
+
+def test_ai_automatable_advisory_on_leading_verb():
+    """A CLO led by a step AI performs gets the advisory — and no hard flag."""
+    r = score_clo("Calculate how much of each material to order, and when.")
+    assert "ai_automatable" in r["advisory"]
+    assert r["verdict"] == "meets_criteria"
+
+
+def test_ai_automatable_not_fired_by_incidental_verb():
+    """'calculate' later in the sentence is a means, not the outcome's verb."""
+    r = score_clo("Recommend an order plan to a manager, using calculated shadow prices.")
+    assert "ai_automatable" not in r["advisory"]
+
+
+def test_translate_is_not_ai_automatable():
+    """'translate a problem into a model' is formulation — must not fire."""
+    r = score_clo("Translate a supply chain decision into an optimization model.")
+    assert "ai_automatable" not in r["advisory"]
+
+
+def test_kinds_gaps_reports_missing_character_and_learning_to_learn():
+    res = audit_clos(["Formulate an optimization model.", "Evaluate inventory policies."])
+    assert res["kinds_gaps"] == ["character_values", "learning_to_learn"]
+    assert "kinds_gaps" not in res["course_flags"]  # review signal, not a flag
+
+
+def test_kinds_gaps_cleared_by_matching_clo():
+    res = audit_clos(["Formulate an optimization model.",
+                      "Recognize and deal with ethical issues as a disciple of Christ.",
+                      "Reflect on how their own learning process changed over the course."])
+    assert res["kinds_gaps"] == []
+
+
+def test_kinds_gaps_does_not_change_verdict():
+    """Same CLOs with and without a gap → same verdict."""
+    base = ["Formulate an optimization model.", "Evaluate inventory policies.",
+            "Recommend a course of action to a manager."]
+    with_gap = audit_clos(base)
+    no_gap = audit_clos(base + ["Act with integrity when reporting model limits."])
+    assert "character_values" in with_gap["kinds_gaps"]
+    assert "character_values" not in no_gap["kinds_gaps"]
+    assert with_gap["verdict"] == no_gap["verdict"] == "meets_criteria"

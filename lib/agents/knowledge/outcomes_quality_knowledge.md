@@ -1,7 +1,7 @@
 ---
 name: outcomes_quality_knowledge
-version: '1.0'
-last_updated: '2026-07-16'
+version: '1.1'
+last_updated: '2026-10-29'
 description: Judging the wording quality of a learning outcome — alignment to a poorly-written outcome is meaningless; criteria for measurable, well-formed outcomes.
 skill_type: knowledge
 shape: reference
@@ -18,6 +18,10 @@ provenance:
   - BYU-Idaho Assurance of Learning. CLO Rubric AoL (internal document).
   - Anderson, L.W., Krathwohl, D.R., et al. (2001). A Taxonomy for Learning, Teaching, and Assessing.
   - Merrill, M.D. (1983). Component Display Theory.
+  - Biggs, J.B., & Collis, K.F. (1982). Evaluating the Quality of Learning - The SOLO Taxonomy. Academic Press.
+  - Fink, L.D. (2003). Creating Significant Learning Experiences. Jossey-Bass.
+  - Wiggins, G. (1990). The case for authentic assessment. Practical Assessment, Research & Evaluation, 2(2).
+  - Wiggins, G., & McTighe, J. (2005). Understanding by Design, 2nd ed. ASCD.
 companion_json_deprecated: 2026-07-16 - consolidated into YAML frontmatter (JSON purge convention)
 runtime_strategy: read_at_runtime
 metadata:
@@ -161,6 +165,35 @@ A secondary classification tool that helps select the right instructional strate
 
 ---
 
+## Beyond Bloom — Other Dimensions of an Outcome
+
+Bloom's rates one thing: the cognitive level of the verb. Two outcomes at the same
+Bloom level can differ in what kind of knowledge they act on, how connected the
+expected answer is, whether a practitioner would ever do the task, and whether
+software now does it for them. These lenses are **review prompts, never verdict
+drivers** — the AoL rubric above stays the scoring basis.
+
+| Lens | The question it asks | Source | How the toolkit checks it |
+|---|---|---|---|
+| **Knowledge type** | What does the verb act on: facts, concepts, procedures, or the student's own thinking (metacognitive)? | Anderson & Krathwohl (2001) — the *second* axis of the revised taxonomy, usually dropped | Human review |
+| **SOLO level** | What does a mastered answer look like: one relevant point (unistructural), several unconnected points (multistructural), points related into a whole (relational), or a principle carried to a new case (extended abstract)? | Biggs & Collis (1982) | Human review — pairs with rubric levels, since SOLO describes the *answer*, not the verb |
+| **Kind of outcome** | Knowledge, Skills, Character & Values, Experiences, Learning-to-Learn — which kinds does the course claim? Non-hierarchical. | BYU-Idaho's 5 kinds (above); Fink (2003) *Significant Learning* (foundational knowledge, application, integration, human dimension, caring, learning how to learn) | `kinds_gaps` — course-level review signal naming **character_values** / **learning_to_learn** when no CLO names them (the two most often missing) |
+| **Authenticity & transfer** | Would a practitioner do this task, with these inputs, in this form? Near transfer (same kind of problem) or far (a new kind)? | Wiggins (1990) authentic assessment; Wiggins & McTighe (2005) *Understanding by Design* transfer goals | Human review |
+| **AI durability** | If software or AI performs this step, what is the student's remaining contribution? | Toolkit heuristic, not a published framework | `ai_automatable` — per-CLO advisory when the outcome's **leading** verb is calculate / compute / list / define / summarize / … |
+
+**Reading `ai_automatable`.** It is not a defect. Hand calculation is the right
+outcome when the point is intuition (a first course) or when the assessment is
+closed-tool. It is a prompt to ask whether the student's real job is *setting up,
+checking, or interpreting* the calculation — and, if so, to name that instead.
+Only the leading verb counts: "Recommend … using calculated shadow prices" does not fire.
+
+**Reading `kinds_gaps`.** Keyword detection, deliberately narrow (it skips "values"
+and "commit" — "values of a variable", "commit code"). A gap is often intended; it
+is a prompt when a program outcome (e.g., a discipleship PLO) expects the course
+to contribute to that kind.
+
+---
+
 ## Canvas Audit Indicators
 
 Flag when reviewing a course in Canvas:
@@ -184,6 +217,7 @@ Flag when reviewing a course in Canvas:
 5. **Student-focused?** — does each describe a change *in the student*, not an activity *for the student*?
 6. **Kind coverage?** — are any of the 5 kinds (Knowledge, Character, Skills, Experiences, Learning-to-Learn) implied but unnamed?
 7. **Rubric traceback?** — does each major assessment have a rubric criterion that maps to a CLO?
+8. **Beyond Bloom?** — knowledge type, SOLO level of a mastered answer, authenticity/transfer, and whether AI now does the leading step (see "Beyond Bloom")
 
 **Audit tag:** `clo_quality` ∈ {`meets_criteria`, `partial`, `needs_revision`}
 **Companion tag:** `clo_criteria_flags` — list which of the 6 AoL criteria fail (scope, clarity, measurable, single_barreled, rigor, relevance, recency)
