@@ -58,6 +58,9 @@ Notes:
     - Classic quizzes only. NewQuiz questions use the separate `/api/quiz/v1`
       surface and are managed by the New Quiz sync workstream instead.
     - After pushing questions, Canvas recalculates points_possible on the quiz automatically.
+    - Formatted feedback: use "incorrect_comments_html" / "correct_comments_html" /
+      "neutral_comments_html" (and "answer_comments_html" per answer). The plain
+      variants render escaped, so HTML in them shows up as literal tags.
     - student_view mode is designed for NGAI peer/QC agent workflows (Feature 2)
 """
 
@@ -154,6 +157,12 @@ def _filter_student_view(questions: list) -> list:
     return filtered
 
 
+_COMMENT_FIELDS = (
+    "correct_comments", "incorrect_comments", "neutral_comments",
+    "correct_comments_html", "incorrect_comments_html", "neutral_comments_html",
+)
+
+
 def _create_question(course_id: str, quiz_id: int, q: dict) -> dict:
     payload = {
         "question": {
@@ -165,20 +174,23 @@ def _create_question(course_id: str, quiz_id: int, q: dict) -> dict:
     }
     # Include answers for question types that use them
     if "answers" in q and q["question_type"] != "essay_question":
-        payload["question"]["answers"] = [
-            {
+        answers = []
+        for a in q["answers"]:
+            ans = {
                 "answer_text":   a.get("answer_text", ""),
                 "answer_weight": a.get("answer_weight", 0),
                 "answer_comments": a.get("answer_comments", ""),
             }
-            for a in q["answers"]
-        ]
-    if q.get("correct_comments"):
-        payload["question"]["correct_comments"] = q["correct_comments"]
-    if q.get("incorrect_comments"):
-        payload["question"]["incorrect_comments"] = q["incorrect_comments"]
-    if q.get("neutral_comments"):
-        payload["question"]["neutral_comments"] = q["neutral_comments"]
+            if a.get("answer_comments_html"):
+                ans["answer_comments_html"] = a["answer_comments_html"]
+            answers.append(ans)
+        payload["question"]["answers"] = answers
+    # Plain-text comments render ESCAPED in Canvas (tags show literally), so formatted
+    # feedback — bullets, italics, bold — must go in the *_html variant. Both may be
+    # sent; Canvas displays the _html one when present.
+    for field in _COMMENT_FIELDS:
+        if q.get(field):
+            payload["question"][field] = q[field]
 
     r = requests.post(
         f"{CANVAS_BASE_URL}/api/v1/courses/{course_id}/quizzes/{quiz_id}/questions",

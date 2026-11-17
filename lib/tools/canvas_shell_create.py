@@ -69,7 +69,12 @@ DRAFT FILE SHAPE (--draft PATH, JSON)
                        "description": "..."}
   quiz/assignment only: "points_possible", "due_at", "lock_at", "unlock_at",
                        "assignment_group_id"
-  Quiz only:         "quiz_type" (default "assignment"), "time_limit", "allowed_attempts"
+  Quiz only:         "quiz_type" (default "assignment"), "time_limit", "allowed_attempts",
+                       "show_correct_answers" (bool), "shuffle_answers" (bool),
+                       "scoring_policy" ("keep_highest" | "keep_latest" | "keep_average")
+                       — Canvas defaults show_correct_answers to TRUE on create, so a
+                       quiz meant to hide answers must say so; these three are read
+                       back and verified after the create.
   Assignment only:   "submission_types" (default ["online_text_entry"]), "grading_type"
   Page/Discussion:   "description" is the page body / discussion message
   Discussion only:   "is_announcement" (bool, default false)
@@ -135,6 +140,10 @@ CANVAS_BASE_URL = _raw_url
 _TIMEOUT = 20
 _VALID_GRADING_TYPES = {"pass_fail", "percent", "letter_grade", "gpa_scale", "points", "not_graded"}
 _VALID_QUIZ_TYPES = {"practice_quiz", "assignment", "graded_survey", "survey"}
+_VALID_SCORING_POLICIES = {"keep_highest", "keep_latest", "keep_average"}
+# Quiz settings that are sent on create AND verified on read-back (a 200 is not
+# proof the setting landed — same doctrine as the title/published read-back).
+_QUIZ_VERIFIED_SETTINGS = ("show_correct_answers", "shuffle_answers", "scoring_policy")
 _DATE_FIELDS = ("due_at", "lock_at", "unlock_at")
 _VALID_KINDS = {"quiz", "assignment", "page", "discussion", "module", "assignment_group"}
 # Module items in Canvas can only point at these types — module/assignment_group
@@ -234,6 +243,13 @@ def validate_draft(draft: dict) -> list[str]:
     qt = draft.get("quiz_type")
     if qt is not None and qt not in _VALID_QUIZ_TYPES:
         errors.append(f'"quiz_type" {qt!r} is not one of {sorted(_VALID_QUIZ_TYPES)}')
+    for flag in ("show_correct_answers", "shuffle_answers"):
+        v = draft.get(flag)
+        if v is not None and not isinstance(v, bool):
+            errors.append(f'"{flag}" must be true or false')
+    sp = draft.get("scoring_policy")
+    if sp is not None and sp not in _VALID_SCORING_POLICIES:
+        errors.append(f'"scoring_policy" {sp!r} is not one of {sorted(_VALID_SCORING_POLICIES)}')
     st = draft.get("submission_types")
     if st is not None and (not isinstance(st, list) or not st):
         errors.append('"submission_types" must be a non-empty list when given')
@@ -292,6 +308,9 @@ def build_quiz_payload(draft: dict) -> dict:
         quiz["time_limit"] = draft["time_limit"]
     if draft.get("allowed_attempts") is not None:
         quiz["allowed_attempts"] = draft["allowed_attempts"]
+    for setting in _QUIZ_VERIFIED_SETTINGS:
+        if draft.get(setting) is not None:
+            quiz[setting] = draft[setting]
     if draft.get("assignment_group_id"):
         quiz["assignment_group_id"] = draft["assignment_group_id"]
     for field in _DATE_FIELDS:
@@ -385,6 +404,9 @@ def print_plan(draft: dict) -> None:
             print("                   this won't take effect until questions are added;")
             print("                   verified for real on a sandbox, #349)")
         print(f"  quiz_type:       {draft.get('quiz_type', 'assignment')}")
+        for setting in _QUIZ_VERIFIED_SETTINGS:
+            if draft.get(setting) is not None:
+                print(f"  {setting}: {draft[setting]}")
         for field in _DATE_FIELDS:
             if draft.get(field):
                 print(f"  {field}:          {draft[field]}")
@@ -442,6 +464,13 @@ def create_shell(course_id: str, draft: dict) -> tuple[dict | None, str]:
                       f"({id_field} {created.get(id_field)}). Check it in Canvas before re-running.")
     if kind not in _KINDS_WITHOUT_PUBLISH_STATE and back.get("published"):
         return None, f"Canvas created the {kind} but it came back published, not unpublished as asked."
+    if kind == "quiz":
+        for setting in _QUIZ_VERIFIED_SETTINGS:
+            want = draft.get(setting)
+            if want is not None and back.get(setting) != want:
+                return None, (f"Canvas created the quiz (id {created.get(id_field)}) but "
+                              f"{setting} read back as {back.get(setting)!r}, not {want!r}. "
+                              "Fix it in Canvas before students see the quiz.")
     return back, ""
 
 

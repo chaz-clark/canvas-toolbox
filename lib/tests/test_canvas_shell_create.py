@@ -560,3 +560,58 @@ def test_create_apply_into_two_modules(monkeypatch, tmp_path):
     assert rc == 0
     assert calls == ["/courses/1/quizzes", "/courses/1/modules/77/items",
                      "/courses/1/modules/78/items"]
+
+
+# --- quiz display/scoring settings (show_correct_answers et al.) --------------
+# Canvas defaults show_correct_answers to TRUE on create. A quiz cloned from one
+# that hides answers would silently reveal them unless the setting is sent AND
+# verified on read-back.
+
+_HIDDEN_ANSWERS_DRAFT = {**_QUIZ_DRAFT, "show_correct_answers": False,
+                         "shuffle_answers": False, "scoring_policy": "keep_highest"}
+
+
+def test_quiz_settings_are_sent_when_given():
+    q = build_quiz_payload(_HIDDEN_ANSWERS_DRAFT)["quiz"]
+    assert q["show_correct_answers"] is False
+    assert q["shuffle_answers"] is False
+    assert q["scoring_policy"] == "keep_highest"
+
+
+def test_quiz_settings_omitted_when_absent():
+    q = build_quiz_payload(_QUIZ_DRAFT)["quiz"]
+    for k in ("show_correct_answers", "shuffle_answers", "scoring_policy"):
+        assert k not in q
+
+
+@pytest.mark.parametrize("bad", [
+    {"kind": "quiz", "title": "x", "show_correct_answers": "no"},
+    {"kind": "quiz", "title": "x", "shuffle_answers": 0},
+    {"kind": "quiz", "title": "x", "scoring_policy": "keep_best"},
+])
+def test_invalid_quiz_settings_are_refused(bad):
+    assert validate_draft(bad) != []
+
+
+def test_valid_quiz_settings_pass():
+    assert validate_draft(_HIDDEN_ANSWERS_DRAFT) == []
+
+
+def test_create_shell_fails_if_show_correct_answers_did_not_land(monkeypatch):
+    monkeypatch.setattr(sc, "_post", lambda ep, form: ({"id": 9}, ""))
+    monkeypatch.setattr(sc, "_get", lambda ep: {"id": 9, "title": "Prep check", "published": False,
+                                                "show_correct_answers": True,
+                                                "shuffle_answers": False,
+                                                "scoring_policy": "keep_highest"})
+    back, err = sc.create_shell("1", _HIDDEN_ANSWERS_DRAFT)
+    assert back is None and "show_correct_answers" in err
+
+
+def test_create_shell_passes_when_quiz_settings_read_back(monkeypatch):
+    monkeypatch.setattr(sc, "_post", lambda ep, form: ({"id": 9}, ""))
+    monkeypatch.setattr(sc, "_get", lambda ep: {"id": 9, "title": "Prep check", "published": False,
+                                                "show_correct_answers": False,
+                                                "shuffle_answers": False,
+                                                "scoring_policy": "keep_highest"})
+    back, err = sc.create_shell("1", _HIDDEN_ANSWERS_DRAFT)
+    assert back and err == ""
