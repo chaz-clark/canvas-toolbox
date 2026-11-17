@@ -387,13 +387,25 @@ def force_utf8_console() -> None:
 
     # Reconfigure stdout and stderr to UTF-8 encoding
     # This mirrors the behavior of PYTHONUTF8=1 environment variable
+    # reconfigure() changes the encoding IN PLACE. Wrapping .buffer in a NEW
+    # TextIOWrapper (the old approach) leaves two wrappers sharing one buffer; when
+    # either is garbage-collected it closes that buffer, which on Windows broke
+    # pytest's output capture ("I/O operation on closed file") for every test that
+    # calls a tool's main(). The wrapper is kept only as a fallback for streams
+    # without reconfigure().
     import io
 
-    if sys.stdout is not None:
-        sys.stdout = io.TextIOWrapper(
-            sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
-        )
-    if sys.stderr is not None:
-        sys.stderr = io.TextIOWrapper(
-            sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
-        )
+    for name in ("stdout", "stderr"):
+        stream = getattr(sys, name)
+        if stream is None:
+            continue
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+                continue
+            except (ValueError, OSError):
+                pass
+        if hasattr(stream, "buffer"):
+            setattr(sys, name, io.TextIOWrapper(
+                stream.buffer, encoding="utf-8", errors="replace", line_buffering=True
+            ))

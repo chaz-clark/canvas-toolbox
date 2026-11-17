@@ -173,3 +173,69 @@ if __name__ == "__main__":
     test_filter_student_view_empty_list()
     test_filter_student_view_no_mutation()
     print("✅ All Feature 2 unit tests passed")
+
+
+# --- formatted (HTML) comments -------------------------------------------------
+# Canvas renders the plain *_comments fields escaped, so formatted feedback must
+# travel in the *_html fields or bullets/italics show as literal tags.
+
+import canvas_quiz_questions as cqq  # noqa: E402
+
+
+class _Resp:
+    status_code = 200
+
+    def json(self):
+        return {"id": 1}
+
+
+def _capture_create(monkeypatch, q):
+    sent = {}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        sent["payload"] = json
+        return _Resp()
+
+    monkeypatch.setattr(cqq.requests, "post", fake_post)
+    cqq._create_question("1", 2, q)
+    return sent["payload"]["question"]
+
+
+def test_html_comments_are_sent(monkeypatch):
+    q = _capture_create(monkeypatch, {
+        "question_name": "Q", "question_text": "<p>x</p>",
+        "question_type": "multiple_choice_question",
+        "answers": [{"answer_text": "A", "answer_weight": 100}],
+        "incorrect_comments_html": "<p>Why</p><ul><li><em>b:</em> no</li></ul>",
+    })
+    assert q["incorrect_comments_html"].startswith("<p>Why</p>")
+    assert "incorrect_comments" not in q
+
+
+def test_essay_neutral_html_comment_sent_without_answers(monkeypatch):
+    q = _capture_create(monkeypatch, {
+        "question_name": "E", "question_text": "<p>Explain</p>",
+        "question_type": "essay_question", "answers": [],
+        "neutral_comments_html": "<p>Notes</p>",
+    })
+    assert q["neutral_comments_html"] == "<p>Notes</p>"
+    assert "answers" not in q
+
+
+def test_plain_comments_still_supported(monkeypatch):
+    q = _capture_create(monkeypatch, {
+        "question_name": "Q", "question_type": "multiple_choice_question",
+        "answers": [{"answer_text": "A", "answer_weight": 100}],
+        "correct_comments": "Nice",
+    })
+    assert q["correct_comments"] == "Nice"
+
+
+def test_answer_comments_html_passed_per_answer(monkeypatch):
+    q = _capture_create(monkeypatch, {
+        "question_name": "Q", "question_type": "multiple_choice_question",
+        "answers": [{"answer_text": "A", "answer_weight": 0, "answer_comments_html": "<em>no</em>"},
+                    {"answer_text": "B", "answer_weight": 100}],
+    })
+    assert q["answers"][0]["answer_comments_html"] == "<em>no</em>"
+    assert "answer_comments_html" not in q["answers"][1]
