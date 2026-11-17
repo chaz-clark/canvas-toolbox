@@ -81,6 +81,14 @@ asked for a **C**, and it reached them before anyone caught it.
 Principle **HG-5** of the [hybrid grading architecture](../../lib/agents/knowledge/grader_hybrid_architecture.md):
 the agent drafts; the instructor reviews and confirms; only then does anything post.
 
+**A TA may be that reviewer, if the instructor has authorized TA review for the course.**
+The gate is a human who read the work and the draft, and the instructor decides who that
+may be. Nothing else changes: the same review, the same two approvals, the same tools. The
+one extra rule is honesty about who reviewed: a TA's review is pushed with a `-ta`
+disclosure tag (`— AI drafted, TA reviewed`), never with a tag that says the instructor
+reviewed. You never choose a `-ta` tag on your own judgment, and never to get around the
+instructor: ask who is reviewing, and use the tag that is true.
+
 ### The push protocol — you run all of it; the human clicks to approve, twice
 
 **You are not blocked from pushing** — but you may **not** skip the review. Run the whole
@@ -196,6 +204,9 @@ surface the blocker to the instructor. Do **not** route around it.
 | `ai` *(default)* | `— AI drafted, instructor reviewed` | AI suggested grade + wrote comment |
 | `hybrid` | `— script graded, AI-drafted comment, instructor approved` | script graded, AI wrote the comment |
 | `script` | `— script graded, instructor reviewed` | script graded, no AI in the comment |
+| `ai-ta` | `— AI drafted, TA reviewed` | as `ai`, and a TA (authorized by the instructor) did the review |
+| `hybrid-ta` | `— script graded, AI-drafted comment, TA approved` | as `hybrid`, reviewed by a TA |
+| `script-ta` | `— script graded, TA reviewed` | as `script`, reviewed by a TA |
 
 A course that grades one way every time can set `CANVAS_DISCLOSURE_DEFAULT=hybrid`
 in its `.env` and skip the flag; an explicit `--disclosure` still wins. The chosen
