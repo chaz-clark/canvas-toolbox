@@ -13,6 +13,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+### Fixed
+- **`grader_push` "already pushed" log check works again (2.10.1)** — since v0.60.0 a grade push is logged as `grade <before> → <grade>`, but the check still looked for `grade <grade>`, so it never matched and a re-run relied on Canvas's "already graded" gate alone. Both log formats are recognised now. The skip applies to a default push only: `--force`, `--comments-only` and `--regrade` re-use logged keys on purpose and keep their own guards, and the dry-run banner counts only keys actually skipped.
+
 ### Changed
 - **New Quiz content push is now ON by default (2.9.0)** — `canvas_sync --push` and `sync_to_new` write New Quiz settings and question items out of the box; no env flag needed. Opt out with `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false` (dates still push). Deleting items stays separately opt-in (`CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE=true`). Stimulus/Bank/BankEntry items remain read-only. Fixture coverage is still only true-false/choice/essay/numeric of the 12 writable types.
 - **Daily update check that asks (2.7.1)** — the toolkit staleness check runs daily (was weekly), the notice now tells the agent to ask the instructor before updating, and a known-behind verdict keeps being reported (local compare, no network) until the clone actually moves. Constitution rule: never update silently or mid-task.
