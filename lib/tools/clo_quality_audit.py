@@ -22,6 +22,9 @@ never auto-failed:
     - single_barreled — one goal: not two distinct Bloom-level verbs / "X and Y" goals.
   PER-CLO advisory (reported, does NOT drive the verdict):
     - vague_language — subjective/comparative terms (appropriate/effective/better…).
+    - ai_automatable — led by a step software/AI now performs (calculate/list/define…).
+  COURSE-LEVEL review signal (reported; never flagged, never moves the verdict):
+    - kinds_gaps     — BYUI kinds no CLO names (character_values, learning_to_learn).
   COURSE-LEVEL signals (reported; feed the course verdict):
     - scope          — CLO count (3-6 ideal, 3-8 acceptable, else flag).
     - rigor          — Bloom-level spread (all-clustered or all-low → flag for review).
@@ -78,7 +81,8 @@ import canvas_course_guard as guard
 from __toolbox_version__ import __version__
 from rubric_quality_audit import fetch_course_outcomes
 from syllabus_outcomes import extract_outcomes
-from bloom_verbs import detect_bloom, all_bloom_levels, leading_nonobservable, BLOOM_RANK
+from bloom_verbs import (detect_bloom, all_bloom_levels, leading_nonobservable,
+                         primary_verb, AI_AUTOMATABLE, BLOOM_RANK)
 
 # ~/.canvas/config holds the shared, rotating token and ONLY _env_loader
 # reads it (#293). A bare load_dotenv() sees .env alone, so a repo whose
@@ -122,6 +126,20 @@ _PROCESS_PATTERNS = [
     r"\b(?:instructor|teacher)\s+will\b",
     r"\b(?:instructor|teacher)\s+(?:describes?|explains?|presents?|shows?)\b",
 ]
+
+# Kind-of-outcome coverage (BYUI's 5 kinds; outcomes_quality_knowledge.md
+# "Beyond Bloom"). Only the two kinds audits most often find MISSING are
+# detected, by conservative keywords; a miss is a review prompt, never a flag.
+# ("values"/"commit" are excluded: "values of a variable", "commit code".)
+_KIND_PATTERNS = {
+    "character_values": re.compile(
+        r"\b(ethic\w*|integrity|honest\w*|disciples?|steward\w*|moral\w*|character|"
+        r"desire|willingness|respect\w*|humility|compassion\w*)\b", re.IGNORECASE),
+    "learning_to_learn": re.compile(
+        r"\b(reflect\w*|self-assess\w*|self-evaluat\w*|metacogniti\w*|own\s+learning|"
+        r"learning\s+(?:process|strateg\w*)|learn\s+independently|how\s+to\s+learn)\b",
+        re.IGNORECASE),
+}
 
 # Scope thresholds (AoL): 3-6 ideal, 3-8 acceptable.
 _SCOPE_IDEAL = range(3, 7)
@@ -222,6 +240,10 @@ def score_clo(clo: str) -> dict:
     # no recognized observable verb (and not explicitly non-observable) → advisory
     if bloom_level is None and "not_measurable" not in hard_flags:
         advisory.append("no_recognized_action_verb")
+    # ai_automatable — advisory only: the outcome is LED by a step software/AI now
+    # performs (calculate/list/define…). Fine if doing it by hand is the point.
+    if primary_verb(text) in AI_AUTOMATABLE:
+        advisory.append("ai_automatable")
 
     n = len(hard_flags)
     verdict = "meets_criteria" if n == 0 else ("partial" if n == 1 else "needs_revision")
@@ -266,6 +288,11 @@ def audit_clos(clos: list[str]) -> dict:
         rigor_note = (f"spread across {len(levels_present)} Bloom levels "
                       f"(top: {max((s['bloom_level'] for s in scored if s['bloom_level']), key=lambda l: BLOOM_RANK[l], default='n/a')})")
 
+    # kinds_gaps — review signal only, never in course_flags (does not move the
+    # verdict): which commonly-missing kinds of outcome no CLO names.
+    kinds_gaps = [k for k, pat in _KIND_PATTERNS.items()
+                  if n and not any(pat.search(s["text"]) for s in scored)]
+
     # Course verdict (#34). needs_revision is driven ONLY by per-CLO failures —
     # an outcome that is unmeasurable / double-barreled. The course-level signals
     # (scope count, rigor spread) are ADVISORY review prompts, never a red on their
@@ -288,6 +315,7 @@ def audit_clos(clos: list[str]) -> dict:
         "scope_note": scope_note,
         "rigor_note": rigor_note,
         "course_flags": course_flags,
+        "kinds_gaps": kinds_gaps,
         "clos": scored,
         "n_needs_revision": n_needs,
         "n_partial": n_partial,
@@ -330,6 +358,8 @@ def _render(course_id: str, course_name: str, res: dict, detailed: bool, ts: str
     lines.append(f"Rigor: {res['rigor_note']}")
     if res["course_flags"]:
         lines.append(f"Course-level flags: {', '.join(res['course_flags'])}")
+    if res["kinds_gaps"]:
+        lines.append(f"Kinds no CLO names (review, not a flag): {', '.join(res['kinds_gaps'])}")
     lines.append("")
     lines.append(f"Per-CLO: ✅ {sum(1 for c in res['clos'] if c['verdict']=='meets_criteria')} meet"
                  f"  ·  🟡 {res['n_partial']} partial  ·  🔴 {res['n_needs_revision']} needs revision")
@@ -350,6 +380,8 @@ def _render(course_id: str, course_name: str, res: dict, detailed: bool, ts: str
     lines.append("  • Relevance — does each CLO logically fit this course?")
     lines.append("  • Recency — do the CLOs reflect current industry/research practice?")
     lines.append("  • Rigor appropriateness — is the Bloom spread right for THIS course level?")
+    lines.append("  • Beyond Bloom — knowledge type, SOLO level, authenticity/transfer")
+    lines.append("    (see outcomes_quality_knowledge.md \"Beyond Bloom\")")
     return lines
 
 
@@ -364,12 +396,14 @@ def _render_json(course_id: str, course_name: str, res: dict, ts: str) -> dict:
         "scope_note": res["scope_note"],
         "rigor_note": res["rigor_note"],
         "clo_criteria_flags": res["course_flags"],
+        "kinds_gaps": res["kinds_gaps"],
         "clos": [
             {"text": c["text"], "bloom_level": c["bloom_level"],
              "verdict": c["verdict"], "flags": c["hard_flags"], "advisory": c["advisory"]}
             for c in res["clos"]
         ],
-        "review_signals": ["relevance", "recency", "rigor_appropriateness"],
+        "review_signals": ["relevance", "recency", "rigor_appropriateness",
+                           "knowledge_type", "solo_level", "authenticity_transfer"],
     }
 
 
