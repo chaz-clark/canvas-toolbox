@@ -62,6 +62,13 @@ repos:
         pass_filenames: false
         files: '^(agent-packages/|distribution/|plugin\.json$|schemas/agent-packages/|schemas/vendor/agent-plugins/|lib/tools/package_validate\.py$)'
 
+      - id: version-sync
+        name: version-sync (plugin.json moves with pyproject.toml)
+        entry: uv run pytest -q lib/tests/test_plugin_manifest.py
+        language: system
+        pass_filenames: false
+        files: '^(pyproject\.toml|plugin\.json)$'
+
       - id: package-catalog
         name: package-catalog (registry/catalog freshness)
         entry: uv run python lib/tools/package_catalog.py --check
