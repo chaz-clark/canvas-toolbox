@@ -1153,6 +1153,28 @@ def _read_comment_ledger(log: Path, assignment_id: str) -> list[tuple[str, int]]
     return [(k, c) for (k, c) in pushed if (k, c) not in retracted]
 
 
+def keys_pushed_in_log(text: str, assignment_id) -> set:
+    """Keys the per-assignment push log records a grade push for.
+
+    The line is `- KEY: grade <before> → <grade> pushed to assignment AID`
+    (since v0.60.0) or `- KEY: grade <grade> pushed to assignment AID` (before).
+    Comment, HELD and comment-only lines are not grade pushes."""
+    return set(re.findall(
+        rf"^- (\S+): grade (?:\S+ → )?\S+ pushed to assignment {re.escape(str(assignment_id))}\b",
+        text, re.M))
+
+
+def already_pushed(key: str, pushed_keys: set, args) -> bool:
+    """Skip a key the log says was already pushed, on a default push only.
+
+    --force re-pushes on purpose. --comments-only and --regrade re-use keys that
+    are already in the log and carry their own guard (supersede, the
+    resubmission gate), so the log does not block them."""
+    if args.force or getattr(args, "comments_only", False) or getattr(args, "regrade", False):
+        return False
+    return key in pushed_keys
+
+
 def _resolve_uid_from_log_or_subs(
     base: str, cid: str, headers: dict, aid: str, key: str, subs: list[dict],
 ) -> int | None:
@@ -1622,8 +1644,7 @@ def main() -> int:
     # idempotency: keys already in the per-assignment push log are skipped unless --force.
     log = challenge / ".push_log.md"
     _logtext = log.read_text(encoding="utf-8") if log.exists() else ""
-    pushed_keys = set(re.findall(
-        rf"^- (\S+): grade \S+ pushed to assignment {args.assignment_id}\b", _logtext, re.M))
+    pushed_keys = keys_pushed_in_log(_logtext, args.assignment_id)
 
     # Issue #63 retract mode: parse the per-assignment comment-id log and
     # DELETE matching submission_comments. Runs BEFORE the normal push
@@ -1690,8 +1711,8 @@ def main() -> int:
             kept.append(s)
         subs = kept
 
-    extra = (f"; {len(pushed_keys)} already pushed (skip unless --force)"
-             if pushed_keys and not args.force else "")
+    _skip_n = sum(already_pushed(k, pushed_keys, args) for k in pushed_keys)
+    extra = (f"; {_skip_n} already pushed (skip unless --force)" if _skip_n else "")
     print(f"Assignment {args.assignment_id}: {len(subs)} Canvas submissions, "
           f"{len(rows)} review rows{extra}\n")
 
@@ -1748,7 +1769,7 @@ def main() -> int:
             append_disclosure_tag(comment_for(feedback_file), disclosure_kind)
             or args.default_comment)
         uid = resolve_user_id(r.get("submission_file", ""), subs)
-        done = key in pushed_keys and not args.force
+        done = already_pushed(key, pushed_keys, args)
         # Duplicate-comment Andon + resubmission-only re-grade: default refuses any
         # already-graded submission; --regrade admits ONLY resubmissions (not
         # unchanged already-graded work). Canvas appends comments; re-runs stack them.
@@ -1929,8 +1950,7 @@ def main() -> int:
     # ---- end collision guard --------------------------------------------
 
     pushable = [p for p in plan if p[4]]
-    extra2 = (f" ({len(pushed_keys)} already done, skipped)"
-              if pushed_keys and not args.force else "")
+    extra2 = (f" ({_skip_n} already done, skipped)" if _skip_n else "")
     print(f"\n{len(pushable)}/{len(plan)} ready to push{extra2}.")
     if hold_by_key:
         by_tok: dict[str, int] = {}
