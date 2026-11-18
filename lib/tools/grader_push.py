@@ -300,6 +300,12 @@ DISCLOSURE_TAGS = {
     "hybrid": "— script graded, AI-drafted comment, instructor approved",
     # A script computed the grade; no AI in the comment (template/instructor prose).
     "script": "— script graded, instructor reviewed",
+    # The same three when the human who reviewed was a TA the instructor has
+    # authorized to review (HG-5). The tag says who ACTUALLY reviewed: a TA's
+    # review is never passed off as the instructor's.
+    "ai-ta":     "— AI drafted, TA reviewed",
+    "hybrid-ta": "— script graded, AI-drafted comment, TA approved",
+    "script-ta": "— script graded, TA reviewed",
 }
 DEFAULT_DISCLOSURE = "ai"
 # Back-compat: modules/tests that import the single canonical tag still work.

@@ -1044,6 +1044,38 @@ def test_disclosure_tag_wording_is_honest():
 
 # --- the disclosure MENU: pick the tag that matches the grader ----------------
 
+def test_ta_tags_say_a_ta_reviewed_and_never_the_instructor():
+    """HG-5: a TA the instructor authorized may be the human reviewer. The tag must
+    say who ACTUALLY reviewed: a TA's review is never passed off as the instructor's."""
+    assert DISCLOSURE_TAGS["ai-ta"] == "— AI drafted, TA reviewed"
+    assert DISCLOSURE_TAGS["hybrid-ta"] == "— script graded, AI-drafted comment, TA approved"
+    assert DISCLOSURE_TAGS["script-ta"] == "— script graded, TA reviewed"
+    for kind, tag in DISCLOSURE_TAGS.items():
+        assert ("TA" in tag) == kind.endswith("-ta"), kind
+        assert ("instructor" in tag) != kind.endswith("-ta"), kind
+
+
+def test_every_instructor_tag_has_a_ta_twin():
+    """One menu, two reviewers: nobody has to pick a tag that misstates the grader
+    in order to state the reviewer honestly."""
+    base = {k for k in DISCLOSURE_TAGS if not k.endswith("-ta")}
+    assert {k + "-ta" for k in base} == {k for k in DISCLOSURE_TAGS if k.endswith("-ta")}
+
+
+def test_ta_tag_is_appended_and_does_not_stack_with_an_instructor_tag(monkeypatch):
+    out = append_disclosure_tag("Solid work.", "ai-ta")
+    assert out.endswith("— AI drafted, TA reviewed")
+    assert append_disclosure_tag(out, "ai-ta") == out          # idempotent
+    assert append_disclosure_tag(out, "ai") == out             # a re-push by the instructor does not add a second tag
+    already = append_disclosure_tag("Solid work.", "ai")
+    assert append_disclosure_tag(already, "ai-ta") == already  # nor the other way round
+    monkeypatch.delenv("CANVAS_DISCLOSURE_DEFAULT", raising=False)
+    assert resolve_disclosure_kind("ai-ta") == "ai-ta"
+    assert resolve_disclosure_kind("AI-TA") == "ai-ta"
+    monkeypatch.setenv("CANVAS_DISCLOSURE_DEFAULT", "hybrid-ta")
+    assert resolve_disclosure_kind(None) == "hybrid-ta"        # a TA's course folder can set it once
+    assert DEFAULT_DISCLOSURE == "ai"                          # the default is still the instructor's
+
 def test_disclosure_menu_hybrid_tag_credits_the_script_for_the_grade():
     """The point of the menu: with the hybrid grader the SCRIPT grades and the AI
     only comments, so a flat 'AI drafted' overstates the AI. The hybrid tag says so."""
