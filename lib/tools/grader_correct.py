@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -129,6 +130,33 @@ def _same_grade(current, new) -> bool:
     return cc == nc and cr == nr
 
 
+_PLAIN_NUMBER = re.compile(r"^\s*-?\d+(?:\.\d+)?\s*$")
+
+
+def comparable_current(sub, new):
+    """The Canvas value to hold an entered grade against. Canvas keeps an entered number as
+    `score` and shows `grade` in the assignment's own scheme: on a letter or GPA scheme, 3.0
+    comes back as grade "Strong" (seen 2026-11-18: a false MISMATCH after a correct write,
+    and a raise or lowering shown as "changed"). A plain number is therefore held against
+    `score`; anything else (a letter, complete/incomplete, "92%" whose score is in points)
+    against `grade`, as before. On a points assignment the two agree."""
+    sub = sub or {}
+    if _PLAIN_NUMBER.match(str(new)) and sub.get("score") is not None:
+        return sub["score"]
+    return sub.get("grade")
+
+
+def landed(sub, entered) -> bool:
+    """True when Canvas now holds the grade that was entered."""
+    return _same_grade(comparable_current(sub, entered), entered)
+
+
+def not_landed(after, writes, pushed_uids) -> list:
+    """The pushed users whose grade, read back from Canvas, is not the grade that was entered."""
+    return [u for u in sorted(pushed_uids)
+            if u in after and not landed(after[u], next(p["grade"] for p in writes if p["uid"] == u))]
+
+
 def classify_change(current, new) -> str:
     """'same' | 'first' | 'up' | 'down' | 'changed' (cross-type: letter<->number)."""
     if _same_grade(current, new):
@@ -174,7 +202,7 @@ def plan_corrections(rows, index, active, test_id, current_by_uid, grading_type,
                 and points_possible is not None and not (0 <= val <= points_possible):
             fatal.append(f"user {uid}: grade {grade} outside [0, {points_possible}]")
             continue
-        current = current_by_uid[uid].get("grade")
+        current = comparable_current(current_by_uid[uid], grade)
         plan.append({"uid": uid, "grade": grade, "comment": comment,
                      "current": current, "change": classify_change(current, grade)})
     return plan, fatal
@@ -368,9 +396,7 @@ def main() -> int:
 
     # Genchi Gembutsu: re-read from Canvas and confirm each value landed.
     after = {s["user_id"]: s for s in fetch_submissions(base, cid, headers, aid)}
-    bad = [u for u in pushed_uids
-           if u in after and not _same_grade(
-               after[u].get("grade"), next(p["grade"] for p in writes if p["uid"] == u))]
+    bad = not_landed(after, writes, pushed_uids)
     print(f"Verified {len(pushed_uids) - len(bad)}/{pushed} against Canvas"
           + (f"; MISMATCH for user(s) {bad}" if bad else "."))
 

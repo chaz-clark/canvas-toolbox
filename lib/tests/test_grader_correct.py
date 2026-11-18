@@ -14,6 +14,9 @@ if str(_TOOLS_DIR) not in sys.path:
 from grade_guardian import ask_reason  # noqa: E402
 from grader_correct import (  # noqa: E402
     classify_change,
+    comparable_current,
+    landed,
+    not_landed,
     ledger_key,
     load_correction_rows,
     needs_allow_change,
@@ -99,3 +102,44 @@ def test_test_student_only_with_explicit_allow():
     assert fatal == [] and plan[0]["uid"] == 9 and plan[0]["change"] == "up"
     _, fatal = plan_corrections([("9", "20", "")], INDEX, ACTIVE, 9, cur, "points", 100)
     assert any("Test Student" in m for m in fatal)
+
+
+# --- Letter-scheme assignments (2026-11-18): Canvas keeps an entered number as `score`
+# and shows `grade` in the assignment's own scheme, so 3.0 comes back as grade "Strong". ---
+LETTER_SUB = {"grade": "Strong", "score": 3.0}
+
+
+def test_readback_on_a_letter_scheme_is_not_a_false_mismatch():
+    assert landed(LETTER_SUB, "3.0")            # was reported as MISMATCH ("3.0" vs "Strong")
+    assert landed(LETTER_SUB, "3")
+    assert not landed({"grade": "Solid", "score": 2.75}, "3.0")   # a write that did not land still fails
+
+
+def test_readback_unchanged_for_points_percent_and_complete():
+    assert landed({"grade": "8", "score": 8.0}, "8")
+    assert not landed({"grade": "7", "score": 7.0}, "8")
+    assert landed({"grade": "92%", "score": 9.2}, "92%")          # percent: compared with grade, not the points score
+    assert landed({"grade": "complete", "score": 1.0}, "complete")
+
+
+def test_plan_on_a_letter_scheme_shows_the_direction():
+    cur = {1: {"grade": "Solid", "score": 2.75}, 2: {"grade": "Strong", "score": 3.0}}
+    plan, fatal = plan_corrections([("1", "3.0", ""), ("2", "2.0", "")],
+                                   {"1": 1, "2": 2}, {1, 2}, 9, cur, "letter_grade", 4)
+    assert not fatal, fatal
+    by = {p["uid"]: p for p in plan}
+    assert by[1]["change"] == "up" and by[2]["change"] == "down"   # was "changed" for both: a lowering went unlabelled
+    assert {p["uid"] for p in needs_allow_change(plan)} == {1, 2}  # an overwrite still needs --allow-change
+
+
+def test_comparable_current_falls_back_to_grade():
+    assert comparable_current({"grade": "B", "score": None}, "3.0") == "B"
+    assert comparable_current({"grade": "Strong", "score": 3.0}, "Strong") == "Strong"
+    assert comparable_current(None, "3.0") is None
+
+
+def test_the_readback_after_a_push_names_only_real_mismatches():
+    writes = [{"uid": 41, "grade": "3.0"}, {"uid": 42, "grade": "3.0"}, {"uid": 43, "grade": "9"}]
+    after = {41: {"grade": "Strong", "score": 3.0}, 42: {"grade": "Solid", "score": 2.75}, 43: {"grade": "9", "score": 9.0}}
+    assert not_landed(after, writes, {41, 42, 43}) == [42]
+
