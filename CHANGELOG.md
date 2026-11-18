@@ -14,6 +14,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Fixed
+- **`grader_correct` on letter-scheme assignments (2.10.2)** — Canvas keeps an entered number as `score` and shows `grade` in the assignment's own scheme (3.0 comes back as "Strong"), but the read-back compared the entered number with that letter and reported a false MISMATCH after a correct write, and the plan labelled every raise or lowering "changed" instead of UP/DOWN. A plain number is now held against `score`; letters, complete/incomplete and percents against `grade`, as before. Tests: `test_grader_correct.py`.
+
+### Fixed
 - **`grader_push` "already pushed" log check works again (2.10.1)** — since v0.60.0 a grade push is logged as `grade <before> → <grade>`, but the check still looked for `grade <grade>`, so it never matched and a re-run relied on Canvas's "already graded" gate alone. Both log formats are recognised now. The skip applies to a default push only: `--force`, `--comments-only` and `--regrade` re-use logged keys on purpose and keep their own guards, and the dry-run banner counts only keys actually skipped.
 
 ### Changed
