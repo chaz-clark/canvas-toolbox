@@ -118,3 +118,18 @@ def test_pointer_block_tells_agents_where_credentials_live():
     assert "never add a token back" in new            # don't recreate the shadow
     assert "token check:" in new                      # how to check without reading files
     assert "accepting" in new                         # the REJECTED cause that looks like expiry
+
+
+def test_pointer_block_runs_toolkit_project_scoped_and_explains_unreachable():
+    """A bare `uv run` from a nested course root can miss the toolkit's python-dotenv,
+    so .env is never read and the check reports a token problem that isn't one; and
+    an agent seeing `unreachable` with no explanation told a Windows/Codex user the
+    token was bad when the sandbox simply had no network."""
+    from pathlib import Path
+    from sync_grading_protocol import POINTER_BLOCK
+    assert "uv run python canvas-toolbox/" not in POINTER_BLOCK   # every command project-scoped
+    assert "uv run --project canvas-toolbox python canvas-toolbox/lib/tools/cb_update.py" in POINTER_BLOCK
+    assert "`unreachable`" in POINTER_BLOCK and "NOT a token problem" in POINTER_BLOCK
+    lesson = "lib/agents/knowledge/learned/2026-10-27_codex-windows-network-and-uv-cache.md"
+    assert f"canvas-toolbox/{lesson}" in POINTER_BLOCK
+    assert (Path(__file__).resolve().parents[2] / lesson).is_file()  # the link resolves

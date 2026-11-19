@@ -65,10 +65,20 @@ so it is rotated in ONE place). A `.env` with no `CANVAS_API_TOKEN` is the *expe
 state on a multi-course machine. **Never conclude "token missing" by reading `.env`,
 and never add a token back into it** — a real value there shadows the global file and
 silently reinstates the stale-copy problem the consolidation removed. To check whether
-Canvas is reachable, run `uv run python canvas-toolbox/lib/tools/cb_update.py` and read
-its `token check:` line (`valid` / `REJECTED` / `no-token`); don't inspect files. If it
-says `REJECTED`, the token most often just needs **accepting** in Canvas → Account →
-Settings — it is listed as active the whole time it doesn't work.
+Canvas is reachable, run
+`uv run --project canvas-toolbox python canvas-toolbox/lib/tools/cb_update.py` and read
+its `token check:` line; don't inspect files. (`--project` matters: a bare `uv run`
+from the course root can miss the toolkit's `python-dotenv`, never read `.env`, and
+report `no-dotenv`/`no-token` for a token that is fine.)
+- `valid` — works.
+- `REJECTED` — Canvas answered and refused the token. Most often it just needs
+  **accepting** in Canvas → Account → Settings — it is listed as active the whole time
+  it doesn't work.
+- `unreachable` — the request never reached Canvas (offline, DNS, timeout, or a
+  sandbox with network disabled). **This is NOT a token problem** — don't tell the
+  instructor to replace the token. On Codex for Windows the default permission
+  profile has no network; see
+  `canvas-toolbox/lib/agents/knowledge/learned/2026-10-27_codex-windows-network-and-uv-cache.md`.
 
 **Writing an ad-hoc script or running a course-local `tools/*.py`?** Load credentials
 the way the toolkit does — do NOT read `.env` yourself and do NOT assume `os.environ`
@@ -88,7 +98,7 @@ says any of these (all mean the same thing):
 "update cb", "git pull cb", "pull cb", "update canvas-toolbox", "pull canvas-toolbox",
 "update the toolkit", "refresh cb", "upgrade canvas-toolbox", "sync the toolkit",
 "get the latest cb" — run exactly:
-`uv run python canvas-toolbox/lib/tools/cb_update.py --pull --apply`. That pulls the
+`uv run --project canvas-toolbox python canvas-toolbox/lib/tools/cb_update.py --pull --apply`. That pulls the
 **vendored** toolkit in the right place and activates skills + heals this pointer. Do
 **NOT** `cd` into a repo and `git pull` by hand — that pulls the wrong repo (the
 course repo, or the toolkit dev clone) instead of *this* course's vendored copy.
