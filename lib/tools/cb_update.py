@@ -833,9 +833,9 @@ def main() -> int:
         elif status == "unreachable":
             print("    ↳ couldn't reach Canvas (offline?). This is NOT a token "
                   "problem — nothing else here needs the network.")
-            print("      On Codex for Windows the default sandbox has no network: see "
-                  "lib/agents/knowledge/learned/"
-                  "2026-10-27_codex-windows-network-and-uv-cache.md")
+            print(f"      On Codex for Windows the default sandbox has no network: see "
+                  f"{toolkit_subdir}/lib/agents/knowledge/learned/"
+                  f"2026-10-27_codex-windows-network-and-uv-cache.md")
 
     print_lms_mode(course_root)
 
