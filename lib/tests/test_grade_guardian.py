@@ -136,6 +136,46 @@ def _pre_467_command(subdir):
             f'[ -f "$f" ] || exit 0; exec python3 "$f"\'')
 
 
+def _no_python_path(tmp_path, uv_exit):
+    """Every interpreter name is a non-working stub; `uv` exits `uv_exit`."""
+    b = tmp_path / "nopy"
+    b.mkdir()
+    for name in ("python3", "python", "py"):
+        (b / name).write_text("#!/bin/sh\nexit 49\n")
+        (b / name).chmod(0o755)
+    (b / "uv").write_text(f"#!/bin/sh\necho 'No interpreter found' >&2\nexit {uv_exit}\n")
+    (b / "uv").chmod(0o755)
+    return f"{b}:/bin:/usr/bin"
+
+
+def test_hook_command_no_working_python_is_visible_but_not_a_deny(tmp_path):
+    """#467: no Python, and uv can't start one either (it exits 2, the deny
+    code). The hook must exit 1, never 2, or every tool call is blocked,
+    including the Read/Edit needed to fix it."""
+    import os
+    d = tmp_path / "lib" / "tools"
+    d.mkdir(parents=True)
+    (d / "grade_guardian.py").write_text("import sys\nsys.exit(2)\n", encoding="utf-8")
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path),
+           "PATH": _no_python_path(tmp_path, uv_exit=2)}
+    r = subprocess.run(hook_command(""), shell=True, env=env, input="{}",
+                       capture_output=True, text=True)
+    assert r.returncode == 1
+    assert "no working Python" in r.stdout + r.stderr
+
+
+@pytest.mark.parametrize("subdir", ["canvas-toolbox", ""])
+def test_ensure_hook_upgrades_the_direct_python3_command(subdir):
+    """The even earlier launch line (4d6b4ba) was also a bare python3."""
+    prefix = f"{subdir}/" if subdir else ""
+    old_cmd = f'python3 "${{CLAUDE_PROJECT_DIR}}/{prefix}lib/tools/grade_guardian.py"'
+    old = {"hooks": {"PreToolUse": [{"matcher": "Bash|Write|Edit|Read",
+           "hooks": [{"type": "command", "command": old_cmd}]}]}}
+    new, changed = ensure_hook(old, toolkit_subdir=subdir)
+    assert changed
+    assert new["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == hook_command(subdir)
+
+
 @pytest.mark.parametrize("subdir", ["canvas-toolbox", ""])
 def test_ensure_hook_upgrades_the_pre_467_command(subdir):
     """#467: cb_update has to reach installs that already have the bare-python3

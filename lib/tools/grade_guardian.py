@@ -883,19 +883,26 @@ def hook_command(toolkit_subdir: str = "canvas-toolbox") -> str:
         f'sh -c \'f="{path}"; if [ ! -f "$f" ]; then exit 0; fi; '
         'for py in python3 python py; do '
         'if "$py" -c ""; then exec "$py" "$f"; fi; done; '
-        'if [ -n "$(command -v uv)" ]; then exec uv run --no-project python "$f"; fi; '
+        # uv is probed too: with no interpreter it exits 2, the deny code,
+        # which would block every tool call. A failed probe falls through.
+        'if [ -n "$(command -v uv)" ]; then '
+        'if uv run --no-project python -c ""; then exec uv run --no-project python "$f"; fi; fi; '
         'echo "grade_guardian: no working Python found (tried python3, python, py, uv)"; '
         "exit 1'"
     )
 
 
-def _pre_467_hook_command(toolkit_subdir: str) -> str:
-    """The exact launch line every install wrote before #467 (bare `python3`).
-    ensure_hook() replaces a hook only when it matches this string, so a
-    course's own customization is never touched."""
+def _pre_467_hook_commands(toolkit_subdir: str) -> set:
+    """The exact launch lines the toolkit wrote before #467, both bare
+    `python3`: the fail-open `sh -c` form, and the earlier direct form
+    (4d6b4ba, July 2026). ensure_hook() replaces a hook only when it matches
+    one of these, so a course's own customization is never touched."""
     prefix = f"{toolkit_subdir}/" if toolkit_subdir else ""
     path = f'$CLAUDE_PROJECT_DIR/{prefix}lib/tools/grade_guardian.py'
-    return f'sh -c \'f="{path}"; [ -f "$f" ] || exit 0; exec python3 "$f"\''
+    return {
+        f'sh -c \'f="{path}"; [ -f "$f" ] || exit 0; exec python3 "$f"\'',
+        f'python3 "${{CLAUDE_PROJECT_DIR}}/{prefix}lib/tools/grade_guardian.py"',
+    }
 
 
 def ensure_hook(settings: dict, toolkit_subdir: str = "canvas-toolbox") -> tuple:
@@ -908,7 +915,7 @@ def ensure_hook(settings: dict, toolkit_subdir: str = "canvas-toolbox") -> tuple
     Returns (new_settings, changed). If any PreToolUse hook already references
     grade_guardian, returns the settings unchanged (its path is NOT rewritten —
     an existing hook, however it got there, is left alone). One exception: a
-    hook that is exactly the toolkit's own pre-#467 bare-`python3` line is
+    hook that is exactly one of the toolkit's own pre-#467 bare-`python3` lines is
     upgraded in place, so cb_update reaches existing Windows installs. Never
     mutates the input.
     """
@@ -917,7 +924,7 @@ def ensure_hook(settings: dict, toolkit_subdir: str = "canvas-toolbox") -> tuple
     pre = settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
     for entry in pre:
         for h in entry.get("hooks", []):
-            if h.get("command") == _pre_467_hook_command(toolkit_subdir):
+            if h.get("command") in _pre_467_hook_commands(toolkit_subdir):
                 h["command"] = hook_command(toolkit_subdir)
                 return settings, True
             if "grade_guardian" in (h.get("command") or ""):
