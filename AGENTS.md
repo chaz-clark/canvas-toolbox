@@ -357,7 +357,8 @@ canvas-toolbox/
 ├── bin/                    ← cb-init, cb-report-bug, cb-share entry points
 ├── scaffold/                ← copy-once starters (.gitignore, .env.example)
 ├── knowledge/                ← cross-cutting knowledge (behavioral discipline,
-│                             naming conventions, trunk-based development)
+│                             naming conventions, trunk-based development,
+│                             the AI coding loop)
 ├── docs/, examples/, README.md, CHANGELOG.md
 ```
 
@@ -424,6 +425,12 @@ Dev tools (gitignored) → add to `.gitignore` on creation.
 
 ---
 
+**Changing the toolkit itself** (maintainers, in the toolkit repo): follow the AI coding
+loop, [`knowledge/ai-coding-loop.md`](knowledge/ai-coding-loop.md); the skills' setup is in
+`.github/CONTRIBUTING.md` → Agent skills.
+
+---
+
 ## Active Context
 
 _Last updated: 2026-09-22._ Latest few releases only; full history in
@@ -472,3 +479,5 @@ How the course terms map to settings and folders:
 - **Instructional-design frameworks:** [`lib/agents/knowledge/README.md`](lib/agents/knowledge/README.md).
 - **Tool catalog:** [`lib/tools/README.md`](lib/tools/README.md).
 - **Toolkit reuse doctrine:** [`lib/agents/knowledge/toolkit_reuse_knowledge.md`](lib/agents/knowledge/toolkit_reuse_knowledge.md).
+- **Changing the toolkit with an AI agent:** [`knowledge/ai-coding-loop.md`](knowledge/ai-coding-loop.md)
+  (grill → spec → tickets → test-first → review by merge danger → retro).

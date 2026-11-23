@@ -243,6 +243,42 @@ _Avoid_: Released, published (for grades)
 One student reviewing another's submission, assigned per submission.
 _Avoid_: Peer grading, peer feedback (for the assignment)
 
+### Changing the toolkit
+
+The words for how the toolkit itself is changed (the AI coding loop).
+
+**Spec**:
+A written record of one change's user story and every decision already made about it, including what is out of scope.
+_Avoid_: Plan, design doc, requirements
+
+**Ticket**:
+One small, demoable slice of a spec, with the tickets that block it; it fits one fresh session.
+_Avoid_: Task, story (for the slice), improvement (that's a course's)
+
+**Tracer bullet**:
+A ticket cut as a thin slice through every layer, so it works end to end on its own.
+_Avoid_: Spike, vertical slice
+
+**Merge danger**:
+What a change risks if it's wrong: a one-way or two-way door, plus its blast radius.
+_Avoid_: Risk level, severity
+
+**One-way door**:
+A change that is hard or impossible to undo: a published release, a Canvas write, a deletion, a message sent, anything made public.
+_Avoid_: Breaking change (unless it is one)
+
+**Blast radius**:
+What could break, and for whom, if a change is wrong.
+_Avoid_: Impact
+
+**Two-question review**:
+Two reviewers in fresh contexts, one asking whether a change follows the repo's written rules (Standards), the other whether it does what was asked (Spec).
+_Avoid_: Code review (alone), approval
+
+**Review finding**:
+One thing a reviewer reports, tied to a rule or a spec line; a lead to check, not a verdict.
+_Avoid_: Finding (that's an audit's), comment, issue
+
 ### Toolkit and installation
 
 **Toolkit**:
