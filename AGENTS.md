@@ -247,8 +247,11 @@ code (tools, flags, files, functions, columns). Use its terms, never a word on a
 *Avoid* list: "update Canvas" and "update grades in Canvas", not "push"; "course folder",
 not "course repo"; "local only", not "Zone 2". **A new project concept gets its glossary entry in the
 same PR that first names it** — settle the word, then build. A course's own words go in
-its own glossary, never mixed into the toolkit's: create a `GLOSSARY-MAP.md` at the
-course root listing both. Code and older docs still carry old words until each is
+its own glossary, never mixed into the toolkit's: `GLOSSARY.md` at the course root,
+never `knowledge/glossary.md` (the toolkit's file, replaced on every update). The
+toolkit's update (`cb_flatten`, or `cb_update` in the nested layout) writes a starter
+`GLOSSARY-MAP.md` once, linking the toolkit's glossary; add the course's line to it
+when its `GLOSSARY.md` is created. Code and older docs still carry old words until each is
 renamed (the tools and `.claude/ferpa_zone2.txt` still say Zone 2 for local only);
 translate for the user, never make them learn ours.
 
