@@ -14,6 +14,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Fixed
+- **Course home page can be created, and updated in a course with students (2.11.2, #471)** — `course_homepage_build.py --apply` sent no page title, so in a course with no front page yet Canvas refused with HTTP 400 (`title cannot be blank`). It now sends a title only when creating one: `--title`, or "Home" by default. An existing front page keeps its title unless `--title` is passed, because renaming a Canvas page changes its URL and breaks links to it. New `--allow-enrolled` passes the instructor's say-so to the course guard, which before had no way to allow updating the home page of a published course with enrolled students. A refused update now prints Canvas's own error message instead of only the HTTP status.
+
+### Fixed
 - **Safety hooks find a Python that runs, on Windows too (2.11.1, #467)** — `grade_guardian` and the FERPA pre-push guard both launched a bare `python3`. On stock Windows that name is the Microsoft Store stub, which prints an install prompt and exits 49: the guardian was silently off (49 is a non-blocking exit, so every tool call went through), and every `git push` was refused with the stub's message instead of the FERPA check. Both hooks now try `python3`, `python`, `py`, then `uv run --no-project python`, and run the first that starts (uv is probed too: with no interpreter it exits 2, the guardian's deny code). With no working Python the guardian exits 1 with a message (visible, never bricks a session) and the pre-push hook refuses with `PUSH BLOCKED: … found no working Python`. `ensure_hook` now upgrades a hook that is exactly one of the toolkit's old bare-`python3` lines (the `sh -c` form, and the earlier direct form from July 2026), so the next `cb_update` fixes existing installs; any other guardian hook is still left alone. The pre-push hook already reinstalled itself when its body changed.
 
 ### Added
