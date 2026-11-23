@@ -14,6 +14,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Changed
+- **Tool messages say "course folder", not "course repo" (2.12.2, #482).** `cb_update`'s run header, flat-layout notice, `--multi-course` help and token hints, `cb_secure_token`'s global-file header, the guardian's credential-file refusal and `merge_cleanup --help` now use the glossary's word. The course AGENTS.md pointer block says "the course folder's own git repository" where it really means git; each course picks that up on its next `cb_update`, since the block heals itself. The retired-word guard (#479) now allows no "course repo" in tool strings.
+
+### Changed
 - **Tool messages say "local only", not "Zone 2" (2.12.1, #481).** The guardian's refusals, the FERPA pre-push guard's `PUSH BLOCKED` line, `cb_update`'s pattern-count report and `grader_setup`'s checklist now use the glossary's word. Two labels said "Zone" where the data has no names, so they now say **AI-readable**: `grader_fetch_gradebook`'s de-identified export, and the resubmission report footer, which wrongly said "Zone 2". Identifiers like `load_zone2` are unchanged. The retired-word guard (#479) now allows no "Zone 1" or "Zone 2" in tool strings.
 
 ### Changed

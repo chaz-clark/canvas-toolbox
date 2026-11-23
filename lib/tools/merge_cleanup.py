@@ -354,7 +354,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description="Mandatory verification gate closing an AGENTS.md merge.")
     ap.add_argument("--course-root", type=Path, default=Path.cwd(),
-                    help="course repo root (default: cwd)")
+                    help="course folder (default: cwd)")
     ap.add_argument("--source", type=Path, default=None,
                     help=f"source constitution (default: <root>/{DEFAULT_SOURCE})")
     ap.add_argument("--check", action="store_true",
