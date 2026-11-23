@@ -135,6 +135,11 @@ uv run python lib/tools/course_homepage_build.py \
     --schedule schedule.yml --apply
 ```
 
+A course with no front page yet gets one titled "Home" (or `--title "..."`).
+An existing front page keeps its title unless `--title` is passed; renaming a
+Canvas page changes its URL. A published course with enrolled students needs
+`--allow-enrolled`, only on the instructor's say-so for that course.
+
 ## Pure-CSS techniques used (and why)
 
 Three patterns make this work without JavaScript:

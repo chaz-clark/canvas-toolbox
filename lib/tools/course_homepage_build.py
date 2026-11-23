@@ -542,28 +542,43 @@ def bootstrap_schedule_from_canvas(course_id: int) -> dict:
     }
 
 
-def push_homepage_to_canvas(html: str, course_id: int) -> str:
-    """PUT the rendered HTML as the course's front page. Returns the page URL."""
+def push_homepage_to_canvas(html: str, course_id: int, title: str | None = None,
+                            allow_enrolled: bool = False) -> str:
+    """PUT the rendered HTML as the course's front page. Returns the page URL.
+
+    Canvas refuses to CREATE a front page without a title (HTTP 400, #471), so
+    a course with no front page gets `title` or "Home". An existing front page
+    keeps its title unless `title` is passed: renaming a Canvas page changes
+    its URL, which breaks links to it."""
     tok, base = _env_canvas()
     if not tok or not base:
         raise RuntimeError("Missing CANVAS_API_TOKEN or CANVAS_BASE_URL in .env")
     headers = {"Authorization": f"Bearer {tok}"}
 
     if guard_enforce:
-        guard_enforce(base, headers, str(course_id), mode="write")
+        guard_enforce(base, headers, str(course_id), mode="write",
+                      allow_override=allow_enrolled)
+
+    url = f"{base}/api/v1/courses/{course_id}/front_page"
+    data = {
+        "wiki_page[body]": html,
+        "wiki_page[published]": "true",
+        "wiki_page[front_page]": "true",
+    }
+    if title:
+        data["wiki_page[title]"] = title
+    else:
+        existing = requests.get(url, headers=headers, timeout=_TIMEOUT)
+        if existing.status_code == 404:
+            data["wiki_page[title]"] = "Home"
+        elif not existing.ok:
+            raise RuntimeError(f"Canvas returned HTTP {existing.status_code} "
+                               f"reading the front page: {existing.text[:500]}")
 
     # Canvas API: PUT /api/v1/courses/:id/front_page
-    r = requests.put(
-        f"{base}/api/v1/courses/{course_id}/front_page",
-        headers=headers,
-        data={
-            "wiki_page[body]": html,
-            "wiki_page[published]": "true",
-            "wiki_page[front_page]": "true",
-        },
-        timeout=_TIMEOUT,
-    )
-    r.raise_for_status()
+    r = requests.put(url, headers=headers, data=data, timeout=_TIMEOUT)
+    if not r.ok:
+        raise RuntimeError(f"Canvas returned HTTP {r.status_code}: {r.text[:500]}")
     return (r.json() or {}).get("html_url", f"{base}/courses/{course_id}")
 
 
@@ -594,6 +609,13 @@ def main() -> int:
                          "Honors canvas_course_guard's enrolled-course write-gate.")
     ap.add_argument("--course-id", type=int,
                     help="Canvas course ID (used by --apply and --bootstrap-from-canvas)")
+    ap.add_argument("--title",
+                    help="Front page title for --apply. Default: keep the current "
+                         "title, or \"Home\" if the course has no front page yet. "
+                         "Changing it changes the page's URL.")
+    ap.add_argument("--allow-enrolled", action="store_true",
+                    help="With --apply: proceed even if the course has enrolled "
+                         "students. Only on the instructor's say-so for this course.")
     ap.add_argument("--bootstrap-from-canvas", action="store_true",
                     help="Generate a starter schedule.yml from the course's modules. "
                          "Requires --course-id and --output.")
@@ -691,7 +713,8 @@ def main() -> int:
             return 1
         print(f"  --apply: pushing to Canvas course {cid}...", file=sys.stderr)
         try:
-            url = push_homepage_to_canvas(html, cid)
+            url = push_homepage_to_canvas(html, cid, title=args.title,
+                                          allow_enrolled=args.allow_enrolled)
         except (requests.HTTPError, RuntimeError) as e:
             print(f"  ✗ push failed: {e}", file=sys.stderr)
             return 1

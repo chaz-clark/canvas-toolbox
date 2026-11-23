@@ -15,6 +15,8 @@ PLACEHOLDER-NAME CONVENTION (per AGENTS.md → Working Style):
   educational records.
 """
 import sys
+
+import pytest
 from datetime import date
 from pathlib import Path
 
@@ -22,6 +24,7 @@ _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
+import course_homepage_build as chb  # noqa: E402
 from course_homepage_build import (  # noqa: E402
     parse_iso_date,
     validate_schedule,
@@ -319,3 +322,89 @@ def test_html_escape_none_returns_empty():
 def test_html_escape_non_string():
     """Numbers, etc., get str()'d safely."""
     assert _html_escape(42) == "42"
+
+
+# ---------------------------------------------------------------------------
+# updating the front page (push_homepage_to_canvas) — #471: title on create, --allow-enrolled, error body
+# ---------------------------------------------------------------------------
+
+
+class _Resp:
+    def __init__(self, status, payload=None, text=""):
+        self.status_code, self._payload, self.text = status, payload or {}, text
+        self.ok = 200 <= status < 300
+
+    def json(self):
+        return self._payload
+
+
+def _fake_canvas(monkeypatch, front_page_status=200, put_resp=None):
+    calls = {"put": None, "guard": None, "order": []}
+    monkeypatch.setenv("CANVAS_API_TOKEN", "t")
+    monkeypatch.setenv("CANVAS_BASE_URL", "https://x.instructure.com")
+    def get(url, **kw):
+        calls["order"].append("get")
+        return _Resp(front_page_status, {"title": "Welcome"})
+    monkeypatch.setattr(chb.requests, "get", get)
+
+    def put(url, data=None, **kw):
+        calls["order"].append("put")
+        calls["put"] = data
+        return put_resp or _Resp(200, {"html_url": "https://x/courses/1/pages/home"})
+    monkeypatch.setattr(chb.requests, "put", put)
+
+    def guard(base, headers, cid, mode, allow_override=False, **kw):
+        calls["order"].append("guard")
+        calls["guard"] = allow_override
+    monkeypatch.setattr(chb, "guard_enforce", guard)
+    return calls
+
+
+def test_update_sends_a_title_when_the_course_has_no_front_page(monkeypatch):
+    """#471: Canvas refuses to CREATE a front page without a title (400)."""
+    calls = _fake_canvas(monkeypatch, front_page_status=404)
+    chb.push_homepage_to_canvas("<p>x</p>", 1)
+    assert calls["put"]["wiki_page[title]"] == "Home"
+
+
+def test_update_keeps_an_existing_front_page_title(monkeypatch):
+    """Sending a title on update renames the page and changes its URL, so
+    links to it break. Leave it out unless asked."""
+    calls = _fake_canvas(monkeypatch, front_page_status=200)
+    chb.push_homepage_to_canvas("<p>x</p>", 1)
+    assert "wiki_page[title]" not in calls["put"]
+
+
+def test_update_uses_an_explicit_title(monkeypatch):
+    calls = _fake_canvas(monkeypatch, front_page_status=200)
+    chb.push_homepage_to_canvas("<p>x</p>", 1, title="Start Here")
+    assert calls["put"]["wiki_page[title]"] == "Start Here"
+
+
+def test_update_passes_allow_enrolled_to_the_course_guard(monkeypatch):
+    calls = _fake_canvas(monkeypatch)
+    chb.push_homepage_to_canvas("<p>x</p>", 1)
+    assert calls["guard"] is False
+    chb.push_homepage_to_canvas("<p>x</p>", 1, allow_enrolled=True)
+    assert calls["guard"] is True
+
+
+def test_update_runs_the_course_guard_before_any_canvas_request(monkeypatch):
+    calls = _fake_canvas(monkeypatch, front_page_status=404)
+    chb.push_homepage_to_canvas("<p>x</p>", 1)
+    assert calls["order"] == ["guard", "get", "put"]
+
+
+def test_update_error_includes_canvas_response_body(monkeypatch):
+    body = '{"errors":{"title":[{"message":"title cannot be blank"}]}}'
+    _fake_canvas(monkeypatch, put_resp=_Resp(400, text=body))
+    with pytest.raises(RuntimeError, match="title cannot be blank"):
+        chb.push_homepage_to_canvas("<p>x</p>", 1)
+
+
+def test_cli_has_allow_enrolled_and_title_flags(capsys, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["course_homepage_build.py", "--help"])
+    with pytest.raises(SystemExit):
+        chb.main()
+    out = capsys.readouterr().out
+    assert "--allow-enrolled" in out and "--title" in out
