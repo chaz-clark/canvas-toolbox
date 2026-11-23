@@ -337,7 +337,8 @@ canvas-toolbox/
 ├── bin/                    ← cb-init, cb-report-bug, cb-share entry points
 ├── scaffold/                ← copy-once starters (.gitignore, .env.example)
 ├── knowledge/                ← cross-cutting knowledge (behavioral discipline,
-│                             naming conventions, trunk-based development)
+│                             naming conventions, trunk-based development,
+│                             the AI coding loop)
 ├── docs/, examples/, README.md, CHANGELOG.md
 ```
 
@@ -452,3 +453,5 @@ _Last updated: 2026-09-22._ Latest few releases only; full history in
 - **Instructional-design frameworks:** [`lib/agents/knowledge/README.md`](lib/agents/knowledge/README.md).
 - **Tool catalog:** [`lib/tools/README.md`](lib/tools/README.md).
 - **Toolkit reuse doctrine:** [`lib/agents/knowledge/toolkit_reuse_knowledge.md`](lib/agents/knowledge/toolkit_reuse_knowledge.md).
+- **Changing the toolkit with an AI agent:** [`knowledge/ai-coding-loop.md`](knowledge/ai-coding-loop.md)
+  (grill → spec → tickets → test-first → review by merge danger → retro).
