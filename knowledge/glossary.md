@@ -222,7 +222,7 @@ Work Canvas marks as turned in after its due date.
 _Avoid_: Late (for work past the grading standard)
 
 **Grading standard**:
-How many days after the due date work should be graded by; one setting for the whole app.
+How many days after the due date work should be graded by; one setting for all of a user's courses.
 _Avoid_: Grading window, SLA, deadline
 
 **Grading Lights**:
