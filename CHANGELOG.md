@@ -14,6 +14,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Fixed
+- **`exempt_by_date` actually excuses now, and can target specific assignments (2.10.4)** — the tool sent `submission[excused]`, which Canvas ignores while still returning 200, so every run reported success and excused nothing. It now sends the write key `submission[excuse]` and checks the response's `excused` field, so a silent no-op fails loudly (same fix for `--undo`). New `--assignment-ids 123,456` scope excuses only the named assignments (e.g. a student who earned out of specific milestones); an id that isn't a published, dated assignment in the course is refused before any write.
+
+### Fixed
 - **Course guidance runs the token check project-scoped and explains `unreachable` (2.10.3)** — the pointer block every nested course AGENTS.md carries told agents to run a bare `uv run python canvas-toolbox/lib/tools/cb_update.py` from the course root, which can miss the toolkit's `python-dotenv`, never read `.env`, and report a token problem that isn't one. Both commands in the block now use `uv run --project canvas-toolbox`. The block also listed only `valid`/`REJECTED`/`no-token`, so an agent seeing `unreachable` under a Codex-on-Windows sandbox (no network by default) blamed the token; it now says `unreachable` is a network failure, not a token rejection, and links the Windows lesson — as does `cb_update`'s own `unreachable` hint. Existing course repos pick the new wording up on their next `cb_update` (the block self-heals).
 
 ### Fixed
