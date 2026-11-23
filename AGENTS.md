@@ -23,8 +23,8 @@ institution-agnostic.
 **This is NOT**: a Canvas replacement, a student-facing tool, a VCS for Canvas
 content, or a NewQuiz/ExternalTool editor (REST API limits).
 
-**Audience**: instructors and instructional designers who edit Canvas courses and
-use LLM coding tools for course-design work.
+**Audience**: instructors, and the TAs they authorize, who build and grade Canvas
+courses with an LLM coding tool. They are the **users** every story is written for.
 
 ---
 
@@ -232,6 +232,25 @@ The exception is a genuine human-review gate on **AI-drafted** grades (grader_pu
 HG-5), where the instructor's terminal confirmation is the point; there, do the
 review together in chat and hand off only that final confirmation.
 
+**Work starts from a user story.** The user is the instructor or a TA they authorized.
+Frame every issue, spec, and PR as a story: *As an instructor (or TA), I want
+⟨outcome⟩, so that ⟨reason⟩*, with acceptance criteria the user could check themselves,
+in Canvas or their course folder. If you can't name the user and the outcome, ask before
+building (P-010). Ship each story as one small slice: one short branch, one PR, `main`
+still working. A slice is done when the user can see it work on real course data
+(Genchi Gembutsu), and what they say back becomes the next story: an `enhancement:`
+via `cb_report_bug.py` for the toolkit, an improvement card for a course.
+
+**Stay inside the glossary.** [`knowledge/glossary.md`](knowledge/glossary.md) is the
+vocabulary for everything we write and build: chat, docs, tool output, and the names in
+code (tools, flags, files, functions, columns). Use its terms, never a word on an
+*Avoid* list: "update Canvas" and "update grades in Canvas", not "push"; "course folder",
+not "repo"; "local only", not "Zone 2". **A new concept gets its glossary entry in the
+same PR that first names it** — settle the word, then build. A course's own words go in
+its own glossary, listed in the folder's `GLOSSARY-MAP.md`, never mixed into the
+toolkit's. Code and older docs still carry old words until each is renamed; translate
+for the user, never make them learn ours.
+
 Project-specific rules (detail: [`lib/agents/knowledge/working_style_canvas_toolbox.md`](lib/agents/knowledge/working_style_canvas_toolbox.md)):
 local files are the source of truth (Canvas is the sync target); ground pedagogical
 work in the knowledge base; match Canvas objects by title, not ID; keep institutional
@@ -431,14 +450,14 @@ _Last updated: 2026-09-22._ Latest few releases only; full history in
 
 ## Domain terms
 
-| Term | Definition |
-|---|---|
-| **Master** | Template course where authoring happens. `MASTER_COURSE_ID`; folder `master/`. |
-| **Blueprint** | Canvas Blueprint sections clone from (online programs). `BLUEPRINT_COURSE_ID`; `blueprint/`. |
-| **Section** | Live per-semester course (S1, S2…). `S1_COURSE_ID`…; `s1/`, `s2/`. |
-| **NewQuiz** | LTI-based quiz engine; can't be content-pushed via REST (edit in UI). |
-| **Classic Quiz** | Original engine; has both `quiz_id` and an underlying `assignment_id`; REST works. |
-| **Source of truth** | The local working folder; Canvas is the sync *target*. |
+The project's words, one meaning each: [`knowledge/glossary.md`](knowledge/glossary.md).
+How the course terms map to settings and folders:
+
+| Term | Setting | Folder |
+|---|---|---|
+| **Master** | `MASTER_COURSE_ID` | `master/` |
+| **Blueprint** | `BLUEPRINT_COURSE_ID` | `blueprint/` |
+| **Course Section** (S1, S2…) | `S1_COURSE_ID`… | `s1/`, `s2/` |
 
 ---
 
