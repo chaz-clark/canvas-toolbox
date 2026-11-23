@@ -25,8 +25,8 @@ Canvas's number for an account; in this toolkit it always identifies a student, 
 _Avoid_: User (for a student), user number
 
 **Test Student**:
-Canvas's built-in fake student enrolled in every course for previewing; never a real student.
-_Avoid_: test user, student view, dummy student
+Canvas's built-in fake student, used by Student View; never a real student.
+_Avoid_: Test user, dummy student
 
 ### Courses and copies
 
@@ -76,6 +76,172 @@ _Avoid_: New Quizzes, quiz engine 2
 **Classic Quiz**:
 Canvas's original quiz engine, which the toolkit can read and write.
 _Avoid_: Old quiz, legacy quiz
+
+### Canvas
+
+Canvas's own words, as Canvas shows them to instructors and TAs. When Canvas's screen and
+its data use different names, the screen's name wins. Section, NewQuiz, Classic Quiz,
+Override, Excused, Test Student and Canvas user ID are under their topics.
+
+**Course**:
+One Canvas course, with its own content, people, and gradebook.
+_Avoid_: Class, shell
+
+**Term**:
+The academic period a course belongs to, such as Fall 2026; its dates can limit when students take part.
+_Avoid_: Semester (for the Canvas object), session
+
+**Published**:
+Visible to students. A course, module, or item can each be published or unpublished.
+_Avoid_: Live (for content), visible, released
+
+**Concluded**:
+A course past its end date, read-only for students: nothing more can be submitted.
+_Avoid_: Archived, closed, ended
+
+**Enrollment**:
+One person's place in a course or section, with a role.
+_Avoid_: Registration, roster entry
+
+**Role**:
+What an enrollment may do: Teacher, TA, Student, Designer, or Observer.
+_Avoid_: Permission level
+
+**Teacher**:
+Canvas's role name for an instructor. Say "instructor" in prose; say "Teacher" only when naming the Canvas role.
+_Avoid_: Teacher in prose
+
+**Group set**:
+A set of student groups made for one purpose, such as project teams.
+_Avoid_: Group category, team set
+
+**Student View**:
+Canvas's preview of a course as a student sees it.
+_Avoid_: Preview mode, act as student
+
+**Module**:
+An ordered collection of module items that sets the path through a course.
+_Avoid_: Unit, week (as the Canvas object), folder
+
+**Module item**:
+An entry in a module that points to content (a page, assignment, quiz, discussion, file, link, or text header); it is not the content itself.
+_Avoid_: Content (for the entry), link
+
+**Text header**:
+A label inside a module that groups the items under it.
+_Avoid_: Subheader, divider
+
+**Prerequisite**:
+A module a student must complete before the next one opens.
+_Avoid_: Gate, unlock rule
+
+**Requirement**:
+What a student must do with a module item (view it, mark it done, submit, or reach a score) for its module to count as complete.
+_Avoid_: Completion rule, completion requirement
+
+**Page**:
+Ungraded course content, written in Canvas's editor.
+_Avoid_: Wiki page, content page
+
+**Syllabus**:
+The course's syllabus page, which Canvas pairs with a list of the course's dated work.
+_Avoid_: Course outline
+
+**Assignment**:
+Work Canvas tracks in the gradebook. Graded quizzes and graded discussions are assignments underneath.
+_Avoid_: Task, challenge, homework
+
+**Assignment group**:
+A named group of assignments in the gradebook, such as Projects, which can carry a share of the final grade.
+_Avoid_: Category, bucket
+
+**Discussion**:
+A topic students reply to in threads; it may be graded.
+_Avoid_: Forum, board
+
+**Announcement**:
+A message posted to everyone in a course.
+_Avoid_: News, broadcast
+
+**External tool**:
+A third-party tool that opens inside Canvas; NewQuiz is one.
+_Avoid_: LTI (in prose), plugin, integration
+
+**Due**:
+When work is due.
+_Avoid_: Deadline
+
+**Available from**:
+When students can first open the work.
+_Avoid_: Unlock date, start date, open date
+
+**Until**:
+When the work closes to students; after it, they can't submit.
+_Avoid_: Lock date, close date, end date
+
+**To-do date**:
+The date an ungraded page or discussion shows on students' to-do lists.
+_Avoid_: Due (for ungraded items)
+
+**Submission**:
+One student's (or group's) turned-in work for one assignment, across all their attempts.
+_Avoid_: Upload, turn-in, artifact
+
+**Attempt**:
+One try within a submission; turning work in again makes a new attempt.
+_Avoid_: Version, resubmission (for the try itself)
+
+**Missing**:
+Canvas's mark for work past due with nothing submitted.
+_Avoid_: Zero, not turned in
+
+**Late policy**:
+A course setting that takes points off late work automatically, or gives missing work a set grade.
+_Avoid_: Penalty
+
+**Gradebook**:
+The course's grid of students and assignments, with every grade.
+_Avoid_: Grade book, grade sheet
+
+**SpeedGrader**:
+Canvas's screen for grading one student's submission at a time.
+_Avoid_: Grader (for the screen)
+
+**Rubric**:
+A set of criteria, each with ratings worth points, attached to an assignment to score it.
+_Avoid_: Scoring guide, checklist (a course checklist is not a rubric)
+
+**Criterion**:
+One row of a rubric: one thing being judged.
+_Avoid_: Dimension, category
+
+**Rating**:
+One level within a criterion, worth a number of points.
+_Avoid_: Band, level
+
+**Outcome**:
+A learning goal tracked across assignments through rubrics.
+_Avoid_: Objective, competency (unless the course names it so)
+
+**Display grade as**:
+How an assignment's grade appears: points, percentage, letter grade, complete/incomplete, or GPA scale.
+_Avoid_: Grading type, grade format
+
+**Grading scheme**:
+The scale that turns a percentage into a letter grade.
+_Avoid_: Grade scale, letter scale
+
+**Posting policy**:
+Whether an assignment's grades show to students as soon as they're entered (automatic) or only once posted (manual).
+_Avoid_: Muting, mute, release policy
+
+**Posted**:
+A grade students can see. Under a manual posting policy, a grade is entered but hidden until it is posted.
+_Avoid_: Released, published (for grades)
+
+**Peer review**:
+One student reviewing another's submission, assigned per submission.
+_Avoid_: Peer grading, peer feedback (for the assignment)
 
 ### Toolkit and installation
 
@@ -280,12 +446,12 @@ Reopening one student's past-due work so they can still submit it.
 _Avoid_: Late accommodation, reopen, late pass
 
 **Override**:
-A Canvas date setting that applies to one student or group instead of the assignment's defaults.
+A set of dates on an assignment that applies to one student, a section, or a group instead of the assignment's own; Canvas sets it under "Assign to".
 _Avoid_: Exception
 
-**Exemption**:
-Excusing one student from an assignment so it doesn't count.
-_Avoid_: Excuse, waiver
+**Excused**:
+Canvas's mark (EX in the gradebook) for a student who doesn't have to do an assignment; it doesn't count toward their grade.
+_Avoid_: Exemption, exempt, waiver
 
 ### Compliance (Title IV)
 
