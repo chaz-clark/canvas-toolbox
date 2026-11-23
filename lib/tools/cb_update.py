@@ -58,11 +58,12 @@ try:
     from grade_guardian import load_zone2 as _load_zone2
     from grade_guardian import compile_zone2 as _compile_zone2
     from grade_guardian import load_zone2_exempt as _load_zone2_exempt
-    from grade_guardian import _ZONE2_EXTRA_FILE
+    from grade_guardian import _ZONE2_EXTRA_FILE, _ZONE2_LEGACY_FILE
 except ImportError:
     _ensure_guardian_hook = None
     _zone2_summary = _load_zone2 = _compile_zone2 = _load_zone2_exempt = None
-    _ZONE2_EXTRA_FILE = ".claude/ferpa_zone2.txt"
+    _ZONE2_EXTRA_FILE = ".claude/local_only.txt"
+    _ZONE2_LEGACY_FILE = ".claude/ferpa_zone2.txt"
 
 try:
     from ferpa_pre_push import ensure_pre_push_hook as _ensure_pre_push
@@ -627,6 +628,46 @@ def print_lms_mode(course_root: Path) -> None:
     print("     Add your own name-bearing files to " + _ZONE2_EXTRA_FILE + ".")
 
 
+def migrate_local_only_file(course_root: Path, apply: bool) -> str:
+    """Rename the course's `.claude/ferpa_zone2.txt` to `.claude/local_only.txt`
+    (#480). absent / current / would-rename / renamed / both-exist.
+
+    The content moves unchanged, so every pattern survives; the guardian reads
+    both names anyway, so a course is covered before, during and after. A tracked
+    file is renamed with `git mv` so its history follows. If both names exist,
+    nothing is touched: merging two pattern files is the course's call, and the
+    guardian keeps reading both until then."""
+    new, old = course_root / _ZONE2_EXTRA_FILE, course_root / _ZONE2_LEGACY_FILE
+    if not old.exists():
+        return "current" if new.exists() else "absent"
+    if new.exists():
+        return "both-exist"
+    if not apply:
+        return "would-rename"
+    tracked = subprocess.run(
+        ["git", "-C", str(course_root), "ls-files", "--error-unmatch", _ZONE2_LEGACY_FILE],
+        capture_output=True, text=True).returncode == 0
+    if tracked:
+        subprocess.run(["git", "-C", str(course_root), "mv", _ZONE2_LEGACY_FILE,
+                        _ZONE2_EXTRA_FILE], check=True, capture_output=True)
+    else:
+        old.rename(new)
+    return "renamed"
+
+
+def print_local_only_migration(status: str, indent: str = "") -> None:
+    """One status line, plus what to do when both names exist."""
+    print(f"{indent}local-only pattern file ({_ZONE2_EXTRA_FILE}): {status}")
+    if status in ("renamed", "would-rename"):
+        done = "renamed" if status == "renamed" else "will be renamed"
+        print(f"{indent}  ↳ {done} from {_ZONE2_LEGACY_FILE} (the glossary's word is "
+              f"\"local only\"). Same patterns; commit the rename.")
+    elif status == "both-exist":
+        print(f"{indent}  ↳ both {_ZONE2_EXTRA_FILE} and {_ZONE2_LEGACY_FILE} exist. "
+              f"The guardian reads both, so nothing is unprotected. Move the old "
+              f"file's patterns into {_ZONE2_EXTRA_FILE}, then delete the old file.")
+
+
 def print_zone2_coverage(course_root: Path) -> None:
     """Report WHAT the guardian's FERPA set actually covers, not just that the hook
     is wired. `grade_guardian hook: present` was true and misleading in the same
@@ -768,6 +809,7 @@ def main() -> int:
         print("  ↳ this repo's guardian was missing or out of date (an old launch "
               "line could leave it off on Windows) — agents could hand-write "
               "Canvas writes / bypass gates. Now enforced at create/edit/run.")
+    print_local_only_migration(migrate_local_only_file(course_root, args.apply))
     print_zone2_coverage(course_root)
 
     if _ensure_pre_push is not None:

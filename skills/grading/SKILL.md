@@ -278,7 +278,7 @@ grader_standing.py --csv standing.csv --assignment-id <id> --push --yes --allow-
 
 ## When the guardian blocks a file that isn't student data (#374)
 
-A course that lists a whole directory in `.claude/ferpa_zone2.txt` can end up
+A course that lists a whole directory in `.claude/local_only.txt` can end up
 blocking the instructor-authored files inside it — the rubric, the assignment spec.
 `RUBRIC.md` and `assignment_spec.md` are exempt by default. For anything else:
 
@@ -288,7 +288,7 @@ blocking the instructor-authored files inside it — the rubric, the assignment 
    Never propose exempting a roster, gradebook, keymap, grade/comment export,
    per-student feedback, repo/participation data, or a script that handles them.
 3. **Tell the instructor the filename and why it looks safe**, and propose ONE `!`
-   line, e.g. `!grading/.*/PROCESS\.md`. Edit `.claude/ferpa_zone2.txt` only after
+   line, e.g. `!grading/.*/PROCESS\.md`. Edit `.claude/local_only.txt` only after
    they approve.
 4. An exemption lifts course-listed patterns only — it can never un-protect the
    built-in Zone-2 files. Check `cb_update`'s exemption count afterward.
@@ -300,7 +300,7 @@ export — inputs are local-only: the instructor's notes/posts as files, and a
 roster CSV. The Canvas de-id/re-id pipeline above doesn't apply (there's no
 fetch step to hook a rename into), but the re-identify half does, adapted:
 
-- **Declare the course's own Zone-2 files first.** `.claude/ferpa_zone2.txt`
+- **Declare the course's own Zone-2 files first.** `.claude/local_only.txt`
   is not Canvas-specific — it's a per-course extension point (#278). A
   non-Canvas course has different name-bearing files than a Canvas one
   (a roster CSV, a mixed discussion export, per-student submission `.txt`

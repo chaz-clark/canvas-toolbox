@@ -346,6 +346,10 @@ _Avoid_: Zone 1, safe zone
 Material that links students to their names; it stays on this computer and is never shown to the AI, written to a log, or sent to the cloud.
 _Avoid_: Zone 2, PII files, restricted
 
+**Local-only list**:
+`.claude/local_only.txt` in a course folder: the course's own patterns for local-only files, one per line, added to the toolkit's built-in list.
+_Avoid_: Zone-2 file, ferpa_zone2.txt
+
 **Named working file**:
 A file that may contain names and that the AI may read, under one rule: a name never appears beside a grade.
 _Avoid_: Zone 2-adjacent, semi-restricted

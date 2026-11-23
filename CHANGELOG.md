@@ -13,6 +13,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+### Changed
+- **The course's local-only pattern file is now `.claude/local_only.txt` (2.12.0, #480).** It was `.claude/ferpa_zone2.txt`; the glossary's word is **local only**, not "Zone 2". No course loses a pattern on the way. The guardian and the FERPA pre-push guard read the new name **and** the old one, and combine them if both exist, so a course is covered before, during and after the change. A line in both files counts once. `cb_update` (and `cb_flatten` in the flat layout) renames the old file, using `git mv` when it's tracked so history follows; commit the rename. If both files exist it changes nothing and says how to merge them. Messages, AGENTS.md, the grading skill and `docs/UPGRADING.md` name the new file, and the glossary gains **Local-only list**. Minor, not patch: a file instructors edit in every course folder changes name.
+
 ### Added
 - **A guard against retired glossary words in tool strings (no version bump, #479).** `lib/tests/test_retired_glossary_words.py` scans every string in `lib/tools/*.py` except docstrings for words the glossary retired: "Zone 1", "Zone 2", "course repo", and "push" for a Canvas write ("git push", "pre-push" and `--push` don't count). Today's 162 uses are an allowlist per tool. A new use fails and names the glossary term to use. A rename that removes uses must lower its count in the same PR, so the list can't go stale. The test also checks that every retired word is on a glossary *Avoid* line. Tool and flag names and the `.claude/ferpa_zone2.txt` filename are out of scope (#480, #483).
 

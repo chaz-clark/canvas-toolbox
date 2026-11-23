@@ -266,7 +266,7 @@ def test_reports_zone2_coverage_and_names_the_extension_file(tmp_path, capsys):
     print_zone2_coverage(tmp_path)
     out = capsys.readouterr().out
     assert "Zone-2 patterns:" in out and "built-in" in out
-    assert ".claude/ferpa_zone2.txt" in out          # tells them where to extend
+    assert ".claude/local_only.txt" in out           # tells them where to extend
 
 
 def test_reports_course_local_pattern_count(tmp_path, capsys):
@@ -397,7 +397,7 @@ def test_coverage_report_points_at_the_extension_file(tmp_path, capsys):
     """A Canvas repo that does keep its own name-bearing files gets pointed at
     ferpa_zone2.txt here — on evidence, rather than as a standing nag."""
     print_ignore_coverage(_cov_repo(tmp_path))
-    assert ".claude/ferpa_zone2.txt" in capsys.readouterr().out
+    assert ".claude/local_only.txt" in capsys.readouterr().out
 
 
 # --- global Canvas credentials (#288) ---------------------------------------

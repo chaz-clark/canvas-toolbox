@@ -22,7 +22,7 @@ WHY NOT JUST A pre-commit HOOK
   published; a later commit deleting a file does not unpublish it.
 
 ONE PATTERN LIST, NOT TWO
-  Patterns come from `grade_guardian.load_zone2()` — the same `.claude/ferpa_zone2.txt`
+  Patterns come from `grade_guardian.load_zone2()` — the same `.claude/local_only.txt`
   the agent-layer hook reads. A second list would drift, which is the exact bug 1.16.0
   fixed one layer down after `_FERPA_PATH` and `_FERPA_FILE` had already diverged.
 
@@ -230,7 +230,7 @@ def format_block(path_hits: list[str], content_hits: list[str],
         "     may have pulled. Ask before doing this on a shared repo.",
         "",
         "  4. FALSE POSITIVE? If the match carries no student data, narrow the",
-        "     pattern in .claude/ferpa_zone2.txt — don't disable the hook.",
+        "     pattern in .claude/local_only.txt — don't disable the hook.",
         "",
         "  --no-verify would publish this. That cannot be undone.",
         "",
