@@ -25,6 +25,7 @@ on code, not design debate. See CONTRIBUTING.md → Communication for the why.
 - [ ] Pure-logic tests added/updated for new code (under `lib/tests/`)
 - [ ] AGENTS.md Active Context updated if behavior changed
 - [ ] Triple-version-sync if `pyproject.toml`'s `[project].version` is bumped (also bump `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json`)
+- [ ] Words match `knowledge/glossary.md` (none from an *Avoid* list); any new concept has its entry in this PR
 - [ ] FERPA two-zone architecture preserved (names stay in local zone; deid'd content for anything an AI reads)
 
 ## Related issue / context

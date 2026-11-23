@@ -21,10 +21,10 @@ Tool-agnostic (any LLM tool that reads AGENTS.md); built for BYU-Idaho but
 institution-agnostic.
 
 **This is NOT**: a Canvas replacement, a student-facing tool, a VCS for Canvas
-content, or a NewQuiz/ExternalTool editor (REST API limits).
+content, or a full New Quizzes / external-tool editor (API limits).
 
-**Audience**: instructors and instructional designers who edit Canvas courses and
-use LLM coding tools for course-design work.
+**Audience**: instructors, and the TAs they authorize, who build and grade Canvas
+courses with an LLM coding tool. They are the **users** every story is written for.
 
 ---
 
@@ -58,7 +58,7 @@ here in the constitution, not a skill.
 
 ## ⚠️ FERPA discipline (constitutional — never overridden)
 
-**These files are FERPA Zone 2. NEVER READ OR DISPLAY THEM** — not with Read, `cat`,
+**These files are local only (FERPA; the tools call them Zone 2). NEVER READ OR DISPLAY THEM** — not with Read, `cat`,
 `head`, `tail`, or bare `grep`. They must never enter LLM context, logs, or any cloud
 surface:
 
@@ -70,7 +70,7 @@ surface:
 - `grading/*/feedback/_grader*.csv` — grading sheets with names
 - `grading/**/submissions_raw/**` — raw submissions (potential name leaks)
 
-**A course adds its own Zone-2 files in `.claude/ferpa_zone2.txt`** (one regex per
+**A course adds its own local-only files in `.claude/ferpa_zone2.txt`** (one regex per
 line). The list above is Canvas filenames; a course on another LMS has different
 name-bearing files, and `grade_guardian` enforces only what it knows about — an
 installed hook covering none of your files is worse than no hook. `cb_update` prints
@@ -91,13 +91,13 @@ ordinary prose. `cb_update` also reports name-bearing directories git isn't igno
 user_id, never the `sortable_name` column). Redirect to `/dev/null` or `cut` to
 columns 1,2 — never display raw rows.
 
-**Zone 2-ADJACENT — names may be present, but NEVER beside an evaluation.** This
+**NAMED WORKING FILES — names may be present, but NEVER beside an evaluation.** This
 tier covers both files you legitimately READ that carry names, and student-facing
 text you WRITE:
 
 - *Reading:* `grading/*/_computed_grades.csv`, `grading/*/_gradebook_canvas.csv`,
   `grading/*/_actual_grades.csv`, `grading/*/FINAL_REVIEW_COMMENTS_*.md`
-- *Writing:* student-facing text you draft for the operator to deliver to one
+- *Writing:* student-facing text you draft for the user to deliver to one
   identified student (a discussion reply, a message asking which data set they used)
 
 **Use codes, not names — no matter which file the name came from.** Tools accept
@@ -109,7 +109,7 @@ makes you allowed to print one** — refer to students only by `user_id` or
 Everything you write *about* a student uses codes.)
 ✅ "Reopened for user_id 900003" · ❌ "Reopened for Cid Cole (900003)"
 ✅ "FR-B75C87 earned a B+ elevated to A" · ❌ "Student 900003 (Cid Cole) …"
-If asked "who is user_id 900003?" → "I don't have the name mapping (FERPA Zone 2);
+If asked "who is user_id 900003?" → "I don't have the name mapping (it's local only);
 check `grading/.deid_master.csv` locally."
 
 **In student-facing text, the convention governs the TEXT, not the file.** Refer to
@@ -119,20 +119,20 @@ de-identification**: in a small section a first name plus an initial usually res
 to one person, and the student's full name is already visible on the thread the draft
 is destined for. What it limits is what accumulates in the repo and in transcripts.
 
-**Operator-facing scaffolding** — the material required to LOCATE and CONFIRM the
+**Delivery details** — the material required to LOCATE and CONFIRM the
 right artifact before delivering into it — is not student-facing text and may carry
 full names. Typically the platform's printed name, the thread title and the
 timestamp; where those don't uniquely identify a thread it may include a short
 excerpt of the post, or another participant's name where that is what disambiguates.
 **The test is necessity for navigation, not convenience:** if removing it wouldn't
-make the artifact harder to find, it isn't scaffolding. Never a licence for
+make the artifact harder to find, it isn't a delivery detail. Never a licence for
 name-bearing prose.
 
 A *peer's* name is the sharpest case — the naming convention above bans peer mentions
 in student-facing text, so admitting one here needs the strictest reading of that
 test: last resort, when name-plus-timestamp-plus-excerpt still doesn't disambiguate.
 
-Scaffolding must live under an **already-gitignored path** — a per-directory
+Delivery details must live under an **already-gitignored path** — a per-directory
 `.gitignore` containing `*`, written when the directory is created, as
 `build_deid_master.py` already does for `grading/`. Protection that ships with the
 directory survives edits to the root ignore file; a root rule is only as durable as
@@ -141,8 +141,8 @@ grading-directory deny had been the only thing covering three other name-bearing
 paths, and a replacement line matched nothing because a trailing comment became part
 of the pattern. Both caught by checking, not by design.)
 
-**Operator-supplied names.** This rule governs what you produce on your own
-initiative. A name the operator supplies in the same turn may be used
+**User-supplied names.** This rule governs what you produce on your own
+initiative. A name the user supplies in the same turn may be used
 conversationally *within that turn* — repeating it discloses nothing they did not
 just write, and refusing teaches them the rule is unusable. It must not otherwise be
 persisted: not to a file, not to a commit message, not to any artifact outlasting
@@ -223,7 +223,7 @@ self-assessment, or reflection is comprehension data — read it, or abstain fro
 Dependencies (`markdownify`, etc.) live in the uv venv; system `python3`/`pytest`
 reports false failures from missing modules.
 
-**Audience = non-technical faculty.** Complete actions *for* them; never hand an
+**Audience = non-technical instructors and TAs.** Complete actions *for* them; never hand an
 instructor a terminal command to copy-paste, `cd` into, or type a confirmation at.
 If a tool refuses non-interactive input, that's a signal to find the sanctioned
 non-interactive path (e.g. grader_standing's `--yes` for value-only pushes) or to
@@ -231,6 +231,26 @@ surface a plain-language choice — not to send a non-technical user to a termin
 The exception is a genuine human-review gate on **AI-drafted** grades (grader_push
 HG-5), where the instructor's terminal confirmation is the point; there, do the
 review together in chat and hand off only that final confirmation.
+
+**Work starts from a user story.** The user is the instructor or a TA they authorized.
+Frame every issue, spec, and PR as a story: *As an instructor (or TA), I want
+⟨outcome⟩, so that ⟨reason⟩*, with acceptance criteria the user could check themselves,
+in Canvas or their course folder. If you can't name the user and the outcome, ask before
+building (P-010). Ship each story as one small slice: one short branch, one PR, `main`
+still working. A slice is done when the user can see it work on real course data
+(Genchi Gembutsu), and what they say back becomes the next story: an `enhancement:`
+via `cb_report_bug.py` for the toolkit, an improvement card for a course.
+
+**Stay inside the glossary.** [`knowledge/glossary.md`](knowledge/glossary.md) is the
+vocabulary for everything we write and build: chat, docs, tool output, and the names in
+code (tools, flags, files, functions, columns). Use its terms, never a word on an
+*Avoid* list: "update Canvas" and "update grades in Canvas", not "push"; "course folder",
+not "course repo"; "local only", not "Zone 2". **A new project concept gets its glossary entry in the
+same PR that first names it** — settle the word, then build. A course's own words go in
+its own glossary, never mixed into the toolkit's: create a `GLOSSARY-MAP.md` at the
+course root listing both. Code and older docs still carry old words until each is
+renamed (the tools and `.claude/ferpa_zone2.txt` still say Zone 2 for local only);
+translate for the user, never make them learn ours.
 
 Project-specific rules (detail: [`lib/agents/knowledge/working_style_canvas_toolbox.md`](lib/agents/knowledge/working_style_canvas_toolbox.md)):
 local files are the source of truth (Canvas is the sync target); ground pedagogical
@@ -392,9 +412,9 @@ Two capture channels. **`cb_report_bug.py`** files a scrubbed, maintainer-routed
 issue (no GitHub account needed) — title prefix `bug:` or `enhancement:`. **`lib/agents/knowledge/learned/`**
 holds durable session lessons; a lesson referenced a second time is the signal to
 file it as an enhancement. Bias toward surfacing (one skippable line at the end of a
-response) when a tool exits non-zero unexpectedly, output feels off, or the operator
+response) when a tool exits non-zero unexpectedly, output feels off, or the user
 wants unimplemented behavior. Don't surface when a FERPA/push gate fires correctly or
-the operator supplied wrong inputs.
+the user supplied wrong inputs.
 
 **Security issues are NOT bugs** — a PII leak, an exposed token, or a bypassed FERPA
 gate goes to [`SECURITY.md`](.github/SECURITY.md) (private email), never the public
@@ -453,14 +473,14 @@ _Last updated: 2026-09-22._ Latest few releases only; full history in
 
 ## Domain terms
 
-| Term | Definition |
-|---|---|
-| **Master** | Template course where authoring happens. `MASTER_COURSE_ID`; folder `master/`. |
-| **Blueprint** | Canvas Blueprint sections clone from (online programs). `BLUEPRINT_COURSE_ID`; `blueprint/`. |
-| **Section** | Live per-semester course (S1, S2…). `S1_COURSE_ID`…; `s1/`, `s2/`. |
-| **NewQuiz** | LTI-based quiz engine; can't be content-pushed via REST (edit in UI). |
-| **Classic Quiz** | Original engine; has both `quiz_id` and an underlying `assignment_id`; REST works. |
-| **Source of truth** | The local working folder; Canvas is the sync *target*. |
+The project's words, one meaning each: [`knowledge/glossary.md`](knowledge/glossary.md).
+How the course terms map to settings and folders:
+
+| Term | Setting | Folder |
+|---|---|---|
+| **Master** | `MASTER_COURSE_ID` | `master/` |
+| **Blueprint** | `BLUEPRINT_COURSE_ID` | `blueprint/` |
+| **Course Section** (S1, S2…) | `S1_COURSE_ID`… | `s1/`, `s2/` |
 
 ---
 
