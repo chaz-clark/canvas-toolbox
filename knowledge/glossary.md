@@ -69,18 +69,18 @@ _Avoid_: Blueprint sync, propagate
 A Course Section's local change to content the Blueprint locks.
 _Avoid_: Exception (unqualified), override
 
-**NewQuiz**:
-Canvas's newer, tool-based quiz engine, which can't be edited through the toolkit.
-_Avoid_: New Quizzes, quiz engine 2
+**New Quiz**:
+A quiz in Canvas's newer engine, New Quizzes, which runs as an external tool. The toolkit updates its settings and questions; stimulus and item-bank items stay read-only.
+_Avoid_: NewQuiz (in prose), quiz engine 2
 
 **Classic Quiz**:
-Canvas's original quiz engine, which the toolkit can read and write.
+A quiz in Canvas's original engine, Classic Quizzes, which the toolkit can read and write.
 _Avoid_: Old quiz, legacy quiz
 
 ### Canvas
 
 Canvas's own words, as Canvas shows them to instructors and TAs. When Canvas's screen and
-its data use different names, the screen's name wins. Section, NewQuiz, Classic Quiz,
+its data use different names, the screen's name wins. Section, New Quiz, Classic Quiz,
 Override, Excused, Test Student and Canvas user ID are under their topics.
 
 **Course**:
@@ -164,7 +164,7 @@ A message posted to everyone in a course.
 _Avoid_: News, broadcast
 
 **External tool**:
-A third-party tool that opens inside Canvas; NewQuiz is one.
+A third-party tool that opens inside Canvas; New Quizzes is one.
 _Avoid_: LTI (in prose), plugin, integration
 
 **Due**:
@@ -229,7 +229,7 @@ _Avoid_: Grading type, grade format
 
 **Grading scheme**:
 The scale that turns a percentage into a letter grade.
-_Avoid_: Grade scale, letter scale
+_Avoid_: Grade scale, letter scale, grading standard (Canvas's API name for it)
 
 **Posting policy**:
 Whether an assignment's grades show to students as soon as they're entered (automatic) or only once posted (manual).
@@ -364,19 +364,19 @@ The rule that no AI-drafted grade or comment reaches a student until the instruc
 _Avoid_: Approval step, human-in-the-loop (alone)
 
 **Update grades in Canvas**:
-Posting reviewed grades and comments to students' submissions in Canvas.
+Sending reviewed grades and comments to students' submissions in Canvas. Whether students see them yet is the posting policy.
 _Avoid_: Push, grade push, upload, post
 
 **Disclosure tag**:
-The line appended to every comment posted to Canvas, saying truthfully what graded it, who drafted it, and who reviewed it.
+The line appended to every comment sent to Canvas, saying truthfully what graded it, who drafted it, and who reviewed it.
 _Avoid_: Provenance tag, AI label, signature
 
 **Standing**:
-A student's running overall grade, posted by the instructor to a no-submission column students see as "Your Grade."
+A student's running overall grade, sent by the instructor to a no-submission column students see as "Your Grade."
 _Avoid_: Your-grade column, running total, current grade
 
 **Update standing in Canvas**:
-Posting each student's standing to that column.
+Sending each student's standing to that column.
 _Avoid_: Standing push, push
 
 **Waiting**:
@@ -385,34 +385,10 @@ _Avoid_: Ungraded, needs grading, pending, queue
 
 **Late submission**:
 Work Canvas marks as turned in after its due date.
-_Avoid_: Late (for work past the grading standard)
-
-**Grading standard**:
-How many days after the due date work should be graded by; one setting for all of a user's courses.
-_Avoid_: Grading window, SLA, deadline
-
-**Grading Lights**:
-The color an assignment with waiting work gets, from how long that work has waited against the grading standard.
-_Avoid_: Stoplight (that's the AI-use policy), status color, traffic light
-
-**Green light**:
-Work is coming in and is still well inside the grading standard.
-_Avoid_: Blue (for incoming), new
-
-**Yellow light**:
-Waiting work is close to the grading standard.
-_Avoid_: Warning
-
-**Red light**:
-Waiting work has reached or passed the grading standard.
-_Avoid_: Late, overdue
-
-**Blue light**:
-Late submissions are waiting.
-_Avoid_: Late (unqualified)
+_Avoid_: Late (for work that is only slow to be graded)
 
 **Grade correction**:
-An instructor-directed change to a grade already posted, with the old and new value recorded.
+An instructor-directed change to a grade already in Canvas, with the old and new value recorded.
 _Avoid_: Regrade (that's re-grading a resubmission), fix
 
 **Regrade**:
@@ -442,7 +418,7 @@ More time on timed quizzes, as a multiplier.
 _Avoid_: Extra time, extension (alone)
 
 **Late grace**:
-Reopening one student's past-due work so they can still submit it.
+Letting one student submit after the due date by removing the Until date for them; the work still shows as late.
 _Avoid_: Late accommodation, reopen, late pass
 
 **Override**:
@@ -464,7 +440,7 @@ The date of a student's most recent engagement; the regulation calls it the last
 _Avoid_: Last date of attendance, LDA, last login
 
 **Unofficial withdrawal (UW)**:
-A student whose last engagement falls before the cutoff, with a passing or unknown grade.
+A student whose last engagement falls before the UF date.
 _Avoid_: Dropout, ghost
 
 **Unofficial fail (UF)**:
