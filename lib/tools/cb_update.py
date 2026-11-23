@@ -49,6 +49,7 @@ except ImportError:
 
 from cb_init import detect_course_context, REPO_ROOT
 from clone_health import clone_health
+from glossary_map import ensure_glossary_map
 from sync_grading_protocol import inject_grading_pointer
 
 try:
@@ -759,6 +760,7 @@ def main() -> int:
 
     fname, status = refresh_pointer(course_root, args.apply)
     print(f"\nConstitution+skills pointer in {fname}: {status}")
+    print(f"GLOSSARY-MAP.md: {ensure_glossary_map(course_root, toolkit_subdir, args.apply)}")
 
     hook_status = ensure_guardian_hook(course_root, toolkit_subdir, args.apply)
     print(f"grade_guardian hook (.claude/settings.json): {hook_status}")

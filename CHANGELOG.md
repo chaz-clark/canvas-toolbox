@@ -13,6 +13,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+### Added
+- **A starter glossary map in every course folder (2.11.3)** — the constitution told each course to keep a `GLOSSARY-MAP.md` listing the toolkit's glossary and its own, but nothing wrote one, and nothing said where a course's own words should go. `cb_update` (nested layout) and `cb_flatten` (flat layout) now write `GLOSSARY-MAP.md` at the course root once, linking the toolkit's glossary where it actually is in that layout (`knowledge/glossary.md` flat, `canvas-toolbox/knowledge/glossary.md` nested). An existing map is never touched. A course's own words go in `GLOSSARY.md` at the course root, not in `knowledge/glossary.md`, which a flat-layout update replaces every time. The glossary gains **Course glossary** and **Glossary map**; AGENTS.md's rule names both paths.
+
 ### Fixed
 - **Course home page can be created, and updated in a course with students (2.11.2, #471)** — `course_homepage_build.py --apply` sent no page title, so in a course with no front page yet Canvas refused with HTTP 400 (`title cannot be blank`). It now sends a title only when creating one: `--title`, or "Home" by default. An existing front page keeps its title unless `--title` is passed, because renaming a Canvas page changes its URL and breaks links to it. New `--allow-enrolled` passes the instructor's say-so to the course guard, which before had no way to allow updating the home page of a published course with enrolled students. A refused update now prints Canvas's own error message instead of only the HTTP status.
 

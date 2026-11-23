@@ -312,6 +312,14 @@ _Avoid_: Plugin, module
 The instructor's explicit approval of an agent package's capabilities, asked again whenever a new version can do more.
 _Avoid_: Permission, opt-in
 
+**Course glossary**:
+A course's own words, kept in `GLOSSARY.md` at its course folder's root, apart from the toolkit's glossary.
+_Avoid_: Local glossary, custom glossary
+
+**Glossary map**:
+`GLOSSARY-MAP.md` at a course folder's root: lists the toolkit's glossary and the course glossary. Written once, then the course's to edit.
+_Avoid_: Glossary index
+
 **Constitution**:
 The always-on rules in AGENTS.md that bind every session whatever the task.
 _Avoid_: System prompt, policy
