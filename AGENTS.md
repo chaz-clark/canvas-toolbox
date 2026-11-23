@@ -71,13 +71,14 @@ surface:
 - `grading/**/submissions_raw/**` — raw submissions (potential name leaks)
 
 **A course adds its own local-only files in `.claude/local_only.txt`** (one regex per
-line; formerly `.claude/ferpa_zone2.txt`, still read, and `cb_update` renames it). The
-list above is Canvas filenames; a course on another LMS has different name-bearing
-files, and `grade_guardian` enforces only what it knows about — an installed hook
-covering none of your files is worse than no hook. `cb_update` prints the active
-pattern count so "present" can't be read as "covered". A `!`-prefixed line exempts
-instructor-authored FILES (`RUBRIC.md` and `assignment_spec.md` are exempt by default)
-from a directory pattern; it can never lift the built-in list above.
+line; formerly `.claude/ferpa_zone2.txt`, still read; `cb_update` copies it and keeps
+the old file for older toolkits). The list above is Canvas filenames; a course on
+another LMS has different name-bearing files, and `grade_guardian` enforces only what
+it knows about — an installed hook covering none of your files is worse than no hook.
+`cb_update` prints the active pattern count so "present" can't be read as "covered". A
+`!`-prefixed line exempts instructor-authored FILES (`RUBRIC.md` and
+`assignment_spec.md` are exempt by default) from a directory pattern; it can never
+lift the built-in list above.
 
 **The git layer is guarded too.** `grade_guardian` stops *you* reading these; it
 cannot see `git push`, and a push can't be undone. `cb_update` installs a

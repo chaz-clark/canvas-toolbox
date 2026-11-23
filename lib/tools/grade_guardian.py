@@ -196,8 +196,9 @@ _ZONE2_DEFAULT: list[tuple[str, bool]] = [
 # NEVER anchored: over-matching only blocks more reads, under-matching leaks.
 _ZONE2_EXTRA_FILE = ".claude/local_only.txt"
 # The name before #480 (glossary: "local only", not "Zone 2"). Still read, so a
-# course that hasn't run cb_update since keeps every pattern; cb_update renames it.
-# If both exist, BOTH are read: a union never drops a pattern, a pick could.
+# course that hasn't run cb_update since keeps every pattern; cb_update copies it
+# to the new name and keeps it for clones on an older toolkit. Both are read
+# together: a union never drops a pattern, a pick could.
 _ZONE2_LEGACY_FILE = ".claude/ferpa_zone2.txt"
 
 
@@ -358,6 +359,8 @@ def zone2_summary(course_root: Path | None = None) -> dict:
         "exempt": len(load_zone2_exempt(course_root)) - len(_ZONE2_EXEMPT_DEFAULT),
         "invalid": invalid,
         "source": str(src) if src and src.is_file() else None,
+        "sources": [n for n in (_ZONE2_EXTRA_FILE, _ZONE2_LEGACY_FILE)
+                    if root and (root / n).is_file()],
     }
 
 

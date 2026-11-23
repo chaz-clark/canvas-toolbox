@@ -4,7 +4,8 @@
 FERPA pre-push guard read the course's own patterns from it, so a rename that
 drops even one pattern silently un-protects that course's student-data files.
 These pin: the old name is still read, both names are read together if both
-exist, and cb_update's rename keeps the exact same pattern count.
+exist, and cb_update's copy keeps the exact same pattern count and keeps the
+old file for clones of the course on an older toolkit.
 """
 import subprocess
 import sys
@@ -73,20 +74,30 @@ def test_both_names_are_read_together_never_one_dropped(tmp_path):
     assert extra == ["_all_posts\\.md", "roster_[0-9]+\\.json"]   # union, no duplicate
 
 
-def test_migrate_renames_and_keeps_the_exact_pattern_count(tmp_path):
+def test_migrate_copies_keeps_the_old_file_and_the_exact_pattern_count(tmp_path):
+    """Copy, not move: a clone of this course on an older toolkit reads only the
+    old name, so the old file has to stay for it."""
     _write(tmp_path, OLD)
     before = zone2_summary(tmp_path)
-    assert migrate_local_only_file(tmp_path, apply=False) == "would-rename"
-    assert (tmp_path / OLD).is_file() and not (tmp_path / NEW).exists()
-    assert migrate_local_only_file(tmp_path, apply=True) == "renamed"
+    assert migrate_local_only_file(tmp_path, apply=False) == "would-copy"
+    assert not (tmp_path / NEW).exists()
+    assert migrate_local_only_file(tmp_path, apply=True) == "copied"
     assert (tmp_path / NEW).read_text(encoding="utf-8") == PATTERNS
-    assert not (tmp_path / OLD).exists()
+    assert (tmp_path / OLD).read_text(encoding="utf-8") == PATTERNS
     after = zone2_summary(tmp_path)
     assert (after["extra"], after["exempt"]) == (before["extra"], before["exempt"])
+    assert after["sources"] == [NEW, OLD]
     assert migrate_local_only_file(tmp_path, apply=True) == "current"
 
 
-def test_migrate_stops_when_both_names_exist(tmp_path):
+def test_an_older_toolkit_still_sees_every_pattern_after_the_copy(tmp_path):
+    """What an older toolkit reads: the old file alone."""
+    _write(tmp_path, OLD)
+    migrate_local_only_file(tmp_path, apply=True)
+    assert (tmp_path / OLD).read_text(encoding="utf-8") == PATTERNS
+
+
+def test_migrate_leaves_two_different_files_alone(tmp_path):
     _write(tmp_path, NEW, "a\n")
     _write(tmp_path, OLD, "b\n")
     assert migrate_local_only_file(tmp_path, apply=True) == "both-exist"
@@ -99,17 +110,24 @@ def test_migrate_with_neither_file_does_nothing(tmp_path):
     assert not (tmp_path / NEW).exists()
 
 
-def test_migrate_uses_git_mv_for_a_tracked_file(tmp_path):
-    repo = _repo(tmp_path)
-    _write(repo, OLD)
-    _git(repo, "add", OLD)
-    _git(repo, "commit", "-qm", "patterns")
-    assert migrate_local_only_file(repo, apply=True) == "renamed"
-    status = _git(repo, "status", "--porcelain").stdout
-    assert f"R  {OLD} -> {NEW}" in status      # staged as a rename, history kept
+def test_a_directory_at_the_new_name_is_reported_not_trusted(tmp_path):
+    _write(tmp_path, OLD)
+    (tmp_path / NEW).mkdir()
+    assert migrate_local_only_file(tmp_path, apply=True) == "not-a-file"
+    assert zone2_summary(tmp_path)["extra"] == 2          # old file still read
 
 
-def test_a_real_push_is_still_refused_after_the_rename(tmp_path):
+def test_a_failed_copy_is_a_status_not_a_crash(tmp_path, monkeypatch):
+    import cb_update
+    _write(tmp_path, OLD)
+    def boom(*a, **k):
+        raise OSError("disk full")
+    monkeypatch.setattr(cb_update.shutil, "copyfile", boom)
+    assert migrate_local_only_file(tmp_path, apply=True) == "copy-failed"
+    assert zone2_summary(tmp_path)["extra"] == 2
+
+
+def test_a_real_push_is_still_refused_from_the_new_file(tmp_path):
     """The point of #480: the course's own pattern still blocks a real git push."""
     repo = _repo(tmp_path)
     toolkit = repo / "canvas-toolbox" / "lib" / "tools"
@@ -121,7 +139,8 @@ def test_a_real_push_is_still_refused_after_the_rename(tmp_path):
     _write(repo, OLD)
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "toolkit + patterns")
-    assert migrate_local_only_file(repo, apply=True) == "renamed"
+    assert migrate_local_only_file(repo, apply=True) == "copied"
+    (repo / OLD).unlink()            # the copy alone must carry the patterns
     (repo / "roster_2026.json").write_text("{}\n", encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "rename + leak")

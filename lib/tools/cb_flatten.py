@@ -140,7 +140,8 @@ from cb_init import env_stub_content, smoke_test_canvas
 from clone_health import clone_health
 from glossary_map import ensure_glossary_map
 from cb_update import (CLAUDE_SHIM, install_claude_shim, migrate_local_only_file,
-                       plan_claude_shim, print_local_only_migration)
+                       plan_claude_shim, print_local_only_migration,
+                       print_zone2_coverage)
 
 from capability_consent import (
     capability_diff,
@@ -1170,6 +1171,7 @@ def main() -> int:
         print("    ↳ it links ./canvas-toolbox/knowledge/glossary.md, a folder this "
               "flat course no longer has. Change it to ./knowledge/glossary.md.")
     print_local_only_migration(migrate_local_only_file(root, args.apply), indent="  ")
+    print_zone2_coverage(root)
     hook_status = ensure_guardian_hook(root, args.apply)
     print(f"  grade_guardian hook (.claude/settings.json): {hook_status}")
     if hook_status == "installed":
