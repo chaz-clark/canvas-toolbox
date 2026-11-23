@@ -96,6 +96,29 @@ def test_assignment_ids_rejects_non_integer(monkeypatch, env):
     assert _run(monkeypatch, "--user-id", "5", "--assignment-ids", "11,abc") == 1
 
 
+@pytest.mark.parametrize("ids", ["", ","])
+def test_assignment_ids_empty_list_refused(monkeypatch, env, ids):
+    assert _run(monkeypatch, "--user-id", "5", "--assignment-ids", ids,
+                "--apply") == 1
+    assert env == []
+
+
+def test_failed_excuse_exits_nonzero(monkeypatch, env):
+    monkeypatch.setattr(ebd, "excuse_submission", lambda *a: False)
+    assert _run(monkeypatch, "--user-id", "5", "--assignment-ids", "11",
+                "--apply") == 1
+
+
+def test_non_json_200_counts_as_not_excused(monkeypatch):
+    class _BadJson(_Resp):
+        def json(self):
+            raise ValueError("not json")
+
+    monkeypatch.setattr(ebd.requests, "put", lambda *a, **k: _BadJson(None))
+    assert ebd.excuse_submission("https://x", "1", 2, 3, "t") is False
+    assert ebd.unexcuse_submission("https://x", "1", 2, 3, "t") is False
+
+
 def test_before_date_still_works(monkeypatch, env):
     assert _run(monkeypatch, "--user-id", "5", "--before-date", "2026-11-20",
                 "--apply") == 0

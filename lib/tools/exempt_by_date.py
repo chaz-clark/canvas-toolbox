@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-exempt_by_date.py — Bulk excuse assignments by due date.
+exempt_by_date.py — Bulk excuse assignments by due date or by assignment id.
 
 PROBLEM
   Need to excuse a student from multiple assignments based on due date. Common
@@ -28,8 +28,10 @@ CANVAS BEHAVIOR
 HOW IT WORKS
   1. Fetch all published assignments (assignments, quizzes, discussions)
   2. Filter to assignments with due_at before cutoff date
+     (or, with --assignment-ids, to exactly the named published, dated ones)
   3. For each assignment, mark the student's submission as excused via Canvas
-     Submissions API (PUT submission with excused: true)
+     Submissions API (PUT submission[excuse]: true; the response's `excused`
+     field is checked — Canvas returns 200 even when it ignores the write)
   4. Dry-run by default — shows what would be excused without making changes
 
 PII-FREE LOOKUP
@@ -61,7 +63,11 @@ USAGE — dry-run by default (use --apply to actually write)
   uv run python lib/tools/exempt_by_date.py \\
     --deid-code S-68BC40 --before-week 5 --apply
 
-  # Undo: remove excused status (set excused: false)
+  # Excuse only specific assignments (e.g. two milestones mid-term)
+  uv run python lib/tools/exempt_by_date.py \\
+    --user-id 123456 --assignment-ids 17248783,17248787 --apply
+
+  # Undo: remove excused status from ALL of the student's excused assignments
   uv run python lib/tools/exempt_by_date.py \\
     --user-id 123456 --undo --apply
 
@@ -192,12 +198,20 @@ def filter_assignments_before_date(assignments: list[dict],
     return [a for a in assignments if a["due_at"][:10] < cutoff_date_str]
 
 
+def _response_excused(r) -> bool | None:
+    """The `excused` flag from a submission response; None if unreadable."""
+    try:
+        return bool(r.json().get("excused"))
+    except (ValueError, AttributeError):
+        return None
+
+
 def excuse_submission(base_url: str, course_id: str, assignment_id: int,
                      user_id: int, token: str) -> bool:
     """Mark submission as excused via Canvas Submissions API.
 
     PUT /api/v1/courses/:course_id/assignments/:assignment_id/submissions/:user_id
-    with excused: true.
+    with submission[excuse]: true. Success only if the response says excused.
 
     Returns True on success, False on error.
     """
@@ -211,7 +225,7 @@ def excuse_submission(base_url: str, course_id: str, assignment_id: int,
 
     r = requests.put(url, headers=headers, json=payload, timeout=_TIMEOUT)
     if r.status_code in (200, 201):
-        if r.json().get("excused") is True:
+        if _response_excused(r) is True:
             return True
         print(f"  ✗ Canvas accepted assignment {assignment_id} but did not "
               f"mark it excused", file=sys.stderr)
@@ -224,7 +238,7 @@ def excuse_submission(base_url: str, course_id: str, assignment_id: int,
 
 def unexcuse_submission(base_url: str, course_id: str, assignment_id: int,
                        user_id: int, token: str) -> bool:
-    """Remove excused status (set excused: false).
+    """Remove excused status (submission[excuse]: false).
 
     Used by --undo to revert bulk exemptions.
     """
@@ -236,7 +250,7 @@ def unexcuse_submission(base_url: str, course_id: str, assignment_id: int,
 
     r = requests.put(url, headers=headers, json=payload, timeout=_TIMEOUT)
     if r.status_code in (200, 201):
-        if not r.json().get("excused"):
+        if _response_excused(r) is False:
             return True
         print(f"  ✗ Canvas accepted assignment {assignment_id} but it is "
               f"still excused", file=sys.stderr)
@@ -285,7 +299,7 @@ def main() -> int:
     force_utf8_console()
 
     parser = argparse.ArgumentParser(
-        description="Bulk excuse assignments for late-enrolling students.",
+        description="Bulk excuse a student's assignments by due date or id.",
     )
     parser.add_argument("--user-id", type=int,
                        help="Canvas user_id (numeric)")
@@ -379,13 +393,15 @@ def main() -> int:
                 print(f"  ✓ Unexcused assignment {aid}")
 
         print(f"\n✓ Unexcused {success_count}/{len(excused_ids)} assignments")
-        return 0
+        return 0 if success_count == len(excused_ids) else 1
 
     # Determine scope
-    if args.assignment_ids:
+    if args.assignment_ids is not None:
         try:
             wanted = {int(x) for x in args.assignment_ids.split(",") if x.strip()}
         except ValueError:
+            wanted = None
+        if not wanted:
             print("ERROR: --assignment-ids must be comma-separated integers",
                   file=sys.stderr)
             return 1
@@ -442,6 +458,10 @@ def main() -> int:
             print(f"  ✓ Excused: {a['name']}")
 
     print(f"\n✓ Excused {success_count}/{len(target_assignments)} assignments")
+    if success_count < len(target_assignments):
+        print(f"ERROR: {len(target_assignments) - success_count} not excused "
+              f"(see ✗ above)", file=sys.stderr)
+        return 1
     print(f"Student {user_id} is now exempt from {scope_desc}")
 
     return 0
