@@ -763,7 +763,8 @@ def main() -> int:
     hook_status = ensure_guardian_hook(course_root, toolkit_subdir, args.apply)
     print(f"grade_guardian hook (.claude/settings.json): {hook_status}")
     if hook_status in ("installed", "would-install"):
-        print("  ↳ this repo was missing the guardian — agents could hand-write "
+        print("  ↳ this repo's guardian was missing or out of date (an old launch "
+              "line could leave it off on Windows) — agents could hand-write "
               "Canvas writes / bypass gates. Now enforced at create/edit/run.")
     print_zone2_coverage(course_root)
 
