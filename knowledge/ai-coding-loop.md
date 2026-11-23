@@ -88,7 +88,7 @@ Retro's measure of success applies to this repo too: repeat mistakes turn into f
 
 ## How it runs in this repo
 
-The skills are set up here: AGENTS.md → *Agent skills* points them to `docs/agents/` (issue tracker: GitHub; the five default triage labels; domain docs: the glossary and `docs/architecture/adr-*.md`). Each step, in order, with the skill and the practice it serves:
+In the toolkit repo, the skills are set up in `.github/CONTRIBUTING.md` → *Agent skills*, which points them to `docs/agents/` (issue tracker: GitHub; the five default triage labels; domain docs: the glossary and `docs/architecture/adr-*.md`). Those files are in the toolkit repo only; they don't ship to course folders. Each step, in order, with the skill and the practice it serves:
 
 | Step | Skill | What it serves here |
 |---|---|---|
@@ -105,7 +105,7 @@ The skills are set up here: AGENTS.md → *Agent skills* points them to `docs/ag
 
 **A hard bug:** `diagnosing-bugs`.
 
-**Decisions:** a choice that is hard to reverse, surprising without context, and a real trade-off becomes the next `docs/architecture/adr-NNN-<slug>.md`, often during step 1.
+**Decisions:** a choice that is hard to reverse, surprising without context, and a real trade-off becomes the next `docs/architecture/adr-NNN-<slug>.md` in the toolkit repo, often during step 1.
 
 The public-repo rule holds at every step: specs, tickets and PRs on this repo never identify a student or describe private work elsewhere.
 

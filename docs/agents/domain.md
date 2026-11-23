@@ -4,7 +4,7 @@ How the engineering skills read this repo's domain documentation.
 
 ## Before exploring, read these
 
-- **`GLOSSARY-MAP.md`** at the repo root. It points to the one glossary: **`knowledge/glossary.md`** (it lives under `knowledge/` so it ships to every course folder).
+- **`GLOSSARY-MAP.md`** at the repo root: one context, so it points to the one glossary: **`knowledge/glossary.md`** (it lives under `knowledge/` so it ships to every course folder).
 - **Decisions** in `docs/architecture/`, named `adr-NNN-<slug>.md` (e.g. `adr-001-runtime-neutral-agent-packages.md`). Read the ones that touch the area you're working in.
 
 ## Writing them

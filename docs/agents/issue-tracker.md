@@ -2,7 +2,7 @@
 
 Issues and specs for canvas-toolbox live as GitHub issues on `chaz-clark/canvas-toolbox`. Use the `gh` CLI for all operations.
 
-**This repo is PUBLIC.** Nothing in an issue may identify a student (no names, no user ids next to a grade, no submission text), and nothing may describe private work in other repos. Faculty report problems through `cb_report_bug.py`, which scrubs its report first; security problems never go here (see `.github/SECURITY.md`).
+**This repo is PUBLIC.** Nothing in an issue may identify a student (no names, no Canvas user IDs next to a grade, no submission text), and nothing may describe private work in other repos. Instructors and TAs report problems through `cb_report_bug.py`, which scrubs its report first; security problems never go here (see `.github/SECURITY.md`).
 
 ## Conventions
 

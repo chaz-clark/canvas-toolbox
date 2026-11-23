@@ -425,24 +425,9 @@ Dev tools (gitignored) → add to `.gitignore` on creation.
 
 ---
 
-## Agent skills (toolkit maintainers; ignore in a course folder)
-
-Changing the toolkit follows the AI coding loop:
-[`knowledge/ai-coding-loop.md`](knowledge/ai-coding-loop.md).
-
-### Issue tracker
-
-GitHub Issues on this (public) repo, via `gh`. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five default roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
-`wontfix`). See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single context: `GLOSSARY-MAP.md` → `knowledge/glossary.md`; decisions in
-`docs/architecture/adr-NNN-*.md`. See `docs/agents/domain.md`.
+**Changing the toolkit itself** (maintainers, in the toolkit repo): follow the AI coding
+loop, [`knowledge/ai-coding-loop.md`](knowledge/ai-coding-loop.md); the skills' setup is in
+`.github/CONTRIBUTING.md` → Agent skills.
 
 ---
 

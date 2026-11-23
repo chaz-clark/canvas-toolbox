@@ -187,6 +187,29 @@ after you've done the work.
 
 ---
 
+## Agent skills
+
+Maintainers change the toolkit with the AI coding loop
+([`knowledge/ai-coding-loop.md`](../knowledge/ai-coding-loop.md)) and Matt Pocock's skills.
+This is the setup those skills read. Edit the files in `docs/agents/` directly; don't re-run
+`setup-matt-pocock-skills`, which would write a second copy of this block into AGENTS.md.
+
+### Issue tracker
+
+GitHub Issues on this (public) repo, via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
+`wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+One context, reached through `GLOSSARY-MAP.md` → `knowledge/glossary.md`. Decision records go
+in `docs/architecture/adr-NNN-*.md`, **never** `docs/adr/`. See `docs/agents/domain.md`.
+
+---
+
 ## What the maintainer is NOT looking for
 
 - **Style-only PRs** — ruff handles those; the maintainer is not interested
