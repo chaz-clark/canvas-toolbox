@@ -869,7 +869,30 @@ def hook_command(toolkit_subdir: str = "canvas-toolbox") -> str:
     Read/Edit you'd need to fix it. So: if the file is absent, `exit 0` (allow);
     if present, `exec` hands off so the guardian's own exit code (2 = deny)
     propagates unchanged.
+
+    PROBES for a Python that runs (#467) rather than assuming `python3`: on
+    Windows that name is often the Microsoft Store stub, which exits 49, a
+    non-blocking code, so the guardian was silently off. Tries python3, python,
+    py, then uv. No working Python exits 1: visible, still non-blocking. The
+    command holds no `< > | &`, because the hook tests run it with shell=True,
+    which on Windows is cmd.exe, and cmd parses those as its own operators.
     """
+    prefix = f"{toolkit_subdir}/" if toolkit_subdir else ""
+    path = f'$CLAUDE_PROJECT_DIR/{prefix}lib/tools/grade_guardian.py'
+    return (
+        f'sh -c \'f="{path}"; if [ ! -f "$f" ]; then exit 0; fi; '
+        'for py in python3 python py; do '
+        'if "$py" -c ""; then exec "$py" "$f"; fi; done; '
+        'if [ -n "$(command -v uv)" ]; then exec uv run --no-project python "$f"; fi; '
+        'echo "grade_guardian: no working Python found (tried python3, python, py, uv)"; '
+        "exit 1'"
+    )
+
+
+def _pre_467_hook_command(toolkit_subdir: str) -> str:
+    """The exact launch line every install wrote before #467 (bare `python3`).
+    ensure_hook() replaces a hook only when it matches this string, so a
+    course's own customization is never touched."""
     prefix = f"{toolkit_subdir}/" if toolkit_subdir else ""
     path = f'$CLAUDE_PROJECT_DIR/{prefix}lib/tools/grade_guardian.py'
     return f'sh -c \'f="{path}"; [ -f "$f" ] || exit 0; exec python3 "$f"\''
@@ -884,14 +907,19 @@ def ensure_hook(settings: dict, toolkit_subdir: str = "canvas-toolbox") -> tuple
 
     Returns (new_settings, changed). If any PreToolUse hook already references
     grade_guardian, returns the settings unchanged (its path is NOT rewritten —
-    an existing hook, however it got there, is left alone; this only ever adds
-    a first hook, never edits one). Never mutates the input.
+    an existing hook, however it got there, is left alone). One exception: a
+    hook that is exactly the toolkit's own pre-#467 bare-`python3` line is
+    upgraded in place, so cb_update reaches existing Windows installs. Never
+    mutates the input.
     """
     import copy
     settings = copy.deepcopy(settings) if settings else {}
     pre = settings.setdefault("hooks", {}).setdefault("PreToolUse", [])
     for entry in pre:
         for h in entry.get("hooks", []):
+            if h.get("command") == _pre_467_hook_command(toolkit_subdir):
+                h["command"] = hook_command(toolkit_subdir)
+                return settings, True
             if "grade_guardian" in (h.get("command") or ""):
                 return settings, False
     pre.append({

@@ -86,6 +86,76 @@ def test_hook_command_propagates_deny_when_script_present(tmp_path):
     assert r.returncode == 2  # present + denies -> deny propagates
 
 
+def _store_stub_path(tmp_path):
+    """A PATH whose first `python3` behaves like the Windows Microsoft Store
+    alias (#467): prints an install prompt and exits 49. A working `python` sits
+    behind it, as on the reporter's machine once uv is the only real interpreter."""
+    import os
+    b = tmp_path / "bin"
+    b.mkdir()
+    stub = b / "python3"
+    stub.write_text("#!/bin/sh\necho 'Python was not found; run without arguments "
+                    "to install from the Microsoft Store' >&2\nexit 49\n")
+    stub.chmod(0o755)
+    (b / "python").symlink_to(sys.executable)
+    return f"{b}{os.pathsep}{os.environ['PATH']}"
+
+
+def test_hook_command_skips_a_python3_that_cannot_run(tmp_path):
+    """#467: a `python3` that exists but can't run (the Windows Store stub) must
+    not turn the guardian off. The deny still has to come through as exit 2."""
+    import os
+    d = tmp_path / "canvas-toolbox" / "lib" / "tools"
+    d.mkdir(parents=True)
+    (d / "grade_guardian.py").write_text("import sys\nsys.exit(2)\n", encoding="utf-8")
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path),
+           "PATH": _store_stub_path(tmp_path)}
+    r = subprocess.run(hook_command(), shell=True, env=env, input="{}", capture_output=True, text=True)
+    assert r.returncode == 2
+
+
+def test_hook_command_passes_stdin_to_the_guardian(tmp_path):
+    """Probing for an interpreter must not eat the tool-call JSON on stdin."""
+    import os
+    d = tmp_path / "canvas-toolbox" / "lib" / "tools"
+    d.mkdir(parents=True)
+    (d / "grade_guardian.py").write_text(
+        "import sys\nsys.exit(2 if sys.stdin.read() == 'PAYLOAD' else 0)\n", encoding="utf-8")
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path),
+           "PATH": _store_stub_path(tmp_path)}
+    r = subprocess.run(hook_command(), shell=True, env=env, input="PAYLOAD",
+                       capture_output=True, text=True)
+    assert r.returncode == 2
+
+
+# The launch line every install before #467 wrote. Kept here verbatim: it is
+# what an existing course's .claude/settings.json still holds.
+def _pre_467_command(subdir):
+    prefix = f"{subdir}/" if subdir else ""
+    return (f'sh -c \'f="$CLAUDE_PROJECT_DIR/{prefix}lib/tools/grade_guardian.py"; '
+            f'[ -f "$f" ] || exit 0; exec python3 "$f"\'')
+
+
+@pytest.mark.parametrize("subdir", ["canvas-toolbox", ""])
+def test_ensure_hook_upgrades_the_pre_467_command(subdir):
+    """#467: cb_update has to reach installs that already have the bare-python3
+    hook, or every existing Windows course keeps a guardian that never runs."""
+    old = {"hooks": {"PreToolUse": [{"matcher": "Bash|Write|Edit|Read",
+           "hooks": [{"type": "command", "command": _pre_467_command(subdir)}]}]}}
+    new, changed = ensure_hook(old, toolkit_subdir=subdir)
+    assert changed
+    cmds = [h["command"] for e in new["hooks"]["PreToolUse"] for h in e["hooks"]]
+    assert cmds == [hook_command(subdir)]
+
+
+def test_ensure_hook_leaves_a_customized_guardian_hook_alone():
+    custom = {"hooks": {"PreToolUse": [{"matcher": "Bash",
+              "hooks": [{"type": "command",
+                         "command": "/opt/py/bin/python lib/tools/grade_guardian.py"}]}]}}
+    new, changed = ensure_hook(custom, toolkit_subdir="")
+    assert not changed and new == custom
+
+
 # --- DENY: the paths the #213 incident used --------------------------------
 
 def test_denies_curl_put_to_submissions():

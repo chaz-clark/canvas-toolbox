@@ -244,7 +244,15 @@ HOOK_BODY = """\
 # FAILS OPEN if the toolkit is missing — a guardrail must never brick a repo.
 f="$(git rev-parse --show-toplevel)/{subdir}/lib/tools/ferpa_pre_push.py"
 [ -f "$f" ] || exit 0
-exec python3 "$f"
+# Run the first interpreter that actually starts (#467). On Windows `python3` is
+# often the Microsoft Store stub: on PATH, but it only prints an install prompt
+# and exits non-zero, so probe each candidate instead of trusting `command -v`.
+for py in python3 python py; do
+  "$py" -c "" </dev/null >/dev/null 2>&1 && exec "$py" "$f"
+done
+command -v uv >/dev/null 2>&1 && exec uv run --no-project python "$f"
+echo "PUSH BLOCKED: canvas-toolbox FERPA guard found no working Python (tried python3, python, py, uv)." >&2
+exit 1
 """
 
 

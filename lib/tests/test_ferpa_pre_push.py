@@ -273,6 +273,37 @@ def test_installed_hook_actually_runs_on_a_real_push(tmp_path):
     assert "PUSH BLOCKED" in (r.stdout + r.stderr)
 
 
+def test_hook_skips_a_python3_that_cannot_run(tmp_path):
+    """#467: on Windows `python3` is often the Microsoft Store stub. The hook
+    must find a Python that runs and still refuse the push for the RIGHT reason,
+    not with the stub's install prompt."""
+    import os
+    repo = _repo(tmp_path)
+    toolkit = repo / "canvas-toolbox" / "lib" / "tools"
+    toolkit.mkdir(parents=True)
+    for mod in ("ferpa_pre_push.py", "grade_guardian.py"):
+        (toolkit / mod).write_text((_TOOLS_DIR / mod).read_text(encoding="utf-8"),
+                                   encoding="utf-8")
+    ensure_pre_push_hook(repo, "canvas-toolbox", apply=True)
+    (repo / "grading").mkdir()
+    (repo / "grading" / ".known_names.txt").write_text("x\n", encoding="utf-8")
+    _git(repo, "add", "-f", "grading/.known_names.txt", "canvas-toolbox")
+    _git(repo, "commit", "-qm", "leak")
+
+    b = tmp_path / "bin"
+    b.mkdir()
+    stub = b / "python3"
+    stub.write_text("#!/bin/sh\necho 'Python was not found; run without arguments "
+                    "to install from the Microsoft Store' >&2\nexit 49\n")
+    stub.chmod(0o755)
+    (b / "python").symlink_to(sys.executable)
+    env = {**os.environ, "PATH": f"{b}{os.pathsep}{os.environ['PATH']}"}
+
+    r = _git(repo, "push", "origin", "HEAD:refs/heads/main", env=env)
+    assert r.returncode != 0, "git push should have been refused"
+    assert "PUSH BLOCKED" in (r.stdout + r.stderr)
+
+
 # --- the GUI rendering contract (genchi genbutsu, then jidoka) ---------------
 #
 # Verified by reading VS Code's git extension (dist/main.js) and running a real
