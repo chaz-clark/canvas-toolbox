@@ -14,6 +14,8 @@ from pathlib import Path
 
 MAP_FILE = "GLOSSARY-MAP.md"
 COURSE_GLOSSARY = "GLOSSARY.md"
+# A flat course whose map still links here has a link to a folder that is gone.
+STALE_NESTED_LINK = "./canvas-toolbox/knowledge/glossary.md"
 
 
 def render_glossary_map(toolkit_subdir: str) -> str:
@@ -35,11 +37,26 @@ def render_glossary_map(toolkit_subdir: str) -> str:
 
 
 def ensure_glossary_map(course_root: Path, toolkit_subdir: str, apply: bool) -> str:
-    """present / would-install / installed. Never overwrites an existing map."""
+    """present / would-install / installed / would-update / updated / stale-link.
+
+    Never overwrites a map the course has edited. The one rewrite: a map that
+    is still byte-for-byte the starter for the OTHER layout (a nested course
+    migrated to flat, say), whose toolkit link would otherwise point at a
+    folder that no longer exists."""
     target = Path(course_root) / MAP_FILE
-    if target.exists():
-        return "present"
-    if not apply:
-        return "would-install"
-    target.write_text(render_glossary_map(toolkit_subdir), encoding="utf-8")
-    return "installed"
+    want = render_glossary_map(toolkit_subdir)
+    if not target.exists():
+        if not apply:
+            return "would-install"
+        target.write_text(want, encoding="utf-8")
+        return "installed"
+    other = render_glossary_map("" if toolkit_subdir else "canvas-toolbox")
+    text = target.read_text(encoding="utf-8")
+    if want != other and text == other:
+        if not apply:
+            return "would-update"
+        target.write_text(want, encoding="utf-8")
+        return "updated"
+    if not toolkit_subdir and STALE_NESTED_LINK in text:
+        return "stale-link"   # edited by the course, so flagged, not rewritten
+    return "present"

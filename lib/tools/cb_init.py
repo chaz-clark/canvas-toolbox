@@ -102,6 +102,7 @@ import sys
 from pathlib import Path
 
 from clone_health import clone_health
+from glossary_map import ensure_glossary_map
 
 try:
     from _env_loader import force_utf8_console
@@ -966,6 +967,9 @@ def step_14_slash_commands(*, course_root: Path, check_only: bool) -> bool:
     print(f"  ✓ Copied {copied_count} slash commands to {target_dir}")
 
     _install_guardian_hook(course_root=course_root, check_only=check_only)
+    if (course_root / "canvas-toolbox").is_dir():   # nested; flat gets it from cb_flatten
+        print(f"  GLOSSARY-MAP.md: "
+              f"{ensure_glossary_map(course_root, 'canvas-toolbox', apply=True)}")
     return True
 
 

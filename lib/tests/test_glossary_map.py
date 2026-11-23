@@ -59,3 +59,20 @@ def test_ensure_never_touches_a_course_map(tmp_path):
     (tmp_path / MAP_FILE).write_text(own, encoding="utf-8")
     assert ensure_glossary_map(tmp_path, "canvas-toolbox", apply=True) == "present"
     assert (tmp_path / MAP_FILE).read_text(encoding="utf-8") == own
+
+
+def test_an_untouched_starter_follows_a_layout_change(tmp_path):
+    """A nested course migrated to flat keeps the nested starter, whose link
+    now points at a canvas-toolbox/ folder that is gone. An untouched starter
+    is the toolkit's own output, so it is rewritten for the current layout."""
+    (tmp_path / MAP_FILE).write_text(render_glossary_map("canvas-toolbox"), encoding="utf-8")
+    assert ensure_glossary_map(tmp_path, "", apply=False) == "would-update"
+    assert ensure_glossary_map(tmp_path, "", apply=True) == "updated"
+    assert (tmp_path / MAP_FILE).read_text(encoding="utf-8") == render_glossary_map("")
+
+
+def test_an_edited_map_with_the_old_nested_link_is_flagged_not_rewritten(tmp_path):
+    edited = render_glossary_map("canvas-toolbox") + "- [DS 250](./GLOSSARY.md): ours\n"
+    (tmp_path / MAP_FILE).write_text(edited, encoding="utf-8")
+    assert ensure_glossary_map(tmp_path, "", apply=True) == "stale-link"
+    assert (tmp_path / MAP_FILE).read_text(encoding="utf-8") == edited

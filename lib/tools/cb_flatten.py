@@ -1163,7 +1163,11 @@ def main() -> int:
     print("\nbootstrap:")
     env_status = ensure_env_stub(root, args.apply)
     print(f"  .env: {env_status}")
-    print(f"  GLOSSARY-MAP.md: {ensure_glossary_map(root, '', args.apply)}")
+    gm_status = ensure_glossary_map(root, '', args.apply)
+    print(f"  GLOSSARY-MAP.md: {gm_status}")
+    if gm_status == "stale-link":
+        print("    ↳ it links ./canvas-toolbox/knowledge/glossary.md, a folder this "
+              "flat course no longer has. Change it to ./knowledge/glossary.md.")
     hook_status = ensure_guardian_hook(root, args.apply)
     print(f"  grade_guardian hook (.claude/settings.json): {hook_status}")
     if hook_status == "installed":
