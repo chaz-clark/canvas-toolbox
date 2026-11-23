@@ -86,6 +86,31 @@ Retro's measure of success applies to this repo too: repeat mistakes turn into f
 
 ---
 
+## How it runs in this repo
+
+The skills are set up here: AGENTS.md → *Agent skills* points them to `docs/agents/` (issue tracker: GitHub; the five default triage labels; domain docs: the glossary and `docs/architecture/adr-*.md`). Each step, in order, with the skill and the practice it serves:
+
+| Step | Skill | What it serves here |
+|---|---|---|
+| 1. Align | `grill-with-docs` | Nemawashi (P-002 Plan Before Acting). Settled terms go into `knowledge/glossary.md` in the same session. |
+| 2. Spec | `to-spec` | A GitHub issue holding the user story and every decision already made, including what is out of scope. |
+| 3. Tickets | `to-tickets` | Heijunka and small steps (P-005): tracer-bullet issues, each with its blockers, each fitting one fresh session. |
+| 4. Build | `tdd` (and `implement` for a whole ticket) | Jidoka: the failing test comes first, and a red test blocks progress. |
+| 5. Verify | (no skill) | Genchi Gembutsu: run it on real course data or the sandbox before calling it done. |
+| 6. Review | `code-review` | The two-question review (Standards, Spec) for anything but a small two-way door. |
+| 7. PR | `pr` | The PR body: user story, merge danger, test plan. |
+| 8. Retro | `retro` | HERMES and Poka-yoke: a friction hit twice becomes a lesson in `lib/agents/knowledge/learned/`, and a repeat mistake becomes a check. |
+
+**Every few days:** `improve-codebase-architecture` surveys for deep-module candidates. It produces candidates, not changes.
+
+**A hard bug:** `diagnosing-bugs`.
+
+**Decisions:** a choice that is hard to reverse, surprising without context, and a real trade-off becomes the next `docs/architecture/adr-NNN-<slug>.md`, often during step 1.
+
+The public-repo rule holds at every step: specs, tickets and PRs on this repo never identify a student or describe private work elsewhere.
+
+---
+
 ## Recommended reading (from the video)
 
 - John Ousterhout, *A Philosophy of Software Design*: deep modules
