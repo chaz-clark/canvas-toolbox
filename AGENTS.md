@@ -70,13 +70,15 @@ surface:
 - `grading/*/feedback/_grader*.csv` — grading sheets with names
 - `grading/**/submissions_raw/**` — raw submissions (potential name leaks)
 
-**A course adds its own local-only files in `.claude/ferpa_zone2.txt`** (one regex per
-line). The list above is Canvas filenames; a course on another LMS has different
-name-bearing files, and `grade_guardian` enforces only what it knows about — an
-installed hook covering none of your files is worse than no hook. `cb_update` prints
-the active pattern count so "present" can't be read as "covered". A `!`-prefixed line
-exempts instructor-authored FILES (`RUBRIC.md` and `assignment_spec.md` are exempt by
-default) from a directory pattern; it can never lift the built-in list above.
+**A course adds its own local-only files in `.claude/local_only.txt`** (one regex per
+line; formerly `.claude/ferpa_zone2.txt`, still read; `cb_update` copies it and keeps
+the old file for older toolkits). The list above is Canvas filenames; a course on
+another LMS has different name-bearing files, and `grade_guardian` enforces only what
+it knows about — an installed hook covering none of your files is worse than no hook.
+`cb_update` prints the active pattern count so "present" can't be read as "covered". A
+`!`-prefixed line exempts instructor-authored FILES (`RUBRIC.md` and
+`assignment_spec.md` are exempt by default) from a directory pattern; it can never
+lift the built-in list above.
 
 **The git layer is guarded too.** `grade_guardian` stops *you* reading these; it
 cannot see `git push`, and a push can't be undone. `cb_update` installs a
@@ -252,7 +254,7 @@ never `knowledge/glossary.md` (the toolkit's file, replaced on every update). Th
 toolkit's update (`cb_flatten`, or `cb_update` in the nested layout) writes a starter
 `GLOSSARY-MAP.md` once, linking the toolkit's glossary; add the course's line to it
 when its `GLOSSARY.md` is created. Code and older docs still carry old words until each is
-renamed (the tools and `.claude/ferpa_zone2.txt` still say Zone 2 for local only);
+renamed (some tool messages still say Zone 2 for local only);
 translate for the user, never make them learn ours.
 
 Project-specific rules (detail: [`lib/agents/knowledge/working_style_canvas_toolbox.md`](lib/agents/knowledge/working_style_canvas_toolbox.md)):

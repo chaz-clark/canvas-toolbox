@@ -126,7 +126,7 @@ the agent surfaces on its own, not what you supplied in the same turn.
 
 Courses on another LMS can now use the toolkit's constitution, skills,
 FERPA discipline and consensus grading without the Canvas API:
-`.claude/ferpa_zone2.txt` teaches `grade_guardian` your own name-bearing
+`.claude/local_only.txt` (named `.claude/ferpa_zone2.txt` before 2.12.0) teaches `grade_guardian` your own name-bearing
 files, and `build_deid_master.py --roster-json` builds the de-id master
 from a local roster with no credentials.
 

@@ -194,7 +194,24 @@ _ZONE2_DEFAULT: list[tuple[str, bool]] = [
 # before this the hook installed, reported `present`, and enforced an empty set for
 # them. One regex per line, `#` comments and blanks ignored. Consumer patterns are
 # NEVER anchored: over-matching only blocks more reads, under-matching leaks.
-_ZONE2_EXTRA_FILE = ".claude/ferpa_zone2.txt"
+_ZONE2_EXTRA_FILE = ".claude/local_only.txt"
+# The name before #480 (glossary: "local only", not "Zone 2"). Still read, so a
+# course that hasn't run cb_update since keeps every pattern; cb_update copies it
+# to the new name and keeps it for clones on an older toolkit. Both are read
+# together: a union never drops a pattern, a pick could.
+_ZONE2_LEGACY_FILE = ".claude/ferpa_zone2.txt"
+
+
+def _course_pattern_text(root: Path) -> str | None:
+    """The course's own pattern lines, from the new name and the old one together.
+    None when neither file is readable."""
+    parts = []
+    for name in (_ZONE2_EXTRA_FILE, _ZONE2_LEGACY_FILE):
+        try:
+            parts.append((root / name).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+    return "\n".join(parts) if parts else None
 
 # Exemptions (#374). A course that lists a whole directory as Zone-2 (`grading/kc1/`)
 # also swallows the instructor-authored files inside it — the rubric and the assignment
@@ -228,14 +245,15 @@ def load_zone2(course_root: Path | None = None) -> tuple[list[tuple[str, bool]],
     root = course_root if course_root is not None else _course_root()
     if root is None:
         return entries, invalid
-    try:
-        text = (root / _ZONE2_EXTRA_FILE).read_text(encoding="utf-8")
-    except (OSError, ValueError):
+    text = _course_pattern_text(root)
+    if text is None:
         return entries, invalid
+    seen = set()
     for raw in text.splitlines():
         line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
+        if not line or line.startswith("#") or line in seen:
+            continue                        # a line in both files counts once
+        seen.add(line)
         body = line[1:].strip() if line.startswith("!") else line
         try:
             re.compile(body)
@@ -255,14 +273,17 @@ def load_zone2_exempt(course_root: Path | None = None) -> list[str]:
     root = course_root if course_root is not None else _course_root()
     if root is None:
         return out
-    try:
-        text = (root / _ZONE2_EXTRA_FILE).read_text(encoding="utf-8")
-    except (OSError, ValueError):
+    text = _course_pattern_text(root)
+    if text is None:
         return out
+    seen = set()
     for raw in text.splitlines():
         line = raw.strip()
         if line.startswith("!") and line[1:].strip():
             body = line[1:].strip()
+            if body in seen:
+                continue                    # a line in both files counts once
+            seen.add(body)
             try:
                 re.compile(body)
             except re.error:
@@ -329,7 +350,8 @@ def zone2_summary(course_root: Path | None = None) -> dict:
     files'. {'default': int, 'extra': int, 'invalid': [str], 'source': str|None}."""
     entries, invalid = load_zone2(course_root)
     root = course_root if course_root is not None else _course_root()
-    src = root / _ZONE2_EXTRA_FILE if root else None
+    src = next((root / n for n in (_ZONE2_EXTRA_FILE, _ZONE2_LEGACY_FILE)
+                if (root / n).is_file()), None) if root else None
     return {
         "default": len(_ZONE2_DEFAULT),
         "extra": len(entries) - len(_ZONE2_DEFAULT),
@@ -337,6 +359,8 @@ def zone2_summary(course_root: Path | None = None) -> dict:
         "exempt": len(load_zone2_exempt(course_root)) - len(_ZONE2_EXEMPT_DEFAULT),
         "invalid": invalid,
         "source": str(src) if src and src.is_file() else None,
+        "sources": [n for n in (_ZONE2_EXTRA_FILE, _ZONE2_LEGACY_FILE)
+                    if root and (root / n).is_file()],
     }
 
 

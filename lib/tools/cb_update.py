@@ -58,11 +58,12 @@ try:
     from grade_guardian import load_zone2 as _load_zone2
     from grade_guardian import compile_zone2 as _compile_zone2
     from grade_guardian import load_zone2_exempt as _load_zone2_exempt
-    from grade_guardian import _ZONE2_EXTRA_FILE
+    from grade_guardian import _ZONE2_EXTRA_FILE, _ZONE2_LEGACY_FILE
 except ImportError:
     _ensure_guardian_hook = None
     _zone2_summary = _load_zone2 = _compile_zone2 = _load_zone2_exempt = None
-    _ZONE2_EXTRA_FILE = ".claude/ferpa_zone2.txt"
+    _ZONE2_EXTRA_FILE = ".claude/local_only.txt"
+    _ZONE2_LEGACY_FILE = ".claude/ferpa_zone2.txt"
 
 try:
     from ferpa_pre_push import ensure_pre_push_hook as _ensure_pre_push
@@ -627,6 +628,60 @@ def print_lms_mode(course_root: Path) -> None:
     print("     Add your own name-bearing files to " + _ZONE2_EXTRA_FILE + ".")
 
 
+def migrate_local_only_file(course_root: Path, apply: bool) -> str:
+    """Give the course a `.claude/local_only.txt` from its `.claude/ferpa_zone2.txt`
+    (#480). absent / current / would-copy / copied / both-exist / copy-failed /
+    not-a-file.
+
+    COPIES, never moves. Each clone of a course folder has its own toolkit copy,
+    and a clone on a toolkit older than 2.12.0 reads only the old name: a
+    committed rename would silently drop the course's own patterns there. With
+    the old file kept, an older toolkit keeps every pattern it had, and this one
+    reads both names (each line once). Deleting the old copy is a later release's
+    job, once older toolkits are gone. If the two files differ, nothing is
+    touched; the guardian reads both, and merging them is the course's call."""
+    new, old = course_root / _ZONE2_EXTRA_FILE, course_root / _ZONE2_LEGACY_FILE
+    if new.exists() and not new.is_file():
+        return "not-a-file"
+    if not old.is_file():
+        return "current" if new.is_file() else "absent"
+    if new.is_file():
+        try:
+            same = new.read_bytes() == old.read_bytes()
+        except OSError:
+            same = False
+        return "current" if same else "both-exist"
+    if not apply:
+        return "would-copy"
+    try:
+        shutil.copyfile(old, new)
+    except OSError:
+        return "copy-failed"            # the old file is still read; nothing is lost
+    return "copied"
+
+
+def print_local_only_migration(status: str, indent: str = "") -> None:
+    """One status line, plus what to do next when there is something to do."""
+    print(f"{indent}local-only pattern file ({_ZONE2_EXTRA_FILE}): {status}")
+    hint = {
+        "copied": f"copied from {_ZONE2_LEGACY_FILE} (the glossary's word is \"local only\"). "
+                  f"Commit both files and edit {_ZONE2_EXTRA_FILE} from now on. The old "
+                  f"file stays for copies of this course on an older toolkit.",
+        "would-copy": f"{_ZONE2_LEGACY_FILE} will be copied to {_ZONE2_EXTRA_FILE} "
+                      f"(the old file stays).",
+        "both-exist": f"{_ZONE2_EXTRA_FILE} and {_ZONE2_LEGACY_FILE} differ. The guardian "
+                      f"reads both, so nothing is unprotected. Keep your patterns in "
+                      f"{_ZONE2_EXTRA_FILE}; leave the old file until every copy of this "
+                      f"course is on toolkit 2.12.0 or later.",
+        "copy-failed": f"could not write {_ZONE2_EXTRA_FILE}. {_ZONE2_LEGACY_FILE} is still "
+                       f"read, so nothing is unprotected.",
+        "not-a-file": f"{_ZONE2_EXTRA_FILE} is not a file, so it is ignored. "
+                      f"{_ZONE2_LEGACY_FILE} is still read if present.",
+    }.get(status)
+    if hint:
+        print(f"{indent}  ↳ {hint}")
+
+
 def print_zone2_coverage(course_root: Path) -> None:
     """Report WHAT the guardian's FERPA set actually covers, not just that the hook
     is wired. `grade_guardian hook: present` was true and misleading in the same
@@ -638,7 +693,8 @@ def print_zone2_coverage(course_root: Path) -> None:
         return
     s = _zone2_summary(course_root)
     extra = f" + {s['extra']} course-local" if s["extra"] else ""
-    print(f"  FERPA Zone-2 patterns: {s['default']} built-in{extra}")
+    src = f" (from {', '.join(s['sources'])})" if s.get("sources") else ""
+    print(f"  FERPA Zone-2 patterns: {s['default']} built-in{extra}{src}")
     if s["exempt"]:
         print(f"  FERPA Zone-2 exemptions: {s['exempt_default']} built-in + "
               f"{s['exempt']} course-local (files only; never lifts the built-ins)")
@@ -768,6 +824,7 @@ def main() -> int:
         print("  ↳ this repo's guardian was missing or out of date (an old launch "
               "line could leave it off on Windows) — agents could hand-write "
               "Canvas writes / bypass gates. Now enforced at create/edit/run.")
+    print_local_only_migration(migrate_local_only_file(course_root, args.apply))
     print_zone2_coverage(course_root)
 
     if _ensure_pre_push is not None:
