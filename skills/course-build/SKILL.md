@@ -89,7 +89,7 @@ defends against it, but naming the target explicitly is on you.
 
 | Task | Tool |
 |---|---|
-| Mirror one course (pull/push/build) | `canvas_sync.py --pull` / `--update` / `--build` |
+| Mirror one course (pull/update/build) | `canvas_sync.py --pull` / `--update` / `--build` |
 | Master → Blueprint propagation | `blueprint_sync.py` |
 | Validate a blueprint sync | `validate_blueprint_sync.py` + `blueprint_exception_report.py` |
 | Module prerequisites / completion | `module_settings_sync.py` |

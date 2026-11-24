@@ -181,7 +181,7 @@ For the full principle definitions, examples, and override rationale, see `make-
 | Tool / File | Purpose | When to use |
 |---|---|---|
 | `lib/tools/canvas_sync.py --pull` | Refreshes `course/` and `course_src/` from Canvas | Run before every audit to ensure local state is current |
-| `lib/tools/canvas_sync.py --update` | Pushes corrected local `.json` files to Canvas | After applying date corrections locally |
+| `lib/tools/canvas_sync.py --update` | Updates Canvas with the corrected local `.json` files | After applying date corrections locally |
 | `.canvas/index.json` | Module structure, item types, canvas IDs, current dates | Primary source for auditing — contains `due_at`, `lock_at`, `unlock_at` per item |
 | `course_src/*/setup-notes-and-course-settings.md` | Markdown mirror of the setup notes page | Primary rule source for the auditor |
 | `course/_course.json` | Course-level settings including `start_at` and `end_at` | Source for semester window — use these dates to build the week calendar |

@@ -451,7 +451,7 @@ Pushing instructor → Canvas is the **authorized owner writing to the system of
 
 1. **Resolve user_id** by matching the submissions API to the keyed download filename. The push never needs a name — the keymap maps `key → user_id`.
 2. **PUT** `posted_grade` and (optionally) the student `comment`.
-3. **Dry-run by default.** Real push requires `--update`.
+3. **Dry-run by default.** A real update to Canvas requires `--update`.
 4. **Required review gate:** `--mark-reviewed` is a marker (e.g. timestamp file) the instructor sets after eyeballing the per-student sheets. `--update` refuses to run without it. The marker is **auto-invalidated if any comment changed** after it was set (mtime comparison) — you can't "approve" a state and then mutate the state.
 5. **Validate on the Test Student first.** Push to the Test Student (the role Canvas provides), inspect in the gradebook, clear it. Then push the real batch.
 6. **Idempotent.** Keys already in the audit log are skipped — late-add re-runs never duplicate. `--force` overrides.

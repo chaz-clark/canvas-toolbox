@@ -373,7 +373,7 @@ def main() -> int:
         print(f"\n  ⚠️  comment-collision guard (issue #62; window={args.collision_window_days}d): "
               f"{len(collisions)} uid(s) have recent non-self thread activity. Review before --update.")
 
-    if not args.push:
+    if not args.update:
         print(f"\nDry run — nothing posted. Re-run with --update to send to Canvas.")
         return 0
     if not pushable:

@@ -1,7 +1,7 @@
 """Tests — `--update` is the write flag; `--push` is its old spelling until 3.0.0 (#493).
 
 The two spellings must be indistinguishable to the tools (one argparse option,
-dest="push", so every gate reading `args.push` sees the same value) and to the
+read as `args.update`, so every gate sees the same value) and to the
 guardian (the review gate must ask on `--update` exactly as on `--push`). A gap
 in either is a write that skips a gate.
 """
@@ -42,8 +42,8 @@ def test_both_spellings_give_the_same_value(kwargs, argv, expected):
         p = argparse.ArgumentParser()
         add_update_flag(p, **kwargs)
         args = p.parse_args([spelling if a == "X" else a for a in argv])
-        assert args.push == expected, spelling
-        assert not hasattr(args, "update")
+        assert args.update == expected, spelling
+        assert not hasattr(args, "push")
 
 
 def test_the_old_spelling_prints_one_note(capsys):
@@ -125,3 +125,26 @@ def test_hook_asks_on_update_end_to_end():
 def test_the_redirect_teaches_the_new_spelling():
     msg = _redirect("a hand-written Canvas write")
     assert "--update" in msg and "--push" not in msg
+
+
+# --- no shortened flags on the gated tools (#493 spec review) ------------------
+# argparse accepts any unique prefix by default, so `--upd --yes` was --update to
+# grader_push but invisible to the guardian, which matches whole flag names. The
+# same hole was there for `--pus`, `--mark` and `--rel --app`. The gated tools
+# accept whole flags only.
+
+GATED = {
+    "grader_push": ["--challenge-dir", "d", "--upd", "--yes"],
+    "grader_correct": ["--csv", "x.csv", "--assignment-id", "5", "--upd"],
+    "grader_post_policy": ["--assignment-id", "5", "--rel", "--app"],
+}
+
+
+@pytest.mark.parametrize("tool", sorted(GATED))
+def test_gated_tools_refuse_shortened_flags(tool, tmp_path):
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "CANVAS_API_TOKEN": "x",
+           "CANVAS_BASE_URL": "http://127.0.0.1:9", "CANVAS_COURSE_ID": "1"}
+    r = subprocess.run([sys.executable, str(_TOOLS_DIR / f"{tool}.py"), *GATED[tool]],
+                       capture_output=True, text=True, timeout=60, cwd=tmp_path, env=env)
+    assert r.returncode == 2, (r.stdout, r.stderr)
+    assert "unrecognized arguments" in r.stderr

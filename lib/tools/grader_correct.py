@@ -223,7 +223,10 @@ def main() -> int:
     force_utf8_console()
     ap = argparse.ArgumentParser(
         description="Correct already-graded work to exact instructor-supplied values "
-                    "(dry-run by default; overwriting a grade needs --allow-change).")
+                    "(dry-run by default; overwriting a grade needs --allow-change).",
+        # Whole flags only: grade_guardian matches them by name, so `--upd` must not
+        # reach Canvas as --update without the instructor's pop-up (#493).
+        allow_abbrev=False)
     ap.add_argument("--csv", required=True, help="CSV of user_id + new grade (+ optional comment)")
     ap.add_argument("--assignment-id", required=True)
     ap.add_argument("--course-id", default=None, help="defaults to $CANVAS_COURSE_ID")
@@ -310,7 +313,7 @@ def main() -> int:
         print("⛔ Fatal problems above — nothing written. Fix the CSV/roster and re-run.",
               file=sys.stderr)
         return 1
-    if not args.push:
+    if not args.update:
         flag = "" if not overwrites else " (overwrites need --allow-change)"
         print(f"\nDry run — nothing written. Add --update to write{flag}.")
         return 0

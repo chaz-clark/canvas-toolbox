@@ -361,7 +361,10 @@ def main(argv: list[str] | None = None) -> int:
     force_utf8_console()
     ap = argparse.ArgumentParser(
         description="Hold graded work hidden for review, then release it "
-                    "(Canvas posting policy). Writes no grades or comments.")
+                    "(Canvas posting policy). Writes no grades or comments.",
+        # Whole flags only: grade_guardian matches them by name, so `--upd` must not
+        # reach Canvas as --update without the instructor's pop-up (#493).
+        allow_abbrev=False)
     ap.add_argument("--version", action="version",
                     version=f"canvas-toolbox {__version__}")
     ap.add_argument("--assignment-id", required=True, type=int)

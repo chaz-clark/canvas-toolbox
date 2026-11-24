@@ -154,7 +154,7 @@ def main() -> int:
         print("⛔ Unmatched keys — nothing written. Fix the CSV/roster and re-run.",
               file=sys.stderr)
         return 1
-    if not args.push:
+    if not args.update:
         print("\nDry run — nothing written. Add --update to post.")
         return 0
     if not plan:

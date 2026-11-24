@@ -42,7 +42,7 @@ runtime_data:
 
 3. **Check coverage** — run `blueprint_sync.py --status` to confirm mapping coverage and date coverage. Investigate any unmapped master items before proceeding.
 
-4. **Push** — run `blueprint_sync.py --update`. Full overwrite: settings → homepage → syllabus → all mapped module items with content + dates.
+4. **Update the Blueprint** — run `blueprint_sync.py --update`. Full overwrite: settings → homepage → syllabus → all mapped module items with content + dates.
 
 5. **Verify** — spot-check 2–3 pages in Canvas Blueprint student view. Confirm grading scheme in Blueprint course settings. Set `late_policy` manually (requires admin token — instructor token returns 403).
 

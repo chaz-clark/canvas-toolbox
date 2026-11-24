@@ -1064,7 +1064,7 @@ def push_roster_comments(args, base, cid, headers, challenge, disclosure_kind) -
     (a 0 / no-submission student whose empty submission object still accepts a comment).
     The file-keyed push can't see them (no submission file → no .review.csv row). Grade
     untouched; disclosure tag applied; the grade_guardian pop-up gates the write (it's a
-    comment push with --update). Idempotent: a user already in the log is skipped unless
+    comment update with --update). Idempotent: a user already in the log is skipped unless
     --force, so re-runs don't stack a second comment."""
     path = Path(args.roster_csv)
     if not path.is_file():
@@ -1095,7 +1095,7 @@ def push_roster_comments(args, base, cid, headers, challenge, disclosure_kind) -
     print(f"Disclosure tag on comments: {DISCLOSURE_TAGS[disclosure_kind]!r} "
           f"(--disclosure {disclosure_kind}). For an instructor-written note to a "
           "non-submitter, pass --disclosure script.")
-    if not args.push:
+    if not args.update:
         print("\nDry run — nothing written. Add --update to post.")
         return 0
     if not args.yes and not require_typed_confirmation(
@@ -1223,7 +1223,7 @@ def _retract_main(base: str, cid: str, headers: dict, args,
     }
 
     # canvas_course_guard: retract IS a write — gate it.
-    if guard_enforce and args.push:
+    if guard_enforce and args.update:
         guard_enforce(base, headers, cid, mode="write", allow_override=args.allow_enrolled)
 
     print(f"Retract plan for assignment {args.assignment_id} "
@@ -1237,7 +1237,7 @@ def _retract_main(base: str, cid: str, headers: dict, args,
         rows_to_delete.append((key, uid, comment_id))
         print(f"  [OK]   {key} comment={comment_id} → DELETE /submissions/{uid}/comments/{comment_id}")
 
-    if not args.push:
+    if not args.update:
         print(f"\nDry run — nothing deleted. Re-run with --update to actually retract.")
         return 0
     if not rows_to_delete:
@@ -1318,7 +1318,10 @@ def post_assignment_grades(base: str, cid: str, headers: dict, assignment_id) ->
 def main() -> int:
     force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
 
-    ap = argparse.ArgumentParser(description="Update grades and comments in Canvas (LOCAL, gated).")
+    ap = argparse.ArgumentParser(description="Update grades and comments in Canvas (LOCAL, gated).",
+        # Whole flags only: grade_guardian matches them by name, so `--upd` must not
+        # reach Canvas as --update without the instructor's pop-up (#493).
+        allow_abbrev=False)
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     ap.add_argument("--challenge-dir", required=True,
                     help="Convention base path (e.g. grading/kc1). Holds .review.csv, feedback/, etc.")
@@ -1568,7 +1571,7 @@ def main() -> int:
         # shows the review surface in the conversation, the instructor approves in
         # a reply, and the agent runs --mark-reviewed --yes. The .reviewed marker
         # is a staleness guard (#46), not the attestation; the hard human gate is
-        # the grade_guardian 'ask' permission prompt on the --push write.
+        # the grade_guardian 'ask' permission prompt on the --update write.
         if not args.yes and not require_typed_confirmation("\nType 'reviewed' to confirm: ", "reviewed"):
             print("Not marked.")
             return 1
@@ -1588,13 +1591,13 @@ def main() -> int:
         return 1
 
     # canvas_course_guard: refuse enrolled-course writes unless --allow-enrolled
-    if guard_enforce and (args.push or args.test_user is not None):
+    if guard_enforce and (args.update or args.test_user is not None):
         guard_enforce(base, headers, cid, mode="write", allow_override=args.allow_enrolled)
 
     # Review-first draft is the default: hold the assignment on MANUAL posting so what
     # we write is visible in SpeedGrader but hidden from students until released
     # (grader_post_policy.py --release). Fails closed if the policy can't be read.
-    if args.push and args.test_user is None and not (args.publish_now or args.post):
+    if args.update and args.test_user is None and not (args.publish_now or args.post):
         from grader_post_policy import ensure_review_hold
         held_ok, held_msg = ensure_review_hold(base, cid, headers, args.assignment_id, ".canvas")
         if not held_ok:
@@ -1619,7 +1622,7 @@ def main() -> int:
         print(f"TEST update → course {cid}, assignment {args.assignment_id}, user {args.test_user}")
         print(f"  grade={grade}")
         print(f'  comment={chr(34)+comment+chr(34) if comment else "(none — grade only)"}')
-        if not args.push:
+        if not args.update:
             print("\nDry run — nothing written. Add --update to actually send.")
             return 0
         if not args.yes:
@@ -1964,7 +1967,7 @@ def main() -> int:
             by_tok[tok] = by_tok.get(tok, 0) + 1
         print(f"  {sum(by_tok.values())} held (issue #72; comment posts, grade withheld): "
               f"{', '.join(f'{k}={v}' for k, v in sorted(by_tok.items()))}")
-    if not args.push:
+    if not args.update:
         print("Dry run — nothing written. Re-run with --update to send to Canvas.")
         return 0
     if not pushable:
@@ -1990,7 +1993,7 @@ def main() -> int:
     # HONORED here: the agent shows the comments + old→new grades IN THE CONVERSATION,
     # the instructor approves in a reply, and the write goes out. The hard human gate
     # moved UP to the grade_guardian PreToolUse hook, which forces an 'ask' permission
-    # prompt on this --push — the instructor's in-chat click is the attestation.
+    # prompt on this --update — the instructor's in-chat click is the attestation.
     # #207's terminal keystroke dead-ended non-technical faculty at a shell; the
     # guardian prompt replaces it without ever sending them to a terminal.
     ai_comment_files = list(fbdir.glob(f"{prefix}-*.md"))
@@ -2246,7 +2249,7 @@ def main() -> int:
     # posted_at stays null, students can't see them, and the gradebook reads "needs
     # grading". The push payload is correct (verified on Canvas); the posting policy
     # is the gate. Detect it so hidden grades are never silently shipped as done.
-    if pushed and args.push and assignment_posts_manually(base, cid, headers, args.assignment_id):
+    if pushed and args.update and assignment_posts_manually(base, cid, headers, args.assignment_id):
         if args.post:
             ok, detail = post_assignment_grades(base, cid, headers, args.assignment_id)
             print(f"  ✅ Released grades to students {detail}" if ok
@@ -2261,7 +2264,7 @@ def main() -> int:
     # "submitted" even though the grade posted (Canvas doesn't always transition on
     # re-apply). Verify the pushed rows and, with --auto-fix-workflow, idempotently
     # re-post the SAME grade to force "submitted" -> "graded" (never a new grade).
-    if pushed and args.push and pushed_uids:
+    if pushed and args.update and pushed_uids:
         try:
             from grader_audit_workflow import find_stuck_submissions, repost_grade
             time.sleep(2)  # let Canvas process the writes

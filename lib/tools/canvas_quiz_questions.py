@@ -344,8 +344,8 @@ Exit codes:
     args = parser.parse_args()
     note_old_flag()
 
-    if args.push:
-        cmd_push(args.push)
+    if args.update:
+        cmd_push(args.update)
     elif args.list:
         cmd_list(args.list, mode=args.mode, emit_json=args.emit_json)
     elif args.clear:

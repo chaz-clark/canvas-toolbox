@@ -959,19 +959,19 @@ def main():
     note_old_flag()
 
     # Startup safety guard (#27): source = MASTER_COURSE_ID (read on every
-    # mode), target = BLUEPRINT_COURSE_ID (write on --push).
-    if args.pull or args.push or args.status:
+    # mode), target = BLUEPRINT_COURSE_ID (write on --update).
+    if args.pull or args.update or args.status:
         _course_guard(CANVAS_BASE_URL, _headers(), MASTER_COURSE_ID, "read",
                       allow_override=args.allow_enrolled,
                       label="source (MASTER_COURSE_ID)")
-    if args.push:
+    if args.update:
         _course_guard(CANVAS_BASE_URL, _headers(), BLUEPRINT_COURSE_ID, "write",
                       allow_override=args.allow_enrolled,
                       label="target (BLUEPRINT_COURSE_ID)")
 
     if args.pull:
         cmd_pull()
-    elif args.push:
+    elif args.update:
         cmd_push()
     elif args.status:
         cmd_status()

@@ -629,19 +629,19 @@ def main():
     note_old_flag()
 
     # Startup safety guard (#27): source (CANVAS_COURSE_ID) is read on every
-    # mode; target (MASTER_COURSE_ID) is the write target on --push.
-    if args.push or args.pull or args.status:
+    # mode; target (MASTER_COURSE_ID) is the write target on --update.
+    if args.update or args.pull or args.status:
         _course_guard(BASE, _h(), SOURCE_ID, "read",
                       allow_override=args.allow_enrolled,
                       label="source (CANVAS_COURSE_ID)")
-    if args.push:
+    if args.update:
         _course_guard(BASE, _h(), TARGET_ID, "write",
                       allow_override=args.allow_enrolled,
                       label="target (MASTER_COURSE_ID)")
 
     if args.pull:
         cmd_pull()
-    elif args.push:
+    elif args.update:
         cmd_push()
     elif args.status:
         cmd_status()

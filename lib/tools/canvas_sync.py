@@ -2667,7 +2667,7 @@ Markdown authoring workflow:
   2. Edit .md files   Edit in course_src/ — human-friendly, agent-friendly
   3. --build          Converts .md back to HTML in course/
   4. --status         Review what changed
-  5. --update         Sync to Canvas
+  5. --update         Update Canvas
 
 Flags:
   --quiet             Suppress per-file lines; show only headers and totals
@@ -2754,7 +2754,7 @@ Change log:  .canvas/push_log.md  (appended on every --update and --pull <path>)
 
     # Startup safety guard (#27) — never block --build (local-only, no Canvas call).
     if not args.build:
-        _write_mode = bool(args.push is not None) or bool(args.upload) or bool(args.set_todo_dates)
+        _write_mode = bool(args.update is not None) or bool(args.upload) or bool(args.set_todo_dates)
         _course_guard(CANVAS_BASE_URL, _headers(), CANVAS_COURSE_ID,
                       "write" if _write_mode else "read",
                       allow_override=args.allow_enrolled,
@@ -2764,8 +2764,8 @@ Change log:  .canvas/push_log.md  (appended on every --update and --pull <path>)
         cmd_init()
     elif args.status:
         cmd_status()
-    elif args.push is not None:
-        cmd_push(args.push if args.push else None)
+    elif args.update is not None:
+        cmd_push(args.update if args.update else None)
     elif args.pull:
         cmd_pull(args.pull)
     elif args.build:

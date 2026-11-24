@@ -320,7 +320,7 @@ def main() -> int:
         print("⛔ Big-drop warning(s) — nothing written. Review, then re-run with "
               "--allow-swings if intended.", file=sys.stderr)
         return 1
-    if not args.push:
+    if not args.update:
         print("\nDry run — nothing written. Add --update to write.")
         return 0
     if not writes:

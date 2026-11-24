@@ -368,7 +368,7 @@ questions. If the pending question is worth points, that's real grading → Spee
 | Get ready to grade (first time, or "is it set up?") | `grader_setup.py` (check) → `grader_setup.py --apply` |
 | Grade an assignment | `grader_fetch.py --challenge-dir grading/<name>` → consensus |
 | Attest review | `grader_push.py --challenge-dir grading/<name> --mark-reviewed` |
-| Push feedback | `grader_push.py --challenge-dir grading/<name> --update` |
+| Update feedback in Canvas | `grader_push.py --challenge-dir grading/<name> --update` |
 | Re-grade a resubmission | add `--regrade` |
 | Update the "your grade" column | `grader_standing.py --csv <f> --assignment-id <id> --update` |
 | Correct already-graded grades to exact values (up or down) | `grader_correct.py --csv <f> --assignment-id <id>` (dry-run) → `--update --allow-change` |
