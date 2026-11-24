@@ -29,7 +29,7 @@ GUARDS, in order
   - Overwriting an existing, different grade (up OR down) needs --allow-change.
     Filling an empty grade does not. Unchanged rows are skipped.
   - canvas_course_guard: refuses a live enrolled-course write unless --allow-enrolled.
-  - The grade_guardian hook asks the instructor to click before --push runs.
+  - The grade_guardian hook asks the instructor to click before --update runs.
   - Comments are SUPERSEDE-SAFE: the new comment is posted, then this tool's prior
     correction comment for that student (from the ledger) is deleted, so re-runs never
     stack. Only comment ids this tool logged are ever deleted.
@@ -57,6 +57,8 @@ except ImportError:
         pass
 
 import requests
+
+from _update_flag import add_update_flag, note_old_flag  # --update / --push (#493)
 
 try:
     from __toolbox_version__ import __version__
@@ -237,7 +239,7 @@ def main() -> int:
                          "computed the grade and the note is the instructor's own text.")
     ap.add_argument("--allow-change", action="store_true",
                     help="permit overwriting an existing, different grade — up OR down")
-    ap.add_argument("--push", action="store_true", help="actually write (else dry-run)")
+    add_update_flag(ap, action="store_true", help="actually write (else dry-run)")
     ap.add_argument("--yes", action="store_true",
                     help="skip the terminal prompt once the instructor approved the preview")
     ap.add_argument("--allow-enrolled", action="store_true",
@@ -248,6 +250,7 @@ def main() -> int:
                     help=f"correction ledger (default {DEFAULT_LOG}; keep it gitignored)")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     args = ap.parse_args()
+    note_old_flag()
 
     tok, env_cid, base = _env_canvas()
     cid = args.course_id or env_cid
@@ -309,7 +312,7 @@ def main() -> int:
         return 1
     if not args.push:
         flag = "" if not overwrites else " (overwrites need --allow-change)"
-        print(f"\nDry run — nothing written. Add --push to write{flag}.")
+        print(f"\nDry run — nothing written. Add --update to write{flag}.")
         return 0
     if overwrites and not args.allow_change:
         print(f"⛔ {len(overwrites)} row(s) overwrite an existing grade — nothing written. "

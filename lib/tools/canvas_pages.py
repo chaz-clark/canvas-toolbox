@@ -5,7 +5,7 @@ base URL and auth headers as arguments and do not depend on either caller's
 module globals.
 
 Root cause this module fixes (issue #26): both sync tools used to POST a new
-Page on every --push with no "does this title already exist in the target?"
+Page on every --update with no "does this title already exist in the target?"
 check. Canvas auto-suffixes the URL on a title collision (-2/-4/-5/-6...) and a
 fresh module item is added each run, so the same page duplicated 4x across
 master/blueprint/sections over multiple sync runs. upsert_page() makes the

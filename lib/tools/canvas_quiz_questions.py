@@ -7,11 +7,11 @@ Each quiz is defined as a JSON file (e.g. course/.../my-quiz.questions.json).
 The tool reads that file and pushes questions to the matching Canvas quiz.
 
 Usage:
-    uv run python tools/canvas_quiz_questions.py --push <questions-file.json>
+    uv run python tools/canvas_quiz_questions.py --update <questions-file.json>
     uv run python tools/canvas_quiz_questions.py --list  <questions-file.json>
     uv run python tools/canvas_quiz_questions.py --clear <questions-file.json>
 
-    --push   Delete all existing questions, then create from file (idempotent)
+    --update Delete all existing questions, then create from file (idempotent)
     --list   Show current questions in Canvas for this quiz (no changes)
     --clear  Delete all existing questions (no create)
 
@@ -54,7 +54,7 @@ Access modes (--mode):
     student_view               — strips answer weights and correct answer indicators
 
 Notes:
-    - --push always clears existing questions first (fully idempotent)
+    - --update always clears existing questions first (fully idempotent)
     - Classic quizzes only. NewQuiz questions use the separate `/api/quiz/v1`
       surface and are managed by the New Quiz sync workstream instead.
     - After pushing questions, Canvas recalculates points_possible on the quiz automatically.
@@ -68,6 +68,8 @@ import sys
 from pathlib import Path
 
 import requests
+
+from _update_flag import add_update_flag, note_old_flag  # --update / --push (#493)
 
 try:
     from _env_loader import load_env, force_utf8_console
@@ -331,7 +333,7 @@ Exit codes:
   2 = configuration error
 """
     )
-    parser.add_argument("--push",  metavar="FILE", help="Clear existing + create from file (idempotent)")
+    add_update_flag(parser, metavar="FILE", help="Clear existing + create from file (idempotent)")
     parser.add_argument("--list",  metavar="FILE", help="List current questions in Canvas")
     parser.add_argument("--clear", metavar="FILE", help="Delete all existing questions")
     parser.add_argument("--mode", choices=["student_view", "instructor_view"],
@@ -340,6 +342,7 @@ Exit codes:
     parser.add_argument("--json", action="store_true", dest="emit_json",
                        help="Output structured JSON (for n8n integration)")
     args = parser.parse_args()
+    note_old_flag()
 
     if args.push:
         cmd_push(args.push)

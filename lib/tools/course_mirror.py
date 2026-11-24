@@ -11,7 +11,7 @@ points, published state), same module structure sync (published, prerequisites).
 Usage:
     uv run python tools/course_mirror.py --pull    # map MASTER_COURSE_ID item IDs
     uv run python tools/course_mirror.py --status  # show coverage
-    uv run python tools/course_mirror.py --push    # push course/ → MASTER_COURSE_ID
+    uv run python tools/course_mirror.py --update  # update MASTER_COURSE_ID from course/
 
 Env vars required:
     CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID (source), MASTER_COURSE_ID (target)
@@ -26,6 +26,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
+
+from _update_flag import add_update_flag, note_old_flag  # --update / --push (#493)
 
 from canvas_pages import page_in_module, upsert_page
 from __toolbox_version__ import __version__
@@ -204,7 +206,7 @@ def cmd_pull():
             names = [m.get("name") for m in modules if _slug(m.get("name", "")) == slug]
             print(f"    '{slug}' appears {len(names)}x")
         print(f"\n  This will cause ambiguous matching. Clean up duplicate modules in Canvas")
-        print(f"  before running --push, or --push will skip ambiguous modules.\n")
+        print(f"  before running --update, or --update will skip ambiguous modules.\n")
 
     matched = 0
     for mod in modules:
@@ -245,7 +247,7 @@ def cmd_pull():
             t = master_index["files"].get(fp, {}).get("type", "?")
             print(f"    [{t}] {fp}")
     print(f"\n  Mapping → {MIRROR_INDEX}")
-    print(f"  Run --status then --push.")
+    print(f"  Run --status then --update.")
 
 
 # ---------------------------------------------------------------------------
@@ -284,7 +286,7 @@ def cmd_status():
                              if master_index["files"].get(fp, {}).get("type") not in NO_PUSH_TYPES
                              and master_index["files"].get(fp, {}).get("type") != "NewQuiz"]
         if pushable_unmapped:
-            print(f"\n  Unmapped items the API can send (will be created new on --push):")
+            print(f"\n  Unmapped items the API can send (will be created new on --update):")
             for fp in pushable_unmapped:
                 t = master_index["files"].get(fp, {}).get("type", "?")
                 print(f"    [{t}] {fp}")
@@ -619,11 +621,12 @@ def main():
     parser = argparse.ArgumentParser(description="One-off: mirror course/ → MASTER_COURSE_ID")
     parser.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     parser.add_argument("--pull", action="store_true", help="Map MASTER_COURSE_ID item IDs")
-    parser.add_argument("--push", action="store_true", help="Update the Master course (MASTER_COURSE_ID) from course/ content")
+    add_update_flag(parser, action="store_true", help="Update the Master course (MASTER_COURSE_ID) from course/ content")
     parser.add_argument("--status", action="store_true", help="Show coverage")
     parser.add_argument("--allow-enrolled", action="store_true",
                         help="bypass the startup safety guard (#27)")
     args = parser.parse_args()
+    note_old_flag()
 
     # Startup safety guard (#27): source (CANVAS_COURSE_ID) is read on every
     # mode; target (MASTER_COURSE_ID) is the write target on --push.

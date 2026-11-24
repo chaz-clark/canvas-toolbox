@@ -12,7 +12,7 @@
 #   lib/tools/sync_context.sh master --pull
 #   lib/tools/sync_context.sh blueprint --pull
 #   lib/tools/sync_context.sh s1 --status
-#   lib/tools/sync_context.sh s2 --push "sprint-1"
+#   lib/tools/sync_context.sh s2 --update "sprint-1"
 #   lib/tools/sync_context.sh master --build
 #
 # Context → .env variable mapping:
@@ -63,7 +63,7 @@ Contexts:
 Examples:
   $(basename "$0") master --pull
   $(basename "$0") s1 --status
-  $(basename "$0") s2 --push "sprint-1"
+  $(basename "$0") s2 --update "sprint-1"
 
 See AGENTS.md "Multi-course architecture" for details.
 EOF

@@ -21,7 +21,7 @@ SCOPE — INSTRUCTOR-AUTHORED comments only (the HG-5 line)
 GUARDS
   - Comment-ONLY write (never sends posted_grade) → a grade is never changed.
   - Test Student excluded (#61); unmatched/ambiguous key hard-fails (never comment on
-    the wrong student); dry-run by default; --push to write; --allow-enrolled for your
+    the wrong student); dry-run by default; --update to write; --allow-enrolled for your
     own course (canvas_course_guard).
   - Prints each comment preview so the instructor reviews the actual TEXT before --yes.
 """
@@ -39,6 +39,8 @@ except ImportError:
         pass
 
 import requests
+
+from _update_flag import add_update_flag, note_old_flag  # --update / --push (#493)
 
 try:
     from __toolbox_version__ import __version__
@@ -113,7 +115,7 @@ def main() -> int:
     ap.add_argument("--course-id", default=None, help="defaults to $CANVAS_COURSE_ID")
     ap.add_argument("--key-column", default=None)
     ap.add_argument("--comment-column", default=None)
-    ap.add_argument("--push", action="store_true", help="actually write (else dry-run)")
+    add_update_flag(ap, action="store_true", help="actually write (else dry-run)")
     ap.add_argument("--yes", action="store_true",
                     help="post without the interactive prompt. Allowed here (comments "
                          "are instructor-authored, not AI-drafted): use once the "
@@ -122,6 +124,7 @@ def main() -> int:
                     help="bypass canvas_course_guard for your own enrolled course")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     args = ap.parse_args()
+    note_old_flag()
 
     tok, env_cid, base = _env_canvas()
     cid = args.course_id or env_cid
@@ -152,7 +155,7 @@ def main() -> int:
               file=sys.stderr)
         return 1
     if not args.push:
-        print("\nDry run — nothing written. Add --push to post.")
+        print("\nDry run — nothing written. Add --update to post.")
         return 0
     if not plan:
         print("Nothing to post.")

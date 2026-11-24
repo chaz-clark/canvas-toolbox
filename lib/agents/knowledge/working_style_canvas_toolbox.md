@@ -119,7 +119,7 @@ This file contains the **detailed explanations and motivating cases** for projec
 
 **Why**: Canvas sync can create orphans (content exists but not in modules), duplicates (title collisions), or invalid dates (assignment due before course starts).
 
-**Application**: After `canvas_sync.py --push`, run `course_quality_check.py --course-id <id>`.
+**Application**: After `canvas_sync.py --update`, run `course_quality_check.py --course-id <id>`.
 
 **Motivating case**: 2026-05-08, blueprint sync created duplicate "Week 1 Overview" pages (Canvas auto-suffixed `-2`). Students saw both; unclear which to read. Quality check now catches duplicates.
 

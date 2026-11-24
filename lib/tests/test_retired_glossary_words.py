@@ -46,6 +46,7 @@ GIT_HOOK = re.compile(r"hooks/pre-push|FERPA pre-push|Git's pre-push|^pre-push$"
 # never raise one to make a new use pass. After #483 only these stay, each on
 # purpose.
 ALLOWLIST = {
+    ('_update_flag.py', 'push'): 1,                # dest="push": the args.push name --update and --push share (#493); goes with #494
     ('grade_guardian.py', 'push'): 2,              # 'push' names the review gate's second checkpoint (an identifier)
     ('grader_push.py', 'push'): 2,                 # .push_log.md regexes still read older `pushed to assignment` lines
     ('sandbox_new_quiz_fixtures.py', 'push'): 1,   # answer text in a sandbox quiz, not a message

@@ -272,10 +272,10 @@ uv run python lib/tools/canvas_sync.py --init
 uv run python lib/tools/canvas_sync.py --status
 
 # Push local edits to Canvas
-uv run python lib/tools/canvas_sync.py --push
+uv run python lib/tools/canvas_sync.py --update
 
 # Push one module only
-uv run python lib/tools/canvas_sync.py --push "sprint-2-api-dag"
+uv run python lib/tools/canvas_sync.py --update "sprint-2-api-dag"
 
 # Accept a direct Canvas edit (Canvas → local)
 uv run python lib/tools/canvas_sync.py --pull course/sprint-1-setup-dag-demo/sprint-1-overview.html
@@ -421,7 +421,7 @@ Modified (2 files):
   M  course/sprint-3-sftp-dag/w06-dw-lab-2-conformed-date-time-dimensions.json  [Assignment]
   M  course/sprint-4-mongo-dag/w08-dw-lab-3-support-case-analytics.json  [Assignment]
 
-Run --push to sync changes to Canvas.
+Run --update to sync changes to Canvas.
 ```
 
 ---

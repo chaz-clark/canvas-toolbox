@@ -4,7 +4,7 @@ canvas_shell_create.py — create a Canvas object shell that doesn't exist yet (
 #351), or place an already-existing one into one or more modules (#355).
 
 WHY THIS EXISTS
-  canvas_sync.py's --push only ever PUTs: every `_push_*` function requires a
+  canvas_sync.py's --update only ever PUTs: every `_push_*` function requires a
   `canvas_id`/`page_url` already present in `.canvas/index.json` and refuses
   otherwise ("no canvas_id in index"). There was no path to CREATE a new object
   through the toolkit at all — confirmed against a real course (m119-master) where
@@ -633,7 +633,7 @@ def _run_create(*, course_id: str, draft_path: str, module_ids: list[str],
     if existing:
         ident = existing[id_field]
         print(f"\n  already exists ({id_field} {ident}) — nothing to do. "
-              f"This tool never edits an existing {kind}; use canvas_sync.py --push "
+              f"This tool never edits an existing {kind}; use canvas_sync.py --update "
               f"for that once it's tracked locally.")
         if module_ids and module_eligible:
             if not apply:

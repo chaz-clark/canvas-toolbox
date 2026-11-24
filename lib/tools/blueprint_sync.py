@@ -10,7 +10,7 @@ Setup:
 
 Commands:
     uv run python tools/blueprint_sync.py --pull        # Full init of blueprint_course/ + build ID mapping
-    uv run python tools/blueprint_sync.py --push        # Sync master → blueprint (content + dates)
+    uv run python tools/blueprint_sync.py --update      # Sync master → blueprint (content + dates)
     uv run python tools/blueprint_sync.py --status      # Show mapping coverage + last sync
 
 Folder layout:
@@ -26,7 +26,7 @@ What --pull does:
     - Title-matches blueprint items to master items to build ID mapping
     - Stores blueprint canvas IDs + dates in blueprint_index.json
 
-What --push syncs:
+What --update syncs:
     - Course settings: grading_standard_id, show_announcements_on_home_page
     - Homepage (front_page)
     - Syllabus body
@@ -51,6 +51,8 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+
+from _update_flag import add_update_flag, note_old_flag  # --update / --push (#493)
 
 from canvas_pages import page_in_module, upsert_page
 from __toolbox_version__ import __version__
@@ -341,7 +343,7 @@ def cmd_pull():
         print(f"  WARNING: Blueprint has {len(dup_mods)} duplicate module name(s):")
         for slug in dup_mods:
             print(f"    '{slug}' appears {mod_name_counts[slug]}x")
-        print(f"  Clean up duplicate modules in Canvas before running --push.\n")
+        print(f"  Clean up duplicate modules in Canvas before running --update.\n")
 
     matched = 0
     for mod in modules:
@@ -471,17 +473,17 @@ def cmd_pull():
             unmapped_manual = [fp for fp in unmapped_non_nq
                                if master_index["files"].get(fp, {}).get("type") in ("Assignment", "Discussion", "Quiz")]
             if unmapped_pages:
-                print(f"  {len(unmapped_pages)} new Pages will be created in blueprint on --push:")
+                print(f"  {len(unmapped_pages)} new Pages will be created in blueprint on --update:")
                 for fp in unmapped_pages[:10]:
                     print(f"    [Page] {fp}")
             if unmapped_manual:
-                print(f"  {len(unmapped_manual)} new items must be added manually in Blueprint UI (--push will warn):")
+                print(f"  {len(unmapped_manual)} new items must be added manually in Blueprint UI (--update will warn):")
                 for fp in unmapped_manual[:10]:
                     t = master_index["files"].get(fp, {}).get("type", "?")
                     print(f"    [{t}] {fp}")
     print(f"\n  Blueprint mirror → {BLUEPRINT_DIR}/")
     print(f"  Mapping saved    → {BLUEPRINT_INDEX}")
-    print(f"  Run --status to review coverage, then --push to sync.")
+    print(f"  Run --status to review coverage, then --update to sync.")
 
 
 # ---------------------------------------------------------------------------
@@ -947,13 +949,14 @@ def main():
                         version=f"canvas-toolbox {__version__}")
     parser.add_argument("--pull", action="store_true",
                         help="Full init: pull blueprint into blueprint_course/ + build ID mapping")
-    parser.add_argument("--push", action="store_true",
+    add_update_flag(parser, action="store_true",
                         help="Sync master content + dates → blueprint (full overwrite)")
     parser.add_argument("--status", action="store_true",
                         help="Show mapping coverage and what would be synced")
     parser.add_argument("--allow-enrolled", action="store_true",
                         help="bypass the startup safety guard (#27)")
     args = parser.parse_args()
+    note_old_flag()
 
     # Startup safety guard (#27): source = MASTER_COURSE_ID (read on every
     # mode), target = BLUEPRINT_COURSE_ID (write on --push).

@@ -256,11 +256,11 @@ For structured data — config schema, pipeline stage contracts, output formats,
 
 **Why**: A grade change is immediately visible to the student. Mistakes are not just costly; they erode trust in the entire pipeline. The gate forces a human eyeball on every batch before any write reaches Canvas.
 
-**How**: `push_grades.py` defaults to dry-run. `--push` requires the marker. Marker mtime is checked against every per-student comment file's mtime. The canvas_course_guard live-course block requires `--allow-enrolled` to bypass on enrolled courses. The Test Student push is the proof-of-config step; clear and run the real batch.
+**How**: `push_grades.py` defaults to dry-run. `--update` requires the marker. Marker mtime is checked against every per-student comment file's mtime. The canvas_course_guard live-course block requires `--allow-enrolled` to bypass on enrolled courses. The Test Student push is the proof-of-config step; clear and run the real batch.
 
 ### 7a. Value-Only / Human-Graded Push (issue #46)
 
-**Description**: Not every push has an LLM-generated comment. When a TA already graded out-of-band (or the instructor is posting a value-only consequential grade in a dual-push setup), the pipeline runs `grader_reconcile → grader_reidentify --summary → review .review*.csv + _gradebook_actuals.csv → --mark-reviewed → grader_push --grade-only --push`. `grader_push --mark-reviewed` auto-detects this (no per-student `<KEY>.md` files exist) and switches the review surface to the CSV files + actuals; the mtime auto-invalidation gates on those instead.
+**Description**: Not every push has an LLM-generated comment. When a TA already graded out-of-band (or the instructor is posting a value-only consequential grade in a dual-push setup), the pipeline runs `grader_reconcile → grader_reidentify --summary → review .review*.csv + _gradebook_actuals.csv → --mark-reviewed → grader_push --grade-only --update`. `grader_push --mark-reviewed` auto-detects this (no per-student `<KEY>.md` files exist) and switches the review surface to the CSV files + actuals; the mtime auto-invalidation gates on those instead.
 
 **Why**: The pre-#46 review gate assumed an LLM comment artifact and printed *"reviewed all 0 comments / read _all_comments.md"* (a file that didn't exist) when run in value-only mode. The `.reviewed` marker still wrote, but the gate was effectively bypassed because the watched files didn't exist. That's not a real review surface. The fix gates on whatever review artifact actually exists in this run.
 
@@ -336,7 +336,7 @@ The CLI scrubs PII locally before posting; the maintainer triages by `agent-subm
 | `Classic mirror` | An UNPUBLISHED Classic Quiz that mirrors a New Quiz — same content, but exposes per-student responses via API where New Quizzes don't. Pattern §J. |
 | `wellbeing flag` | A per-key disclosure of struggle (health, family, stuck) written to `_checkin_flags.md` for the instructor. Does NOT move the score. |
 | `out-of-band drop` | A submission that arrives outside Canvas (Slack, email). Recipe: rename to `<prefix>_<userid>.<ext>` + add name to `.known_names.txt`. |
-| `--mark-reviewed` | Marker file the instructor sets after eyeballing the per-student sheets. Auto-invalidated if any comment changed since. Required for `--push`. |
+| `--mark-reviewed` | Marker file the instructor sets after eyeballing the per-student sheets. Auto-invalidated if any comment changed since. Required for `--update`. |
 | `Test Student` | The Canvas-provided test enrollment used to validate the push pipeline. Push there first, inspect, clear, then push the real batch. |
 
 ---
@@ -455,7 +455,7 @@ uv run python lib/tools/grader_push.py \
   --config grading/<asg>/config.yml \
   --review grading/<asg>/feedback/per_student/ \
   --mark-reviewed grading/<asg>/.mark_reviewed \
-  --push
+  --update
 ```
 
 ### Verify

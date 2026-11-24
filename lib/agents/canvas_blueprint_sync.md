@@ -42,7 +42,7 @@ runtime_data:
 
 3. **Check coverage** — run `blueprint_sync.py --status` to confirm mapping coverage and date coverage. Investigate any unmapped master items before proceeding.
 
-4. **Push** — run `blueprint_sync.py --push`. Full overwrite: settings → homepage → syllabus → all mapped module items with content + dates.
+4. **Push** — run `blueprint_sync.py --update`. Full overwrite: settings → homepage → syllabus → all mapped module items with content + dates.
 
 5. **Verify** — spot-check 2–3 pages in Canvas Blueprint student view. Confirm grading scheme in Blueprint course settings. Set `late_policy` manually (requires admin token — instructor token returns 403).
 
@@ -73,18 +73,18 @@ runtime_data:
 
 ### 2. --pull Is a Full Init, Not Just a Mapping Step
 **Description**: `--pull` fully mirrors the blueprint into `blueprint_course/` (same pattern as `canvas_sync.py --init` for master). It fetches all modules, items, and content — including current dates. `blueprint_index.json` stores canvas IDs, blueprint filepaths, and current blueprint dates for comparison.
-**Why**: Title-matching alone was brittle. Having a full local mirror means you can compare `index.json` (master) vs `blueprint_index.json` (blueprint) field by field, including dates. It also means --pull is the correct diagnostic tool before --push.
-**How**: Run `--pull` before every `--push`. Always re-pull after any direct Canvas edits to the Blueprint module structure.
+**Why**: Title-matching alone was brittle. Having a full local mirror means you can compare `index.json` (master) vs `blueprint_index.json` (blueprint) field by field, including dates. It also means --pull is the correct diagnostic tool before --update.
+**How**: Run `--pull` before every `--update`. Always re-pull after any direct Canvas edits to the Blueprint module structure.
 
 ### 3. Dates Are Synced from Master
-**Description**: `--push` includes `due_at`, `lock_at`, and `unlock_at` from master files in every assignment, quiz, and discussion payload.
+**Description**: `--update` includes `due_at`, `lock_at`, and `unlock_at` from master files in every assignment, quiz, and discussion payload.
 **Why**: Blueprint should reflect the master semester dates so that new course clones start with a realistic baseline. The semester setup agent then adjusts dates for each new section. Without this, Blueprint accumulates stale dates from when it was first set up.
-**How**: Assignments, quizzes, and discussions in master JSON files include `due_at`/`lock_at`/`unlock_at`. These are passed directly in the API payload on `--push`.
+**How**: Assignments, quizzes, and discussions in master JSON files include `due_at`/`lock_at`/`unlock_at`. These are passed directly in the API payload on `--update`.
 
 ### 4. Propose Before Execute (for agent runs)
-**Description**: When the agent is driving the sync, show a status report and confirm with the user before running `--push`.
+**Description**: When the agent is driving the sync, show a status report and confirm with the user before running `--update`.
 **Why**: Push is a full overwrite including dates. Confirming coverage (items mapped, items with due_at) before executing prevents surprises.
-**How**: Run `--status`, present the counts, ask for confirmation, then run `--push`.
+**How**: Run `--status`, present the counts, ask for confirmation, then run `--update`.
 
 ### 5. Titles Are the Identity, IDs Are Course-Specific
 **Description**: Canvas IDs are unique per course — the same assignment has a different ID in master, blueprint, and every cloned section. Titles are stable across courses. When reconciling content across courses, always match by title first; only use IDs within a single course context.
@@ -105,15 +105,15 @@ This is a **deterministic Python script** (`lib/tools/blueprint_sync.py`) — no
 Full source: `make-ai-agents/knowledge/behavioral_discipline.md`. All 10 principles apply to the operator:
 
 - **P-001 Read Before Claiming** — Read `canvas_sync.py --status` and `blueprint_sync.py --status` output before claiming the master is current or the blueprint is mapped. Don't assert "everything looks good" without reading the actual coverage counts.
-- **P-002 Plan Before Acting** — Always run `--status` and present coverage to the user before `--push`. The status output IS the batch plan. Wait for explicit approval.
+- **P-002 Plan Before Acting** — Always run `--status` and present coverage to the user before `--update`. The status output IS the batch plan. Wait for explicit approval.
 - **P-003 Stop on Defect** — If `--pull` produces many unmapped items, if `--status` shows <80% mapping coverage, or if a push logs FAILED lines — stop and surface the issue. Don't proceed assuming "it'll be fine."
 - **P-004 Find the Root Cause** — When a page 404s on push: don't retry. Find why (title renamed in Canvas UI? page deleted? blueprint restructured?). Re-pull mappings, then push.
-- **P-005 Small Steps, Evenly Sized** — The script already enforces this (each item is its own PUT). The operator must not bypass this by running `--push` repeatedly to "force through" failures — investigate failures before re-running.
+- **P-005 Small Steps, Evenly Sized** — The script already enforces this (each item is its own PUT). The operator must not bypass this by running `--update` repeatedly to "force through" failures — investigate failures before re-running.
 - **P-006 Document the Change** — The final report (pushed count, failed count, settings results) is the A3. A non-technical reviewer should be able to read it without inspecting the API responses.
 - **P-007 Pull, Don't Push** — Don't speculatively edit Blueprint content in Canvas UI between pulls — the script will overwrite it on next push. If a Blueprint-only change is needed, it belongs in master first.
 - **P-008 Mistake-Proof Outputs** — Same `--status` format, same final report format every run. The operator should know what to expect.
 - **P-009 Reflect, and Tell the User** — If a push surfaced something new (e.g., a NewQuiz that couldn't be content-pushed via REST, or an unexpected 403 pattern), name it and append to "External System Lessons" in this file.
-- **P-010 Respect the User's Intent** — Don't run `--push` mid-semester unless explicitly asked (active student cohorts using the Blueprint may be affected by content-lock changes). Don't drift into "while I was in there I also synced dates differently."
+- **P-010 Respect the User's Intent** — Don't run `--update` mid-semester unless explicitly asked (active student cohorts using the Blueprint may be affected by content-lock changes). Don't drift into "while I was in there I also synced dates differently."
 
 **No-override principles:** P-001, P-003, P-007, P-010 apply unconditionally.
 
@@ -133,7 +133,7 @@ Full source: `make-ai-agents/knowledge/behavioral_discipline.md`. All 10 princip
 | Tool | Purpose | When to use |
 |---|---|---|
 | `lib/tools/blueprint_sync.py --pull` | Full init: mirrors blueprint into `blueprint_course/`, builds mapping with IDs + dates | Before every push; required on first run and after module changes |
-| `lib/tools/blueprint_sync.py --push` | Full overwrite: master content + dates → blueprint | After any master course update |
+| `lib/tools/blueprint_sync.py --update` | Full overwrite: master content + dates → blueprint | After any master course update |
 | `lib/tools/blueprint_sync.py --status` | Shows mapping coverage + date coverage | Before push, to confirm coverage |
 | `lib/tools/canvas_sync.py --status` | Confirms master is fully synced | Before blueprint sync |
 | `blueprint_course/` | Read-only mirror of current blueprint state (like `course/` for master) | Reference / comparison |
@@ -153,7 +153,7 @@ uv run python lib/tools/blueprint_sync.py --pull
 uv run python lib/tools/blueprint_sync.py --status
 
 # 4. Sync
-uv run python lib/tools/blueprint_sync.py --push
+uv run python lib/tools/blueprint_sync.py --update
 ```
 
 ---
@@ -173,7 +173,7 @@ When a course is first built in Canvas, items often have questions or comments e
 - For ExternalTool/module items: `PUT /courses/:bp_id/modules/:mid/items/:item_id {"module_item": {"title": "Clean Title"}}`
 
 ### 3. New Items in Master Won't Exist in Blueprint
-If master was updated after the blueprint was created (e.g., new sprint overview pages were added), those items won't exist in blueprint at all — they appear in `unmapped_master`. `--push` will create them as new Pages and add them to the correct module. Assignments, Discussions, and Quizzes that are unmapped are skipped (create manually in Canvas if needed).
+If master was updated after the blueprint was created (e.g., new sprint overview pages were added), those items won't exist in blueprint at all — they appear in `unmapped_master`. `--update` will create them as new Pages and add them to the correct module. Assignments, Discussions, and Quizzes that are unmapped are skipped (create manually in Canvas if needed).
 
 ### 4. Stale Filename Duplicates in Master
 Draft-era files often have stale names that survive a `--pull` because they still have valid hashes. If you see two master index entries pointing to the same canvas_id, the old-named file needs to be deleted from disk and from `index.json`. Run `--pull` after deleting to get a clean state.
@@ -182,7 +182,7 @@ Draft-era files often have stale names that survive a `--pull` because they stil
 `PATCH /courses/:id/late_policy` returns 403 for instructor tokens. This is a Canvas permission boundary. Set late_policy manually in Blueprint → Settings → Gradebook, or ask Canvas admin to apply it. Document the desired policy in `course/_course.json` for reference.
 
 ### 6. Blueprint Dates Are Stale from Initial Setup
-Blueprint may have semester-specific dates from when it was first created (or old semester dates). Master has the correct current dates. Always run `--push` after initial blueprint setup to get master dates into blueprint — the semester setup agent will then adjust dates for each new cloned section.
+Blueprint may have semester-specific dates from when it was first created (or old semester dates). Master has the correct current dates. Always run `--update` after initial blueprint setup to get master dates into blueprint — the semester setup agent will then adjust dates for each new cloned section.
 
 ---
 
@@ -228,7 +228,7 @@ Blueprint may have semester-specific dates from when it was first created (or ol
 
 **Behavior**: When a Blueprint course pushes content to associated courses, it can lock that content so instructors of child courses can't edit it. This is a Canvas Blueprint feature unrelated to this tool.
 
-**Why it matters**: If Blueprint locking is enabled, running `blueprint_sync.py --push` may trigger a Blueprint "sync" in Canvas that locks content in all child sections. This is usually desirable but should be done intentionally.
+**Why it matters**: If Blueprint locking is enabled, running `blueprint_sync.py --update` may trigger a Blueprint "sync" in Canvas that locks content in all child sections. This is usually desirable but should be done intentionally.
 
 **How to handle it**: Check Blueprint settings in Canvas before push if child sections are active (mid-semester). Prefer to sync Blueprint at start of semester before sections are created.
 
@@ -284,7 +284,7 @@ Blueprint may have semester-specific dates from when it was first created (or ol
 | **Agent Type** | Python-first, agent orchestrates |
 | **Complexity** | simple |
 | **Key Files** | `lib/tools/blueprint_sync.py`, `.canvas/blueprint_index.json` |
-| **Quickstart** | `--pull` then `--push` |
+| **Quickstart** | `--pull` then `--update` |
 | **Common Pitfall** | Stale mapping after Blueprint module changes — re-run `--pull` |
 | **Dependencies** | `requests`, `python-dotenv`, `BLUEPRINT_COURSE_ID` in `.env` |
 ---

@@ -51,7 +51,7 @@ procedure lives in **operating-mode skills** under `.claude/skills/`: `grading`,
 
 **Grading is HG-5 — the instructor decides.** AI grading is decision support, not
 autonomy: grade → **show the feedback in chat** → `grader_push.py --mark-reviewed --yes`
-→ `--push --yes`. `--yes` is honored (no terminal — never send faculty to a shell), but
+→ `--update --yes`. `--yes` is honored (no terminal — never send faculty to a shell), but
 the `grade_guardian` hook fires an in-chat **permission pop-up** at BOTH the review and
 the grade update (#264/#265): the instructor clicks to approve — an agent cannot skip it or
 self-attest. When a gate blocks you, get the human — never stack `--force`/`--regrade`
