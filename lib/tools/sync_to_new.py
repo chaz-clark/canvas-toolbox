@@ -595,7 +595,7 @@ def create_newquizzes_in_modules(
 ) -> dict:
     """Create New Quizzes (settings + question items) in the new course and link them
     to modules. On by default; opt out with `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false`, the same gate as
-    `canvas_sync.py --push` — the target course starts empty, so there is nothing to
+    `canvas_sync.py --update` — the target course starts empty, so there is nothing to
     match against; every quiz and every item is created.
 
     The create/item payload helpers are canvas_sync's, so a New Quiz is written the

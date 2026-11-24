@@ -84,9 +84,12 @@ defends against it, but naming the target explicitly is on you.
 
 ## Tools
 
+> **`--update` is the write flag** (since 2.13.0, #493). `--push` is its old spelling:
+> it still works, prints a one-line note, and is removed in 3.0.0. Write `--update`.
+
 | Task | Tool |
 |---|---|
-| Mirror one course (pull/push/build) | `canvas_sync.py --pull` / `--push` / `--build` |
+| Mirror one course (pull/update/build) | `canvas_sync.py --pull` / `--update` / `--build` |
 | Master → Blueprint propagation | `blueprint_sync.py` |
 | Validate a blueprint sync | `validate_blueprint_sync.py` + `blueprint_exception_report.py` |
 | Module prerequisites / completion | `module_settings_sync.py` |
@@ -113,7 +116,7 @@ The ones that matter here:
 - **Classic quizzes have two IDs** (`quiz_id` + `assignment_id`); `points_possible`
   reads 0 until questions are pushed (L5, L6).
 - **NewQuiz / ExternalTool items use a separate REST surface** (L8) — the toolkit
-  pulls `.newquiz.json` sidecars and `--push` writes their settings and question
+  pulls `.newquiz.json` sidecars and `--update` writes their settings and question
   items back (on by default; `CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false` opts out,
   deletions need `CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE=true`). Stimulus/Bank/BankEntry
   items are read-only.
@@ -137,7 +140,7 @@ byte-for-byte) for re-import via the Canvas UI.
 | Ask | Command |
 |---|---|
 | "Pull the course from Canvas" | `canvas_sync.py --pull` |
-| "Push changes to Canvas" | `canvas_sync.py --push` |
+| "Push changes to Canvas" | `canvas_sync.py --update` |
 | "Sync master → blueprint" | `blueprint_sync.py` |
 | "Fix module prerequisites" | `module_settings_sync.py` |
 

@@ -141,7 +141,7 @@ def default_course_content(*, flat: bool) -> str:
             "matches your task.\n\n"
             "**Grading is HG-5 — the instructor decides.** AI grading is decision "
             "support, not autonomy: grade → **show the feedback in chat** → "
-            "`grader_push.py --mark-reviewed --yes` → `--push --yes`. `--yes` is "
+            "`grader_push.py --mark-reviewed --yes` → `--update --yes`. `--yes` is "
             "honored (no terminal — never send faculty to a shell), but the "
             "`grade_guardian` hook fires an in-chat **permission pop-up** at BOTH the "
             "review and the grade update: the instructor clicks to approve — an agent cannot "

@@ -12,20 +12,21 @@ description: Single-course Canvas sync (pull/push/build)
 uv run python lib/tools/canvas_sync.py --pull
 
 # Check what would be pushed (dry-run)
-uv run python lib/tools/canvas_sync.py --push
+uv run python lib/tools/canvas_sync.py --update
 
 # Push changes to Canvas (after reviewing dry-run)
-uv run python lib/tools/canvas_sync.py --push --apply
+uv run python lib/tools/canvas_sync.py --update --apply
 
 # Full workflow: pull → edit → push
 uv run python lib/tools/canvas_sync.py --pull
 # ... edit files in course/ ...
-uv run python lib/tools/canvas_sync.py --push --apply
+uv run python lib/tools/canvas_sync.py --update --apply
 ```
 
 **Safety features:**
 - Startup guard (#27) refuses writes to enrolled courses (bypass with `--allow-enrolled`)
-- Default is dry-run (requires `--apply` to actually push)
+- Default is dry-run (requires `--apply` to actually update Canvas)
+- `--update` was `--push` before 2.13.0; `--push` still works until 3.0.0
 
 **Need help?** See full documentation in [lib/tools/README.md](../../lib/tools/README.md#core-sync-tools)
 

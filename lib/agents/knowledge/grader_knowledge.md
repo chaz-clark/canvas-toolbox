@@ -255,7 +255,7 @@ The 3-pass consensus protocol is the design's inter-rater-reliability + bias gua
 
 **OFFER, don't assume.** Before finalizing or pushing any LLM-graded batch, **explicitly offer the 3-pass consensus** and get the operator's explicit decline before proceeding single-pass. Do not silently collapse to 1 pass under "just grade them in parallel" pressure. The cost of the extra 2 passes is small; the cost of shipping wrong grades is large.
 
-**Enforced at the push seam:** [grader_push.py](../../tools/grader_push.py) `--mark-reviewed` refuses to mark an LLM-graded run reviewed (and therefore `--push`-eligible) unless:
+**Enforced at the push seam:** [grader_push.py](../../tools/grader_push.py) `--mark-reviewed` refuses to mark an LLM-graded run reviewed (and therefore `--update`-eligible) unless:
 
 1. `feedback/_consensus.csv` exists, AND
 2. it is at least as fresh as the newest `feedback/_grader*.csv` (so the consensus reflects the current passes, not a stale prior run).
@@ -451,8 +451,8 @@ Pushing instructor → Canvas is the **authorized owner writing to the system of
 
 1. **Resolve user_id** by matching the submissions API to the keyed download filename. The push never needs a name — the keymap maps `key → user_id`.
 2. **PUT** `posted_grade` and (optionally) the student `comment`.
-3. **Dry-run by default.** Real push requires `--push`.
-4. **Required review gate:** `--mark-reviewed` is a marker (e.g. timestamp file) the instructor sets after eyeballing the per-student sheets. `--push` refuses to run without it. The marker is **auto-invalidated if any comment changed** after it was set (mtime comparison) — you can't "approve" a state and then mutate the state.
+3. **Dry-run by default.** A real update to Canvas requires `--update`.
+4. **Required review gate:** `--mark-reviewed` is a marker (e.g. timestamp file) the instructor sets after eyeballing the per-student sheets. `--update` refuses to run without it. The marker is **auto-invalidated if any comment changed** after it was set (mtime comparison) — you can't "approve" a state and then mutate the state.
 5. **Validate on the Test Student first.** Push to the Test Student (the role Canvas provides), inspect in the gradebook, clear it. Then push the real batch.
 6. **Idempotent.** Keys already in the audit log are skipped — late-add re-runs never duplicate. `--force` overrides.
 7. **Default-exclude Test Student + inactive (issue #61, v0.40+).** The push surface filters by active `StudentEnrollment`. Test Student and withdrawn/completed/rejected enrollments don't reach the plan; their user_ids print in an excluded-list block before the plan. `--include-inactive` reverts.
@@ -605,8 +605,8 @@ The review gate is the **core human-in-the-middle promise** — non-negotiable i
 
 **The keyless agent grading-protocol default:**
 
-1. **"grade X" produces the review artifact and STOPS.** When the operator says "grade KC1," the agent's terminal state for that command is: `_grader<n>.csv` per pass + `feedback/_all_comments.md` + per-student `feedback/<KEY>.md` files exist; `--mark-reviewed` has NOT been run; `--push` has NOT been run. Period.
-2. **Pushing is a SEPARATE step.** After producing the review artifact, the agent offers the review summary ("ready for your review of `_all_comments.md`") and waits. The operator then reviews the comments, types `reviewed` at the `grader_push --mark-reviewed` prompt themselves, and explicitly approves the `--push`.
+1. **"grade X" produces the review artifact and STOPS.** When the operator says "grade KC1," the agent's terminal state for that command is: `_grader<n>.csv` per pass + `feedback/_all_comments.md` + per-student `feedback/<KEY>.md` files exist; `--mark-reviewed` has NOT been run; `--update` has NOT been run. Period.
+2. **Pushing is a SEPARATE step.** After producing the review artifact, the agent offers the review summary ("ready for your review of `_all_comments.md`") and waits. The operator then reviews the comments, types `reviewed` at the `grader_push --mark-reviewed` prompt themselves, and explicitly approves the `--update`.
 3. **The agent NEVER chains grade-then-push** under "do it now" / "now grade those late ones" / "batch them through" pressure. "Now" is fine for the grading phase; it does NOT extend to the push phase. If the operator says "now push them," ask which keys are being pushed and confirm `_all_comments.md` was reviewed — never auto-push from grading momentum.
 4. **The agent NEVER passes `--yes` to `grader_push --mark-reviewed` on the LLM-comment path.** As of v0.62.0, the tool refuses this combination ([grader_push.py:888-905](../../tools/grader_push.py#L888-L905)) — but the agent's protocol-level rule predates the seam check: the attestation is the human's act, not the agent's, regardless of what flag would technically allow bypass.
 

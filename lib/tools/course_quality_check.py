@@ -538,7 +538,7 @@ def _audit_course(course_id: str) -> dict:
                 "title": q["title"],
                 "canvas_id": q["id"],
                 "note": f"Quiz '{q['title']}' has 0 questions.",
-                "action": "Use canvas_quiz_questions.py --push <questions-file.json> to add questions"
+                "action": "Use canvas_quiz_questions.py --update <questions-file.json> to add questions"
             })
 
     return {

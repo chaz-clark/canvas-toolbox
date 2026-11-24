@@ -31,8 +31,9 @@ WHAT IT DENIES
 
 WHAT IT ASKS (does not deny — forces a human prompt) (#264, #265)
   - Bash: a grader_push.py AI-drafted checkpoint (not --grade-only / --test-user /
-    --retract) — at BOTH --mark-reviewed (the review attestation) and --push (the
-    write). grader_push honors --yes on that path (no terminal keystroke — that
+    --retract) — at BOTH --mark-reviewed (the review attestation) and --update (the
+    write; --push, its old spelling, is matched the same until 3.0.0, #493).
+    grader_push honors --yes on that path (no terminal keystroke — that
     dead-ended non-technical faculty at a shell), so an agent could `--mark-reviewed
     --yes` and self-attest review without ever showing the human _all_comments.md,
     then push (#265). The hook returns permissionDecision "ask" at each checkpoint,
@@ -680,7 +681,7 @@ def _redirect(what: str) -> str:
         "enforces the HG-5 instructor-review gate (issue #213).\n"
         "   Do this instead:\n"
         "     uv run python <toolkit>/lib/tools/grader_push.py --challenge-dir <dir> --mark-reviewed\n"
-        "     uv run python <toolkit>/lib/tools/grader_push.py --challenge-dir <dir> --push\n"
+        "     uv run python <toolkit>/lib/tools/grader_push.py --challenge-dir <dir> --update\n"
         "   If grader_push.py is genuinely blocking you, surface that to the instructor — "
         "do NOT hand-write a Canvas API script to get around it."
     )
@@ -799,7 +800,8 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
 
 # ---------------------------------------------------------------------------
 # ASK layer (#264, #265): force a human permission prompt at BOTH AI-drafted
-# checkpoints — the review attestation (--mark-reviewed) AND the push (--push).
+# checkpoints — the review attestation (--mark-reviewed) AND the write (--update,
+# or --push, its old spelling: one flag, matched by _WRITE_FLAG, #493).
 # grader_push honors --yes there (no terminal keystroke), so an agent could run
 # `--mark-reviewed --yes` and self-attest review without ever showing the human
 # _all_comments.md, then push (#265). Firing the prompt at --mark-reviewed too
@@ -835,22 +837,27 @@ _CHECKPOINT_REASONS = {
 }
 
 
+# The write flag in both spellings: --update, and --push until 3.0.0 removes it (#493).
+# One argparse option in the tools (_update_flag.py), so the gate must see both.
+_WRITE_FLAG = re.compile(r"--update\b|--push\b")
+
+
 def _grader_push_checkpoint(cmd: str) -> str | None:
     """Return 'push', 'review', 'correct' or 'release' if this command is a human-checkpoint
-    moment, else None. --push wins if both flags are present. 'release' is
+    moment, else None. --update (or --push) wins if both flags are present. 'release' is
     grader_post_policy --release --apply (a dry run posts nothing)."""
     if "grader_post_policy" in cmd:
         if re.search(r"--release\b", cmd) and re.search(r"--apply\b", cmd):
             return "release"
         return None
     if "grader_correct" in cmd:
-        return "correct" if re.search(r"--push\b", cmd) else None
+        return "correct" if _WRITE_FLAG.search(cmd) else None
     if "grader_push" not in cmd:
         return None
     if any(re.search(re.escape(f) + r"\b", cmd)
            for f in ("--grade-only", "--test-user", "--retract")):
         return None                                   # not the AI-drafted-comment path
-    if re.search(r"--push\b", cmd):
+    if _WRITE_FLAG.search(cmd):
         return "push"
     if re.search(r"--mark-reviewed\b", cmd):
         return "review"

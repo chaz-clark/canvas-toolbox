@@ -21,9 +21,9 @@ WHAT THIS DOES (it writes no grades and no comments)
   --restore   Put the policy back WITHOUT posting (abandon the draft). Hidden
               grades stay hidden; Canvas does not post them on a policy change.
 
-  The intended flow (grader_push --push now holds first by default, via
+  The intended flow (grader_push --update now holds first by default, via
   ensure_review_hold(); --hold here is for holding by hand or ahead of time):
-      grader_push.py ... --mark-reviewed ... --push      # holds, then hidden from students
+      grader_push.py ... --mark-reviewed ... --update    # holds, then hidden from students
       (review in SpeedGrader)
       grader_post_policy.py --assignment-id N --release --apply
 
@@ -361,7 +361,10 @@ def main(argv: list[str] | None = None) -> int:
     force_utf8_console()
     ap = argparse.ArgumentParser(
         description="Hold graded work hidden for review, then release it "
-                    "(Canvas posting policy). Writes no grades or comments.")
+                    "(Canvas posting policy). Writes no grades or comments.",
+        # Whole flags only: grade_guardian matches them by name, so `--upd` must not
+        # reach Canvas as --update without the instructor's pop-up (#493).
+        allow_abbrev=False)
     ap.add_argument("--version", action="version",
                     version=f"canvas-toolbox {__version__}")
     ap.add_argument("--assignment-id", required=True, type=int)

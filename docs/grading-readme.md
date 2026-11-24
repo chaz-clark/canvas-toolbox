@@ -301,7 +301,7 @@ assignment. It shares its "is this a resubmission" definition with `grader_push.
 Not every push needs an LLM-generated comment. Common case: a **TA already graded** the assignment, and the instructor only needs to **post the consequential number** (e.g., the Layer-2 "Your Grade" in a Mid-Review-style dual-push, or any flat numeric grade the human computed). In that case the pipeline runs as:
 
 ```
-grader_reconcile  →  grader_reidentify --summary  →  review .review*.csv + _gradebook_actuals.csv  →  grader_push --mark-reviewed  →  grader_push --grade-only --push
+grader_reconcile  →  grader_reidentify --summary  →  review .review*.csv + _gradebook_actuals.csv  →  grader_push --mark-reviewed  →  grader_push --grade-only --update
 ```
 
 Two important differences from the LLM-comment path:

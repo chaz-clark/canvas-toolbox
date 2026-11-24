@@ -22,7 +22,7 @@ WHAT IT DOES
        - Resolve `uid-<N>.md` → user_id=N. NO .keymap.json read.
   3. Build the (uid → comment) plan; print preview.
   4. Apply the standard write-path guards:
-       - --dry-run by default; --push to actually POST.
+       - --dry-run by default; --update to actually POST.
        - Active enrollment filter (issue #61) — Test Student + inactive
          dropped.
        - Pre-push comment-collision guard (issue #62) — peek at existing
@@ -54,7 +54,7 @@ USAGE
   # Push for real (requires --allow-enrolled on a live course)
   uv run python lib/tools/grader_push_comments.py \\
       --task-dir grading/p1t1_combined/ai_log \\
-      --assignment-id 16958397 --push --allow-enrolled
+      --assignment-id 16958397 --update --allow-enrolled
 
 EXIT CODES
   0  ran (push or dry-run); no fatal errors
@@ -76,6 +76,8 @@ import sys
 from pathlib import Path
 
 import requests
+
+from _update_flag import add_update_flag, note_old_flag  # --update / --push (#493)
 
 from _challenge_dir_guard import resolve_challenge_dir
 
@@ -211,7 +213,7 @@ def main() -> int:
                     help="Canvas assignment id to post comments against.")
     ap.add_argument("--course-id", default=None,
                     help="Override CANVAS_COURSE_ID env var.")
-    ap.add_argument("--push", action="store_true",
+    add_update_flag(ap, action="store_true",
                     help="Actually post (default: dry-run preview).")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Bypass canvas_course_guard for enrolled-course writes.")
@@ -229,6 +231,7 @@ def main() -> int:
     ap.add_argument("--allow-locked-resubmit", action="store_true",
                     help="Issue #63: bypass the 'type locked to confirm' interactive step.")
     args = ap.parse_args()
+    note_old_flag()
 
     tok, cid, base = _env_canvas(args.course_id)
     for var, val in (("CANVAS_API_TOKEN", tok), ("CANVAS_BASE_URL", base), ("CANVAS_COURSE_ID", cid)):
@@ -364,14 +367,14 @@ def main() -> int:
         print(f"\n  ⚠️  availability guard (issue #63): assignment is locked "
               f"({lock_state.get('reason', 'unknown')}); {len(locked_resubmit)} comment(s) "
               f"contain resubmit-style language students can't act on. Fix the lock window "
-              f"or revise these comments before --push.")
+              f"or revise these comments before --update.")
 
     if collisions:
         print(f"\n  ⚠️  comment-collision guard (issue #62; window={args.collision_window_days}d): "
-              f"{len(collisions)} uid(s) have recent non-self thread activity. Review before --push.")
+              f"{len(collisions)} uid(s) have recent non-self thread activity. Review before --update.")
 
-    if not args.push:
-        print(f"\nDry run — nothing posted. Re-run with --push to send to Canvas.")
+    if not args.update:
+        print(f"\nDry run — nothing posted. Re-run with --update to send to Canvas.")
         return 0
     if not pushable:
         print("\nNothing to send to Canvas.")

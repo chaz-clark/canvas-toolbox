@@ -181,7 +181,7 @@ For the full principle definitions, examples, and override rationale, see `make-
 | Tool / File | Purpose | When to use |
 |---|---|---|
 | `lib/tools/canvas_sync.py --pull` | Refreshes `course/` and `course_src/` from Canvas | Run before every audit to ensure local state is current |
-| `lib/tools/canvas_sync.py --push` | Pushes corrected local `.json` files to Canvas | After applying date corrections locally |
+| `lib/tools/canvas_sync.py --update` | Updates Canvas with the corrected local `.json` files | After applying date corrections locally |
 | `.canvas/index.json` | Module structure, item types, canvas IDs, current dates | Primary source for auditing — contains `due_at`, `lock_at`, `unlock_at` per item |
 | `course_src/*/setup-notes-and-course-settings.md` | Markdown mirror of the setup notes page | Primary rule source for the auditor |
 | `course/_course.json` | Course-level settings including `start_at` and `end_at` | Source for semester window — use these dates to build the week calendar |
@@ -260,7 +260,7 @@ uv run python lib/tools/course_quality_check.py
 
 **Problem**: Auditor flags items that were already fixed in Canvas because the local files are out of date.
 
-**Why it happens**: Canvas was edited directly (not via `--push`) and `--pull` was not run before the audit.
+**Why it happens**: Canvas was edited directly (not via `--update`) and `--pull` was not run before the audit.
 
 **Solution**: Always run `uv run python lib/tools/canvas_sync.py --pull` before auditing. The agent should check the `last_pull` timestamp in `index.json` and warn if it's more than 24 hours old.
 
@@ -368,7 +368,7 @@ After any correction run, re-run `uv run python lib/tools/canvas_sync.py --pull`
 
 ### Agent Files
 - **`canvas_schedule_auditor.md`**: Tool definitions, scheduling rule schema, date patterns, API endpoints, validation cases
-- **`lib/tools/canvas_sync.py`**: Course mirror — use `--pull` before auditing, `--push` after corrections
+- **`lib/tools/canvas_sync.py`**: Course mirror — use `--pull` before auditing, `--update` after corrections
 - **`lib/tools/canvas_api_tool.py`**: Canvas write patterns for assignments, quizzes, modules
 
 ### Setup Notes Examples

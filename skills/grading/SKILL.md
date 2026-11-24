@@ -108,21 +108,21 @@ cannot click either for them, and you cannot self-attest.
    The `grade_guardian` hook fires a permission **pop-up** — the instructor clicks Allow
    to attest they reviewed `_all_comments.md` (Deny if you skipped showing it, #265). The
    `.reviewed` marker records the attested state (auto-invalidates if a file changes).
-4. **Push** — run `grader_push.py --challenge-dir grading/<name> --push --yes`. The
+4. **Update Canvas** — run `grader_push.py --challenge-dir grading/<name> --update --yes`. The
    `grade_guardian` hook fires a **second** pop-up; the instructor **clicks Allow** — that
    click authorizes the write (#264). No terminal, ever.
 
 ### Review-first draft — the default, so faculty review in SpeedGrader first
 
-**`grader_push --push` now holds first, by default.** On an **AUTOMATIC** posting policy
+**`grader_push --update` now holds first, by default.** On an **AUTOMATIC** posting policy
 (the Canvas default) every grade and comment would be student-visible the instant it
-lands, so `--push` switches the assignment to **MANUAL** posting (verified by read-back,
+lands, so `--update` switches the assignment to **MANUAL** posting (verified by read-back,
 old policy recorded in `.canvas/`) *before* writing anything. Grades and comments are
 entered and visible to the instructor in SpeedGrader, hidden from students. If the policy
 can't be read or the hold doesn't stick, the push aborts with nothing written (fail closed).
 
 ```
-grader_push.py ... --mark-reviewed ... --push            # holds first; entered but hidden
+grader_push.py ... --mark-reviewed ... --update          # holds first; entered but hidden
                                                          # (review in SpeedGrader)
 grader_post_policy.py --assignment-id <id> --release --apply   # post graded work, restore old policy
 grader_post_policy.py --assignment-id <id> --restore --apply   # OR abandon: restore without posting
@@ -142,11 +142,11 @@ immediately) — only when the instructor asks for that. Never add either on you
 ## What the code enforces (so the protocol isn't docs-only)
 
 - **`--yes` is honored on every path — including AI-drafted comments (#264).** You run
-  `--mark-reviewed --yes` then `--push --yes`. Do not tell the instructor to open a
+  `--mark-reviewed --yes` then `--update --yes`. Do not tell the instructor to open a
   terminal or type `reviewed`/`update canvas` at a shell; do not pipe answers on stdin.
 - **The human gate is TWO in-chat pop-ups you cannot skip (#264, #265).** On the
   AI-drafted path, `grade_guardian` returns an `ask` at BOTH `--mark-reviewed` and
-  `--push`, so Claude Code prompts the instructor to click at each. `--yes` does not
+  `--update`, so Claude Code prompts the instructor to click at each. `--yes` does not
   bypass these — the hook fires above the tool. This is what stops an agent from running
   `--mark-reviewed --yes` and self-attesting a review the human never saw.
   (Value-only / `grader_standing` pushes don't prompt — the human is the grader there.)
@@ -173,7 +173,7 @@ immediately) — only when the instructor asks for that. Never add either on you
 
 **The in-chat review is the gate, not a rubber-stamp.** The failure an
 [RCA](https://github.com/chaz-clark/canvas-toolbox/issues/207) was written about was
-students getting AI-drafted grades with *no* review. `--yes --push` is the sanctioned
+students getting AI-drafted grades with *no* review. `--yes --update` is the sanctioned
 path now — but only because the review moved into the conversation and the guardian
 prompt makes the instructor consciously approve the write. So actually show the comments
 and the old→new grades and get a real "yes" before you push; never stack overrides to
@@ -218,7 +218,7 @@ When the instructor finds wrong grades on work that is already graded and not
 resubmitted (`grader_push --regrade` refuses it), use **`grader_correct.py`**. Input is an
 explicit CSV — `user_id`, `new_grade`, optional `comment` (instructor-supplied text). No
 inference, no "all students". Dry-run prints a user_id-only old → new preview (UP / DOWN /
-FIRST / same). `--push` needs the grade_guardian click; overwriting a different existing
+FIRST / same). `--update` needs the grade_guardian click; overwriting a different existing
 grade needs **`--allow-change`** (up or down). Comments are supersede-safe (re-runs never
 stack), every write is logged to `grading/.grade_corrections.md` (old + new value), and the
 grades are re-read from Canvas and verified. Test Student / inactive enrollments are refused
@@ -254,8 +254,8 @@ the values come from the instructor's script/CSV.)
 
 ```
 grader_standing.py --csv standing.csv --assignment-id <id>                    # dry-run diff
-grader_standing.py --csv standing.csv --assignment-id <id> --push --allow-enrolled
-grader_standing.py --csv standing.csv --assignment-id <id> --push --yes --allow-enrolled   # weekly
+grader_standing.py --csv standing.csv --assignment-id <id> --update --allow-enrolled
+grader_standing.py --csv standing.csv --assignment-id <id> --update --yes --allow-enrolled   # weekly
 ```
 
 ## FERPA during grading — de-identify before the LLM, re-identify by key
@@ -337,7 +337,7 @@ A "final letter" workflow has two Canvas writes; do NOT hand-write a `fix_push.p
 computation (the tier/stretch logic in `calc_final_grades.py`), and route both writes:
 
 1. **The grade** (Course Grade column, value-only) → `grader_standing.py` — emit a
-   `user_id,final_grade` CSV, then `--push --yes` (instructor-computed, value-only).
+   `user_id,final_grade` CSV, then `--update --yes` (instructor-computed, value-only).
 2. **The comment** (End Letter, comment-only, preserves the existing grade) →
    `grader_letter_comments.py` — a `user_id,comment` CSV → comment-only writes, no
    grade change. `--yes` allowed because these are the **instructor's own** notes.
@@ -359,19 +359,23 @@ questions. If the pending question is worth points, that's real grading → Spee
 
 ## Quick command map
 
+> **`--update` is the write flag** (since 2.13.0, #493). `--push` is its old spelling:
+> it still works, prints a one-line note, and is removed in 3.0.0. The `grade_guardian`
+> pop-ups fire on either spelling. Write `--update` in every command you run.
+
 | Ask | Command |
 |---|---|
 | Get ready to grade (first time, or "is it set up?") | `grader_setup.py` (check) → `grader_setup.py --apply` |
 | Grade an assignment | `grader_fetch.py --challenge-dir grading/<name>` → consensus |
 | Attest review | `grader_push.py --challenge-dir grading/<name> --mark-reviewed` |
-| Push feedback | `grader_push.py --challenge-dir grading/<name> --push` |
+| Update feedback in Canvas | `grader_push.py --challenge-dir grading/<name> --update` |
 | Re-grade a resubmission | add `--regrade` |
-| Update the "your grade" column | `grader_standing.py --csv <f> --assignment-id <id> --push` |
-| Correct already-graded grades to exact values (up or down) | `grader_correct.py --csv <f> --assignment-id <id>` (dry-run) → `--push --allow-change` |
+| Update the "your grade" column | `grader_standing.py --csv <f> --assignment-id <id> --update` |
+| Correct already-graded grades to exact values (up or down) | `grader_correct.py --csv <f> --assignment-id <id>` (dry-run) → `--update --allow-change` |
 | Rebuild the de-id master | `build_deid_master.py --force` |
 | Mirror the live gradebook locally (feeds standing/reconcile) | `grader_fetch_gradebook.py` |
 | Clear an auto-scored quiz stuck on a 0-point manual question | `grader_quiz_clear_pending.py --assignment-id <id> --apply` |
-| Review in SpeedGrader before students see anything | automatic: `grader_push --push` holds first; then `grader_post_policy.py --assignment-id <id> --release --apply` |
+| Review in SpeedGrader before students see anything | automatic: `grader_push --update` holds first; then `grader_post_policy.py --assignment-id <id> --release --apply` |
 | Join names into code-keyed feedback (no-Canvas-API course) | `local_feedback_join.py --roster <csv> --results <csv> --output <csv> --apply` |
 
 Full grading knowledge: [`lib/agents/knowledge/grader_hybrid_architecture.md`](../../lib/agents/knowledge/grader_hybrid_architecture.md)

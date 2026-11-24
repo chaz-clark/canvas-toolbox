@@ -58,7 +58,7 @@ Bringing the mirror up to date with what is in Canvas now.
 _Avoid_: Pull, download, fetch
 
 **Update Canvas**:
-Making a Canvas course match the local course files.
+Making a Canvas course match the local course files. The tools' flag for it is `--update`; it was `--push` before 2.13.0, which still works until 3.0.0.
 _Avoid_: Push, content push, sync (alone), upload, deploy
 
 **Update Course Sections from the Blueprint**:

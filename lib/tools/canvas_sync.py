@@ -11,8 +11,8 @@ Conflict rule: local always wins. If Canvas was edited directly, use --pull
 Usage:
     uv run python canvas_sync.py --pull               # full course pull (alias for --init)
     uv run python canvas_sync.py --pull <path>        # re-pull one file from Canvas
-    uv run python canvas_sync.py --push               # push all local changes to Canvas
-    uv run python canvas_sync.py --push "sprint-1"    # push one module
+    uv run python canvas_sync.py --update             # update Canvas with all local changes
+    uv run python canvas_sync.py --update "sprint-1"  # update one module only
     uv run python canvas_sync.py --status             # show local changes not yet pushed
     uv run python canvas_sync.py --init               # same as --pull (full course pull)
 
@@ -53,6 +53,8 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+
+from _update_flag import add_update_flag, note_old_flag  # --update / --push (#493)
 
 from _course_rebind import (apply_rebind, index_target, plan_rebind,
                              summarize)
@@ -696,14 +698,14 @@ def cmd_init():
         print(f"WARNING: {len(_unsaved)} local file(s) have unpushed changes that will be overwritten:")
         for fp in _unsaved:
             print(f"  M  {fp}")
-        print("\n  If YOUR local edits should win → abort and run --push first, then --pull.")
+        print("\n  If YOUR local edits should win → abort and run --update first, then --pull.")
         print("  If CANVAS edits should win (you made changes in Canvas UI) → continue.")
         try:
             confirm = input("\nContinue pull and overwrite local changes? [y/N]: ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             confirm = "n"
         if confirm != "y":
-            print("Pull aborted. Run --push first, then re-run --pull.")
+            print("Pull aborted. Run --update first, then re-run --pull.")
             return
 
     print(f"Initializing course {course_id} from {CANVAS_BASE_URL}...\n")
@@ -1637,7 +1639,7 @@ def cmd_status():
         for fp in missing:
             print(f"  ?  {fp}")
 
-    print(f"\nRun --push to sync changes to Canvas.")
+    print(f"\nRun --update to sync changes to Canvas.")
 
 
 # ---------------------------------------------------------------------------
@@ -2361,7 +2363,7 @@ def cmd_build():
 
     Reads all pages tracked in the index that have a markdown_path, converts
     the .md file to HTML, and writes it to the corresponding course/ path.
-    Run this after editing markdown, then use --push to sync to Canvas.
+    Run this after editing markdown, then use --update to sync to Canvas.
     """
     index = _load_index()
     built = 0
@@ -2390,7 +2392,7 @@ def cmd_build():
     if skipped:
         print(f"  {skipped} page(s) skipped — markdown source missing (run --pull first)")
     if built:
-        print(f"  Run --status to review changes, then --push to sync to Canvas.")
+        print(f"  Run --status to review changes, then --update to sync to Canvas.")
 
 
 # ---------------------------------------------------------------------------
@@ -2654,9 +2656,9 @@ if __name__ == "__main__":
 Commands:
   --pull              Full course pull from Canvas (cleans stale local files)
   --pull <path>       Re-pull one file from Canvas and log the Canvas-side change
-  --push              Update Canvas with all local changes (prompts for summary + comment)
-  --push <module>     Update Canvas with changed files in one module only
-  --build             Convert course_src/*.md → course/*.html (run before --push after editing markdown)
+  --update            Update Canvas with all local changes (prompts for summary + comment)
+  --update <module>   Update Canvas with changed files in one module only
+  --build             Convert course_src/*.md → course/*.html (run before --update after editing markdown)
   --status            Show local changes not yet in Canvas
   --init              Alias for --pull (full course pull)
 
@@ -2665,14 +2667,14 @@ Markdown authoring workflow:
   2. Edit .md files   Edit in course_src/ — human-friendly, agent-friendly
   3. --build          Converts .md back to HTML in course/
   4. --status         Review what changed
-  5. --push           Sync to Canvas
+  5. --update         Update Canvas
 
 Flags:
   --quiet             Suppress per-file lines; show only headers and totals
 
 Safe zones:
   course/             Canvas mirror — overwritten on every --pull. Do not place local-only files here.
-  course_src/         Markdown authoring mirror — edit here, then --build before --push.
+  course_src/         Markdown authoring mirror — edit here, then --build before --update.
   course_ref/         Local-only artifacts (answer keys, drafts, helpers) — never touched by --pull.
   course/*.questions.json   Classic quiz question sources — skipped by --pull cleanup.
 
@@ -2681,14 +2683,14 @@ File upload workflow:
   2. --upload course_ref/my-template.docx   Upload to Canvas Files/course_assets/
   3. Index stores canvas_file_id + URL — reference in assignment descriptions
 
-Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
+Change log:  .canvas/push_log.md  (appended on every --update and --pull <path>)
         """
     )
     parser.add_argument("--version", action="version",
                         version=f"canvas-toolbox {__version__}")
     parser.add_argument("--init", action="store_true", help="Pull full course into course/ (same as --pull with no path)")
     parser.add_argument("--status", action="store_true", help="Show changed files")
-    parser.add_argument("--push", nargs="?", const="", metavar="MODULE", help="Update Canvas with changed files")
+    add_update_flag(parser, nargs="?", const="", metavar="MODULE", help="Update Canvas with changed files")
     parser.add_argument("--pull", nargs="?", const="", metavar="PATH",
                         help="Full course pull (no path) or re-pull one file from Canvas (with path)")
     parser.add_argument("--build", action="store_true", help="Convert course_src/*.md to course/*.html")
@@ -2729,6 +2731,7 @@ Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
                              "course flagged as enrolled or a Blueprint child)")
 
     args = parser.parse_args()
+    note_old_flag()
 
     if args.quiet:
         globals()["QUIET"] = True
@@ -2751,7 +2754,7 @@ Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
 
     # Startup safety guard (#27) — never block --build (local-only, no Canvas call).
     if not args.build:
-        _write_mode = bool(args.push is not None) or bool(args.upload) or bool(args.set_todo_dates)
+        _write_mode = bool(args.update is not None) or bool(args.upload) or bool(args.set_todo_dates)
         _course_guard(CANVAS_BASE_URL, _headers(), CANVAS_COURSE_ID,
                       "write" if _write_mode else "read",
                       allow_override=args.allow_enrolled,
@@ -2761,8 +2764,8 @@ Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
         cmd_init()
     elif args.status:
         cmd_status()
-    elif args.push is not None:
-        cmd_push(args.push if args.push else None)
+    elif args.update is not None:
+        cmd_push(args.update if args.update else None)
     elif args.pull:
         cmd_pull(args.pull)
     elif args.build:

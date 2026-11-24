@@ -28,11 +28,11 @@ grade. Guards, in order:
   - Roster resolution HARD-FAILS on any unmatched or ambiguous key: for a
     100%-weight write, never silently skip a student or grade the wrong one.
   - Dry-run by DEFAULT: prints a FERPA-safe diff (user_id: current -> new, no
-    names) and writes NOTHING until you pass --push.
+    names) and writes NOTHING until you pass --update.
   - Out-of-bounds is a HARD FAIL: a numeric grade < 0 or > points_possible is a
-    bug, always — it aborts --push.
+    bug, always — it aborts --update.
   - Big-drop guard: a fall larger than --swing-threshold (the classic symptom of
-    a shifted/misaligned CSV) is flagged; --push aborts unless --allow-swings.
+    a shifted/misaligned CSV) is flagged; --update aborts unless --allow-swings.
   - canvas_course_guard: refuses a live enrolled-course write unless --allow-enrolled.
   - --yes is ALLOWED here (deterministic, instructor-computed, value-only) so the
     weekly run can be automated — this is on the safe side of the HG-5 line, unlike
@@ -63,6 +63,8 @@ except ImportError:
         pass
 
 import requests
+
+from _update_flag import add_update_flag, note_old_flag  # --update / --push (#493)
 
 try:
     from __toolbox_version__ import __version__
@@ -203,7 +205,7 @@ def plan_writes(rows, index, active, current_by_uid, points_possible, swing_thre
     plan: list of dicts {uid, grade, current, new_score, status}. Statuses:
       write / same (no-op) — safe to proceed.
     problems: fatal issues (unmatched/ambiguous key, out-of-bounds) that must
-      abort --push; and 'big-drop' warnings that abort unless --allow-swings.
+      abort --update; and 'big-drop' warnings that abort unless --allow-swings.
     """
     plan, problems = [], []
     for raw_key, grade in rows:
@@ -248,7 +250,7 @@ def main() -> int:
                     help="flag a score drop larger than this (default 20)")
     ap.add_argument("--allow-swings", action="store_true",
                     help="proceed despite big-drop warnings (out-of-bounds still aborts)")
-    ap.add_argument("--push", action="store_true", help="actually write (else dry-run)")
+    add_update_flag(ap, action="store_true", help="actually write (else dry-run)")
     ap.add_argument("--yes", action="store_true",
                     help="post without the interactive prompt. Allowed here (standing "
                          "is value-only, instructor-computed — not AI-drafted): use for "
@@ -260,6 +262,7 @@ def main() -> int:
                     help="release grades after updating Canvas if the assignment posts manually")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     args = ap.parse_args()
+    note_old_flag()
 
     tok, env_cid, base = _env_canvas()
     cid = args.course_id or env_cid
@@ -317,8 +320,8 @@ def main() -> int:
         print("⛔ Big-drop warning(s) — nothing written. Review, then re-run with "
               "--allow-swings if intended.", file=sys.stderr)
         return 1
-    if not args.push:
-        print("\nDry run — nothing written. Add --push to write.")
+    if not args.update:
+        print("\nDry run — nothing written. Add --update to write.")
         return 0
     if not writes:
         print("Nothing to write (all values already current).")
