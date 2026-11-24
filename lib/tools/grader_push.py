@@ -1386,7 +1386,7 @@ def main() -> int:
                          "rare intentional case (e.g. posting a final grade to a student who withdrew).")
     ap.add_argument("--no-collision-check", action="store_true",
                     help="Issue #62: SKIP the comment-collision guard that runs before comments are sent. By default, grader_push "
-                         "checks each pushable row's existing submission_comments and warns if any "
+                         "checks each row it is about to send for existing submission_comments and warns if any "
                          "comment from a different author exists within --collision-window-days. The "
                          "guard runs through the FERPA-safe deid layer (#65) — no author_name reaches "
                          "console. --grade-only runs always skip the check (no comment risk).")
@@ -2008,7 +2008,7 @@ def main() -> int:
         pushable_set = {p[0] for p in pushable}
         affected = [k for k, _ in locked_resubmit_keys if k in pushable_set]
         if affected:
-            print(f"\n⚠️  {len(affected)} pushable row(s) ask the student to resubmit/redo while "
+            print(f"\n⚠️  {len(affected)} row(s) to send ask the student to resubmit/redo while "
                   f"the assignment is locked ({lock_state.get('reason', 'unknown')}).")
             if input("Type 'locked' to acknowledge + continue: ").strip().lower() != "locked":
                 print("Aborted (lock guard).")
@@ -2017,7 +2017,7 @@ def main() -> int:
     if collisions and not args.allow_collisions and not args.yes:
         pushable_with_collisions = sorted(k for k in collisions if k in {p[0] for p in pushable})
         if pushable_with_collisions:
-            print(f"\n⚠️  {len(pushable_with_collisions)} pushable row(s) have a comment collision "
+            print(f"\n⚠️  {len(pushable_with_collisions)} row(s) to send have a comment collision "
                   f"(see warnings above). Re-read those before continuing.")
             if input("Type 'collisions' to acknowledge + continue: ").strip().lower() != "collisions":
                 print("Aborted (collision guard).")

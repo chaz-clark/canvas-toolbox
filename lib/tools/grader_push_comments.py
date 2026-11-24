@@ -219,7 +219,7 @@ def main() -> int:
     ap.add_argument("--include-inactive", action="store_true",
                     help="Issue #61: include Test Student + inactive enrollments (off by default).")
     ap.add_argument("--no-collision-check", action="store_true",
-                    help="Issue #62: skip the pre-push comment-collision guard.")
+                    help="Issue #62: skip the comment-collision guard that runs before comments are sent.")
     ap.add_argument("--collision-window-days", type=int, default=14,
                     help="Issue #62: how many days back to look. Default: 14.")
     ap.add_argument("--allow-collisions", action="store_true",
