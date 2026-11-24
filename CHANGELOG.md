@@ -14,6 +14,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Changed
+- **Grading messages say "update grades in Canvas", not "push" (2.12.3, #483, grading family).** `grader_push`, `grader_push_comments`, `grader_standing`, `grader_correct`, `grader_letter_comments`, `grader_consensus`, `grader_export`, `grader_fetch` and `grader_fetch_resubmissions` now say what changed and where: "Update grades and comments in Canvas", "Nothing to send to Canvas", "Updated 5/6 in Canvas", "Update standing in Canvas". Unchanged on purpose: the word an instructor types to confirm is still `push` (the HG-5 review gate), the `.push_log.md` ledger lines and the regexes that read them back (so earlier logs still skip rows already sent), the `· PUSH ·` feedback-heading token, and the tool and flag names. A new test pins each writer's typed confirmation word. The course-build and install/update families follow in their own PRs.
+
+### Changed
 - **Tool messages say "course folder", not "course repo" (2.12.2, #482).** `cb_update`'s run header, flat-layout notice, `--multi-course` help and token hints, `cb_secure_token`'s global-file header, the guardian's credential-file refusal and `merge_cleanup --help` now use the glossary's word. The course AGENTS.md pointer block says "the course folder's own git repository" where it really means git; each course picks that up on its next `cb_update`, since the block heals itself. The retired-word guard (#479) now allows no "course repo" in tool strings.
 
 ### Changed

@@ -328,7 +328,7 @@ def compile_all_comments(
         title + "\n\n"
         "`Overall:` uses the rubric's named tiers. Coaching Tips: one idea "
         "per paragraph. Edit phrasing here; the sync-back step propagates "
-        "edits to per-student files before push.\n"
+        "edits to per-student files before grades are sent to Canvas.\n"
     )
     body_blocks = "\n\n".join(
         f"## {k}  ·  {label}\n\n{body}" for k, label, body in items
@@ -461,7 +461,7 @@ def main() -> int:
         print(f"\n⚠️  --uncalibrated: acknowledged. {anchor_evidence}.")
         print("   Unanimity below does NOT confirm rubric correctness. Re-validate")
         print("   the rubric's REQUIRED vs OPTIONAL against the student-facing task")
-        print("   page (issue #102) before approving the push.\n")
+        print("   page (issue #102) before approving the grades for Canvas.\n")
         uncalibrated_run = True
     else:
         print()
@@ -571,7 +571,7 @@ def main() -> int:
     if uncalibrated_run:
         print("  (uncalibrated cohort — these stats measure rubric CONSISTENCY across")
         print("   passes, NOT rubric CORRECTNESS. Re-validate rubric premise against")
-        print("   the task page before approving the push.)")
+        print("   the task page before approving the grades for Canvas.)")
     if flagged:
         print(f"\nNEEDS-REVIEW queue (spread >= {args.flag}) — review these first:")
         for k, sc, con, sp in flagged:

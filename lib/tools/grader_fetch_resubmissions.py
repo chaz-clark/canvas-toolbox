@@ -276,7 +276,7 @@ Canvas marks these as "needs grading" but they require manual review.
 }
 ```
 
-4. **Push grades** with AI disclosure (v1.7.12+):
+4. **Update grades in Canvas** with AI disclosure (v1.7.12+):
    ```bash
    python grader_push.py --grades-file grades.json
    ```
