@@ -80,6 +80,8 @@ from pathlib import Path
 
 import requests
 
+from canvas_course_guard import enforce as _course_guard  # per-student mode (#475)
+
 try:
     from _env_loader import force_utf8_console
     force_utf8_console()
@@ -390,6 +392,11 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+    # The course guard, in its per-student mode (#475): a live course is the normal
+    # target; a folder opened above several courses still refuses.
+    _course_guard(base_url, {"Authorization": f"Bearer {token}"}, course_id,
+                  mode="write" if args.apply else "read", per_student=True)
 
     # Validate file exists
     file_path = args.file.expanduser().resolve()

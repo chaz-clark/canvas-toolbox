@@ -514,7 +514,7 @@ Every create must check title-existence first. Reference: `canvas_pages.upsert_p
 
 ### P-LL4 — Startup safety guard for writes (defends L12)
 
-Every write tool wires in `canvas_course_guard.enforce()` before any mutation. Read tools call it advisory-only.
+Every write tool wires in `canvas_course_guard.enforce()` before any mutation. Read tools call it advisory-only. A tool that writes for one student (an accommodation, an excusal, a submission on their behalf) passes `per_student=True`: a live course is its normal target, so it gets an advisory, while the wrong-folder and session-scope checks still refuse (#475).
 
 ### P-LL5 — Plan-first, apply-second with explicit confirmation (defends every L)
 

@@ -85,6 +85,8 @@ from pathlib import Path
 
 import requests
 
+from canvas_course_guard import enforce as _course_guard  # per-student mode (#475)
+
 try:
     from dotenv import load_dotenv
     # ~/.canvas/config holds the shared, rotating token and ONLY _env_loader
@@ -318,6 +320,11 @@ def main() -> int:
         print("ERROR: CANVAS_BASE_URL / CANVAS_COURSE_ID / CANVAS_API_TOKEN "
               "must be set in .env or the environment.", file=sys.stderr)
         return 2
+
+    # The course guard, in its per-student mode (#475): a live course is the normal
+    # target; a folder opened above several courses still refuses.
+    _course_guard(base_url, {"Authorization": f"Bearer {token}"}, course_id,
+                  mode="write" if args.apply else "read", per_student=True)
 
     if args.user_id:
         uid = int(args.user_id)
