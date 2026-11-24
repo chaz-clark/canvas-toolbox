@@ -1181,7 +1181,7 @@ def main() -> int:
     print(f"  FERPA pre-push hook (.git/hooks/pre-push): {pp_status}")
     if pp_status == "installed":
         print(f"    ↳ resolves to {root}/lib/tools/ferpa_pre_push.py (this checkout's "
-              f"version) on every push.")
+              f"version) on every git push.")
     shim_link, shim_rel = plan_claude_shim(root)
     shim_status = install_claude_shim(shim_link, shim_rel, args.apply)
     print(f"  {CLAUDE_SHIM} shim -> {shim_rel}: {shim_status}")

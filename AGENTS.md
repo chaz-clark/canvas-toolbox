@@ -312,7 +312,7 @@ the actual code before claiming to understand it.
 
 **Jidoka (自働化) — built-in quality, stop on defect.** Write tests with the code, not
 after; a red test blocks progress — fix it, don't defer; validation runs
-automatically, not as a manual step; a push with errors is blocked by design, not by
+automatically, not as a manual step; an update to Canvas with errors is blocked by design, not by
 discipline. *Trigger: when you want to say "we'll fix this later" → STOP and fix now
 (aligns with P-003).*
 

@@ -372,7 +372,7 @@ def print_ignore_coverage(course_root: Path) -> None:
         print(f"      {d.replace('./', '')}")
     print("  ↳ filenames withheld (they may contain names). These are one `git add "
           "-A` from a remote,")
-    print("    and a push cannot be undone. Add them to .gitignore — ideally a "
+    print("    and a git push cannot be undone. Add them to .gitignore — ideally a "
           "`.gitignore` containing")
     print("    `*` inside the directory itself, which survives edits to the root "
           "ignore file.")

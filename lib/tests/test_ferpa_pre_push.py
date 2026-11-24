@@ -344,6 +344,7 @@ def test_vscode_modal_states_the_actual_reason(tmp_path):
 
     modal = _vscode_modal_line(r.stderr, r.stdout)
     assert "PUSH BLOCKED" in modal and "FERPA" in modal, modal
+    assert "GIT PUSH BLOCKED" in modal, modal      # #483: says it is git, not a Canvas write
     assert "failed to push" not in modal
 
 
