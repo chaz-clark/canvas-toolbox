@@ -43,7 +43,7 @@ from _env_loader import GLOBAL_KEYS, force_utf8_console  # noqa: E402
 
 HEADER = (
     "# canvas-toolbox global credentials — rotate the token HERE, once, for every\n"
-    "# course repo. Only CANVAS_API_TOKEN and CANVAS_BASE_URL are read from this file;\n"
+    "# course folder. Only CANVAS_API_TOKEN and CANVAS_BASE_URL are read from this file;\n"
     "# a CANVAS_COURSE_ID here is IGNORED on purpose (it belongs in each course's .env).\n"
     "# `export` is deliberate so `source ~/.canvas/config` works for ad-hoc scripts.\n"
 )

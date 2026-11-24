@@ -101,7 +101,7 @@ says any of these (all mean the same thing):
 `uv run --project canvas-toolbox python canvas-toolbox/lib/tools/cb_update.py --pull --apply`. That pulls the
 **vendored** toolkit in the right place and activates skills + heals this pointer. Do
 **NOT** `cd` into a repo and `git pull` by hand — that pulls the wrong repo (the
-course repo, or the toolkit dev clone) instead of *this* course's vendored copy.
+course folder's own git repository, or the toolkit dev clone) instead of *this* course's vendored copy.
 
 {POINTER_END}"""
 

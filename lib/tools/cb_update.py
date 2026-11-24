@@ -419,7 +419,7 @@ def _write_global_config(token: str | None) -> None:
     _GLOBAL_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     _GLOBAL_CONFIG.write_text(
         "# canvas-toolbox global credentials — rotate the token HERE, once, for\n"
-        "# every course repo. Canvas expires tokens every 29 days.\n"
+        "# every course folder. Canvas expires tokens every 29 days.\n"
         "#\n"
         "# `export` is deliberate: it lets `source ~/.canvas/config` work for ad-hoc\n"
         "# scripts as well as the toolkit's own loader. Keep it.\n"
@@ -727,7 +727,7 @@ def main() -> int:
                          "update — the one-command 'update canvas-toolbox'.")
     creds = ap.add_mutually_exclusive_group()
     creds.add_argument("--multi-course", action="store_true",
-                       help="you run several course repos: consolidate the Canvas token "
+                       help="you run several course folders: consolidate the Canvas token "
                             f"into {_GLOBAL_CONFIG} so a 29-day rotation is ONE edit. "
                             "Auto-detected from sibling repos; use this to force it.")
     creds.add_argument("--single-course", action="store_true",
@@ -750,7 +750,7 @@ def main() -> int:
         _cb_flatten = None
     is_flat = _cb_flatten is not None and (course_root / _cb_flatten.CLONE_DIR).is_dir()
     if is_flat:
-        print(f"Flat-layout course repo ({_cb_flatten.CLONE_DIR}/ present) — this "
+        print(f"Flat-layout course folder ({_cb_flatten.CLONE_DIR}/ present) — this "
               f"layout is maintained by cb_flatten.py, not the nested re-init "
               f"below. Delegating …\n")
         argv = ["--course-root", str(course_root)]
@@ -765,7 +765,7 @@ def main() -> int:
             sys.argv = old_argv
     if not is_subdir:
         print("Standalone canvas-toolbox — skills already live at .claude/skills/; "
-              "nothing to re-init. cb_update is for consumer course repos.")
+              "nothing to re-init. cb_update is for course folders.")
         return 0
     toolkit_subdir = REPO_ROOT.name  # e.g. 'canvas-toolbox'
 
@@ -788,7 +788,7 @@ def main() -> int:
                  [sys.executable, str(Path(__file__).resolve()),
                   *[a for a in sys.argv[1:] if a != "--pull"]])
 
-    print(f"cb_update (re-init) for course repo: {course_root}")
+    print(f"cb_update (re-init) for course folder: {course_root}")
     print(f"  vendored toolkit: {toolkit_subdir}/ @ v{__version__}")
     print(f"  {'APPLYING' if args.apply else 'DRY RUN — pass --apply to write'}\n")
 
@@ -845,7 +845,7 @@ def main() -> int:
     multi = args.multi_course or (n_repos > 1 and not args.single_course)
     cred = migrate_token_to_global(course_root, multi, args.apply)
     print(f"\nCanvas credentials: {cred}"
-          + (f"  ({n_repos} course repos alongside this one)" if n_repos > 1 else ""))
+          + (f"  ({n_repos} course folders alongside this one)" if n_repos > 1 else ""))
     if cred.startswith(("created", "would-create")):
         print(f"  ↳ the token moves to {_GLOBAL_CONFIG} (chmod 600) and is commented "
               f"out here. Rotate it THERE from now on — once, for every course.")
@@ -855,7 +855,7 @@ def main() -> int:
         print(f"  ↳ this repo's .env shadowed {_GLOBAL_CONFIG}; the local copy is "
               f"commented out so the global one is used.")
     elif cred == "single-course" and n_repos == 1:
-        print("  ↳ one course repo here, so the token stays in .env. Running several? "
+        print("  ↳ one course folder here, so the token stays in .env. Running several? "
               "`--multi-course` consolidates them.")
     norm = normalize_global_config(args.apply)
     if norm in ("fixed", "would-fix"):

@@ -781,7 +781,7 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
         if _CRED_READ.search(path):
             return (
                 "⛔ Global Canvas credential file — do not Read it. It holds ONE API "
-                "token used by every course repo, and a Read puts it in the transcript "
+                "token used by every course folder, and a Read puts it in the transcript "
                 "permanently. Tools load it in-process (_env_loader.load_env()) and "
                 "never surface the value; you don't need to see it. To check it's "
                 "configured: grep -o '^[A-Z_]*=' ~/.canvas/config"
