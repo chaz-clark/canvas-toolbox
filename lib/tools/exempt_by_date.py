@@ -95,6 +95,8 @@ except ImportError:
     print("ERROR: requests not installed. Run: uv sync", file=sys.stderr)
     raise SystemExit(1) from None
 
+from canvas_course_guard import enforce as _course_guard  # set for an intervention (#475)
+
 try:
     from _env_loader import force_utf8_console, load_env
 except ImportError:
@@ -347,6 +349,11 @@ def main() -> int:
         print("ERROR: Missing required .env: CANVAS_API_TOKEN, "
               "CANVAS_BASE_URL, CANVAS_COURSE_ID", file=sys.stderr)
         return 1
+
+    # The course guard, set for an intervention (#475): a course with students
+    # enrolled is the normal target; a folder above several courses still refuses.
+    _course_guard(base_url, {"Authorization": f"Bearer {token}"}, course_id,
+                  mode="write" if args.apply else "read", per_student=True)
 
     if args.before_week and not course_start:
         print("ERROR: --before-week requires COURSE_START_DATE in .env",

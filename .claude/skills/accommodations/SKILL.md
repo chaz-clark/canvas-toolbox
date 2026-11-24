@@ -39,8 +39,16 @@ Output discipline: ✅ "Applied 1.5× time for deid_code S-68BC40" · ❌ "…fo
 - **`--apply` is the write gate.** Every tool defaults to a dry-run preview; nothing
   reaches Canvas until `--apply`. Preview first, confirm the target student + change,
   then apply.
-- **`canvas_course_guard` still applies** — an enrolled-course write is gated; the
-  instructor's own course needs the explicit override the tool documents.
+- **`canvas_course_guard` runs, set for an intervention** (#475), in `exempt_by_date`,
+  `student_late_accommodation`, `student_quiz_time_extension` and `submit_on_behalf`.
+  The course the student is enrolled in (often a Blueprint-child Course Section) is
+  the normal target, so it
+  proceeds with no `--allow-enrolled`. When the course has students it prints one
+  line naming the course and its enrollment: read it before you report the change. No
+  line means the course has no students (likely the wrong course: stop and ask) or the
+  guard couldn't reach Canvas ("could not verify"). It **refuses** `--apply` from a
+  folder opened above several courses. These tools write to `CANVAS_COURSE_ID`; never
+  set it on the command line to reach another course.
 - **Canvas write lessons that bite here:** overrides + due-date changes need the full
   `due_at`/`lock_at`/`unlock_at` trio, and a group override sometimes needs a forced
   recalc before Canvas honors it (`fix_group_override_recalc.py`).
