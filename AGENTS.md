@@ -340,6 +340,11 @@ by oversight; 1.8.0 is its milestone.) On merge,
 `.github/workflows/version-bump.yml` auto-tags `vX.Y.Z`. Consumers track `main` via
 `git pull`, so the version is a milestone + drift marker, not a per-merge gate.
 
+**The toolkit stays on 2.x.** 3.0 is reserved for the new desktop version (decided
+2026-11-24). A change that would break courses is reshaped to stay compatible instead:
+keep the old flag or name working as an alias, as `--push` is for `--update`. Never
+bump the major version here.
+
 ---
 
 ## Repo structure & consumer model

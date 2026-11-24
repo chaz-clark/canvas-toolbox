@@ -360,7 +360,7 @@ questions. If the pending question is worth points, that's real grading → Spee
 ## Quick command map
 
 > **`--update` is the write flag** (since 2.13.0, #493). `--push` is its old spelling:
-> it still works, prints a one-line note, and is removed in 3.0.0. The `grade_guardian`
+> it still works and prints a one-line note. The `grade_guardian`
 > pop-ups fire on either spelling. Write `--update` in every command you run.
 
 | Ask | Command |

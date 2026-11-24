@@ -13,6 +13,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+### Changed
+- **`--push` stays: the toolkit stays on 2.x, and 3.0 is reserved for the desktop version (2.13.1).** The note `--push` prints is now `` `--push` is now `--update`; both work. ``, with no removal date. The skills, `/sync`, the glossary and the guardian's comments no longer promise removal in 3.0.0. #494 (remove `--push`, rename the `grader_push` tools) is not planned for 2.x. AGENTS.md now says the toolkit stays on 2.x.
+
 ### Added
 - **`--update` is the flag that updates Canvas; `--push` is its old spelling (2.13.0, #493).** Nine tools take it: `canvas_sync`, `blueprint_sync`, `course_mirror`, `canvas_quiz_questions`, `grader_push`, `grader_push_comments`, `grader_correct`, `grader_standing` and `grader_letter_comments`. Both spellings are one option (`args.update`, via the new `_update_flag.py`), so every gate sees the same value. `--push` still works and prints `` `--push` is now `--update`; `--push` will be removed in 3.0.0. `` on stderr. The `grade_guardian` pop-ups (review gate and correction gate) fire on either spelling, and its redirect message teaches `--update`. `grader_push`, `grader_correct` and `grader_post_policy` now accept whole flags only (`allow_abbrev=False`): argparse had let `--upd`, `--pus`, `--mark` or `--rel --app` reach Canvas while the guardian, which matches whole flag names, saw nothing. Tool messages ("Add --update to write"), `--help`, the skills, the `/sync` command, the agent specs and the grading docs now say `--update`; history (CHANGELOG, ROADMAP, UPGRADING, lessons learned) is left as written. The course AGENTS.md grading pointer block shows `--update --yes` after the next `cb_update`. A guard test fails if any tool defines `--push` on its own again. The glossary's **Update Canvas** entry records the rename. 3.0.0 removes `--push` (#494).
 

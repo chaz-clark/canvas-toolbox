@@ -26,7 +26,7 @@ uv run python lib/tools/canvas_sync.py --update --apply
 **Safety features:**
 - Startup guard (#27) refuses writes to enrolled courses (bypass with `--allow-enrolled`)
 - Default is dry-run (requires `--apply` to actually update Canvas)
-- `--update` was `--push` before 2.13.0; `--push` still works until 3.0.0
+- `--update` was `--push` before 2.13.0; `--push` still works
 
 **Need help?** See full documentation in [lib/tools/README.md](../../lib/tools/README.md#core-sync-tools)
 

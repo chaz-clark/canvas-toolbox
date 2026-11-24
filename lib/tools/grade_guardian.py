@@ -32,7 +32,7 @@ WHAT IT DENIES
 WHAT IT ASKS (does not deny — forces a human prompt) (#264, #265)
   - Bash: a grader_push.py AI-drafted checkpoint (not --grade-only / --test-user /
     --retract) — at BOTH --mark-reviewed (the review attestation) and --update (the
-    write; --push, its old spelling, is matched the same until 3.0.0, #493).
+    write; --push, its old spelling, is matched the same, #493).
     grader_push honors --yes on that path (no terminal keystroke — that
     dead-ended non-technical faculty at a shell), so an agent could `--mark-reviewed
     --yes` and self-attest review without ever showing the human _all_comments.md,
@@ -837,7 +837,7 @@ _CHECKPOINT_REASONS = {
 }
 
 
-# The write flag in both spellings: --update, and --push until 3.0.0 removes it (#493).
+# The write flag in both spellings: --update, and --push, its old spelling (#493).
 # One argparse option in the tools (_update_flag.py), so the gate must see both.
 _WRITE_FLAG = re.compile(r"--update\b|--push\b")
 
