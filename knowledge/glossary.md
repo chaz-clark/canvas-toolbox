@@ -411,6 +411,10 @@ _Avoid_: Mixed grading
 The rule that no AI-drafted grade or comment reaches a student until the instructor, or a TA they authorized, has read the work and the draft, then approved twice. Its principle number is HG-5.
 _Avoid_: Approval step, human-in-the-loop (alone)
 
+**Confirmation phrase**:
+What an instructor types at a terminal to approve a live grading write: `update canvas`. A pipe or script typing it is refused. It was `push` before 2.12.4; typing that now cancels.
+_Avoid_: Push word, magic word
+
 **Update grades in Canvas**:
 Sending reviewed grades and comments to students' submissions in Canvas. Whether students see them yet is the posting policy.
 _Avoid_: Push, grade push, upload, post

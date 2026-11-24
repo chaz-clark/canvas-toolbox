@@ -817,7 +817,7 @@ _CHECKPOINT_REASONS = {
         "you first — do not attest a review you didn't do."
     ),
     "push": (
-        "Grade update gate (HG-5, #264): this sends AI-drafted feedback + grades to students on "
+        "Review gate, second approval (HG-5, #264): this sends AI-drafted feedback + grades to students on "
         "a LIVE course. Approve only after reviewing the comments and the old→new grade "
         "preview the agent showed you. Allow = send; Deny = hold."
     ),

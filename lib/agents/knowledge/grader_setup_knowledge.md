@@ -364,7 +364,7 @@ Once the per-assignment config is set, the grader pipeline runs in order:
 3. **Grade** — run N grading passes (N from step 4 outputs[].grader_count); each pass reads de-id'd work + rubric/outcomes + course context + per-instructor voice file.
 4. **Consensus** — majority + spread; auto-flag high-spread to NEEDS-REVIEW.
 5. **Re-identify locally** — instructor reviews per-student files.
-6. **Push gate** — `--mark-reviewed` after eyeball; validates on Test Student; pushes to Canvas via `push_grades.py` (idempotent, per-assignment-scoped).
+6. **Review gate** — `--mark-reviewed` after eyeball; validates on Test Student; pushes to Canvas via `push_grades.py` (idempotent, per-assignment-scoped).
 7. **Wellbeing flags** — keyed `_checkin_flags.md` reaches the instructor before the final push.
 
 Each step's success criteria are checklists from `grader_knowledge.md` §12.

@@ -1185,7 +1185,7 @@ def _resolve_uid_from_log_or_subs(
     not the uid; we need the uid for the DELETE URL. Strategy: scan the
     challenge's review.csv if present, otherwise fall back to the user
     passing keys + we look up by matching submission filenames."""
-    # The grade-push log line is `- KEY: grade GRADE pushed to assignment AID`.
+    # The grade log line is `- KEY: grade GRADE updated on assignment AID`.
     # That also doesn't carry the uid. So we rebuild from the submissions
     # listing + the keymap-aware filename match.
     # For retract, this is best-effort: if we can't resolve, we report and skip.

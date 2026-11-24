@@ -152,7 +152,7 @@ manual control of each step.
    overview. Wellbeing flags reach the instructor via
    `feedback/_checkin_flags.md` (categories: health / family / stuck /
    ask_for_help / safety / financial).
-7. **Push gate** (`grader_push.py`) — `--mark-reviewed` after instructor
+7. **Review gate** (`grader_push.py`) — `--mark-reviewed` after instructor
    eyeball; gate auto-invalidates if any comment changed since.
    `canvas_course_guard` refuses live-course writes without
    `--allow-enrolled`. Per-assignment idempotency via `.push_log.md`
@@ -445,7 +445,7 @@ uv run python lib/tools/grader_name_leak_check.py grading/<asg>/submissions_deid
 
 # ... signals, reconcile (if enabled), grading passes (3 parallel), consensus, reidentify ...
 
-# Push gate
+# Review gate
 uv run python lib/tools/grader_push.py \
   --config grading/<asg>/config.yml \
   --review grading/<asg>/feedback/per_student/ \
