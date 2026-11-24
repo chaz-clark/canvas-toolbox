@@ -75,13 +75,13 @@ def step_zone2(root: Path) -> Line:
     try:
         from grade_guardian import zone2_summary
     except ImportError:
-        return ("FERPA Zone-2 coverage", "needs you", "guardian not available")
+        return ("FERPA local-only coverage", "needs you", "guardian not available")
     s = zone2_summary(root)
     extra = f" + {s['extra']} course-local" if s["extra"] else ""
     if s["invalid"]:
-        return ("FERPA Zone-2 coverage", "needs you",
+        return ("FERPA local-only coverage", "needs you",
                 f"{len(s['invalid'])} course pattern(s) are invalid and ignored")
-    return ("FERPA Zone-2 coverage", "ok", f"{s['default']} built-in{extra} patterns")
+    return ("FERPA local-only coverage", "ok", f"{s['default']} built-in{extra} patterns")
 
 
 def step_grading_dir(root: Path, apply: bool) -> Line:

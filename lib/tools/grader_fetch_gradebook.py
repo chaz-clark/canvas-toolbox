@@ -193,7 +193,7 @@ def main() -> int:
 
     print(f"✓ wrote {len(rows)} students × {len(assignments)} assignments → {csv_path}")
     print(f"  meta → {meta_path} (fetched_at {meta['fetched_at']})")
-    print("  De-identified (user_id-keyed, no names — FERPA Zone-1). For a named report, "
+    print("  De-identified (user_id-keyed, no names — AI-readable). For a named report, "
           "run grader_reidentify_gradebook.py.")
     return 0
 

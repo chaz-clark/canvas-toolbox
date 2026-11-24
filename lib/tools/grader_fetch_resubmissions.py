@@ -283,7 +283,7 @@ Canvas marks these as "needs grading" but they require manual review.
 
 ---
 
-**FERPA Zone 2**: This report uses user_id only (no names).
+**FERPA — AI-readable**: This report uses user_id only (no names).
 **Canvas-Toolbox**: v1.7.12+ compatible
 """
 

@@ -14,6 +14,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Changed
+- **Tool messages say "local only", not "Zone 2" (2.12.1, #481).** The guardian's refusals, the FERPA pre-push guard's `PUSH BLOCKED` line, `cb_update`'s pattern-count report and `grader_setup`'s checklist now use the glossary's word. Two labels said "Zone" where the data has no names, so they now say **AI-readable**: `grader_fetch_gradebook`'s de-identified export, and the resubmission report footer, which wrongly said "Zone 2". Identifiers like `load_zone2` are unchanged. The retired-word guard (#479) now allows no "Zone 1" or "Zone 2" in tool strings.
+
+### Changed
 - **The course's local-only pattern file is now `.claude/local_only.txt` (2.12.0, #480).** It was `.claude/ferpa_zone2.txt`; the glossary's word is **local only**, not "Zone 2". No course loses a pattern on the way. The guardian and the FERPA pre-push guard read the new name **and** the old one, and combine them (a line in both counts once). `cb_update` (and `cb_flatten` in the flat layout) **copies** the old file to the new name and **keeps the old file**: each copy of a course folder has its own toolkit, and one on a toolkit older than 2.12.0 reads only the old name, so a committed rename would silently drop the course's own patterns there. Commit both files and edit `local_only.txt` from now on. Deleting the old copy is left to a later release. If the two files differ, nothing is changed and the report says so. Flat-layout updates now print the pattern count too, naming the file(s) it came from. Messages, AGENTS.md, the grading skill and `docs/UPGRADING.md` name the new file, and the glossary gains **Local-only list**. Minor, not patch: a file instructors edit in every course folder changes name.
 
 ### Added
