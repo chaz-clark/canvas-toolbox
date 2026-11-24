@@ -196,7 +196,7 @@ def format_block(path_hits: list[str], content_hits: list[str],
     n = len(set(path_hits) | set(content_hits))
     lines = [
         "",
-        "⛔ PUSH BLOCKED — FERPA Zone-2 data in the commits being pushed.",
+        "⛔ PUSH BLOCKED — local-only student data (FERPA) in the commits being pushed.",
         "",
         f"  {n} file(s) in this push match a protected pattern.",
         "  Filenames are withheld here on purpose — a matched filename may itself",

@@ -724,12 +724,12 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
         if hit:
             read_m, file_m = hit
             return (
-                "⛔ FERPA Zone-2 file — never cat/head/read it in a shell (AGENTS.md → FERPA "
+                "⛔ FERPA local-only file — never cat/head/read it in a shell (AGENTS.md → FERPA "
                 "discipline). It maps de-id codes ↔ names/user_ids; reading it into context "
                 "IS the re-identification the two-zone model prevents. Verify with `wc -l` / "
                 "`ls` only. To re-identify, run grader_reidentify.py (it reads the keymap "
                 "internally, never surfacing it) — do NOT reconstruct the map by hand. "
-                f"[matched read `{read_m.group(0).strip()}` + Zone-2 path "
+                f"[matched read `{read_m.group(0).strip()}` + local-only path "
                 f"`{file_m.group(0)}` in the same step (or via a variable / xargs from "
                 "another step) — split the command so the read and the path are apart]"
             )
@@ -788,7 +788,7 @@ def evaluate(tool_name: str, tool_input: dict) -> str | None:
             )
         if _FERPA_PATH.search(path):
             return (
-                "⛔ FERPA Zone-2 file — do not Read it (AGENTS.md → FERPA discipline). "
+                "⛔ FERPA local-only file — do not Read it (AGENTS.md → FERPA discipline). "
                 "Trust the tool's summary output; for verification use `wc -l` or `ls`, "
                 "never Read/cat/grep on the name-bearing files."
             )

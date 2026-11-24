@@ -265,7 +265,7 @@ def test_reports_zone2_coverage_and_names_the_extension_file(tmp_path, capsys):
     files. Coverage has to be stated, not inferred."""
     print_zone2_coverage(tmp_path)
     out = capsys.readouterr().out
-    assert "Zone-2 patterns:" in out and "built-in" in out
+    assert "local-only patterns:" in out and "built-in" in out
     assert ".claude/local_only.txt" in out           # tells them where to extend
 
 
@@ -381,7 +381,7 @@ def test_zone2_nudge_is_silent_for_a_configured_canvas_repo(tmp_path, capsys, mo
     monkeypatch.setenv("CANVAS_COURSE_ID", "12345")
     print_zone2_coverage(tmp_path)
     out = capsys.readouterr().out
-    assert "Zone-2 patterns:" in out          # the FACT still prints
+    assert "local-only patterns:" in out          # the FACT still prints
     assert "one regex per line" not in out    # the homework doesn't
 
 

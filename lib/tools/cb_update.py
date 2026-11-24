@@ -694,9 +694,9 @@ def print_zone2_coverage(course_root: Path) -> None:
     s = _zone2_summary(course_root)
     extra = f" + {s['extra']} course-local" if s["extra"] else ""
     src = f" (from {', '.join(s['sources'])})" if s.get("sources") else ""
-    print(f"  FERPA Zone-2 patterns: {s['default']} built-in{extra}{src}")
+    print(f"  FERPA local-only patterns: {s['default']} built-in{extra}{src}")
     if s["exempt"]:
-        print(f"  FERPA Zone-2 exemptions: {s['exempt_default']} built-in + "
+        print(f"  FERPA local-only exemptions: {s['exempt_default']} built-in + "
               f"{s['exempt']} course-local (files only; never lifts the built-ins)")
     if s["invalid"]:
         print(f"  ⚠ {len(s['invalid'])} pattern(s) in {_ZONE2_EXTRA_FILE} are not valid "
