@@ -443,9 +443,29 @@ loop, [`knowledge/ai-coding-loop.md`](knowledge/ai-coding-loop.md); the skills' 
 
 ## Active Context
 
-_Last updated: 2026-09-22._ Latest few releases only; full history in
+_Last updated: 2026-11-24._ Latest few releases only; full history in
 [`CHANGELOG.md`](CHANGELOG.md).
 
+- **v2.13.x — `--update` is the write flag (2026-11-24, #493, #498, #499):** nine tools
+  take `--update`; `--push` is the same option (`args.update`, via `_update_flag.py`)
+  and keeps working with a one-line note. `grade_guardian`'s review and correction
+  gates match both spellings, and `grader_push`, `grader_correct` and
+  `grader_post_policy` refuse shortened flags (`--upd`, `--mark` had slipped past the
+  guardian). The toolkit stays on 2.x (see Git & versioning), so #494 (remove
+  `--push`, rename `grader_push`) is not planned. The stale `.claude-plugin/`
+  listing is gone; root `plugin.json` is the one manifest.
+- **v2.12.x — tools speak the glossary (2026-11-23, #479–#483):** messages say
+  "local only" (not Zone 2), "course folder" (not course repo), "update Canvas" /
+  "update grades in Canvas" (not push), and "git push" only for git. The typed
+  confirmation is now `update canvas`; typing `push` cancels. New grading-log lines
+  say `updated on assignment`, and older `pushed to assignment` lines are still read.
+  The course's pattern file is `.claude/local_only.txt`; `cb_update` copies the old
+  `.claude/ferpa_zone2.txt` and keeps it, and both are read. Deleting the old copy is
+  #486, not before 2027-01-15. `test_retired_glossary_words.py` keeps retired words
+  out of tool strings.
+- **v2.11.0 — the project glossary (`knowledge/glossary.md`)** and the rule to stay
+  inside it. v2.1–v2.10 (grader_correct, TA reviewers, post-policy holds and more):
+  see `CHANGELOG.md`.
 - **v2.0.0 — runtime-neutral agent packaging (2026-09-22, #317):** the flat layout
   above, replacing the nested `canvas-toolbox/` subdirectory as the default consumer
   model. Distribution manifest, schema-validated agent packages, and a
