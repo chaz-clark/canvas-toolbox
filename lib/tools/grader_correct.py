@@ -243,7 +243,7 @@ def main() -> int:
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="bypass canvas_course_guard for your own enrolled course")
     ap.add_argument("--post", action="store_true",
-                    help="release grades after push if the assignment posts manually")
+                    help="release grades after updating Canvas if the assignment posts manually")
     ap.add_argument("--log", default=str(DEFAULT_LOG),
                     help=f"correction ledger (default {DEFAULT_LOG}; keep it gitignored)")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")

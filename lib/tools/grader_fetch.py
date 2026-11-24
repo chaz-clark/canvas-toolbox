@@ -628,12 +628,12 @@ def render_unique_group_memos_md(
         parts.append(
             "> Mode: `grade_group_students_individually=true`. Each member gets a "
             "separate grade — grade every row independently. This list is "
-            "advisory; no row collapsing happens at push time."
+            "advisory; no row collapsing happens when grades are sent to Canvas."
         )
     else:
         parts.append(
             "> Mode: shared grade (Canvas default for group assignments). "
-            "Grade ONE representative per group; the push collapses mirrored "
+            "Grade ONE representative per group; grader_push collapses mirrored "
             "rows so Canvas's group-grade distribution applies one grade to "
             "all members."
         )
@@ -1351,8 +1351,8 @@ def main() -> int:
     if master_status == "built":
         print(f"Built {master} (course-wide roster map; gitignored, never read by AI).")
     elif master_status == "failed":
-        print(f"WARNING: {master} is missing and could not be built. Re-identify and "
-              f"push need it. Run: uv run python lib/tools/build_deid_master.py "
+        print(f"WARNING: {master} is missing and could not be built. Re-identifying and "
+              f"updating grades in Canvas need it. Run: uv run python lib/tools/build_deid_master.py "
               f"--out {master}", file=sys.stderr)
 
     # ── Branch by submission_type. One up-front call to the assignment

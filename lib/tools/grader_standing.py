@@ -237,8 +237,8 @@ def plan_writes(rows, index, active, current_by_uid, points_possible, swing_thre
 def main() -> int:
     force_utf8_console()
     ap = argparse.ArgumentParser(
-        description="Push instructor-computed standing grades to a No-Submission "
-                    "column (value-only, dry-run by default, gated).")
+        description="Update standing in Canvas: send instructor-computed standing "
+                    "grades to a No-Submission column (value-only, dry-run by default, gated).")
     ap.add_argument("--csv", required=True, help="standing CSV your script emits")
     ap.add_argument("--assignment-id", required=True, help="the 'your grade' assignment id")
     ap.add_argument("--course-id", default=None, help="defaults to $CANVAS_COURSE_ID")
@@ -257,7 +257,7 @@ def main() -> int:
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="bypass canvas_course_guard for your own enrolled course")
     ap.add_argument("--post", action="store_true",
-                    help="release grades after push if the assignment posts manually")
+                    help="release grades after updating Canvas if the assignment posts manually")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     args = ap.parse_args()
 
@@ -280,7 +280,7 @@ def main() -> int:
     except requests.RequestException:
         pass
     points_possible = meta.get("points_possible")
-    print(f"Standing push -> assignment {aid} "
+    print(f"Standing update -> assignment {aid} "
           f"({meta.get('name', '?')}; points_possible={points_possible}) on course {cid}")
 
     rows, key_col, grade_col = load_standing_rows(args.csv, args.key_column, args.grade_column)
@@ -354,13 +354,13 @@ def main() -> int:
             f"{base}/api/v1/courses/{cid}/assignments/{aid}/submissions/{p['uid']}",
             headers=headers, data={"submission[posted_grade]": p["grade"]}, timeout=_TIMEOUT)
         if resp.status_code < 400:
-            print(f"  pushed user {p['uid']}: {p['current'] or '—'} -> {p['grade']}")
+            print(f"  updated user {p['uid']}: {p['current'] or '—'} -> {p['grade']}")
             pushed += 1
         else:
             print(f"  ⛔ user {p['uid']}: HTTP {resp.status_code} {resp.text[:120]}",
                   file=sys.stderr)
             failed += 1
-    print(f"\nPushed {pushed}, failed {failed}.")
+    print(f"\nUpdated {pushed} in Canvas, failed {failed}.")
 
     if args.post and pushed and assignment_posts_manually(base, cid, headers, aid):
         ok, detail = post_assignment_grades(base, cid, headers, aid)

@@ -401,7 +401,7 @@ def push_precheck(challenge: Path, fbdir: Path, prefix: str, reviewed: Path,
             surface = (f"   Produce a review surface first (per-student {prefix}-*.md OR "
                        f".review*.csv), then review it,")
         blockers.append(
-            "\n⛔ Review required before pushing.\n" + surface +
+            "\n⛔ Review required before updating grades in Canvas.\n" + surface +
             "\n   then run:  uv run python lib/tools/grader_push.py --challenge-dir "
             f"{challenge_dir_arg} --mark-reviewed")
         return blockers, warnings  # staleness/consensus need .reviewed to exist
@@ -1082,7 +1082,7 @@ def push_roster_comments(args, base, cid, headers, challenge, disclosure_kind) -
     todo = [(u, c) for u, c in pairs if u not in already]
     skipped = len(pairs) - len(todo)
     tail = f", {skipped} already logged (--force to re-post)" if skipped else ""
-    print(f"Roster comment-only push → assignment {args.assignment_id}: "
+    print(f"Roster comment-only update → assignment {args.assignment_id}: "
           f"{len(todo)} to post{tail}.")
     for uid, comment in todo:
         print(f"  [OK] user_id={uid}  comment=\"{truncate_comment_preview(comment)}\"")
@@ -1313,7 +1313,7 @@ def post_assignment_grades(base: str, cid: str, headers: dict, assignment_id) ->
 def main() -> int:
     force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
 
-    ap = argparse.ArgumentParser(description="Push grades + comments to Canvas (LOCAL, gated).")
+    ap = argparse.ArgumentParser(description="Update grades and comments in Canvas (LOCAL, gated).")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     ap.add_argument("--challenge-dir", required=True,
                     help="Convention base path (e.g. grading/kc1). Holds .review.csv, feedback/, etc.")
@@ -1328,7 +1328,7 @@ def main() -> int:
     ap.add_argument("--push", action="store_true",
                     help="Actually write to Canvas (default: dry-run). Refuses without --mark-reviewed.")
     ap.add_argument("--post", action="store_true",
-                    help="After pushing, release grades to students via the Gradebook 'Post "
+                    help="After updating grades in Canvas, release grades to students via the Gradebook 'Post "
                          "grades' action (GraphQL postAssignmentGrades). Needed when the assignment "
                          "uses a MANUAL posting policy — otherwise grades are entered but hidden "
                          "from students and read as 'needs grading' (issue #199).")
@@ -1342,13 +1342,13 @@ def main() -> int:
                     help="Skip the terminal confirmation prompt — honored on ALL paths, "
                          "including the AI-drafted (LLM-comment) --mark-reviewed / --push "
                          "path (#264). The human gate is no longer a terminal keystroke "
-                         "but the grade_guardian 'ask' permission prompt on the push; the "
+                         "but the grade_guardian 'ask' permission prompt on the Canvas write; the "
                          "agent shows the review surface in-chat and the instructor "
                          "approves in a reply, then clicks the prompt.")
     ap.add_argument("--allow-enrolled", action="store_true",
                     help="Bypass canvas_course_guard for enrolled-course writes (instructor's own course).")
     ap.add_argument("--test-user", type=int,
-                    help="Validate the API path: push ONE sample grade+comment to this user_id "
+                    help="Validate the API path: send ONE sample grade+comment to this user_id "
                          "(e.g. Canvas's Test Student).")
     ap.add_argument("--grade",
                     help="Grade to use with --test-user (default 3.5 with comment / 85 with --grade-only).")
@@ -1356,14 +1356,14 @@ def main() -> int:
                     help="Confirm you've reviewed all comments + scores. Required before --push. "
                          "Auto-invalidates if any comment file changes after.")
     ap.add_argument("--force", action="store_true",
-                    help="Re-push keys already in the per-assignment push log (default: skip already-pushed).")
+                    help="Re-send keys already in the per-assignment log, .push_log.md (default: skip keys already sent).")
     ap.add_argument("--default-comment", default="",
                     help="Comment to post when a row's feedback file has no '## Comment to student' block "
                          "(e.g. a short line for a completion-only output).")
     ap.add_argument("--grade-only", action="store_true",
-                    help="Push the grade with NO comment (e.g. the consequential layer in a multi-output flow).")
+                    help="Send the grade with NO comment (e.g. the consequential layer in a multi-output flow).")
     ap.add_argument("--comments-only", action="store_true",
-                    help="Push comments with NO grade change — add or FIX feedback on ALREADY-GRADED "
+                    help="Send comments with NO grade change — add or FIX feedback on ALREADY-GRADED "
                          "work without touching the grade. Bypasses the regrade gate (you're not "
                          "re-grading) and SUPERSEDES a prior grader comment for the same key (deletes "
                          "the old, posts fresh) so re-runs never stack. Still requires the grade_guardian "
@@ -1371,7 +1371,7 @@ def main() -> int:
     ap.add_argument("--roster-csv",
                     help="Post comment-only to students BY user_id — a CSV with a `user_id` column "
                          "plus a `comment` (inline) or `comment_file` (path) column. Reaches "
-                         "NON-SUBMITTERS (a 0 / no-submission student the file-keyed push can't see, "
+                         "NON-SUBMITTERS (a 0 / no-submission student the file-keyed run can't see, "
                          "since they have no submission file). Grade untouched; still gated by the "
                          "guardian pop-up; idempotent (a logged user is skipped unless --force).")
     ap.add_argument("--disclosure", default=None, choices=sorted(DISCLOSURE_TAGS),
@@ -1381,20 +1381,20 @@ def main() -> int:
                          "(script graded, no AI in the comment). Default: 'ai', or "
                          "$CANVAS_DISCLOSURE_DEFAULT if set.")
     ap.add_argument("--include-inactive", action="store_true",
-                    help="Issue #61: by default the push surface excludes Canvas's Test Student + "
+                    help="Issue #61: by default the students updated exclude Canvas's Test Student + "
                          "inactive/withdrawn/completed/rejected enrollments. Pass this flag for the "
                          "rare intentional case (e.g. posting a final grade to a student who withdrew).")
     ap.add_argument("--no-collision-check", action="store_true",
-                    help="Issue #62: SKIP the pre-push comment-collision guard. By default, grader_push "
+                    help="Issue #62: SKIP the comment-collision guard that runs before comments are sent. By default, grader_push "
                          "checks each pushable row's existing submission_comments and warns if any "
                          "comment from a different author exists within --collision-window-days. The "
                          "guard runs through the FERPA-safe deid layer (#65) — no author_name reaches "
-                         "console. --grade-only pushes always skip the check (no comment risk).")
+                         "console. --grade-only runs always skip the check (no comment risk).")
     ap.add_argument("--collision-window-days", type=int, default=14,
                     help="Issue #62: how many days back the collision guard looks. Default: 14.")
     ap.add_argument("--skip-if-student-replied", action="store_true",
                     help="Issue #62: if the LATEST comment in a thread is from the student (author "
-                         "role 'self'), drop that row from the push plan — the student has already "
+                         "role 'self'), drop that row from the plan — the student has already "
                          "responded to prior feedback; new comments here add noise.")
     ap.add_argument("--allow-collisions", action="store_true",
                     help="Issue #62: bypass the collision-confirmation prompt. The plan still prints "
@@ -1410,10 +1410,10 @@ def main() -> int:
                     help="Issue #63: bypass the lock-check confirmation. The warnings still print; "
                          "this flag just skips the interactive 'type locked to confirm' step.")
     ap.add_argument("--retract", action="store_true",
-                    help="Issue #63: DELETE previously-pushed comments for this assignment via "
+                    help="Issue #63: DELETE previously sent comments for this assignment via "
                          "/courses/:cid/assignments/:aid/submissions/:uid/comments/:cid. Reads the "
-                         "tracked comment_ids from .push_log.md (recorded automatically on every "
-                         "push). Use --retract-keys to scope. WRITE path — same gates apply "
+                         "tracked comment_ids from .push_log.md (recorded automatically every time "
+                         "comments are sent). Use --retract-keys to scope. WRITE path — same gates apply "
                          "(--mark-reviewed not required for retract; canvas_course_guard still "
                          "enforces; default is dry-run unless --push is also passed).")
     ap.add_argument("--retract-keys", default=None,
@@ -1435,10 +1435,10 @@ def main() -> int:
                          "a one-off where the operator has explicitly accepted single-pass risk).")
     ap.add_argument("--allow-bad-disclosure-tags", action="store_true",
                     help="Issue #207: explicit opt-out from the disclosure-tag validator. By "
-                         "default, grader_push refuses to push when a per-student comment file "
+                         "default, grader_push refuses to send comments when a per-student comment file "
                          "carries a deprecated disclosure tag (an older emoji/underscore format), "
                          "because the canonical tag would get stacked on top of it at send-time. "
-                         "Pass this flag to push anyway (rare; the stale tag stays in the "
+                         "Pass this flag to send anyway (rare; the stale tag stays in the "
                          "student-visible comment).")
     ap.add_argument("--regrade", action="store_true",
                     help="Re-grade RESUBMISSIONS only (submitted_at > graded_at). Default "
@@ -1449,7 +1449,7 @@ def main() -> int:
                          "the prior grader comment (deletes it, then re-posts ONE) instead of "
                          "stacking. Grade value updates as normal.")
     ap.add_argument("--auto-fix-workflow", action="store_true",
-                    help="Issue #226: after pushing, if a just-pushed grade is still "
+                    help="Issue #226: after updating grades in Canvas, if a grade just sent is still "
                          "workflow_state 'submitted' (Canvas didn't transition — common after a "
                          "resubmission), idempotently re-post the SAME grade to force "
                          "'submitted' -> 'graded'. Never changes a grade value.")
@@ -1467,7 +1467,7 @@ def main() -> int:
         return 1
     disclosure_kind = resolve_disclosure_kind(args.disclosure)
 
-    challenge = resolve_challenge_dir(args.challenge_dir, verb="pushing from")
+    challenge = resolve_challenge_dir(args.challenge_dir, verb="updating grades in Canvas from")
     if not challenge.is_dir():
         print(f"--challenge-dir {challenge} does not exist.", file=sys.stderr)
         return 1
@@ -1536,7 +1536,7 @@ def main() -> int:
             print(f"(the overall {fbdir}/_all_comments.md and each per-student {prefix}-*.md justification).")
         elif review_csvs:
             # Value-only / human-graded run — point at the actual review surface
-            print(f"You are confirming you reviewed the value-only push surface for {fbdir.parent.name}:")
+            print(f"You are confirming you reviewed the value-only grades to send for {fbdir.parent.name}:")
             # Issue #74: don't rebind the loop var as `csv` — that shadows
             # the module import and crashes the main push path further down.
             for rc in review_csvs:
@@ -1544,7 +1544,7 @@ def main() -> int:
             if actuals.exists():
                 print(f"  • {actuals.relative_to(challenge)}  (reconcile evidence)")
             print("\n  (No per-student comment files in this run — this is the "
-                  "value-only / human-graded push path. The mtime auto-invalidation "
+                  "value-only / human-graded path. The mtime auto-invalidation "
                   "gate will watch these CSV files instead of comment .md files.)")
         else:
             # Neither comment .md files nor .review*.csv — operator may have
@@ -1578,7 +1578,7 @@ def main() -> int:
     headers = {"Authorization": f"Bearer {tok}"}
 
     if not args.assignment_id:
-        print("--assignment-id is required to push / dry-run / test.", file=sys.stderr)
+        print("--assignment-id is required to update Canvas, dry-run or test.", file=sys.stderr)
         return 1
 
     # canvas_course_guard: refuse enrolled-course writes unless --allow-enrolled
@@ -1610,7 +1610,7 @@ def main() -> int:
         comment = "" if args.grade_only else (
             "Test comment from the grading tool — please ignore. "
             "Validating that grade + comment post correctly (grader_push.py).")
-        print(f"TEST push → course {cid}, assignment {args.assignment_id}, user {args.test_user}")
+        print(f"TEST update → course {cid}, assignment {args.assignment_id}, user {args.test_user}")
         print(f"  grade={grade}")
         print(f'  comment={chr(34)+comment+chr(34) if comment else "(none — grade only)"}')
         if not args.push:
@@ -1678,7 +1678,7 @@ def main() -> int:
         rows, dropped_mirror_rows = filter_group_mirror_rows(rows, group_context)
         if dropped_mirror_rows:
             print(f"Issue #100: {len(dropped_mirror_rows)} mirrored group-member "
-                  f"row(s) dropped from push plan (shared-grade mode — Canvas "
+                  f"row(s) dropped from the plan (shared-grade mode — Canvas "
                   f"distributes the representative's grade + comment to them).")
 
     # Issue #100: build a key → row lookup so the push loop can check
@@ -1712,7 +1712,7 @@ def main() -> int:
         subs = kept
 
     _skip_n = sum(already_pushed(k, pushed_keys, args) for k in pushed_keys)
-    extra = (f"; {_skip_n} already pushed (skip unless --force)" if _skip_n else "")
+    extra = (f"; {_skip_n} already sent (skip unless --force)" if _skip_n else "")
     print(f"Assignment {args.assignment_id}: {len(subs)} Canvas submissions, "
           f"{len(rows)} review rows{extra}\n")
 
@@ -1786,7 +1786,7 @@ def main() -> int:
         plan.append((key, uid, grade, comment, ok))
         hold = hold_by_key.get(key)
         if done:
-            mark, why = "done", "  (already pushed)"
+            mark, why = "done", "  (already sent)"
         elif not gate_ok and not args.comments_only:
             regrade_skipped += 1
             mark, why = "SKIP", f"  ({gate_reason})"
@@ -1807,7 +1807,7 @@ def main() -> int:
     if regrade_skipped:
         print(f"\n⛔ {regrade_skipped} row(s) SKIPPED — already graded in Canvas. Default mode "
               "never re-comments/re-grades (Canvas APPENDS comments; re-runs stack them — the "
-              "4-comments-per-student bug). Pass --regrade to push to resubmissions/corrections.")
+              "4-comments-per-student bug). Pass --regrade to update grades on resubmissions/corrections.")
         print("   To ADD or FIX comments on already-graded work WITHOUT changing the grade, "
               "use --comments-only (supersede-safe; grades untouched).")
 
@@ -1951,7 +1951,7 @@ def main() -> int:
 
     pushable = [p for p in plan if p[4]]
     extra2 = (f" ({_skip_n} already done, skipped)" if _skip_n else "")
-    print(f"\n{len(pushable)}/{len(plan)} ready to push{extra2}.")
+    print(f"\n{len(pushable)}/{len(plan)} ready to send to Canvas{extra2}.")
     if hold_by_key:
         by_tok: dict[str, int] = {}
         for tok in hold_by_key.values():
@@ -1962,7 +1962,7 @@ def main() -> int:
         print("Dry run — nothing written. Re-run with --push to send to Canvas.")
         return 0
     if not pushable:
-        print("Nothing to push.")
+        print("Nothing to send to Canvas.")
         return 1
 
     # --- REQUIRED REVIEW GATE (issue #213 Fix 2: push_precheck) ---
@@ -2094,13 +2094,13 @@ def main() -> int:
             if not comment_only_row:
                 gv_status, gv_reason = validate_grade_for_grading_type(grade, grading_type)
                 if gv_status == "sentinel":
-                    print(f"  [HOLD] {key}: {gv_reason} — treating as held (no grade pushed)")
+                    print(f"  [HOLD] {key}: {gv_reason} — treating as held (no grade sent)")
                     lg.write(f"- {key}: grade-type-hold uid={uid} grade={grade!r} {gv_reason} "
                              f"on assignment {args.assignment_id}\n")
                     grade_type_skipped += 1
                     continue
                 if gv_status == "invalid":
-                    print(f"  ⛔ [INVALID-GRADE] {key}: uid={uid}: {gv_reason} — refusing to push")
+                    print(f"  ⛔ [INVALID-GRADE] {key}: uid={uid}: {gv_reason} — refusing to send")
                     lg.write(f"- {key}: grade-type-invalid uid={uid} grade={grade!r} {gv_reason} "
                              f"on assignment {args.assignment_id}\n")
                     grade_type_skipped += 1
@@ -2195,7 +2195,7 @@ def main() -> int:
                              f"{args.assignment_id} (grade untouched)\n")
                     commented += 1
                 else:
-                    print(f"  pushed {key}: {before_repr} → {grade}")
+                    print(f"  sent {key}: {before_repr} → {grade}")
                     lg.write(f"- {key}: grade {before_repr} → {grade} pushed to assignment "
                              f"{args.assignment_id}\n")
                     pushed += 1
@@ -2224,9 +2224,9 @@ def main() -> int:
                           f"Investigate, then re-run; idempotency skips successes.")
                     break
     summary_line = (f"Posted {commented}/{len(pushable)} comments (grades untouched)"
-                    if args.comments_only else f"Pushed {pushed}/{len(pushable)}")
+                    if args.comments_only else f"Updated {pushed}/{len(pushable)} in Canvas")
     if held:
-        summary_line += f"; held {held} (comment posted; grade withheld — clear the HOLD_<DIM> token + re-push)"
+        summary_line += f"; held {held} (comment posted; grade withheld — clear the HOLD_<DIM> token + re-run)"
     if regressions_skipped:
         summary_line += (f"; {regressions_skipped} regression/mismatch row(s) skipped "
                          f"(see [REGRESSION] / [MISMATCH] / [UNKNOWN-CLASS] above; "
@@ -2263,7 +2263,7 @@ def main() -> int:
             stuck = [s for s in find_stuck_submissions(fresh)
                      if s.get("user_id") is not None and int(s["user_id"]) in pushed_uids]
             if stuck:
-                print(f"\n⚠️  #226: {len(stuck)} just-pushed grade(s) are still "
+                print(f"\n⚠️  #226: {len(stuck)} grade(s) just sent are still "
                       "workflow_state 'submitted' (Canvas didn't transition — common after a "
                       "resubmission).")
                 if args.auto_fix_workflow:
@@ -2275,7 +2275,7 @@ def main() -> int:
                 else:
                     print("   Fix: uv run python lib/tools/grader_audit_workflow.py "
                           f"--assignment-id {args.assignment_id} --fix --allow-enrolled "
-                          "(or re-run this push with --auto-fix-workflow).")
+                          "(or re-run with --auto-fix-workflow).")
         except Exception as e:  # verification must never fail the push itself
             print(f"\n(note: #226 workflow-state verify skipped — {e})")
 

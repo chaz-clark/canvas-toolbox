@@ -106,7 +106,7 @@ def plan_comments(rows, index):
 def main() -> int:
     force_utf8_console()
     ap = argparse.ArgumentParser(
-        description="Push instructor-authored comment-only notes to an assignment "
+        description="Send instructor-authored comment-only notes to an assignment in Canvas "
                     "(no grade change). For AI-drafted feedback use grader_push.")
     ap.add_argument("--csv", required=True, help="roster CSV: a key column + a comment column")
     ap.add_argument("--assignment-id", required=True, help="the assignment to comment on")

@@ -191,7 +191,7 @@ def build_manifest(
             "submissions_raw/ + submissions_deid/ (student work — FERPA)",
             "feedback/ (per-student feedback — FERPA)",
             ".keymap.json + .fetch_log.json (identity bridges — FERPA)",
-            ".review.csv* + .push_log.md (reviewer + push audit — FERPA)",
+            ".review.csv* + .push_log.md (reviewer + Canvas-update audit — FERPA)",
             "_existing_grades.csv + _consensus.csv + _summary.csv + _all_comments.md (per-cohort grading data — FERPA)",
             "UNIQUE_GROUP_MEMOS.md (per-cohort group rosters — FERPA-adjacent)",
             "student_feedback_voice_<instructor>.md (per-instructor voice — voice-preservation contract)",

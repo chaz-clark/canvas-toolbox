@@ -202,7 +202,7 @@ def main() -> int:
     force_utf8_console()  # Fix issue #123 — Windows cp1252 console crash
 
     ap = argparse.ArgumentParser(
-        description="Push staged '## Suggested Canvas Comment' markdown blocks to Canvas (#57).")
+        description="Send staged '## Suggested Canvas Comment' markdown blocks to Canvas (#57).")
     ap.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     ap.add_argument("--task-dir", required=True,
                     help="Convention base path (e.g. grading/p1t1_combined/ai_log). Reads "
@@ -237,10 +237,10 @@ def main() -> int:
             return 2
     headers = {"Authorization": f"Bearer {tok}"}
 
-    task_dir = resolve_challenge_dir(args.task_dir, verb="pushing comments from")
+    task_dir = resolve_challenge_dir(args.task_dir, verb="sending comments to Canvas from")
     plan = collect_plan(task_dir)
     if not plan:
-        print(f"No feedback/_pass1/uid-*.md files under {task_dir}. Nothing to push.",
+        print(f"No feedback/_pass1/uid-*.md files under {task_dir}. Nothing to send to Canvas.",
               file=sys.stderr)
         return 1
     plan = [p for p in plan if p["comment"]]
@@ -273,7 +273,7 @@ def main() -> int:
         plan = kept
 
     if not plan:
-        print("All rows excluded by the active-enrollment filter. Nothing to push.")
+        print("All rows excluded by the active-enrollment filter. Nothing to send to Canvas.")
         return 0
 
     # Fetch the full thread (for #62 collision + idempotency dedupe).
@@ -349,7 +349,7 @@ def main() -> int:
                 collisions[row["uid"]] = others
 
     # FERPA-safe plan print: per uid, chars only — never the comment text.
-    print(f"\nPlan: {len(pushable)} comment(s) ready to push to assignment "
+    print(f"\nPlan: {len(pushable)} comment(s) ready to send to assignment "
           f"{args.assignment_id} (course {cid})")
     for row in pushable:
         marks = []
@@ -374,13 +374,13 @@ def main() -> int:
         print(f"\nDry run — nothing posted. Re-run with --push to send to Canvas.")
         return 0
     if not pushable:
-        print("\nNothing to push.")
+        print("\nNothing to send to Canvas.")
         return 0
 
     if guard is not None:
         try:
             guard.enforce(base, headers, cid, mode="write",
-                          allow_override=args.allow_enrolled, label="comment push target")
+                          allow_override=args.allow_enrolled, label="comment target course")
         except SystemExit:
             raise
 
@@ -433,7 +433,7 @@ def main() -> int:
                           f"then re-run; idempotency dedupes successes.")
                     break
 
-    print(f"\nPushed {pushed}/{len(pushable)} comment(s). Logged to {log} (gitignored).")
+    print(f"\nSent {pushed}/{len(pushable)} comment(s) to Canvas. Logged to {log} (gitignored).")
     if failed:
         return 2
     return 0
