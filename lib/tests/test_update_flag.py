@@ -1,4 +1,4 @@
-"""Tests — `--update` is the write flag; `--push` is its old spelling until 3.0.0 (#493).
+"""Tests — `--update` is the write flag; `--push` is its old spelling (#493).
 
 The two spellings must be indistinguishable to the tools (one argparse option,
 read as `args.update`, so every gate sees the same value) and to the
@@ -50,7 +50,8 @@ def test_the_old_spelling_prints_one_note(capsys):
     assert note_old_flag(["--push"]) is True
     assert note_old_flag(["--challenge-dir", "d", "--push=sprint-1"]) is True
     assert capsys.readouterr().err == f"{NOTE}\n{NOTE}\n"
-    assert NOTE == "`--push` is now `--update`; `--push` will be removed in 3.0.0."
+    assert NOTE == "`--push` is now `--update`; both work."
+    assert "3.0" not in NOTE          # 3.0 is the desktop version; --push is not removed
 
 
 def test_the_new_spelling_prints_nothing(capsys):

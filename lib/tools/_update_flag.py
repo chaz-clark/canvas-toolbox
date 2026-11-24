@@ -2,11 +2,12 @@
 
 Both spellings are one argparse option, read as `args.update`, so no code path
 can tell them apart: every gate sees the same value.
-`--push` still works, with a one-line note on stderr, until 3.0.0 removes it (#494).
+`--push` keeps working, with a one-line note on stderr. It stays on 2.x: 3.0 is
+reserved for the desktop version, so the old spelling is not removed.
 """
 import sys
 
-NOTE = "`--push` is now `--update`; `--push` will be removed in 3.0.0."
+NOTE = "`--push` is now `--update`; both work."
 
 
 def add_update_flag(parser, **kwargs):
