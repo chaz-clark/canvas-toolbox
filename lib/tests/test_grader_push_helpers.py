@@ -53,7 +53,7 @@ from grader_push import (  # noqa: E402
 def test_extract_hold_token_finds_marker(tmp_path):
     f = tmp_path / "feedback.md"
     f.write_text(
-        "# KC1-A1B2C3 · 4 · PUSH · HOLD_HOURS\n"
+        "# KC1-A1B2C3 · 4 · UPDATES · HOLD_HOURS\n"
         "\n"
         "## Score\n"
         "4/5\n",
@@ -65,7 +65,7 @@ def test_extract_hold_token_finds_marker(tmp_path):
 def test_extract_hold_token_no_marker(tmp_path):
     f = tmp_path / "feedback.md"
     f.write_text(
-        "# KC1-A1B2C3 · 4 · PUSH\n"
+        "# KC1-A1B2C3 · 4 · UPDATES\n"
         "\n"
         "## Score\n4/5\n",
         encoding="utf-8",
@@ -99,7 +99,7 @@ def test_extract_hold_token_only_scans_first_three_headings(tmp_path):
 def test_extract_hold_token_dim_uppercase_required(tmp_path):
     """The pattern requires `HOLD_[A-Z][A-Z0-9_]*` — lowercase doesn't match."""
     f = tmp_path / "feedback.md"
-    f.write_text("# KC1-A1B2C3 · 4 · PUSH · hold_hours\n", encoding="utf-8")
+    f.write_text("# KC1-A1B2C3 · 4 · UPDATES · hold_hours\n", encoding="utf-8")
     assert extract_hold_token(str(f)) is None
 
 

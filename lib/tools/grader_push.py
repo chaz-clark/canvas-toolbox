@@ -445,7 +445,7 @@ _HOLD_HEADING_RE = re.compile(
 
 def extract_hold_token(feedback_file: str) -> str | None:
     """Return the first `HOLD_<DIMENSION>` token found in a top-of-file
-    heading line (e.g. `# KC1-A1B2C3 · 4 · PUSH · HOLD_HOURS`), or None
+    heading line (e.g. `# KC1-A1B2C3 · 4 · UPDATES · HOLD_HOURS`), or None
     if no hold is staged. Issue #72."""
     p = Path(feedback_file)
     if not feedback_file or not p.exists():
@@ -1424,7 +1424,7 @@ def main() -> int:
                          "for this assignment in .push_log.md). Has no effect without --retract.")
     ap.add_argument("--no-hold-tokens", action="store_true",
                     help="Issue #72: ignore `· HOLD_<DIM>` markers in per-student feedback "
-                         "headings. By default, a heading like '# KEY · 4 · PUSH · HOLD_HOURS' "
+                         "headings. By default, a heading like '# KEY · 4 · UPDATES · HOLD_HOURS' "
                          "causes grader_push to POST the comment but WITHHOLD the grade write "
                          "(student must reply with the missing self-reported value first). "
                          "Pass this flag for cohorts where the convention doesn't apply.")
@@ -1748,7 +1748,7 @@ def main() -> int:
         print()
 
     # Issue #72: scan the comment-file headings once for HOLD_<DIM> markers
-    # (e.g. '# KEY · 4 · PUSH · HOLD_HOURS'). Held rows post the comment
+    # (e.g. '# KEY · 4 · UPDATES · HOLD_HOURS'). Held rows post the comment
     # but WITHHOLD the grade write until the operator clears the token.
     hold_by_key: dict[str, str] = {}
     if not args.no_hold_tokens and not args.grade_only:
