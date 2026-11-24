@@ -85,7 +85,7 @@ from pathlib import Path
 
 import requests
 
-from canvas_course_guard import enforce as _course_guard  # per-student mode (#475)
+from canvas_course_guard import enforce as _course_guard  # set for an intervention (#475)
 
 try:
     from dotenv import load_dotenv
@@ -321,8 +321,8 @@ def main() -> int:
               "must be set in .env or the environment.", file=sys.stderr)
         return 2
 
-    # The course guard, in its per-student mode (#475): a live course is the normal
-    # target; a folder opened above several courses still refuses.
+    # The course guard, set for an intervention (#475): a course with students
+    # enrolled is the normal target; a folder above several courses still refuses.
     _course_guard(base_url, {"Authorization": f"Bearer {token}"}, course_id,
                   mode="write" if args.apply else "read", per_student=True)
 

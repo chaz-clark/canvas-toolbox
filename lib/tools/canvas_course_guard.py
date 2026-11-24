@@ -219,11 +219,11 @@ def enforce(
     On enrolled-but-unpublished -> advisory, continue (no override needed).
     On guard error -> warning, continue (never block on guard failure).
 
-    per_student=True is for a write aimed at ONE student (an accommodation, an
-    excusal, a submission on their behalf, #475). A live course is that write's
-    normal target, so an enrolled course or a Blueprint-child section gets an
-    advisory naming the course, not a refusal. The folder and session-scope
-    checks still refuse."""
+    per_student=True is for an intervention: a write for ONE student (an
+    accommodation, marking work Excused, a submission on their behalf, #475). A
+    course with students enrolled is that write's normal target, so an enrolled
+    course or a Blueprint-child Course Section gets an advisory naming the course,
+    not a refusal. The folder and session-scope checks still refuse."""
     if mode not in ("read", "write"):
         raise ValueError(f"mode must be 'read' or 'write', got {mode!r}")
 
@@ -243,8 +243,8 @@ def enforce(
 
     if per_student and verdict != ERROR:
         print(f"ℹ️  canvas_course_guard: {label} {course_id} ('{name}') — "
-              f"{'; '.join(reasons)}. A one-student change belongs in a live course; "
-              f"proceeding.", file=sys.stderr)
+              f"{'; '.join(reasons)}. An intervention for one student is written to the "
+              f"course they are enrolled in; proceeding.", file=sys.stderr)
         return
 
     if verdict == ERROR:

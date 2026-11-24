@@ -39,13 +39,16 @@ Output discipline: ✅ "Applied 1.5× time for deid_code S-68BC40" · ❌ "…fo
 - **`--apply` is the write gate.** Every tool defaults to a dry-run preview; nothing
   reaches Canvas until `--apply`. Preview first, confirm the target student + change,
   then apply.
-- **`canvas_course_guard` runs in its per-student mode** (#475) in `exempt_by_date`,
+- **`canvas_course_guard` runs, set for an intervention** (#475), in `exempt_by_date`,
   `student_late_accommodation`, `student_quiz_time_extension` and `submit_on_behalf`.
-  A live course (or a section that is a Blueprint child) is the normal target, so it
-  prints one line naming the course and its enrollment, and proceeds. No
-  `--allow-enrolled` is needed. It still **refuses** a write from a folder opened above
-  several courses, or to a course outside this folder's `.env`. Read that line before
-  you report the change: it confirms which course was written.
+  The course the student is enrolled in (often a Blueprint-child Course Section) is
+  the normal target, so it
+  proceeds with no `--allow-enrolled`. When the course has students it prints one
+  line naming the course and its enrollment: read it before you report the change. No
+  line means the course has no students (likely the wrong course: stop and ask) or the
+  guard couldn't reach Canvas ("could not verify"). It **refuses** `--apply` from a
+  folder opened above several courses. These tools write to `CANVAS_COURSE_ID`; never
+  set it on the command line to reach another course.
 - **Canvas write lessons that bite here:** overrides + due-date changes need the full
   `due_at`/`lock_at`/`unlock_at` trio, and a group override sometimes needs a forced
   recalc before Canvas honors it (`fix_group_override_recalc.py`).
