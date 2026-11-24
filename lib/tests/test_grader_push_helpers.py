@@ -53,7 +53,7 @@ from grader_push import (  # noqa: E402
 def test_extract_hold_token_finds_marker(tmp_path):
     f = tmp_path / "feedback.md"
     f.write_text(
-        "# KC1-A1B2C3 · 4 · PUSH · HOLD_HOURS\n"
+        "# KC1-A1B2C3 · 4 · UPDATES · HOLD_HOURS\n"
         "\n"
         "## Score\n"
         "4/5\n",
@@ -65,7 +65,7 @@ def test_extract_hold_token_finds_marker(tmp_path):
 def test_extract_hold_token_no_marker(tmp_path):
     f = tmp_path / "feedback.md"
     f.write_text(
-        "# KC1-A1B2C3 · 4 · PUSH\n"
+        "# KC1-A1B2C3 · 4 · UPDATES\n"
         "\n"
         "## Score\n4/5\n",
         encoding="utf-8",
@@ -99,7 +99,7 @@ def test_extract_hold_token_only_scans_first_three_headings(tmp_path):
 def test_extract_hold_token_dim_uppercase_required(tmp_path):
     """The pattern requires `HOLD_[A-Z][A-Z0-9_]*` — lowercase doesn't match."""
     f = tmp_path / "feedback.md"
-    f.write_text("# KC1-A1B2C3 · 4 · PUSH · hold_hours\n", encoding="utf-8")
+    f.write_text("# KC1-A1B2C3 · 4 · UPDATES · hold_hours\n", encoding="utf-8")
     assert extract_hold_token(str(f)) is None
 
 
@@ -1183,26 +1183,34 @@ class _FakeStdin:
 
 def test_confirmation_refused_when_stdin_is_not_a_tty(monkeypatch, capsys):
     """The core fix: piped/redirected stdin (isatty False) is refused, and input()
-    is NEVER consulted — so a piped 'push' can't satisfy the gate."""
+    is NEVER consulted — so a piped 'update canvas' can't satisfy the gate."""
     monkeypatch.setattr(_GP.sys, "stdin", _FakeStdin(is_tty=False))
     def _boom(_prompt):  # input() must not be reached on the non-TTY path
         raise AssertionError("input() consulted on a non-TTY — pipe would satisfy the gate")
     monkeypatch.setattr("builtins.input", _boom)
-    assert require_typed_confirmation("Type 'push' to confirm: ", "push") is False
+    assert require_typed_confirmation("Type 'update canvas' to confirm: ", "update canvas") is False
     err = capsys.readouterr().err
     assert "interactive terminal" in err and "#241" in err
 
 
 def test_confirmation_accepts_correct_word_at_a_tty(monkeypatch):
     monkeypatch.setattr(_GP.sys, "stdin", _FakeStdin(is_tty=True))
-    monkeypatch.setattr("builtins.input", lambda _prompt: "  PUSH \n")  # case/space-tolerant
-    assert require_typed_confirmation("Type 'push' to confirm: ", "push") is True
+    monkeypatch.setattr("builtins.input", lambda _prompt: "  Update Canvas \n")  # case/space-tolerant
+    assert require_typed_confirmation("Type 'update canvas' to confirm: ", "update canvas") is True
 
 
 def test_confirmation_rejects_wrong_word_at_a_tty(monkeypatch):
     monkeypatch.setattr(_GP.sys, "stdin", _FakeStdin(is_tty=True))
     monkeypatch.setattr("builtins.input", lambda _prompt: "yes")
-    assert require_typed_confirmation("Type 'push' to confirm: ", "push") is False
+    assert require_typed_confirmation("Type 'update canvas' to confirm: ", "update canvas") is False
+
+
+def test_the_old_word_push_no_longer_confirms(monkeypatch):
+    """#483: the word changed from `push` to `update canvas`. Typing the old word
+    out of habit must abort (the safe side), never write."""
+    monkeypatch.setattr(_GP.sys, "stdin", _FakeStdin(is_tty=True))
+    monkeypatch.setattr("builtins.input", lambda _prompt: "push")
+    assert require_typed_confirmation("Type 'update canvas' to confirm: ", "update canvas") is False
 
 
 def test_comments_only_and_grade_only_are_mutually_exclusive():

@@ -672,8 +672,9 @@ Three gates stand between it and a destructive push:
    act on the guidance. Operator types `locked` to ack OR passes
    `--allow-locked-resubmit`. `--no-lock-check` / `--grade-only` opt out.
 
-**Retract mode (issue #63).** Every comment push records a
-`- KEY: comment ID pushed to assignment AID` line in `.push_log.md`.
+**Retract mode (issue #63).** Every comment sent records a
+`- KEY: comment ID updated on assignment AID` line in `.push_log.md`
+(`pushed to assignment` in logs before 2.12.4; both are read).
 `grader_push --retract [--retract-keys K1,K2]` reads that ledger and
 DELETEs the matching comments via Canvas's
 `/submissions/:uid/comments/:id`. Same dry-run-by-default + canvas_course_guard

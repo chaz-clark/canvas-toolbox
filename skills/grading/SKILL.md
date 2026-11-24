@@ -143,7 +143,7 @@ immediately) — only when the instructor asks for that. Never add either on you
 
 - **`--yes` is honored on every path — including AI-drafted comments (#264).** You run
   `--mark-reviewed --yes` then `--push --yes`. Do not tell the instructor to open a
-  terminal or type `reviewed`/`push` at a shell; do not pipe answers on stdin.
+  terminal or type `reviewed`/`update canvas` at a shell; do not pipe answers on stdin.
 - **The human gate is TWO in-chat pop-ups you cannot skip (#264, #265).** On the
   AI-drafted path, `grade_guardian` returns an `ask` at BOTH `--mark-reviewed` and
   `--push`, so Claude Code prompts the instructor to click at each. `--yes` does not
@@ -246,8 +246,8 @@ abort unless `--allow-swings`).
 value-only and instructor-computed (no AI-drafted feedback to review), `--yes` is
 **allowed** here — the safe side of HG-5, unlike grader_push. The right flow: run the
 dry-run, **show the instructor the `old → new` preview**, and when they confirm
-(e.g. they say "push"), **re-run with `--yes` yourself**. Do **not** tell the
-instructor to open a terminal and type `push` — our audience is non-technical
+(e.g. they say "yes, update Canvas"), **re-run with `--yes` yourself**. Do **not** tell the
+instructor to open a terminal and type `update canvas` — our audience is non-technical
 faculty; that's a dead end. Their confirmation of the preview *is* the attestation;
 `--yes` captures it. (You still never generate the grades yourself and `--yes` them —
 the values come from the instructor's script/CSV.)

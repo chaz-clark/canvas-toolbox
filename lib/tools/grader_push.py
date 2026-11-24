@@ -54,8 +54,9 @@ GUARDRAILS (no override on the first three)
      `--no-lock-check` / `--grade-only` opt out.
 
 RETRACT MODE (issue #63)
-  Every comment push records `- <KEY>: comment <ID> pushed to assignment
-  <AID>` to `.push_log.md`. `--retract` reads that ledger for THIS
+  Every comment sent records `- <KEY>: comment <ID> updated on assignment
+  <AID>` to `.push_log.md` (`pushed to assignment` before 2.12.4; both are
+  read). `--retract` reads that ledger for THIS
   assignment, optionally scoped via `--retract-keys K1,K2,...`, and
   DELETEs each comment via /comments/:id. Idempotent: a `- KEY: comment
   ID retracted from assignment AID` line is appended on success, and
@@ -444,7 +445,7 @@ _HOLD_HEADING_RE = re.compile(
 
 def extract_hold_token(feedback_file: str) -> str | None:
     """Return the first `HOLD_<DIMENSION>` token found in a top-of-file
-    heading line (e.g. `# KC1-A1B2C3 · 4 · PUSH · HOLD_HOURS`), or None
+    heading line (e.g. `# KC1-A1B2C3 · 4 · UPDATES · HOLD_HOURS`), or None
     if no hold is staged. Issue #72."""
     p = Path(feedback_file)
     if not feedback_file or not p.exists():
@@ -1096,7 +1097,7 @@ def push_roster_comments(args, base, cid, headers, challenge, disclosure_kind) -
         print("\nDry run — nothing written. Add --push to post.")
         return 0
     if not args.yes and not require_typed_confirmation(
-            f"\nType 'push' to post {len(todo)} comment(s) to LIVE course {cid}: ", "push"):
+            f"\nType 'update canvas' to post {len(todo)} comment(s) to LIVE course {cid}: ", "update canvas"):
         print("Aborted.")
         return 1
     posted, failed = 0, []
@@ -1113,7 +1114,7 @@ def push_roster_comments(args, base, cid, headers, challenge, disclosure_kind) -
                 except (ValueError, TypeError):
                     new_id = None
                 print(f"  commented user_id={uid} (grade untouched)")
-                lg.write(f"- roster-{uid}: comment {new_id} pushed to assignment "
+                lg.write(f"- roster-{uid}: comment {new_id} updated on assignment "
                          f"{args.assignment_id} (grade untouched)\n")
                 posted += 1
             else:
@@ -1128,12 +1129,13 @@ def push_roster_comments(args, base, cid, headers, challenge, disclosure_kind) -
 
 # Issue #63 part 2: retract previously-pushed comments. Comment ids are
 # captured in .push_log.md on every comment push (one line per push:
-# `- <KEY>: comment <ID> pushed to assignment <AID>`). --retract reads
+# `- <KEY>: comment <ID> updated on assignment <AID>`, or `pushed to
+# assignment` before 2.12.4 — both are read). --retract reads
 # that ledger for THIS assignment, optionally scoped to --retract-keys,
 # and DELETEs each via the comments API. The ledger is updated with a
 # retract line so a subsequent re-push has a clean slate.
 _PUSH_LOG_COMMENT_RE = re.compile(
-    r"^- (\S+): comment (\d+) pushed to assignment (\S+)", re.M
+    r"^- (\S+): comment (\d+) (?:pushed to|updated on) assignment (\S+)", re.M
 )
 _PUSH_LOG_RETRACT_RE = re.compile(
     r"^- (\S+): comment (\d+) retracted from assignment (\S+)", re.M
@@ -1156,11 +1158,12 @@ def _read_comment_ledger(log: Path, assignment_id: str) -> list[tuple[str, int]]
 def keys_pushed_in_log(text: str, assignment_id) -> set:
     """Keys the per-assignment push log records a grade push for.
 
-    The line is `- KEY: grade <before> → <grade> pushed to assignment AID`
-    (since v0.60.0) or `- KEY: grade <grade> pushed to assignment AID` (before).
+    The line is `- KEY: grade <before> → <grade> updated on assignment AID`
+    (since 2.12.4), `… pushed to assignment AID` (v0.60.0 to 2.12.3), or
+    `- KEY: grade <grade> pushed to assignment AID` (before v0.60.0).
     Comment, HELD and comment-only lines are not grade pushes."""
     return set(re.findall(
-        rf"^- (\S+): grade (?:\S+ → )?\S+ pushed to assignment {re.escape(str(assignment_id))}\b",
+        rf"^- (\S+): grade (?:\S+ → )?\S+ (?:pushed to|updated on) assignment {re.escape(str(assignment_id))}\b",
         text, re.M))
 
 
@@ -1182,7 +1185,7 @@ def _resolve_uid_from_log_or_subs(
     not the uid; we need the uid for the DELETE URL. Strategy: scan the
     challenge's review.csv if present, otherwise fall back to the user
     passing keys + we look up by matching submission filenames."""
-    # The grade-push log line is `- KEY: grade GRADE pushed to assignment AID`.
+    # The grade log line is `- KEY: grade GRADE updated on assignment AID`.
     # That also doesn't carry the uid. So we rebuild from the submissions
     # listing + the keymap-aware filename match.
     # For retract, this is best-effort: if we can't resolve, we report and skip.
@@ -1421,7 +1424,7 @@ def main() -> int:
                          "for this assignment in .push_log.md). Has no effect without --retract.")
     ap.add_argument("--no-hold-tokens", action="store_true",
                     help="Issue #72: ignore `· HOLD_<DIM>` markers in per-student feedback "
-                         "headings. By default, a heading like '# KEY · 4 · PUSH · HOLD_HOURS' "
+                         "headings. By default, a heading like '# KEY · 4 · UPDATES · HOLD_HOURS' "
                          "causes grader_push to POST the comment but WITHHOLD the grade write "
                          "(student must reply with the missing self-reported value first). "
                          "Pass this flag for cohorts where the convention doesn't apply.")
@@ -1618,8 +1621,8 @@ def main() -> int:
             return 0
         if not args.yes:
             if not require_typed_confirmation(
-                    f"\nType 'push' to write to user {args.test_user} on LIVE course {cid}: ",
-                    "push"):
+                    f"\nType 'update canvas' to write to user {args.test_user} on LIVE course {cid}: ",
+                    "update canvas"):
                 print("Aborted.")
                 return 1
         data = {"submission[posted_grade]": grade}
@@ -1745,7 +1748,7 @@ def main() -> int:
         print()
 
     # Issue #72: scan the comment-file headings once for HOLD_<DIM> markers
-    # (e.g. '# KEY · 4 · PUSH · HOLD_HOURS'). Held rows post the comment
+    # (e.g. '# KEY · 4 · UPDATES · HOLD_HOURS'). Held rows post the comment
     # but WITHHOLD the grade write until the operator clears the token.
     hold_by_key: dict[str, str] = {}
     if not args.no_hold_tokens and not args.grade_only:
@@ -2036,7 +2039,7 @@ def main() -> int:
         if not args.grade_only:
             print(f"Disclosure tag on comments: {DISCLOSURE_TAGS[disclosure_kind]!r} "
                   f"(--disclosure {disclosure_kind}).")
-        if not require_typed_confirmation("Type 'push' to confirm: ", "push"):
+        if not require_typed_confirmation("Type 'update canvas' to confirm: ", "update canvas"):
             print("Aborted.")
             return 1
 
@@ -2196,7 +2199,7 @@ def main() -> int:
                     commented += 1
                 else:
                     print(f"  sent {key}: {before_repr} → {grade}")
-                    lg.write(f"- {key}: grade {before_repr} → {grade} pushed to assignment "
+                    lg.write(f"- {key}: grade {before_repr} → {grade} updated on assignment "
                              f"{args.assignment_id}\n")
                     pushed += 1
                     if uid is not None:
@@ -2213,7 +2216,7 @@ def main() -> int:
                     except (ValueError, TypeError):
                         new_id = None
                     if new_id is not None:
-                        lg.write(f"- {key}: comment {new_id} pushed to assignment "
+                        lg.write(f"- {key}: comment {new_id} updated on assignment "
                                  f"{args.assignment_id}\n")
             else:
                 # P-003 stop on first 4xx — surface and abort rather than retry blindly

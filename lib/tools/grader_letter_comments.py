@@ -176,7 +176,7 @@ def main() -> int:
 
     if decision == "prompt":
         print(f"\nThis posts {len(plan)} instructor comment(s) to the LIVE course {cid}.")
-        if input("Type 'push' to confirm: ").strip().lower() != "push":
+        if input("Type 'update canvas' to confirm: ").strip().lower() != "update canvas":
             print("Aborted.")
             return 1
 

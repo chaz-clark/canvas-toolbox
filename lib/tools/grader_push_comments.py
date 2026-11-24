@@ -394,8 +394,8 @@ def main() -> int:
             print("Aborted (collision guard).")
             return 1
     if not args.yes:
-        if input(f"\nType 'push' to post {len(pushable)} comment(s) to LIVE course {cid}: "
-                 ).strip().lower() != "push":
+        if input(f"\nType 'update canvas' to post {len(pushable)} comment(s) to LIVE course {cid}: "
+                 ).strip().lower() != "update canvas":
             print("Aborted.")
             return 1
 
@@ -422,7 +422,7 @@ def main() -> int:
                 # Idempotency log entry — matches grader_push's format so
                 # --retract can find it.
                 key = f"uid-{row['uid']}"
-                lg.write(f"- {key}: comment {new_id or '?'} pushed to assignment "
+                lg.write(f"- {key}: comment {new_id or '?'} updated on assignment "
                          f"{args.assignment_id}\n")
                 pushed += 1
             else:

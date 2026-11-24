@@ -16,7 +16,8 @@ _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
-from grader_push import already_pushed, keys_pushed_in_log  # noqa: E402
+from grader_push import (_PUSH_LOG_COMMENT_RE, already_pushed,  # noqa: E402
+                         keys_pushed_in_log)
 
 LOG = """# push log
 - K-1: grade — → 8 pushed to assignment 55
@@ -26,6 +27,8 @@ LOG = """# push log
 - K-5: comment 123 pushed to assignment 55
 - K-6: HELD HOLD_X for assignment 55 (grade 8 withheld)
 - K-7: comment-only posted to assignment 55 (grade untouched)
+- K-8: grade 6 → 7 updated on assignment 55
+- K-9: comment 456 updated on assignment 55
 """
 
 
@@ -37,8 +40,18 @@ def test_log_format_before_v0_60_still_recognised():
     assert "K-3" in keys_pushed_in_log(LOG, "55")
 
 
+def test_log_wording_since_2_12_4_is_recognised():
+    """#483: new lines say `updated on assignment`; older logs say `pushed to
+    assignment`. Both must be read, or a re-run re-sends what a log already has."""
+    assert "K-8" in keys_pushed_in_log(LOG, "55")
+
+
+def test_retract_reads_comment_ids_in_both_wordings():
+    assert _PUSH_LOG_COMMENT_RE.findall(LOG) == [("K-5", "123", "55"), ("K-9", "456", "55")]
+
+
 def test_only_this_assignment_and_only_grade_lines():
-    assert keys_pushed_in_log(LOG, "55") == {"K-1", "K-2", "K-3"}
+    assert keys_pushed_in_log(LOG, "55") == {"K-1", "K-2", "K-3", "K-8"}
     assert keys_pushed_in_log(LOG, "555") == {"K-4"}
     assert keys_pushed_in_log("", "55") == set()
 
