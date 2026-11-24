@@ -13,6 +13,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 
 ## [Unreleased]
 
+### Removed
+- **The old `.claude-plugin/` marketplace listing (2.13.2).** Its `plugin.json` and `marketplace.json` were frozen at 0.72.3 and pointed at `lib/agents/` as skills; nothing in the toolkit read them. The root `plugin.json` is the toolkit's one manifest, and the version-sync check keeps it current. The PR template's version checklist now names root `plugin.json` and `uv lock`. Anyone who added this repo as a Claude Code plugin marketplace gets an error on their next plugin update; install the toolkit as the README describes instead.
+
 ### Changed
 - **`--push` stays: the toolkit stays on 2.x, and 3.0 is reserved for the desktop version (2.13.1).** The note `--push` prints is now `` `--push` is now `--update`; both work. ``, with no removal date. The skills, `/sync`, the glossary and the guardian's comments no longer promise removal in 3.0.0. #494 (remove `--push`, rename the `grader_push` tools) is not planned for 2.x. AGENTS.md now says the toolkit stays on 2.x.
 
