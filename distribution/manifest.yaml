@@ -17,7 +17,7 @@ packages:
 # gains nothing from a local copy and the hidden `.canvas-toolbox/` clone already
 # holds the full history if anyone needs it): lib/tests/, lib/marketing/, docs/
 # (ROADMAP, UPGRADING, proposals/, research/, architecture/, implementation/),
-# .github/, examples/, .claude-plugin/, .devcontainer/, scripts/ (curl-pipe-bash
+# .github/, examples/, .devcontainer/, scripts/ (curl-pipe-bash
 # bootstrap installers, only useful before the toolkit exists locally), and
 # toolkit-repo-root files (README.md, CHANGELOG.md, LICENSE, llms.txt,
 # .pre-commit-config.yaml, .gitattributes, the toolkit's own .env.example).
