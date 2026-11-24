@@ -30,11 +30,17 @@ RETIRED = {
     "Zone 1": (re.compile(r"\bzone[ -]?1\b", re.I), "AI-readable"),
     "Zone 2": (re.compile(r"\bzone[ -]?2\b", re.I), "local only"),
     "course repo": (re.compile(r"\bcourse repo", re.I), "course folder"),
-    # A Canvas write. "git push", "pre-push" and the --push flag are git or
-    # identifiers, not the retired word.
-    "push": (re.compile(r"(?<!git )(?<!pre-)(?<!--)\bpush(?:ed|es|ing)?\b", re.I),
+    # A Canvas write. "git push" and the --push flag are git or identifiers,
+    # not the retired word; so is the git pre-push hook (see GIT_HOOK).
+    "push": (re.compile(r"(?<!git )(?<!--)\bpush(?:ed|es|ing|able)?\b", re.I),
              'update Canvas / update grades in Canvas (write "git push" when it is git)'),
 }
+
+# The git pre-push hook, named the ways the tools name it. Removed before
+# matching, so "pre-push" still counts when it means a Canvas write (#483 found
+# "the pre-push comment-collision guard", which runs before a Canvas write).
+GIT_HOOK = re.compile(r"hooks/pre-push|FERPA pre-push|Git's pre-push|^pre-push$"
+                      r"|\bpre-push(?= (?:hook|guard)\b)")
 
 # Today's uses, per (tool, word). Lower a count when a rename removes uses;
 # never raise one to make a new use pass. grader_push's two remaining uses stay
@@ -42,20 +48,13 @@ RETIRED = {
 # assignment` wording in earlier logs.
 ALLOWLIST = {
     ('_env_loader.py', 'push'): 1,
-    ('blueprint_exception_report.py', 'push'): 2,
-    ('blueprint_sync.py', 'push'): 4,
-    ('canvas_quiz_questions.py', 'push'): 1,
-    ('canvas_sync.py', 'push'): 23,
     ('cb_flatten.py', 'push'): 1,
     ('cb_update.py', 'push'): 1,
-    ('course_homepage_build.py', 'push'): 4,
-    ('course_mirror.py', 'push'): 3,
-    ('course_quality_check.py', 'push'): 2,
     ('ferpa_pre_push.py', 'push'): 4,
     ('grade_guardian.py', 'push'): 3,
     ('grader_push.py', 'push'): 2,
     ('merge_cleanup.py', 'push'): 3,
-    ('sandbox_new_quiz_fixtures.py', 'push'): 1,
+    ('sandbox_new_quiz_fixtures.py', 'push'): 1,   # answer text in a sandbox quiz, not a message
     ('sync_grading_protocol.py', 'push'): 1,
 }
 
@@ -78,8 +77,9 @@ def scan_source(source: str) -> Counter:
     counts: Counter = Counter()
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in skip:
+            text = GIT_HOOK.sub("", node.value)
             for word, (pattern, _) in RETIRED.items():
-                counts[word] += len(pattern.findall(node.value))
+                counts[word] += len(pattern.findall(text))
     return +counts
 
 
@@ -97,12 +97,16 @@ def test_scanner_catches_a_new_retired_word():
     assert scan_source('print("pushing to Canvas")') == {"push": 1}
     assert scan_source('x = f"see the {n} Zone-2 files"') == {"Zone 2": 1}
     assert scan_source('raise SystemExit("not a course repo")') == {"course repo": 1}
+    assert scan_source('print("3 pushable row(s)")') == {"push": 1}
+    assert scan_source('h = "skip the pre-push comment-collision guard"') == {"push": 1}
 
 
 def test_scanner_ignores_git_identifiers_and_docstrings():
     src = ('"""Docstrings explain code: push, Zone 2, course repo."""\n'
            'def f():\n    """push."""\n'
            '    print("run git push, then the pre-push hook")\n'
+           '    print("FERPA pre-push guard (.git/hooks/pre-push)")\n'
+           '    hook = "pre-push"\n'
            '    print("pass --push to grader_push.py")\n'
            '    return ".claude/ferpa_zone2.txt"\n')
     assert scan_source(src) == {}

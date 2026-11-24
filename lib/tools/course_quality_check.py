@@ -261,7 +261,7 @@ def _audit_course(course_id: str) -> dict:
                     "note": (
                         f"Duplicate assignment '{name}' — Blueprint-locked copy (id={keep_id}) is canonical; "
                         "delete non-locked copies manually. "
-                        "Likely cause: direct push overlapping a Blueprint sync."
+                        "Likely cause: a direct update overlapping an update from the Blueprint."
                     ),
                     "action": f"Canvas UI → Assignments — delete copies other than id={keep_id}",
                 })
@@ -327,7 +327,7 @@ def _audit_course(course_id: str) -> dict:
                     "note": (
                         f"Duplicate quiz '{title}' — Blueprint-locked copy (id={keep_id}) is canonical; "
                         "delete non-locked copies manually. "
-                        "Likely cause: direct push overlapping a Blueprint sync."
+                        "Likely cause: a direct update overlapping an update from the Blueprint."
                     ),
                     "action": f"Canvas UI → Quizzes — delete copies other than id={keep_id}",
                 })

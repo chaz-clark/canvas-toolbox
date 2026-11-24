@@ -282,7 +282,7 @@ def cmd_push(file_path: str):
         print("ERROR: No questions found in file.")
         sys.exit(1)
 
-    print(f"Pushing {len(questions)} question(s) to quiz {quiz_id} in course {course_id}...\n")
+    print(f"Sending {len(questions)} question(s) to quiz {quiz_id} in course {course_id}...\n")
 
     # Clear existing questions first (idempotent)
     existing = _get_questions(course_id, quiz_id)

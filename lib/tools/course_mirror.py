@@ -240,7 +240,7 @@ def cmd_pull():
                          if _load(MASTER_INDEX)["files"].get(fp, {}).get("type") not in NO_PUSH_TYPES
                          and _load(MASTER_INDEX)["files"].get(fp, {}).get("type") != "NewQuiz"]
     if unmapped_pushable:
-        print(f"\n  Unmapped pushable local items:")
+        print(f"\n  Unmapped local items the API can send:")
         for fp in unmapped_pushable:
             t = master_index["files"].get(fp, {}).get("type", "?")
             print(f"    [{t}] {fp}")
@@ -275,7 +275,7 @@ def cmd_status():
     print(f"  Last pull:  {mirror.get('pulled_at', 'never')}")
     print(f"  Local items:     {total}")
     print(f"  Mapped:          {mapped}")
-    print(f"  Will push:       {pushable} (Page/Assignment/Discussion/Quiz)")
+    print(f"  Will update:     {pushable} (Page/Assignment/Discussion/Quiz)")
     print(f"  Skipped (no API):{mapped - pushable}")
     print(f"  Unmapped:        {total - mapped}")
 
@@ -284,7 +284,7 @@ def cmd_status():
                              if master_index["files"].get(fp, {}).get("type") not in NO_PUSH_TYPES
                              and master_index["files"].get(fp, {}).get("type") != "NewQuiz"]
         if pushable_unmapped:
-            print(f"\n  Unmapped pushable (will be created new on --push):")
+            print(f"\n  Unmapped items the API can send (will be created new on --push):")
             for fp in pushable_unmapped:
                 t = master_index["files"].get(fp, {}).get("type", "?")
                 print(f"    [{t}] {fp}")
@@ -553,8 +553,8 @@ def cmd_push():
                           if it.get("type") not in NO_PUSH_TYPES
                           and it.get("type") != "NewQuiz"]
         if master_items and not pushable_items:
-            print(f"    WARNING: '{master_title}' has {len(master_items)} item(s) but none are pushable "
-                  f"(all NewQuiz/ExternalTool) — module will be empty in target course")
+            print(f"    WARNING: '{master_title}' has {len(master_items)} item(s) but none can be sent "
+                  f"through the API (all NewQuiz/ExternalTool) — module will be empty in target course")
 
         state = "active" if master_mod.get("published", True) else "unpublished"
         r = requests.put(
@@ -605,7 +605,7 @@ def cmd_push():
     # Summary
     # -----------------------------------------------------------------------
     print(f"\nMirror complete.")
-    print(f"  {pushed} pushed, {skipped} skipped, {failed} failed")
+    print(f"  {pushed} updated, {skipped} skipped, {failed} failed")
     print(f"  NOTE: late_policy and NewQuiz content must be set manually in Canvas.")
 
 
@@ -619,7 +619,7 @@ def main():
     parser = argparse.ArgumentParser(description="One-off: mirror course/ → MASTER_COURSE_ID")
     parser.add_argument("--version", action="version", version=f"canvas-toolbox {__version__}")
     parser.add_argument("--pull", action="store_true", help="Map MASTER_COURSE_ID item IDs")
-    parser.add_argument("--push", action="store_true", help="Push course/ content → MASTER_COURSE_ID")
+    parser.add_argument("--push", action="store_true", help="Update the Master course (MASTER_COURSE_ID) from course/ content")
     parser.add_argument("--status", action="store_true", help="Show coverage")
     parser.add_argument("--allow-enrolled", action="store_true",
                         help="bypass the startup safety guard (#27)")
