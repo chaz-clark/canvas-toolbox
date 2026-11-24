@@ -62,8 +62,8 @@ except ImportError:
     GRADING_POINTER_BLOCK = (
         "<!-- canvas-toolbox:grading-protocol-pointer -->\n\n"
         "## ⚠️ Grading — HG-5: the instructor decides\n\n"
-        "AI-assisted grading is decision support, not autonomy. Never push AI-drafted "
-        "grades without human review. Full protocol: canvas-toolbox/AGENTS.md → "
+        "AI-assisted grading is decision support, not autonomy. Never send AI-drafted "
+        "grades to Canvas without human review. Full protocol: canvas-toolbox/AGENTS.md → "
         '"AI Grading Protocol — HG-5".\n\n'
         "<!-- /canvas-toolbox:grading-protocol-pointer -->"
     )
@@ -144,7 +144,7 @@ def default_course_content(*, flat: bool) -> str:
             "`grader_push.py --mark-reviewed --yes` → `--push --yes`. `--yes` is "
             "honored (no terminal — never send faculty to a shell), but the "
             "`grade_guardian` hook fires an in-chat **permission pop-up** at BOTH the "
-            "review and the push: the instructor clicks to approve — an agent cannot "
+            "review and the grade update: the instructor clicks to approve — an agent cannot "
             "skip it or self-attest. When a gate blocks you, get the human — never "
             "stack `--force`/`--regrade` to route around it, and never hand-write a "
             "Canvas write (the `grade_guardian` hook blocks that at create/edit/run)."
@@ -203,7 +203,7 @@ AI agents working on this course follow three core quality principles:
 - Write tests WITH code, not after
 - Red tests block progress - fix immediately, don't defer
 - Validation runs automatically (not manual step)
-- Can't push to Canvas with errors (blocked by design)
+- Can't update Canvas with errors (blocked by design)
 
 **Behavioral trigger**: When you want to say "we'll fix this later" → STOP and fix now
 

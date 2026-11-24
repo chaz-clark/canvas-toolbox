@@ -348,7 +348,7 @@ def _check_commit_hygiene(course_root: Path) -> None:
         if has_dirty or has_unpushed:
             print(
                 "canvas-toolbox: this repo has uncommitted or unpushed work — "
-                "commit and push together (see knowledge/behavioral_discipline.md).",
+                "commit and git push together (see knowledge/behavioral_discipline.md).",
                 file=sys.stderr,
             )
     except Exception:  # noqa: BLE001 — a hygiene nudge must never break a tool run

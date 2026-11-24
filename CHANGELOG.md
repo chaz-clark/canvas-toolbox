@@ -14,6 +14,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Changed
+- **Install/update messages say "git push" when they mean git, and "update Canvas" when they mean Canvas (2.12.6, #483, last family).** The FERPA guard's refusal now reads `⛔ GIT PUSH BLOCKED — local-only student data (FERPA) in the commits being sent.`, which is also the one line VS Code shows in its modal. Its no-Python fallback, `cb_update`'s and `cb_flatten`'s hook notes, and `_env_loader`'s reminder name git too. The course AGENTS.md pointer blocks (`merge_cleanup`, `sync_grading_protocol`) now say "Never send AI-drafted grades to Canvas without human review" and "the review and the grade update". Each course picks up the new hook text and blocks on its next `cb_update`. Across every tool, only five uses of "push" remain, each on purpose: the guardian's internal checkpoint name, the two regexes that read older grading logs, and a sandbox quiz's answer text. The `--push` flags are #493 and #494.
+
+### Changed
 - **Course-build messages say "update Canvas", not "push" (2.12.5, #483, course-build family).** `canvas_sync`, `blueprint_sync`, `course_mirror`, `course_homepage_build`, `canvas_quiz_questions`, `course_quality_check` and `blueprint_exception_report` now say "Nothing to update — all files match Canvas", "Updated 3/3 files in Canvas", "Update summary (required):", "Will update:" and so on. New `.canvas/push_log.md` entries are headed `## [UPDATE]` (older ones keep `[PUSH]`; nothing reads them back), and the Blueprint log says `[BLUEPRINT UPDATE]`. The syllabus entry's note in the mirror index changes once on each course's next refresh. The `--push` flags are unchanged: #493 adds `--update` as an alias, and #494 removes `--push` in 3.0.0. The retired-word guard (#479) now also catches "pushable", and "pre-push" when it doesn't mean the git hook.
 
 ### Changed

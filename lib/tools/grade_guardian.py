@@ -975,7 +975,7 @@ def main() -> int:
     if "--help" in sys.argv[1:]:
         print("PreToolUse hook (issue #213/#264). Reads a tool call as JSON on stdin; "
               "exits 2 to block a direct Canvas grade write, or emits an 'ask' JSON to "
-              "prompt the instructor before an AI-drafted grade push. Not an operator CLI.")
+              "prompt the instructor before AI-drafted grades are sent to Canvas. Not an operator CLI.")
         return 0
     try:
         data = json.load(sys.stdin)

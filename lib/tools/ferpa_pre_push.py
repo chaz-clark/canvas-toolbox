@@ -196,9 +196,9 @@ def format_block(path_hits: list[str], content_hits: list[str],
     n = len(set(path_hits) | set(content_hits))
     lines = [
         "",
-        "⛔ PUSH BLOCKED — local-only student data (FERPA) in the commits being pushed.",
+        "⛔ GIT PUSH BLOCKED — local-only student data (FERPA) in the commits being sent.",
         "",
-        f"  {n} file(s) in this push match a protected pattern.",
+        f"  {n} file(s) in this git push match a protected pattern.",
         "  Filenames are withheld here on purpose — a matched filename may itself",
         "  contain a student name. Directories only:",
         "",
@@ -251,7 +251,7 @@ for py in python3 python py; do
   "$py" -c "" </dev/null >/dev/null 2>&1 && exec "$py" "$f"
 done
 command -v uv >/dev/null 2>&1 && exec uv run --no-project python "$f"
-echo "PUSH BLOCKED: canvas-toolbox FERPA guard found no working Python (tried python3, python, py, uv)." >&2
+echo "GIT PUSH BLOCKED: canvas-toolbox FERPA guard found no working Python (tried python3, python, py, uv)." >&2
 exit 1
 """
 

@@ -53,7 +53,7 @@ procedure lives in **operating-mode skills** under `.claude/skills/`: `grading`,
 autonomy: grade → **show the feedback in chat** → `grader_push.py --mark-reviewed --yes`
 → `--push --yes`. `--yes` is honored (no terminal — never send faculty to a shell), but
 the `grade_guardian` hook fires an in-chat **permission pop-up** at BOTH the review and
-the push (#264/#265): the instructor clicks to approve — an agent cannot skip it or
+the grade update (#264/#265): the instructor clicks to approve — an agent cannot skip it or
 self-attest. When a gate blocks you, get the human — never stack `--force`/`--regrade`
 to route around it, and never hand-write a Canvas write (the `grade_guardian` hook
 blocks that at create/edit/run).

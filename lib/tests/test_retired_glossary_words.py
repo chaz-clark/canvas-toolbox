@@ -47,15 +47,9 @@ GIT_HOOK = re.compile(r"hooks/pre-push|FERPA pre-push|Git's pre-push|^pre-push$"
 # on purpose (#483): the .push_log.md regexes still read the old `pushed to
 # assignment` wording in earlier logs.
 ALLOWLIST = {
-    ('_env_loader.py', 'push'): 1,
-    ('cb_flatten.py', 'push'): 1,
-    ('cb_update.py', 'push'): 1,
-    ('ferpa_pre_push.py', 'push'): 4,
-    ('grade_guardian.py', 'push'): 3,
-    ('grader_push.py', 'push'): 2,
-    ('merge_cleanup.py', 'push'): 3,
+    ('grade_guardian.py', 'push'): 2,              # 'push' names the review gate's second checkpoint (an identifier)
+    ('grader_push.py', 'push'): 2,                 # .push_log.md regexes still read older `pushed to assignment` lines
     ('sandbox_new_quiz_fixtures.py', 'push'): 1,   # answer text in a sandbox quiz, not a message
-    ('sync_grading_protocol.py', 'push'): 1,
 }
 
 
