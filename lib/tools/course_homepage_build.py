@@ -604,7 +604,7 @@ def main() -> int:
     ap.add_argument("--date", help="Render the page as if today is this date "
                     "(YYYY-MM-DD; default: today). Useful for previewing.")
     ap.add_argument("--apply", action="store_true",
-                    help="PUSH the rendered HTML to the Canvas course's front page. "
+                    help="Update the Canvas course's front page with the rendered HTML. "
                          "Uses CANVAS_COURSE_ID from env unless --course-id is passed. "
                          "Honors canvas_course_guard's enrolled-course write-gate.")
     ap.add_argument("--course-id", type=int,
@@ -711,14 +711,14 @@ def main() -> int:
                   "set CANVAS_COURSE_ID in env, or fill course.course_id "
                   "in schedule.yml.", file=sys.stderr)
             return 1
-        print(f"  --apply: pushing to Canvas course {cid}...", file=sys.stderr)
+        print(f"  --apply: updating Canvas course {cid}...", file=sys.stderr)
         try:
             url = push_homepage_to_canvas(html, cid, title=args.title,
                                           allow_enrolled=args.allow_enrolled)
         except (requests.HTTPError, RuntimeError) as e:
-            print(f"  ✗ push failed: {e}", file=sys.stderr)
+            print(f"  ✗ update failed: {e}", file=sys.stderr)
             return 1
-        print(f"  ✓ Pushed. View at: {url}", file=sys.stderr)
+        print(f"  ✓ Updated. View at: {url}", file=sys.stderr)
 
     return 0
 

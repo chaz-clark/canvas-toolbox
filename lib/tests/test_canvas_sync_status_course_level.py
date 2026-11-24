@@ -157,16 +157,16 @@ def test_cmd_status_surfaces_a_course_level_edit(tmp_path, monkeypatch, capsys):
 
 
 def test_push_summary_reports_a_course_level_push():
-    assert canvas_sync._push_summary(["Syllabus"]) == "Pushed 1 course-level file(s): Syllabus"
+    assert canvas_sync._push_summary(["Syllabus"]) == "Updated 1 course-level file(s) in Canvas: Syllabus"
 
 
 def test_push_summary_lists_every_file_pushed():
     out = canvas_sync._push_summary(["Homepage", "Course", "Syllabus"])
-    assert out == "Pushed 3 course-level file(s): Homepage, Course, Syllabus"
+    assert out == "Updated 3 course-level file(s) in Canvas: Homepage, Course, Syllabus"
 
 
 def test_push_summary_still_says_nothing_to_push_when_nothing_was():
-    assert canvas_sync._push_summary([]) == "Nothing to push — all files match Canvas."
+    assert canvas_sync._push_summary([]) == "Nothing to update — all files match Canvas."
 
 
 # --- course dates: pushed, and VERIFIED (#182) -------------------------------

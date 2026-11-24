@@ -89,7 +89,7 @@ def _vprint(*args, **kwargs):
         print(*args, **kwargs)
 
 
-def _log_push(summary: str, comment: str, files_pushed: list[str], direction: str = "push") -> None:
+def _log_push(summary: str, comment: str, files_pushed: list[str], direction: str = "update") -> None:
     """Append a commit-style entry to .canvas/push_log.md."""
     from datetime import datetime, timezone
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -796,7 +796,7 @@ def cmd_init():
         "type": "Syllabus",
         "filepath": str(syllabus_path),
         "hash": h,
-        "note": "Push via PUT /courses/:id with course[syllabus_body]. Not a module item.",
+        "note": "Updated via PUT /courses/:id with course[syllabus_body]. Not a module item.",
     }
     _vprint(f"  [syllabus] syllabus.html ({len(syllabus_body)} chars)")
 
@@ -1494,7 +1494,7 @@ def cmd_rebind(new_course_id: str, apply: bool = False) -> int:
     _rewrite_quiz_assignment_ids(index, plan, target)
     print(f"\n✓ rebound {len(plan['matched'])} item(s) to course {new_course_id}.")
     if plan["unmatched"] or plan["ambiguous"]:
-        print("  Items listed above were NOT rebound and will still fail to push.")
+        print("  Items listed above were NOT rebound and will still fail when updating Canvas.")
     return 0
 
 
@@ -1557,10 +1557,10 @@ def _push_summary(pushed_course_level: list) -> str:
     index["files"], and the course-level files live outside it.
     """
     if pushed_course_level:
-        return f"Pushed {len(pushed_course_level)} course-level file(s): " + ", ".join(
+        return f"Updated {len(pushed_course_level)} course-level file(s) in Canvas: " + ", ".join(
             pushed_course_level
         )
-    return "Nothing to push — all files match Canvas."
+    return "Nothing to update — all files match Canvas."
 
 
 def _special_file_changes(index: dict, course_path: Optional[Path] = None) -> list:
@@ -1619,7 +1619,7 @@ def cmd_status():
     special = _special_file_changes(index)
 
     if not changed and not missing and not special:
-        print("Everything up to date. Nothing to push.")
+        print("Everything up to date. Nothing to update in Canvas.")
         return
 
     if special:
@@ -1889,8 +1889,8 @@ def _push_newquiz_content(filepath: Path, meta: dict) -> bool:
     Deletion stays separately opt-in (`CANVAS_SYNC_ALLOW_NEWQUIZ_DELETE=true`).
     """
     if not newquiz_write_enabled():
-        print("    SKIP: New Quiz content push disabled by "
-              "CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false. Dates were still pushed above.")
+        print("    SKIP: New Quiz content updates disabled by "
+              "CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false. Dates were still updated above.")
         return True
     sidecar_path = Path(meta.get("settings_path", ""))
     if not sidecar_path.exists():
@@ -2168,23 +2168,23 @@ def cmd_push(target: Optional[str] = None):
         return
 
     # Commit-style log prompt
-    print(f"\n{len(push_candidates)} file(s) ready to push.")
+    print(f"\n{len(push_candidates)} file(s) ready to update in Canvas.")
     if os.getenv("CANVAS_SYNC_NO_PROMPT"):
         # CI / automated context — skip interactive prompt
-        summary = os.getenv("CANVAS_SYNC_NO_PROMPT", "Automated push")
+        summary = os.getenv("CANVAS_SYNC_NO_PROMPT", "Automated update")
         comment = ""
     else:
         try:
-            summary = input("Push summary (required): ").strip()
+            summary = input("Update summary (required): ").strip()
             if not summary:
                 print("Aborted — summary is required.")
                 return
             comment = input("Additional comments (optional, Enter to skip): ").strip()
         except (EOFError, KeyboardInterrupt):
-            summary = "Automated push"
+            summary = "Automated update"
             comment = ""
 
-    print(f"\nPushing {len(push_candidates)} changed file(s)...\n")
+    print(f"\nUpdating Canvas with {len(push_candidates)} changed file(s)...\n")
 
     pushed = 0
     for filepath_str, (path, meta) in push_candidates.items():
@@ -2202,9 +2202,9 @@ def cmd_push(target: Optional[str] = None):
             ok = _push_quiz(path, meta)
         elif item_type == "NewQuiz":
             content_enabled = newquiz_write_enabled()
-            print("    NewQuiz: pushing assignment dates"
+            print("    NewQuiz: updating assignment dates"
                   + (" plus API-backed quiz content" if content_enabled
-                     else " (content push disabled by CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false)"))
+                     else " (content updates disabled by CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false)"))
             ok = _push_newquiz_dates(path, meta) and _push_newquiz_content(path, meta)
         elif item_type in METADATA_ONLY_TYPES:
             print(f"    SKIP: {item_type} is metadata-only (manage in Canvas directly)")
@@ -2222,11 +2222,11 @@ def cmd_push(target: Optional[str] = None):
             print(f"    OK")
             pushed += 1
         else:
-            print(f"    FAILED — hash not updated, will retry on next push")
+            print(f"    FAILED — hash not updated, will retry on the next update")
 
     _save_index(index)
-    _log_push(summary, comment, list(push_candidates.keys()), direction="push")
-    print(f"\nPushed {pushed}/{len(push_candidates)} files.")
+    _log_push(summary, comment, list(push_candidates.keys()), direction="update")
+    print(f"\nUpdated {pushed}/{len(push_candidates)} files in Canvas.")
     print(f"Logged to {PUSH_LOG}")
 
 
@@ -2654,10 +2654,10 @@ if __name__ == "__main__":
 Commands:
   --pull              Full course pull from Canvas (cleans stale local files)
   --pull <path>       Re-pull one file from Canvas and log the Canvas-side change
-  --push              Push all local changes to Canvas (prompts for summary + comment)
-  --push <module>     Push changed files in one module only
+  --push              Update Canvas with all local changes (prompts for summary + comment)
+  --push <module>     Update Canvas with changed files in one module only
   --build             Convert course_src/*.md → course/*.html (run before --push after editing markdown)
-  --status            Show local changes not yet pushed
+  --status            Show local changes not yet in Canvas
   --init              Alias for --pull (full course pull)
 
 Markdown authoring workflow:
@@ -2674,7 +2674,7 @@ Safe zones:
   course/             Canvas mirror — overwritten on every --pull. Do not place local-only files here.
   course_src/         Markdown authoring mirror — edit here, then --build before --push.
   course_ref/         Local-only artifacts (answer keys, drafts, helpers) — never touched by --pull.
-  course/*.questions.json   Classic quiz push sources — skipped by --pull cleanup.
+  course/*.questions.json   Classic quiz question sources — skipped by --pull cleanup.
 
 File upload workflow:
   1. Place template files in course_ref/ (local-only safe zone)
@@ -2688,7 +2688,7 @@ Change log:  .canvas/push_log.md  (appended on every --push and --pull <path>)
                         version=f"canvas-toolbox {__version__}")
     parser.add_argument("--init", action="store_true", help="Pull full course into course/ (same as --pull with no path)")
     parser.add_argument("--status", action="store_true", help="Show changed files")
-    parser.add_argument("--push", nargs="?", const="", metavar="MODULE", help="Push changed files to Canvas")
+    parser.add_argument("--push", nargs="?", const="", metavar="MODULE", help="Update Canvas with changed files")
     parser.add_argument("--pull", nargs="?", const="", metavar="PATH",
                         help="Full course pull (no path) or re-pull one file from Canvas (with path)")
     parser.add_argument("--build", action="store_true", help="Convert course_src/*.md to course/*.html")

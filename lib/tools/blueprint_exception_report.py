@@ -418,7 +418,7 @@ def main() -> None:
         summary_msg = (
             "FAIL = at least one section has `content` or `deleted` exceptions "
             "that did not sync. Lock the listed items in the blueprint and "
-            "trigger a resync to push them. Use --suggest-locks for the script."
+            "trigger a resync to carry them to the sections. Use --suggest-locks for the script."
         )
     elif overall == "WARN":
         summary_msg = (
@@ -443,7 +443,7 @@ def main() -> None:
             "# Pipe to sh after verifying. Requires CANVAS_BASE_URL and",
             "# CANVAS_API_TOKEN in your environment. After running, trigger",
             "# a Blueprint sync (Canvas UI or REST migrations endpoint) to",
-            "# push the now-locked items into associated sections.",
+            "# carry the now-locked items into associated sections.",
             "",
             *lock_lines,
         ]
