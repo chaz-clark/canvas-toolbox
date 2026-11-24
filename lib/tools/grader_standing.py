@@ -37,7 +37,7 @@ grade. Guards, in order:
   - --yes is ALLOWED here (deterministic, instructor-computed, value-only) so the
     weekly run can be automated — this is on the safe side of the HG-5 line, unlike
     grader_push's commented pushes. Without --yes, confirmation demands a TTY
-    (shared with grader_push, #241), so a piped 'push' can't stand in for you.
+    (shared with grader_push, #241), so a piped 'update canvas' can't stand in for you.
 
 INPUT CONTRACT
   A CSV your syllabus-table script emits. Two columns matter (auto-detected, or
@@ -90,7 +90,7 @@ def standing_push_decision(yes: bool, is_tty: bool) -> str:
                     value-only (the 'your grade' column), NOT AI-drafted feedback,
                     so there's no AI judgment for a human to review — the safe side
                     of HG-5. --yes captures the instructor's consent to the preview.
-      'prompt'    — interactive terminal: ask the human to type 'push'.
+      'prompt'    — interactive terminal: ask the human to type 'update canvas'.
       'needs-yes' — non-interactive AND no --yes: an agent can't type at a prompt,
                     and our audience (non-technical faculty) won't open a terminal.
                     Guide the agent to re-run with --yes once the instructor has
@@ -336,7 +336,7 @@ def main() -> int:
             "value-only grades (the 'your grade' column) — not AI-drafted feedback — "
             "so --yes IS allowed here (unlike grader_push). If the instructor has "
             "reviewed the preview above and consents, re-run with --yes to post. Do "
-            "NOT send them to a terminal to type 'push' — our audience is non-technical "
+            "NOT send them to a terminal to type 'update canvas' — our audience is non-technical "
             "faculty; complete the post for them once they confirm.",
             file=sys.stderr,
         )
@@ -344,7 +344,7 @@ def main() -> int:
         return 1
     if decision == "prompt":
         print(f"\nThis writes {len(writes)} standing grade(s) to the LIVE course {cid}.")
-        if input("Type 'push' to confirm: ").strip().lower() != "push":
+        if input("Type 'update canvas' to confirm: ").strip().lower() != "update canvas":
             print("Aborted.")
             return 1
 

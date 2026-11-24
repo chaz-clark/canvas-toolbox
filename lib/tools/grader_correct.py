@@ -333,7 +333,7 @@ def main() -> int:
         return 1
     if decision == "prompt":
         print(f"\nThis corrects {len(writes)} grade(s) on the LIVE course {cid}.")
-        if input("Type 'push' to confirm: ").strip().lower() != "push":
+        if input("Type 'update canvas' to confirm: ").strip().lower() != "update canvas":
             print("Aborted.")
             return 1
 
@@ -376,7 +376,7 @@ def main() -> int:
                 new_id = None
             if new_id is None:
                 continue
-            lg.write(f"- {key}: comment {new_id} pushed to assignment {aid}\n")
+            lg.write(f"- {key}: comment {new_id} updated on assignment {aid}\n")
             # Supersede: delete this tool's earlier correction comment(s) for the same
             # student only after the new one landed, so a failed post never leaves
             # the student with nothing.

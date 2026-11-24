@@ -14,6 +14,9 @@ For migration help between versions, see [UPGRADING.md](docs/UPGRADING.md).
 ## [Unreleased]
 
 ### Changed
+- **Type `update canvas` to confirm a grading write, not `push` (2.12.4, #483).** `grader_push` (all three prompts), `grader_push_comments`, `grader_standing`, `grader_correct` and `grader_letter_comments` now ask for `update canvas`, the instructor's own words for it. It is still case- and space-tolerant and still refuses piped input (HG-5, #241). Typing the old `push` aborts and writes nothing. The guardian's approval pop-up says "Grade update gate" instead of "Push gate". New `.push_log.md` lines say `… updated on assignment …` instead of `… pushed to assignment …`. Both wordings are read, so an earlier log still skips rows already sent and `--retract` still finds earlier comments. The file name `.push_log.md` is unchanged.
+
+### Changed
 - **Grading messages say "update grades in Canvas", not "push" (2.12.3, #483, grading family).** `grader_push`, `grader_push_comments`, `grader_standing`, `grader_correct`, `grader_letter_comments`, `grader_consensus`, `grader_export`, `grader_fetch` and `grader_fetch_resubmissions` now say what changed and where: "Update grades and comments in Canvas", "Nothing to send to Canvas", "Updated 5/6 in Canvas", "Update standing in Canvas". Unchanged on purpose: the word an instructor types to confirm is still `push` (the HG-5 review gate), the `.push_log.md` ledger lines and the regexes that read them back (so earlier logs still skip rows already sent), the `· PUSH ·` feedback-heading token, and the tool and flag names. A new test pins each writer's typed confirmation word. The course-build and install/update families follow in their own PRs.
 
 ### Changed

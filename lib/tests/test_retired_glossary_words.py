@@ -37,10 +37,9 @@ RETIRED = {
 }
 
 # Today's uses, per (tool, word). Lower a count when a rename removes uses;
-# never raise one to make a new use pass. The grading writers' remaining uses
-# stay on purpose (#483): the word the instructor types to confirm (HG-5), the
-# .push_log.md ledger lines and the regexes that read them back, and the
-# `· PUSH ·` feedback-heading token.
+# never raise one to make a new use pass. grader_push's remaining uses stay on
+# purpose (#483): the two .push_log.md regexes still read the old `pushed to
+# assignment` wording in earlier logs, and --help quotes a `· PUSH ·` heading.
 ALLOWLIST = {
     ('_env_loader.py', 'push'): 1,
     ('blueprint_exception_report.py', 'push'): 2,
@@ -53,12 +52,8 @@ ALLOWLIST = {
     ('course_mirror.py', 'push'): 3,
     ('course_quality_check.py', 'push'): 2,
     ('ferpa_pre_push.py', 'push'): 4,
-    ('grade_guardian.py', 'push'): 4,
-    ('grader_correct.py', 'push'): 3,
-    ('grader_letter_comments.py', 'push'): 2,
-    ('grader_push.py', 'push'): 12,
-    ('grader_push_comments.py', 'push'): 3,
-    ('grader_standing.py', 'push'): 3,
+    ('grade_guardian.py', 'push'): 3,
+    ('grader_push.py', 'push'): 3,
     ('merge_cleanup.py', 'push'): 3,
     ('sandbox_new_quiz_fixtures.py', 'push'): 1,
     ('sync_grading_protocol.py', 'push'): 1,
