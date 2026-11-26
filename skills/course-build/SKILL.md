@@ -70,6 +70,14 @@ have already succeeded.
    live API.
 5. End an interrupted task with a plain done / not done / unsure summary.
 
+`canvas_sync` does steps 1–3 itself since 2.15.0 (#445). It retries a read or an
+update through a dropped connection, printing one "trying again" line per pause. It
+never re-sends a create that may have reached Canvas. Its closing lines tell you what to say:
+- **"Not done: N file(s)"**: those updates didn't go through. They stay marked as changed, and
+  an update is safe to repeat, so running the push again sends only those.
+- **"Unsure: N create(s)"**: Canvas may have made them before the connection dropped.
+  Check Canvas (match by title) before running them again, or they may be duplicated.
+
 ## The multi-course model
 
 | Term | What | `.env` id | Folder |

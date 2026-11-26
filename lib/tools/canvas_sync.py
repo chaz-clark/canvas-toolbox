@@ -54,6 +54,7 @@ from typing import Optional
 
 import requests
 
+import _canvas_retry as _cr  # retry through a dropped connection; never re-send an unsure create (#445)
 from _update_flag import add_update_flag, note_old_flag  # --update / --push (#493)
 
 from _course_rebind import (apply_rebind, index_target, plan_rebind,
@@ -117,6 +118,26 @@ METADATA_ONLY_TYPES = {"ExternalTool", "ExternalUrl", "ContextModuleSubHeader"}
 # Canvas API helpers
 # ---------------------------------------------------------------------------
 
+# Creates this run that may or may not have reached Canvas (#445). Reported at the
+# end of the run: check Canvas before running them again, or they may be duplicated.
+_UNSURE: list[str] = []
+
+
+def _report_unsure() -> None:
+    if _UNSURE:
+        print(f"\nUnsure: {len(_UNSURE)} create(s) may have reached Canvas before the "
+              f"connection dropped. Check Canvas before running them again, or they may "
+              f"be duplicated:")
+        for item in _UNSURE[:10]:
+            print(f"  - {item}")
+
+
+def _http(method: str, url: str, **kwargs):
+    """Every Canvas call goes through the retry rules (#445), with this module's
+    `requests`, so anything that replaces it (tests) still applies."""
+    return _cr.request(method, url, client=requests, **kwargs)
+
+
 def _headers() -> dict:
     return {"Authorization": f"Bearer {CANVAS_API_TOKEN}", "Content-Type": "application/json"}
 
@@ -126,7 +147,7 @@ def _get(endpoint: str, params: Optional[dict] = None) -> list | dict:
     url = f"{CANVAS_BASE_URL}/api/v1{endpoint}"
     results = []
     while url:
-        resp = requests.get(url, headers=_headers(), params=params, timeout=20)
+        resp = _http("GET", url, headers=_headers(), params=params, timeout=20)
         if resp.status_code >= 400:
             print(f"  ERROR {resp.status_code}: {resp.text[:200]}")
             return []
@@ -147,7 +168,11 @@ def _get(endpoint: str, params: Optional[dict] = None) -> list | dict:
 
 def _put(endpoint: str, payload: dict) -> dict:
     url = f"{CANVAS_BASE_URL}/api/v1{endpoint}"
-    resp = requests.put(url, headers=_headers(), json=payload, timeout=20)
+    try:
+        resp = _http("PUT", url, headers=_headers(), json=payload, timeout=20)
+    except _cr.requests.RequestException as exc:
+        return {"error": f"Canvas didn't answer after several tries ({type(exc).__name__}); "
+                         f"not done, and safe to run again", "status_code": None}
     if resp.status_code >= 400:
         return {"error": resp.text[:300], "status_code": resp.status_code}
     body = resp.json() if resp.text else {}
@@ -156,7 +181,14 @@ def _put(endpoint: str, payload: dict) -> dict:
 
 def _post(endpoint: str, payload: dict) -> dict:
     url = f"{CANVAS_BASE_URL}/api/v1{endpoint}"
-    resp = requests.post(url, headers=_headers(), json=payload, timeout=20)
+    try:
+        resp = _http("POST", url, headers=_headers(), json=payload, timeout=20)
+    except _cr.UnsureWrite as exc:
+        _UNSURE.append(f"POST {endpoint}")
+        return {"error": str(exc), "status_code": None, "unsure": True}
+    except _cr.requests.RequestException as exc:
+        return {"error": f"Canvas didn't answer ({type(exc).__name__}); not done",
+                "status_code": None}
     if resp.status_code >= 400:
         return {"error": resp.text[:300], "status_code": resp.status_code}
     body = resp.json() if resp.text else {}
@@ -268,10 +300,12 @@ def _push_late_policy(lp: dict) -> tuple:
     where `created` is True on the POST path. (#205)
     """
     base = f"{CANVAS_BASE_URL}/api/v1/courses/{CANVAS_COURSE_ID}/late_policy"
-    existing = requests.get(base, headers=_headers(), timeout=20)
+    existing = _http("GET", base, headers=_headers(), timeout=20)
     created = existing.status_code != 200
-    verb = requests.post if created else requests.patch
-    resp = verb(base, headers=_headers(), json={"late_policy": lp}, timeout=20)
+    # A course has at most one late policy, so a repeated create fails rather
+    # than duplicating: safe to retry.
+    resp = _http("POST" if created else "PATCH", base, headers=_headers(),
+                       json={"late_policy": lp}, timeout=20, safe_to_repeat=True)
     return resp, created
 
 
@@ -348,7 +382,7 @@ def _download_file(file_meta: dict, local_path: Path) -> bool:
     if not url:
         return False
     try:
-        resp = requests.get(url, timeout=120, stream=True)
+        resp = _http("GET", url, timeout=120, stream=True)
         if resp.status_code >= 400:
             return False
         local_path.parent.mkdir(parents=True, exist_ok=True)
@@ -416,7 +450,7 @@ def _get_new_quiz(path: str) -> any:
     """GET from the New Quizzes engine API (/api/quiz/v1/). Returns parsed JSON or None on error."""
     url = f"{CANVAS_BASE_URL}/api/quiz/v1{path}"
     try:
-        resp = requests.get(url, headers=_headers(), timeout=20)
+        resp = _http("GET", url, headers=_headers(), timeout=20)
         if resp.status_code == 404:
             return None
         if resp.status_code >= 400:
@@ -1816,7 +1850,10 @@ def _newquiz_write(method: str, path: str, payload: dict) -> dict:
     """Call the documented `/api/quiz/v1` JSON write surface."""
     url = f"{CANVAS_BASE_URL}/api/quiz/v1{path}"
     try:
-        resp = requests.request(method, url, headers=_headers(), json=payload, timeout=20)
+        resp = _http(method, url, headers=_headers(), json=payload, timeout=20)
+    except _cr.UnsureWrite as exc:
+        _UNSURE.append(f"{method} {path}")
+        return {"error": str(exc), "unsure": True}
     except Exception as exc:
         return {"error": str(exc)}
     if resp.status_code >= 400:
@@ -2080,11 +2117,19 @@ def cmd_push(target: Optional[str] = None):
                 print(f"  [Homepage] {homepage_path}")
                 body = homepage_path.read_text(encoding="utf-8")
                 page_url = homepage_meta.get("page_url", "front-page")
-                resp = requests.put(
-                    f"{CANVAS_BASE_URL}/api/v1/courses/{CANVAS_COURSE_ID}/pages/{page_url}",
-                    headers=_headers(),
-                    json={"wiki_page": {"body": body}}, timeout=20)
-                if resp.status_code < 400:
+                try:
+                    resp = _http(
+                        "PUT",
+                        f"{CANVAS_BASE_URL}/api/v1/courses/{CANVAS_COURSE_ID}/pages/{page_url}",
+                        headers=_headers(),
+                        json={"wiki_page": {"body": body}}, timeout=20)
+                except _cr.requests.RequestException as exc:
+                    resp = None
+                    print(f"    FAILED: Canvas didn't answer ({type(exc).__name__}); not done, "
+                          f"safe to run again")
+                if resp is None:
+                    pass
+                elif resp.status_code < 400:
                     index["homepage"]["hash"] = current_hash
                     pushed_course_level.append("Homepage")
                     print(f"    OK")
@@ -2135,10 +2180,15 @@ def cmd_push(target: Optional[str] = None):
                 print(f"  [Syllabus] {syllabus_path}")
                 body = syllabus_path.read_text(encoding="utf-8")
                 url = f"{CANVAS_BASE_URL}/api/v1/courses/{CANVAS_COURSE_ID}"
-                resp = requests.put(url, headers=_headers(),
-                                    json={"course": {"syllabus_body": body}}, timeout=20)
-                result = {"success": resp.status_code < 400, "status_code": resp.status_code,
-                          "error": resp.text[:200] if resp.status_code >= 400 else None}
+                try:
+                    resp = _http("PUT", url, headers=_headers(),
+                                       json={"course": {"syllabus_body": body}}, timeout=20)
+                    result = {"success": resp.status_code < 400, "status_code": resp.status_code,
+                              "error": resp.text[:200] if resp.status_code >= 400 else None}
+                except _cr.requests.RequestException as exc:
+                    result = {"success": False, "status_code": None,
+                              "error": f"Canvas didn't answer ({type(exc).__name__}); not done, "
+                                       f"safe to run again"}
                 if result.get("success"):
                     index["syllabus"]["hash"] = current_hash
                     pushed_course_level.append("Syllabus")
@@ -2189,31 +2239,38 @@ def cmd_push(target: Optional[str] = None):
     print(f"\nUpdating Canvas with {len(push_candidates)} changed file(s)...\n")
 
     pushed = 0
+    not_done: list[str] = []
     for filepath_str, (path, meta) in push_candidates.items():
         item_type = meta.get("type")
         print(f"  [{item_type}] {filepath_str}")
 
         ok = False
-        if item_type == "Page":
-            ok = _push_page(path, meta)
-        elif item_type == "Assignment":
-            ok = _push_assignment(path, meta)
-        elif item_type == "Discussion":
-            ok = _push_discussion(path, meta)
-        elif item_type == "Quiz":
-            ok = _push_quiz(path, meta)
-        elif item_type == "NewQuiz":
-            content_enabled = newquiz_write_enabled()
-            print("    NewQuiz: updating assignment dates"
-                  + (" plus API-backed quiz content" if content_enabled
-                     else " (content updates disabled by CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false)"))
-            ok = _push_newquiz_dates(path, meta) and _push_newquiz_content(path, meta)
-        elif item_type in METADATA_ONLY_TYPES:
-            print(f"    SKIP: {item_type} is metadata-only (manage in Canvas directly)")
-            continue
-        else:
-            print(f"    SKIP: unknown type {item_type}")
-            continue
+        try:
+            if item_type == "Page":
+                ok = _push_page(path, meta)
+            elif item_type == "Assignment":
+                ok = _push_assignment(path, meta)
+            elif item_type == "Discussion":
+                ok = _push_discussion(path, meta)
+            elif item_type == "Quiz":
+                ok = _push_quiz(path, meta)
+            elif item_type == "NewQuiz":
+                content_enabled = newquiz_write_enabled()
+                print("    NewQuiz: updating assignment dates"
+                      + (" plus API-backed quiz content" if content_enabled
+                         else " (content updates disabled by CANVAS_SYNC_ALLOW_NEWQUIZ_WRITE=false)"))
+                ok = _push_newquiz_dates(path, meta) and _push_newquiz_content(path, meta)
+            elif item_type in METADATA_ONLY_TYPES:
+                print(f"    SKIP: {item_type} is metadata-only (manage in Canvas directly)")
+                continue
+            else:
+                print(f"    SKIP: unknown type {item_type}")
+                continue
+        except _cr.requests.RequestException as exc:
+            # Canvas didn't answer after the retries (#445). An update is safe
+            # to repeat, and the hash isn't saved, so the next run sends it again.
+            print(f"    Canvas didn't answer ({type(exc).__name__})")
+            ok = False
 
         if ok:
             index["files"][filepath_str]["hash"] = _file_hash(path)
@@ -2225,10 +2282,19 @@ def cmd_push(target: Optional[str] = None):
             pushed += 1
         else:
             print(f"    FAILED — hash not updated, will retry on the next update")
+            not_done.append(filepath_str)
 
     _save_index(index)
     _log_push(summary, comment, list(push_candidates.keys()), direction="update")
     print(f"\nUpdated {pushed}/{len(push_candidates)} files in Canvas.")
+    if not_done:
+        # Done / not done / unsure (#445). An update is safe to repeat: the next run
+        # sends only these again.
+        print(f"Not done: {len(not_done)} file(s). They stay marked as changed, so the "
+              f"next update sends only these again:")
+        for f in not_done[:10]:
+            print(f"  - {f}")
+    _report_unsure()
     print(f"Logged to {PUSH_LOG}")
 
 
@@ -2250,8 +2316,10 @@ def _upload_file_to_canvas(local_path: Path, canvas_folder: str, course_id: str)
 
     # Step 1: request an upload token
     token_url = f"{CANVAS_BASE_URL}/api/v1/courses/{course_id}/files"
-    token_resp = requests.post(
+    token_resp = _http(
+        "POST",
         token_url,
+        safe_to_repeat=True,  # asks for an upload slot; creates no file
         headers={"Authorization": f"Bearer {CANVAS_API_TOKEN}"},
         json={
             "name": filename,
@@ -2287,7 +2355,8 @@ def _upload_file_to_canvas(local_path: Path, canvas_folder: str, course_id: str)
 
     # If Canvas returned a redirect URL instead of a JSON body, follow it
     if "id" not in file_obj and upload_resp.history:
-        confirm_resp = requests.get(
+        confirm_resp = _http(
+            "GET",
             upload_resp.url,
             headers={"Authorization": f"Bearer {CANVAS_API_TOKEN}"},
             timeout=20,
