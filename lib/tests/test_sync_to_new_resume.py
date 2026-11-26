@@ -73,8 +73,8 @@ def canvas(monkeypatch):
         fake = FakeCanvas(lists)
         for m in ("get", "post", "put"):
             monkeypatch.setattr(stn.requests, m, getattr(fake, m))
-        monkeypatch.setattr(stn, "_TARGET", stn._Target("tok"))
-        monkeypatch.setattr(stn, "RESULTS", {"created": [], "reused": [], "not_done": [], "unsure": []})
+        monkeypatch.setattr(stn, "_TARGET", stn._Target("tok", reuse=True))
+        monkeypatch.setattr(stn, "RESULTS", {"created": [], "reused": [], "updated": [], "not_done": [], "unsure": []})
         monkeypatch.setattr(stn.time, "sleep", lambda s: None)
         monkeypatch.setattr(stn._cr.time, "sleep", lambda s: None)
         return fake
@@ -136,3 +136,50 @@ def test_without_apply_nothing_is_read_first(canvas, monkeypatch):
     monkeypatch.setattr(stn, "_TARGET", None)
     stn.create_module("https://x", "9", {"name": "Week 4"}, "tok")
     assert len(fake.posts) == 1
+
+
+def test_a_failed_settings_update_on_a_reused_group_is_reported(canvas, monkeypatch):
+    fake = canvas({f"{BASE}/assignment_groups": [{"id": 5, "name": "Assignments"}]})
+    monkeypatch.setattr(fake, "put", lambda url, **kw: (_ for _ in ()).throw(requests.exceptions.ConnectionError("down")))
+    monkeypatch.setattr(stn.requests, "put", fake.put)
+    out = stn.create_assignment_group("https://x", "9", {"name": "Assignments", "group_weight": 40}, "tok")
+    assert out["id"] == 5  # still reused, not created again
+    assert stn.RESULTS["not_done"] == ["Assignments (settings)"]
+
+
+def test_two_new_items_with_one_title_settle_to_the_right_one(canvas):
+    """mark(): after the first "Overview" is made, an unsure second one must not
+    be mistaken for it."""
+    fake = canvas()
+    first = stn.create_page("https://x", "9", {"title": "Overview"}, "<p>a</p>", "tok")
+    fake.drop[f"{BASE}/pages"] = "landed"
+    second = stn.create_page("https://x", "9", {"title": "Overview"}, "<p>b</p>", "tok")
+    assert second["id"] != first["id"] and len(fake.posts) == 2
+
+
+def test_without_resume_only_the_unsure_path_reads_by_title(canvas, monkeypatch):
+    fake = canvas({f"{BASE}/modules": [{"id": 1, "name": "Week 1"}]})
+    monkeypatch.setattr(stn, "_TARGET", stn._Target("tok", reuse=False))
+    stn.create_module("https://x", "9", {"name": "Week 1"}, "tok")
+    assert len(fake.posts) == 1  # created, not reused: --resume wasn't given
+
+
+def test_a_plain_assignment_never_claims_a_quiz_assignment(canvas):
+    fake = canvas({f"{BASE}/assignments": [{"id": 7, "name": "Quiz 1", "is_quiz_assignment": True}]})
+    out = stn.create_assignment("https://x", "9", {"name": "Quiz 1"}, "<p/>", "tok")
+    assert out["id"] != 7 and len(fake.posts) == 1
+
+
+def test_apply_without_resume_stops_on_a_course_that_isnt_empty(monkeypatch, capsys, tmp_path):
+    fake = FakeCanvas({"https://x/api/v1/courses/9/modules": [{"id": 1, "name": "Week 1"}]})
+    for m in ("get", "post", "put"):
+        monkeypatch.setattr(stn.requests, m, getattr(fake, m))
+    monkeypatch.setattr(stn, "_load_config", lambda: ("https://x", "9", "tok"))
+    monkeypatch.setattr(stn, "_course_guard", lambda *a, **k: None)
+    monkeypatch.setattr(stn, "load_course_content", lambda *a, **k: {
+        "modules": [{"title": "Week 1", "slug": "w1"}], "files": {}, "source_course_id": "1"})
+    monkeypatch.setattr(sys, "argv", ["sync_to_new.py", "--apply"])
+    monkeypatch.chdir(tmp_path)
+    assert stn.main() == 1
+    err = capsys.readouterr().err
+    assert "already has 1 module(s)" in err and "--resume" in err and fake.posts == []

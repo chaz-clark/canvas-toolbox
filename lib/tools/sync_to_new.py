@@ -37,6 +37,10 @@ USAGE
   # Apply: create modules and pages in target course
   uv run python lib/tools/sync_to_new.py --apply
 
+  # A run stopped partway (e.g. a dropped connection): continue it. Items already
+  # in the course with the same title are reused, not created again (#445).
+  uv run python lib/tools/sync_to_new.py --apply --resume
+
 REQUIRES in .env
   CANVAS_API_TOKEN, CANVAS_BASE_URL, CANVAS_COURSE_ID (target course)
 
@@ -122,8 +126,10 @@ class _Target:
     Re-running after a dropped connection then reuses what the first run made
     instead of making it again."""
 
-    def __init__(self, token: str):
-        self.token, self._lists, self._claimed = token, {}, set()
+    def __init__(self, token: str, reuse: bool = False):
+        # reuse=True (--resume): claim a same-titled item before every create, so
+        # a re-run continues. Without it only an unsure create is settled by title.
+        self.token, self.reuse, self._lists, self._claimed = token, reuse, {}, set()
 
     @staticmethod
     def _title(obj: dict):
@@ -143,8 +149,11 @@ class _Target:
     def claim(self, url: str, title: str, refresh: bool = False):
         if refresh or url not in self._lists:
             self._lists[url] = self._fetch(url)
+        plain_assignments = url.endswith("/assignments")
         for obj in self._lists[url]:
             key = (url, obj.get("id"))
+            if plain_assignments and _is_quiz_or_discussion(obj):
+                continue  # a quiz's or a discussion's assignment is never a plain assignment
             if self._title(obj) == title and key not in self._claimed:
                 self._claimed.add(key)
                 return obj
@@ -154,18 +163,28 @@ class _Target:
         self._claimed.add((url, obj.get("id")))
 
 
+def _is_quiz_or_discussion(obj: dict) -> bool:
+    kinds = set(obj.get("submission_types") or [])
+    return bool(obj.get("is_quiz_assignment") or obj.get("quiz_id")
+                or obj.get("discussion_topic") or kinds & {"online_quiz", "external_tool",
+                                                           "discussion_topic"})
+
+
 _TARGET: Optional[_Target] = None   # set by main() for --apply
 
 
 def _done(obj: dict) -> str:
     """"Reused" for an object that was already in the course, else "Created"."""
     return "Reused" if (obj or {}).get("_reused") else "Created"
+
+
 # What this run did, for the closing report (#445): done / not done / unsure.
-RESULTS: dict = {"created": [], "reused": [], "not_done": [], "unsure": []}
+RESULTS: dict = {"created": [], "reused": [], "updated": [], "not_done": [], "unsure": []}
 
 
 def _post(url: str, payload: dict, token: str, title: Optional[str] = None,
-          form: bool = False, update_reused: bool = False) -> dict:
+          form: bool = False, update_reused: bool = False,
+          label: Optional[str] = None) -> dict:
     """POST (create) to Canvas, safely across a dropped connection (#445).
 
     With a `title` and a target record (--apply): an object already there with
@@ -180,11 +199,11 @@ def _post(url: str, payload: dict, token: str, title: Optional[str] = None,
         {"success": False, "error": "...", "status_code": 400} on error
         ("unsure": True when a create may or may not have happened)
     """
-    label = title or url
+    label = label or title or url
     body = {"data": payload} if form else {"json": payload}
     headers = ({**_headers(token), "Content-Type": "application/x-www-form-urlencoded"}
                if form else _headers(token))
-    if _TARGET is not None and title:
+    if _TARGET is not None and title and (_TARGET.reuse or update_reused):
         try:
             existing = _TARGET.claim(url, title)
         except requests.RequestException as exc:
@@ -193,11 +212,22 @@ def _post(url: str, payload: dict, token: str, title: Optional[str] = None,
                   f"creating '{title}'", file=sys.stderr)
         if existing:
             print(f"    (already in the course: reused '{title}')")
-            RESULTS["reused"].append(label)
+            # Updated ones have this run's settings; plain reuse keeps Canvas's copy.
+            RESULTS["updated" if update_reused else "reused"].append(label)
             existing = {**existing, "_reused": True}
             if update_reused and existing.get("id"):
-                _cr.request("PUT", f"{url}/{existing['id']}", headers=headers,
-                            timeout=_TIMEOUT, client=requests, **body)
+                # Bring the reused item's settings in line with this one's (e.g. a
+                # group's weight); checked and reported like any other write.
+                try:
+                    put = _cr.request("PUT", f"{url}/{existing['id']}", headers=headers,
+                                      timeout=_TIMEOUT, client=requests, **body)
+                    failed = put.status_code >= 400
+                    why = put.text[:200] if failed else ""
+                except requests.RequestException as exc:
+                    failed, why = True, f"Canvas didn't answer ({type(exc).__name__})"
+                if failed:
+                    print(f"    ⚠ couldn't apply the settings to '{title}': {why}", file=sys.stderr)
+                    RESULTS["not_done"].append(f"{label} (settings)")
             return {"success": True, "data": existing, "status_code": 200, "reused": True}
 
     for attempt in (1, 2):
@@ -206,12 +236,18 @@ def _post(url: str, payload: dict, token: str, title: Optional[str] = None,
                                client=requests, **body)
         except _cr.UnsureWrite as exc:
             if _TARGET is not None and title:
-                time.sleep(5)  # let a create Canvas did receive finish before looking
-                try:
-                    landed = _TARGET.claim(url, title, refresh=True)
-                except requests.RequestException:
-                    landed = None
-                    attempt = 2  # couldn't look: don't risk sending it again
+                # Canvas may still be finishing a create it received: look twice,
+                # after 5 s and after another 20 s, before deciding it didn't land.
+                landed = None
+                for wait in (5, 20):
+                    time.sleep(wait)
+                    try:
+                        landed = _TARGET.claim(url, title, refresh=True)
+                    except requests.RequestException:
+                        landed, attempt = None, 2  # couldn't look: don't risk sending it again
+                        break
+                    if landed:
+                        break
                 if landed:
                     print(f"    (the connection dropped, but '{title}' is in Canvas: it was created)")
                     RESULTS["created"].append(label)
@@ -393,7 +429,8 @@ def create_module_item(base_url: str, course_id: str, module_id: int, item_data:
     url = f"{base_url}/api/v1/courses/{course_id}/modules/{module_id}/items"
     payload = {"module_item": item_data}
 
-    result = _post(url, payload, token, title=item_data.get("title"))
+    result = _post(url, payload, token, title=item_data.get("title"),
+                   label=f"module link: {item_data.get('title')}")
 
     if not result["success"]:
         print(f"  ✗ Failed to link item '{item_data['title']}' to module: {result['error']}", file=sys.stderr)
@@ -746,13 +783,14 @@ def create_newquizzes_in_modules(
             continue
         new_id = result["data"]["id"]
         mapping[path] = new_id
-        if result.get("reused"):
+        reused = bool(result.get("reused"))
+        if reused:
             # Already in the course, e.g. from a run that stopped partway: its questions can't be
-            # matched reliably, so they aren't added again (#445).
+            # matched reliably, so they aren't added again (#445). Its group and module
+            # link still are, so a re-run finishes what the first run didn't.
             print(f"    ⚠ '{title}' already existed: its questions weren't added again. "
                   f"Check them in Canvas.")
             RESULTS["unsure"].append(f"{title} (questions)")
-            continue
         if new_group_id:
             # Canvas ignores quiz[assignment_group_id] on create (sandbox-confirmed,
             # canvas_api_lessons_learned.md L32) — it only takes on a PATCH.
@@ -764,9 +802,10 @@ def create_newquizzes_in_modules(
                 data={"quiz[assignment_group_id]": new_group_id}, timeout=30)
             if gr.status_code >= 400:
                 print(f"    ⚠ could not set assignment group: {gr.text[:200]}", file=sys.stderr)
+                RESULTS["not_done"].append(f"{title} (assignment group)")
 
         created = failed = 0
-        for item in sidecar.get("items") or []:
+        for item in ([] if reused else sidecar.get("items") or []):
             if item.get("entry_type", "Item") != "Item":
                 print(f"    SKIP read-only New Quiz item type: {item.get('entry_type')}")
                 continue
@@ -781,17 +820,19 @@ def create_newquizzes_in_modules(
                 continue
             except requests.RequestException as exc:
                 failed += 1
+                RESULTS["not_done"].append(f"{title}: a question")
                 print(f"    ✗ a question wasn't added: Canvas didn't answer ({type(exc).__name__})",
                       file=sys.stderr)
                 continue
             if r.status_code >= 400:
                 failed += 1
+                RESULTS["not_done"].append(f"{title}: a question")
                 print(f"    ✗ item {(item.get('entry') or {}).get('title', '<untitled>')!r}: "
                       f"{r.text[:200]}", file=sys.stderr)
             else:
                 created += 1
         note = f", {failed} item(s) FAILED" if failed else ""
-        print(f"  ✓ Created New Quiz: {title} ({created} item(s){note})")
+        print(f"  ✓ {_done(result['data'])} New Quiz: {title} ({created} item(s){note})")
 
         module_slug = meta.get("module_slug")
         if module_slug and module_slug in module_mapping:
@@ -929,7 +970,7 @@ def upload_file_local(base_url: str, course_id: str, local_path: Path, filename:
         # If redirect, follow it
         if "id" not in file_obj and upload_resp.history:
             confirm_resp = _cr.request(
-            "GET", client=requests, url=    upload_resp.url,
+                "GET", client=requests, url=upload_resp.url,
                 headers=_headers(token),
                 timeout=_TIMEOUT
             )
@@ -1141,6 +1182,10 @@ def main() -> int:
     )
     parser.add_argument("--apply", action="store_true",
                        help="Actually create content (default is dry-run preview)")
+    parser.add_argument("--resume", action="store_true",
+                       help="Continue a run that stopped partway: reuse items already in the "
+                            "course with the same title instead of creating them again. Local "
+                            "changes to those items aren't applied (#445)")
 
     args = parser.parse_args()
 
@@ -1235,7 +1280,23 @@ def main() -> int:
     # What the course already has, so a re-run after a dropped connection reuses
     # what the first run made instead of making it twice (#445).
     global _TARGET
-    _TARGET = _Target(token)
+    _TARGET = _Target(token, reuse=args.resume)
+    if not args.resume:
+        # A new course only: never merge into one that already has content (#445).
+        try:
+            have = {kind: len(_TARGET._fetch(f"{base_url}/api/v1/courses/{course_id}/{kind}"))
+                    for kind in ("modules", "pages", "assignments")}
+        except requests.RequestException as exc:
+            print(f"ERROR: couldn't check that course {course_id} is empty "
+                  f"({type(exc).__name__}). Nothing was created.", file=sys.stderr)
+            return 1
+        if any(have.values()):
+            print(f"STOPPED: course {course_id} already has {have['modules']} module(s), "
+                  f"{have['pages']} page(s) and {have['assignments']} assignment(s). Nothing was "
+                  f"created.\n  If a run into it stopped partway, run again with --resume to "
+                  f"continue (items already there are reused). Otherwise use an empty course.",
+                  file=sys.stderr)
+            return 1
 
     # Step 1: Create assignment groups
     groups = course_content.get("assignment_groups", [])
@@ -1243,7 +1304,7 @@ def main() -> int:
     if groups:
         print("Step 1/5: Creating assignment groups...")
         group_mapping = create_assignment_groups(base_url, course_id, groups, token)
-        print(f"✓ Created {len(group_mapping)} assignment groups\n")
+        print(f"✓ {len(group_mapping)} assignment groups ready (created or reused)\n")
     else:
         print("Step 1/5: No assignment groups to create\n")
 
@@ -1256,7 +1317,7 @@ def main() -> int:
         print("\nERROR: No modules created. Aborting.", file=sys.stderr)
         return 1
 
-    print(f"✓ Created {len(module_mapping)} modules\n")
+    print(f"✓ {len(module_mapping)} modules ready (created or reused)\n")
 
     # Step 3: Copy files (if any)
     linked_files = course_content.get("linked_files", {})
@@ -1285,7 +1346,7 @@ def main() -> int:
         file_mapping=file_mapping,
         source_course_id=source_course_id
     )
-    print(f"✓ Created {len(page_mapping)} pages\n")
+    print(f"✓ {len(page_mapping)} pages ready (created or reused)\n")
 
     # Step 5: Create assignments (with URL rewriting)
     print("Step 5/5: Creating assignments and New Quizzes and linking to modules...")
@@ -1315,7 +1376,14 @@ def main() -> int:
     print(f"  • {len(assignment_mapping)} assignments")
     print(f"  • {len(newquiz_mapping)} New Quizzes")
     # Done / not done / unsure (#445).
-    print(f"\n  Created {len(RESULTS['created'])}; reused {len(RESULTS['reused'])} already there.")
+    reused_total = len(RESULTS["reused"]) + len(RESULTS["updated"])
+    print(f"\n  Created {len(RESULTS['created'])}; reused {reused_total} already there"
+          + (f" ({len(RESULTS['updated'])} updated with this run's settings)" if RESULTS["updated"] else "")
+          + ".")
+    if RESULTS["reused"]:
+        print("  Reused (already in the course; local changes to these weren't applied):")
+        for x in RESULTS["reused"][:10]:
+            print(f"    - {x}")
     if RESULTS["not_done"]:
         print(f"  Not done: {len(RESULTS['not_done'])}. Running it again creates only these "
               f"(what's already there is reused):")
