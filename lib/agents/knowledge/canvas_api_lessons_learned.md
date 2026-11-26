@@ -661,6 +661,15 @@ When building a new Canvas-touching tool, run through this checklist:
 
 **Provenance:** DS 250 sandbox and a local Canvas with two real student accounts, 2026-11-26; issue #521, fixed in 2.14.4.
 
+
+### L40 — A student sees new override dates at once; the stored Due date waits for a job
+
+**What Canvas does:** after an override is written, through the overrides API or `date_details` (the Assign To tray's API) alike, the student's own view of the assignment (Due, Until, `locked_for_user`) shows the new dates immediately. The Due date Canvas stores on the student's submission (`cached_due_date`, which the gradebook's late and missing marks use) changes only when the `SubmissionLifecycleManager#recompute` job runs. Both paths queue the same job; `date_details` adds `Assignment#run_if_overrides_changed!`. A Classic Quiz time extension (`extra_time`) applies to the next attempt at once, with no job.
+
+**Why it matters:** the two write paths behave the same, so saving in Assign To doesn't avoid the wait. When the job queue is slow, a student can submit before their new Due date and still be marked late until the job runs. The toolkit's "force recalc" touch only queues the same job. Checked on a local production-mode Canvas with the job worker stopped: the student's dates changed at once, the stored Due date stayed old for 30+ seconds, and it updated within 45 seconds of starting the worker. A development-mode Canvas runs this job inline (`delay_if_production`), so it can't show the wait.
+
+**Provenance:** local Canvas (production mode) with real student accounts, 2026-11-26; issue #509.
+
 ---
 
 ## References
