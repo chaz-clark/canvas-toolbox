@@ -146,6 +146,8 @@ def test_assignments_are_read_as_the_student_sees_them(monkeypatch):
 
     def get(url, headers=None, params=None, timeout=None):
         calls.append(url)
+        # The student's own dates are the point: never the assignment's own instead.
+        assert "override_assignment_dates" not in (params or {})
         return pages[url]
     monkeypatch.setattr(ebd.requests, "get", get)
     out = ebd.fetch_published_assignments("http://x", "1", "t", 900001)
@@ -161,3 +163,18 @@ def test_the_students_own_due_date_decides(monkeypatch, env):
                         lambda base, cid, tok, uid: mine if uid == 900001 else [])
     assert _run(monkeypatch, "--user-id", "900001", "--before-date", "2026-02-15", "--apply") == 0
     assert env == [11]
+
+
+def test_paging_stops_on_a_next_link_already_read(monkeypatch):
+    loop = "http://x/api/v1/users/900001/courses/1/assignments"
+
+    class R:
+        links = {"next": {"url": loop}}
+        def raise_for_status(self):
+            pass
+        def json(self):
+            return [{"id": 1, "published": True, "due_at": "2026-02-01T06:59:00Z"}]
+    calls = []
+    monkeypatch.setattr(ebd.requests, "get", lambda url, **k: calls.append(url) or R())
+    assert [a["id"] for a in ebd.fetch_published_assignments("http://x", "1", "t", 900001)] == [1]
+    assert len(calls) == 1

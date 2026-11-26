@@ -309,9 +309,12 @@ def main() -> int:
     # Scope: mutually exclusive
     scope = parser.add_mutually_exclusive_group(required=True)
     scope.add_argument("--before-date",
-                      help="Excuse assignments due before YYYY-MM-DD")
+                      help="Excuse assignments due before YYYY-MM-DD, by the student's "
+                           "own Due date: their override's if they have one, the "
+                           "assignment's otherwise (#523)")
     scope.add_argument("--before-week", type=int,
-                      help="Excuse assignments due before week N")
+                      help="Excuse assignments due before week N, by the student's "
+                           "own Due date (as --before-date)")
     scope.add_argument("--assignment-ids",
                       help="Excuse only these assignments (comma-separated "
                            "Canvas assignment IDs, e.g. 123,456)")
