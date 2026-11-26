@@ -75,7 +75,9 @@ USAGE — dry-run by default (use --apply to actually write)
     --deid-code S-68BC40 --assignment-id 123 --shift-by-days 7 --apply
 
   # Remove the accommodation (cleanly undo) — scope flags work for
-  # remove too, so you can undo across the same window you applied
+  # remove too, so you can undo across the same window you applied.
+  # Only overrides this tool made for this student alone are deleted;
+  # shared or hand-made ones are skipped with the reason (#510).
   uv run python lib/tools/student_late_accommodation.py \\
     --deid-code S-68BC40 --all --remove --apply
 
@@ -462,6 +464,7 @@ def main() -> int:
         return 0
 
     fails = 0
+    removed = skipped = 0
     for aid in assignment_ids:
         if args.remove:
             overrides = list_overrides(base_url, course_id, aid, token)
@@ -475,7 +478,9 @@ def main() -> int:
                 if why:
                     print(f"  [SKIP] {aid}: {label}: {why}. Change it in "
                           f"Canvas's Assign To if it should go.")
+                    skipped += 1
                     continue
+                removed += 1
                 if not args.apply:
                     print(f"  [DRY] {aid}: would remove {label}")
                     continue
@@ -529,6 +534,9 @@ def main() -> int:
             print(f"  [recalc] Run: fix_group_override_recalc.py --course-id {course_id} "
                   f"--student-id {uid}", file=sys.stderr)
 
+    if args.remove:
+        print(f"\n{'Removed' if args.apply else 'Would remove'} {removed - fails}; "
+              f"skipped {skipped}, left in Canvas.")
     if fails:
         print(f"\n{fails} operation(s) failed. Re-run to retry.", file=sys.stderr)
         return 1

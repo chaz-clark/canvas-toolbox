@@ -441,11 +441,20 @@ def test_remove_apply_deletes_only_the_tools_own_override(monkeypatch, capsys):
     for k, v in {"CANVAS_BASE_URL": "http://127.0.0.1:9", "CANVAS_COURSE_ID": "1",
                  "CANVAS_API_TOKEN": "x"}.items():
         monkeypatch.setenv(k, v)
-    monkeypatch.setattr(sys, "argv", ["student_late_accommodation.py", "--user-id", "100",
-                                      "--assignment-id", "5", "--remove", "--apply"])
+    argv = ["student_late_accommodation.py", "--user-id", "100", "--assignment-id", "5", "--remove"]
+    # Preview first: names what it would remove, sends nothing.
+    monkeypatch.setattr(sys, "argv", argv)
+    assert sla.main() == 0
+    assert deleted == []
+    out = capsys.readouterr().out
+    assert "would remove override 1 'Late-work accommodation (no close date)' (1 student(s))" in out
+    assert "Would remove 1; skipped 2, left in Canvas." in out
+    # Then for real.
+    monkeypatch.setattr(sys, "argv", argv + ["--apply"])
     assert sla.main() == 0
     assert deleted == [1]
     out = capsys.readouterr().out
     assert "override 2" in out and "1 other student" in out
     assert "override 3" in out and "not made by this tool" in out
     assert "override 4" not in out  # not this student's at all
+    assert "Removed 1; skipped 2, left in Canvas." in out
