@@ -20,10 +20,19 @@ HOW THE EXTENSION IS BUILT
   with `quiz_extensions[][user_id]` + `quiz_extensions[][extra_time]`
   (in MINUTES). extra_time = ceil(quiz.time_limit * (multiplier - 1)).
 
-WHAT'S IN SCOPE
-  Classic Canvas quizzes only. New Quizzes (LTI-based) use a separate
-  API and are NOT covered by this tool — they're listed as a follow-up
-  in lib/agents/knowledge/deid_master_knowledge.md.
+NEW QUIZZES (#513)
+  New Quizzes take extra time and attempts through a separate API:
+    POST /api/quiz/v1/courses/:cid/quizzes/:assignment_id/accommodations
+  with a JSON array [{"user_id", "extra_time" (MINUTES), "extra_attempts"}].
+  --all-timed covers timed Classic Quizzes AND timed New Quizzes; --new-quiz-id
+  targets one New Quiz by its assignment id. The response lists `successful`
+  and `failed`, and a 200 can still list the student as failed, so only
+  "successful and not failed" counts. Canvas offers no way to read an
+  accommodation back: confirm in the quiz's Moderate page or in Student View.
+  extra_attempts is the TOTAL of extra attempts, not an addition: sending 1
+  again to a student who already had 1 gives them nothing new. Extra time
+  shows only to a student with an attempt left.
+  --manually-unlock and --extend-from-end-at are Classic Quizzes only.
 
 PII-FREE LOOKUP
   --user-id 123456        bare Canvas user_id
@@ -43,6 +52,10 @@ USAGE — dry-run by default (use --apply to actually write)
   # ONE specific quiz
   uv run python lib/tools/student_quiz_time_extension.py \\
     --deid-code S-68BC40 --multiplier 1.5 --quiz-id 12345 --apply
+
+  # ONE New Quiz (its assignment id), with one extra attempt
+  uv run python lib/tools/student_quiz_time_extension.py \\
+    --deid-code S-68BC40 --multiplier 1.5 --new-quiz-id 67890 --extra-attempts 1 --apply
 
   # Custom multiplier (e.g. 1.25x for 25% extra time)
   uv run python lib/tools/student_quiz_time_extension.py \\
@@ -150,6 +163,33 @@ def filter_timed_quizzes(quizzes: list[dict]) -> list[dict]:
     return out
 
 
+def timed_new_quizzes(quizzes: list[dict]) -> list[dict]:
+    """Timed New Quizzes from GET /api/quiz/v1/courses/:id/quizzes, as
+    {"id": assignment_id, "title", "time_limit": minutes, "new_quiz": True}."""
+    out = []
+    for q in quizzes or []:
+        st = q.get("quiz_settings") or {}
+        secs = st.get("session_time_limit_in_seconds") or 0
+        if st.get("has_time_limit") and secs > 0:
+            out.append({"id": int(q["id"]), "title": q.get("title", ""),
+                        "time_limit": secs / 60, "new_quiz": True})
+    return out
+
+
+def accommodation_result(code: int, body: dict, user_id: int) -> tuple[bool, str]:
+    """(done, reason) for a New Quizzes accommodations response. A 200 can still
+    list the student under `failed`, so only "successful and not failed" counts."""
+    body = body if isinstance(body, dict) else {}
+    for f in body.get("failed") or []:
+        if f.get("user_id") == user_id:
+            return False, str(f.get("error") or "listed as failed")
+    if code not in (200, 201):
+        return False, str(body.get("message") or body.get("errors") or f"HTTP {code}")
+    if any(x.get("user_id") == user_id for x in body.get("successful") or []):
+        return True, ""
+    return False, "the student isn't listed as successful"
+
+
 def resolve_user_id_from_master(master_path: Path, deid_code: str) -> int:
     """Look up a deid_code in the master CSV and return the user_id.
 
@@ -254,6 +294,45 @@ def post_extension(base_url: str, course_id: str, quiz_id: int,
     return r.status_code, body
 
 
+def fetch_new_quizzes(base_url: str, course_id: str, token: str) -> list[dict]:
+    """GET /api/quiz/v1/courses/:id/quizzes, following the Link header."""
+    headers = {"Authorization": f"Bearer {token}"}
+    out: list[dict] = []
+    url = f"{base_url}/api/quiz/v1/courses/{course_id}/quizzes"
+    params = {"per_page": 100}
+    while url:
+        r = requests.get(url, headers=headers, params=params, timeout=_TIMEOUT)
+        r.raise_for_status()
+        out.extend(r.json())
+        url, params = r.links.get("next", {}).get("url"), None
+    return out
+
+
+def fetch_new_quiz(base_url: str, course_id: str, assignment_id: int,
+                   token: str) -> dict:
+    headers = {"Authorization": f"Bearer {token}"}
+    r = requests.get(
+        f"{base_url}/api/quiz/v1/courses/{course_id}/quizzes/{assignment_id}",
+        headers=headers, timeout=_TIMEOUT,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def post_new_quiz_accommodation(base_url: str, course_id: str, assignment_id: int,
+                                body: list[dict], token: str) -> tuple[int, dict]:
+    headers = {"Authorization": f"Bearer {token}"}
+    r = requests.post(
+        f"{base_url}/api/quiz/v1/courses/{course_id}/quizzes/{assignment_id}/accommodations",
+        headers=headers, json=body, timeout=_TIMEOUT,
+    )
+    try:
+        out = r.json()
+    except ValueError:
+        out = {}
+    return r.status_code, out
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -266,14 +345,18 @@ def main() -> int:
     who.add_argument("--user-id", help="bare Canvas user_id (no PII surface)")
     who.add_argument("--deid-code", help="deid_code from grading/.deid_master.csv")
     scope = ap.add_mutually_exclusive_group(required=True)
-    scope.add_argument("--quiz-id", type=int, help="ONE specific quiz id")
+    scope.add_argument("--quiz-id", type=int, help="ONE specific Classic Quiz id")
+    scope.add_argument("--new-quiz-id", type=int, metavar="ASSIGNMENT_ID",
+                       help="ONE specific New Quiz, by its assignment id (#513)")
     scope.add_argument("--all-timed", action="store_true",
-                       help="ALL classic quizzes that have a time limit")
+                       help="ALL quizzes with a time limit: Classic Quizzes and New Quizzes")
     ap.add_argument("--multiplier", type=float,
                     help="time multiplier — 1.5 for 50%% extra time, "
                          "2.0 for double time, 1.25 for 25%% extra, etc.")
     ap.add_argument("--extra-attempts", type=int, metavar="N",
-                    help="grant N extra attempts (requires --quiz-id)")
+                    help="grant N extra attempts (requires --quiz-id or --new-quiz-id). "
+                         "For a New Quiz, N is the TOTAL of extra attempts: it replaces "
+                         "an earlier number, it doesn't add to it (#513)")
     ap.add_argument("--manually-unlock", action="store_true",
                     help="manually unlock the quiz for this student "
                          "(requires --quiz-id)")
@@ -297,10 +380,14 @@ def main() -> int:
         print("ERROR: give --multiplier and/or one of --extra-attempts, "
               "--manually-unlock, --extend-from-end-at.", file=sys.stderr)
         return 2
-    if attempt_opts and not args.quiz_id:
+    if attempt_opts and not (args.quiz_id or args.new_quiz_id):
         print("ERROR: --extra-attempts / --manually-unlock / "
-              "--extend-from-end-at need --quiz-id (never course-wide).",
+              "--extend-from-end-at need --quiz-id or --new-quiz-id (never course-wide).",
               file=sys.stderr)
+        return 2
+    if args.new_quiz_id and (args.manually_unlock or args.extend_from_end_at is not None):
+        print("ERROR: --manually-unlock and --extend-from-end-at are for classic quizzes only; "
+              "New Quizzes take extra time and --extra-attempts.", file=sys.stderr)
         return 2
     if args.extra_attempts is not None and args.extra_attempts < 1:
         print("ERROR: --extra-attempts must be >= 1.", file=sys.stderr)
@@ -337,6 +424,13 @@ def main() -> int:
 
     if args.all_timed:
         quizzes = fetch_timed_quizzes(base_url, course_id, token)
+        quizzes += timed_new_quizzes(fetch_new_quizzes(base_url, course_id, token))
+    elif args.new_quiz_id:
+        nq = fetch_new_quiz(base_url, course_id, args.new_quiz_id, token)
+        timed = timed_new_quizzes([nq])
+        # Attempt grants apply to untimed quizzes too.
+        quizzes = timed or ([{"id": args.new_quiz_id, "title": nq.get("title", ""),
+                              "time_limit": None, "new_quiz": True}] if attempt_opts else [])
     else:
         one = fetch_quiz(base_url, course_id, args.quiz_id, token)
         # Attempt grants apply to untimed quizzes too.
@@ -352,15 +446,17 @@ def main() -> int:
         return 0
 
     fails = 0
+    new_quizzes_done = 0
     assignment_ids = []  # Track assignment IDs from graded quizzes
     for q in quizzes:
         qid = q["id"]
+        kind = "New Quiz" if q.get("new_quiz") else "quiz"
         tl = q.get("time_limit")
         extra = None
         if args.multiplier is not None:
             extra = compute_extra_minutes(tl, args.multiplier)
             if (extra is None or extra <= 0) and not attempt_opts:
-                print(f"  [SKIP] quiz {qid}: no time_limit or multiplier <= 1.0")
+                print(f"  [SKIP] {kind} {qid}: no time_limit or multiplier <= 1.0")
                 continue
             if extra is not None and extra <= 0:
                 extra = None
@@ -376,7 +472,22 @@ def main() -> int:
             parts.append(f"{args.extend_from_end_at} min from end_at")
         what = ", ".join(parts) or "nothing"
         if not args.apply:
-            print(f"  [DRY] quiz {qid} ({title}): would grant {what}")
+            print(f"  [DRY] {kind} {qid} ({title}): would grant {what}")
+            continue
+        if q.get("new_quiz"):
+            acc = {"user_id": uid}
+            if extra:
+                acc["extra_time"] = extra
+            if args.extra_attempts is not None:
+                acc["extra_attempts"] = args.extra_attempts
+            code, body = post_new_quiz_accommodation(base_url, course_id, qid, [acc], token)
+            done, reason = accommodation_result(code, body, uid)
+            if done:
+                new_quizzes_done += 1
+                print(f"  [OK ] New Quiz {qid} ({title}): {what} (HTTP {code})")
+            else:
+                fails += 1
+                print(f"  [FAIL] New Quiz {qid} ({title}): {what}: {reason[:200]}")
             continue
         payload = build_extension_payload(
             uid, extra, args.extra_attempts, args.manually_unlock,
@@ -418,6 +529,11 @@ def main() -> int:
                   file=sys.stderr)
             print(f"  [recalc] Fallback: Run fix_group_override_recalc.py --course-id {course_id} "
                   f"--student-id {uid}", file=sys.stderr)
+
+    if new_quizzes_done:
+        print(f"\n{new_quizzes_done} New Quiz accommodation(s) accepted. Canvas can't be "
+              f"asked whether one applied: check the quiz's Moderate page, or open it in "
+              f"Student View, once the student has an attempt available.")
 
     if fails:
         print(f"\n{fails} operation(s) failed. Re-run to retry.", file=sys.stderr)

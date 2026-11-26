@@ -26,7 +26,8 @@ Output discipline: ✅ "Applied 1.5× time for deid_code S-68BC40" · ❌ "…fo
 
 | Intervention | Tool |
 |---|---|
-| Quiz time extension (e.g. 1.5× / 2× on timed quizzes) | `student_quiz_time_extension.py --deid-code <code> --multiplier 1.5 --all-timed --apply` |
+| Quiz time extension (e.g. 1.5× / 2× on timed quizzes) | `student_quiz_time_extension.py --deid-code <code> --multiplier 1.5 --all-timed --apply` — covers Classic Quizzes and New Quizzes. Canvas can't be asked whether a New Quiz accommodation applied: confirm on the quiz's Moderate page or in Student View, once the student has an attempt available |
+| Time extension or extra attempt on one New Quiz | `student_quiz_time_extension.py --deid-code <code> --new-quiz-id <assignment id> --multiplier 1.5 [--extra-attempts 1] --apply` (no `--manually-unlock` / `--extend-from-end-at`: Classic Quizzes only) |
 | Extra quiz attempt / manual unlock (one quiz) | `student_quiz_time_extension.py --deid-code <code> --quiz-id <id> --extra-attempts 1 [--manually-unlock] [--extend-from-end-at <min>] --apply` — Canvas can't delete a classic submission; check the quiz's score-keeping policy (highest vs latest) to know whether the old attempt still counts |
 | Late-work grace / reopen past-due assignments | `student_late_accommodation.py --deid-code <code> --from-days-ago 14 --apply` |
 | SAS / disability-office accommodation dispatcher (processes letters) | `apply_sas_accommodations.py --apply` |

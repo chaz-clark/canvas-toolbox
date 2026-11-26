@@ -646,7 +646,7 @@ When building a new Canvas-touching tool, run through this checklist:
 
 **What Canvas does:** extra time and attempts on New Quizzes go through `POST /api/quiz/v1/courses/:cid/quizzes/:assignment_id/accommodations` (JSON array, `extra_time` in minutes). The response lists `successful` and `failed`, and a 200 can contain failures. There is no GET for accommodations, and the classic `/quizzes/:id/extensions` endpoint doesn't apply to New Quizzes.
 
-**Why it matters:** a 200 with the student under `successful` still showed the base time limit when the student had no attempt left. Once an extra attempt was added, the student saw the extra time and the timer began with it. Check `failed` on every response, and confirm in Moderate or as the student. The Assign To tray won't take the Test Student, but this API does.
+**Why it matters:** a 200 with the student under `successful` still showed the base time limit when the student had no attempt left. Once an extra attempt was added, the student saw the extra time and the timer began with it. Check `failed` on every response, and confirm in Moderate or as the student. The Assign To tray won't take the Test Student, but this API does. `extra_attempts` is the **total** of extra attempts, not an addition: sending 1 again to a student who already had 1 gave no new attempt; sending 3 did. `student_quiz_time_extension` writes these from 2.14.0.
 
 **Provenance:** DS 250 sandbox, fixture New Quiz, Test Student, 2026-11-26; issue #513.
 

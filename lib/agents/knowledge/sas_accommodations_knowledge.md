@@ -47,7 +47,7 @@ agents reason about what's automatable vs. instructor-discretion.
 
 | Catalog key | Faculty ask | Dispatched tool | Notes |
 |---|---|---|---|
-| `extra_time_1.5x` | "Please allow 50% extra time on all timed exams and quizzes." | `student_quiz_time_extension --multiplier 1.5 --all-timed` | Classic Quizzes only. New Quizzes follow-up. |
+| `extra_time_1.5x` | "Please allow 50% extra time on all timed exams and quizzes." | `student_quiz_time_extension --multiplier 1.5 --all-timed` | Classic Quizzes and New Quizzes (#513). A New Quiz accommodation can't be read back: confirm in Moderate or Student View. |
 | `extra_time_2.0x` | "Please allow 100% extra time (double time) on all exams and quizzes." | `student_quiz_time_extension --multiplier 2.0 --all-timed` | Same scope as 1.5x. |
 | `occasional_extensions` | "Students are expected to meet assignment deadlines. However, occasional extensions may be appropriate…" | `student_late_accommodation --all` (or scoped by YAML `scope`) | Sends `lock_at` empty, so the student has no Until date (leaving it out keeps the assignment's Until date, #505). Scope flags: `from_days_ago`, `from`. |
 | `test_reschedule` | "This student has health issues that may warrant a need to reschedule their exam date…" | `student_late_accommodation --shift-by-days N` | Shifts unlock/due/lock forward by N days. Distinct from `occasional_extensions`. |
