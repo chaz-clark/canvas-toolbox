@@ -510,7 +510,7 @@ uv run python lib/tools/student_late_accommodation.py \
 uv run python lib/tools/student_late_accommodation.py \
   --deid-code S-68BC40 --all --apply
 
-# Undo cleanly — same scope flags work for --remove
+# Undo cleanly — same scope flags work for --remove (deletes only this tool's own overrides for this student alone)
 uv run python lib/tools/student_late_accommodation.py \
   --deid-code S-68BC40 --from-days-ago 14 --remove --apply
 ```

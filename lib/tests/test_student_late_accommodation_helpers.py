@@ -23,6 +23,7 @@ from student_late_accommodation import (  # noqa: E402
     cutoff_from_days_ago,
     filter_assignments_by_due_from,
     filter_my_overrides,
+    skip_reason,
     resolve_user_id_from_master,
     shift_iso_timestamp,
 )
@@ -167,6 +168,34 @@ def test_payload_handles_null_due_at():
 def test_payload_custom_title():
     payload = build_override_payload({}, user_id=1, title="Custom title")
     assert payload["assignment_override[title]"] == "Custom title"
+
+
+# ---------------------------------------------------------------------------
+# skip_reason — what --remove may delete (#510)
+# ---------------------------------------------------------------------------
+
+def test_remove_takes_the_tools_own_late_grace_override():
+    assert skip_reason({"id": 1, "title": "Late-work accommodation (no close date)",
+                        "student_ids": [100]}, user_id=100) is None
+
+
+def test_remove_takes_the_tools_own_reschedule_override():
+    assert skip_reason({"id": 1, "title": "Test reschedule (date-shifted)",
+                        "student_ids": [100]}, user_id=100) is None
+
+
+def test_remove_skips_an_override_shared_with_other_students():
+    """Deleting it would take the dates away from the other students too."""
+    why = skip_reason({"id": 1, "title": "Late-work accommodation (no close date)",
+                       "student_ids": [100, 200, 300]}, user_id=100)
+    assert why and "2 other student" in why
+
+
+def test_remove_skips_an_override_the_tool_didnt_make():
+    """Made by hand in Assign To (or renamed there): the instructor's, not ours."""
+    for title in ("1 student", "Extended for Sarah (fake name)", None):
+        why = skip_reason({"id": 1, "title": title, "student_ids": [100]}, user_id=100)
+        assert why and "not made by this tool" in why
 
 
 # ---------------------------------------------------------------------------
@@ -391,3 +420,32 @@ def test_shift_payload_custom_title():
     payload = build_shift_payload({}, user_id=1, days=7,
                                   title="Bereavement reschedule")
     assert payload["assignment_override[title]"] == "Bereavement reschedule"
+
+
+# ---------------------------------------------------------------------------
+# --remove end to end (#510): main() deletes only the tool's own override
+# ---------------------------------------------------------------------------
+
+def test_remove_apply_deletes_only_the_tools_own_override(monkeypatch, capsys):
+    import student_late_accommodation as sla
+    overrides = [
+        {"id": 1, "title": "Late-work accommodation (no close date)", "student_ids": [100]},
+        {"id": 2, "title": "Late-work accommodation (no close date)", "student_ids": [100, 200]},
+        {"id": 3, "title": "Extended for Sarah (fake name)", "student_ids": [100]},
+        {"id": 4, "title": "Late-work accommodation (no close date)", "student_ids": [200]},
+    ]
+    deleted = []
+    monkeypatch.setattr(sla, "list_overrides", lambda *a, **k: overrides)
+    monkeypatch.setattr(sla, "delete_override", lambda base, cid, aid, oid, tok: deleted.append(oid) or 200)
+    monkeypatch.setattr(sla, "_course_guard", lambda *a, **k: None)
+    for k, v in {"CANVAS_BASE_URL": "http://127.0.0.1:9", "CANVAS_COURSE_ID": "1",
+                 "CANVAS_API_TOKEN": "x"}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(sys, "argv", ["student_late_accommodation.py", "--user-id", "100",
+                                      "--assignment-id", "5", "--remove", "--apply"])
+    assert sla.main() == 0
+    assert deleted == [1]
+    out = capsys.readouterr().out
+    assert "override 2" in out and "1 other student" in out
+    assert "override 3" in out and "not made by this tool" in out
+    assert "override 4" not in out  # not this student's at all

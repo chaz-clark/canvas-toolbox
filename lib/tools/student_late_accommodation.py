@@ -129,6 +129,9 @@ except ImportError:
 
 _DEFAULT_MASTER = Path("grading/.deid_master.csv")
 _OVERRIDE_TITLE = "Late-work accommodation (no close date)"
+_SHIFT_TITLE = "Test reschedule (date-shifted)"
+# The only titles this tool writes; --remove deletes nothing else (#510).
+_TOOL_TITLES = (_OVERRIDE_TITLE, _SHIFT_TITLE)
 _TIMEOUT = 30
 
 
@@ -190,6 +193,22 @@ def filter_my_overrides(overrides: list[dict], user_id: int) -> list[dict]:
             if user_id in (o.get("student_ids") or [])]
 
 
+def skip_reason(override: dict, user_id: int) -> str | None:
+    """Why --remove must leave this override alone, or None if it may delete it.
+
+    Deleting an override removes it for every student it lists, and an override
+    the instructor made in Assign To is theirs, not ours. So --remove deletes
+    only an override this tool wrote (by title) for this student alone (#510).
+    """
+    others = [s for s in (override.get("student_ids") or []) if s != user_id]
+    if others:
+        return (f"shared with {len(others)} other student(s); deleting it would "
+                f"remove their dates too")
+    if override.get("title") not in _TOOL_TITLES:
+        return f"not made by this tool (title {override.get('title')!r})"
+    return None
+
+
 def cutoff_from_days_ago(days: int, today: date | None = None) -> str:
     """Return YYYY-MM-DD for (today - days). The `today` parameter
     exists for testability — defaults to actual today."""
@@ -217,7 +236,7 @@ def shift_iso_timestamp(ts: str | None, days: int) -> str | None:
 
 
 def build_shift_payload(assignment: dict, user_id: int, days: int,
-                        title: str = "Test reschedule (date-shifted)") -> dict:
+                        title: str = _SHIFT_TITLE) -> dict:
     """Build the POST body for a date-shift override (test_reschedule).
 
     Different from build_override_payload: instead of dropping lock_at,
@@ -378,7 +397,8 @@ def main() -> int:
                          "Use for accommodations that say 'reschedule the "
                          "exam' rather than 'allow late submission'.")
     ap.add_argument("--remove", action="store_true",
-                    help="undo: delete this student's accommodation overrides")
+                    help="undo: delete the overrides this tool made for this student "
+                     "alone; shared or hand-made overrides are skipped (#510)")
     ap.add_argument("--apply", action="store_true",
                     help="actually write the change (without this, dry-run)")
     ap.add_argument("--force-recalc", dest="force_recalc", action="store_true",
@@ -446,10 +466,19 @@ def main() -> int:
         if args.remove:
             overrides = list_overrides(base_url, course_id, aid, token)
             mine = filter_my_overrides(overrides, uid)
-            if not args.apply:
-                print(f"  [DRY] {aid}: would remove {len(mine)} override(s)")
-                continue
+            if not mine:
+                print(f"  [--] {aid}: no override for this student")
             for o in mine:
+                n = len(o.get("student_ids") or [])
+                label = f"override {o['id']} {o.get('title')!r} ({n} student(s))"
+                why = skip_reason(o, uid)
+                if why:
+                    print(f"  [SKIP] {aid}: {label}: {why}. Change it in "
+                          f"Canvas's Assign To if it should go.")
+                    continue
+                if not args.apply:
+                    print(f"  [DRY] {aid}: would remove {label}")
+                    continue
                 code = delete_override(base_url, course_id, aid, o["id"], token)
                 ok = "OK " if code == 200 else "FAIL"
                 if code != 200:
