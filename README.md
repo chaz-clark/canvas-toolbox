@@ -481,7 +481,7 @@ When ONE student needs deadline flexibility — for any reason, on some or all a
 
 | Flavor | What happens | When you'd use it | SAS catalog key |
 |---|---|---|---|
-| Default (drop `lock_at`) | Keep original open/due; remove the close date | *"Allow late submission without penalty"* — student still sees the original deadline, can submit after | `occasional_extensions` |
+| Default (`lock_at` sent empty, #505) | Keep original open/due; remove the Until date | *"Allow late submission without penalty"* — student still sees the original deadline, can submit after | `occasional_extensions` |
 | `--shift-by-days N` | Shift open + due + close forward by N days | *"Reschedule the exam for this student"* — student gets a moved window with a real hard close | `test_reschedule` |
 
 **Scopes** (which assignments to apply to):

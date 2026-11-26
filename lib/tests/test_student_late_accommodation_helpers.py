@@ -131,18 +131,21 @@ def test_payload_keeps_unlock_at():
     assert payload["assignment_override[unlock_at]"] == "2026-04-01T00:00:00Z"
 
 
-def test_payload_omits_lock_at():
-    """THE CORE INVARIANT — lock_at MUST NOT appear in the payload.
-    Canvas interprets a missing lock_at as null (no close date), which
-    is exactly the accommodation. If lock_at ever bleeds into the payload
-    here, students lose late-submission access."""
+def test_payload_sets_until_explicitly_empty():
+    """THE CORE INVARIANT (#505) — the Until date (lock_at) is sent, and empty.
+    Canvas does NOT read a missing lock_at as "no Until date": a field the
+    override leaves out isn't overridden, so the assignment's own Until date
+    still locks the student out. Seen with a real student account, 2026-11-26;
+    sending it empty is what removes it. The assignment's own Until date must
+    never bleed into the payload either."""
     assignment = {
         "due_at": "2026-04-15T23:59:00Z",
         "unlock_at": "2026-04-01T00:00:00Z",
-        "lock_at": "2026-05-01T23:59:00Z",  # SHOULD be ignored
+        "lock_at": "2026-05-01T23:59:00Z",  # must NOT be copied
     }
     payload = build_override_payload(assignment, user_id=1)
-    assert "assignment_override[lock_at]" not in payload
+    assert payload["assignment_override[lock_at]"] == ""
+    assert build_override_payload({}, user_id=1)["assignment_override[lock_at]"] == ""
 
 
 def test_payload_handles_missing_due_at():
@@ -346,7 +349,7 @@ def test_shift_negative_days_goes_backward():
 
 def test_shift_payload_includes_lock_at_unlike_default():
     """KEY DIFFERENCE from build_override_payload: this payload INCLUDES
-    lock_at (shifted). The default override drops lock_at entirely."""
+    lock_at (shifted). The default override sends lock_at empty (#505)."""
     assignment = {
         "unlock_at": "2026-04-01T00:00:00Z",
         "due_at": "2026-04-15T23:59:00Z",
