@@ -95,6 +95,8 @@ except ImportError:
 
 _DEFAULT_HANDOFF = Path("grading/.sas_accommodations.yml")
 _DEFAULT_AUDIT_LOG = Path("grading/.sas_accommodations_applied.log")
+# The tools this dispatches to sit beside it, in either layout (#503).
+_TOOLS_DIR = Path(__file__).resolve().parent
 
 
 # ---------------------------------------------------------------------------
@@ -153,18 +155,21 @@ def classify_key(key: str) -> str:
     return "unknown"
 
 
-def plan_one_accommodation(deid_code: str, acc: dict) -> DispatchPlan:
+def plan_one_accommodation(deid_code: str, acc: dict,
+                           apply: bool = False) -> DispatchPlan:
     """Build one DispatchPlan from a single accommodation dict.
 
     Doesn't run anything — just decides what WOULD run. The CLI walks
     a list of these and executes the `canvas` tier ones when --apply
-    is set.
+    is set; `apply` puts --apply on each command so the tool writes.
     """
     key = (acc.get("key") or "").strip()
     tier = classify_key(key)
 
     if tier == "canvas":
         cmd, note = _build_canvas_command(deid_code, key, acc)
+        if apply:
+            cmd.append("--apply")  # the tools default to a dry run (#503)
         return DispatchPlan(deid_code, key, "canvas", cmd, note)
 
     if tier == "proctoring":
@@ -197,31 +202,34 @@ def _build_canvas_command(deid_code: str, key: str,
 
     Tools are invoked as subprocess so they each enforce their own
     env-validation + .env loading + de-id master lookup. We do NOT
-    cross-import them — each tool stays standalone.
+    cross-import them — each tool stays standalone. They run on this
+    dispatcher's own Python, by full path, so the venv and the layout
+    (flat or nested) are whatever the dispatcher was started with.
     """
-    common = ["uv", "run", "python", "lib/tools/"]
+    def tool(name: str) -> list[str]:
+        return [sys.executable, str(_TOOLS_DIR / name)]
 
     if key == "extra_time_1.5x":
-        cmd = common + ["student_quiz_time_extension.py",
-                        "--deid-code", deid_code,
-                        "--multiplier", "1.5",
-                        "--all-timed"]
+        cmd = tool("student_quiz_time_extension.py") + [
+            "--deid-code", deid_code,
+            "--multiplier", "1.5",
+            "--all-timed"]
         note = "Canvas: +50% extra time on all timed classic quizzes."
         return cmd, note
 
     if key == "extra_time_2.0x":
-        cmd = common + ["student_quiz_time_extension.py",
-                        "--deid-code", deid_code,
-                        "--multiplier", "2.0",
-                        "--all-timed"]
+        cmd = tool("student_quiz_time_extension.py") + [
+            "--deid-code", deid_code,
+            "--multiplier", "2.0",
+            "--all-timed"]
         note = "Canvas: +100% (double time) on all timed classic quizzes."
         return cmd, note
 
     if key == "occasional_extensions":
         # Default: --all (whole-semester backdated lock_at=null grant).
         # YAML may override scope: 'from_days_ago' or 'from' for a tighter window.
-        cmd = common + ["student_late_accommodation.py",
-                        "--deid-code", deid_code]
+        cmd = tool("student_late_accommodation.py") + [
+            "--deid-code", deid_code]
         scope = (acc.get("scope") or "").strip()
         if scope == "from_days_ago":
             days = int(acc.get("days", 14))
@@ -238,9 +246,9 @@ def _build_canvas_command(deid_code: str, key: str,
 
     if key == "test_reschedule":
         days = int(acc.get("shift_by_days", 7))
-        cmd = common + ["student_late_accommodation.py",
-                        "--deid-code", deid_code,
-                        "--shift-by-days", str(days)]
+        cmd = tool("student_late_accommodation.py") + [
+            "--deid-code", deid_code,
+            "--shift-by-days", str(days)]
         if acc.get("assignment_id"):
             cmd += ["--assignment-id", str(int(acc["assignment_id"]))]
             scope_text = f"assignment {acc['assignment_id']}"
@@ -254,7 +262,7 @@ def _build_canvas_command(deid_code: str, key: str,
     raise AssertionError(f"unhandled canvas-tier key: {key}")
 
 
-def plan_entries(entries: list[dict]) -> list[DispatchPlan]:
+def plan_entries(entries: list[dict], apply: bool = False) -> list[DispatchPlan]:
     """Walk an entire SAS handoff YAML and produce a flat list of
     DispatchPlan objects — one per (student, accommodation key) pair."""
     out: list[DispatchPlan] = []
@@ -263,7 +271,7 @@ def plan_entries(entries: list[dict]) -> list[DispatchPlan]:
         if not deid:
             continue
         for acc in entry.get("accommodations") or []:
-            out.append(plan_one_accommodation(deid, acc))
+            out.append(plan_one_accommodation(deid, acc, apply))
     return out
 
 
@@ -305,7 +313,7 @@ def main() -> int:
               file=sys.stderr)
         return 2
 
-    plans = plan_entries(entries)
+    plans = plan_entries(entries, args.apply)
     apply_ = "APPLY" if args.apply else "DRY-RUN"
     print(f"Loaded {len(plans)} planned action(s) from {args.file} | {apply_}\n")
 
