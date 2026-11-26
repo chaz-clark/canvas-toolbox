@@ -552,7 +552,7 @@ def test_apply_leaves_a_shared_override_alone(monkeypatch, capsys):
 
 def test_apply_does_not_reschedule_twice(monkeypatch, capsys):
     code, sent, out, err = _run_add(monkeypatch, capsys, [_OLD_SHIFT], extra=("--shift-by-days", "7"))
-    assert code == 0 and sent == [] and "twice" in out and "already in place" in out
+    assert code == 0 and sent == [] and "--remove it first" in out and "already in place" in out
 
 
 def test_apply_leaves_correct_late_grace_alone(monkeypatch, capsys):
@@ -616,7 +616,7 @@ def test_late_grace_preview_says_no_until_date(monkeypatch, capsys):
 # ---------------------------------------------------------------------------
 
 def test_both_assignment_reads_ask_for_the_assignments_own_dates(monkeypatch):
-    """A teacher's read applies overrides by default, so another student's dates
+    """A read in the Teacher role applies overrides by default, so another student's dates
     leaked into this student's override (#521)."""
     import student_late_accommodation as sla
     seen = []

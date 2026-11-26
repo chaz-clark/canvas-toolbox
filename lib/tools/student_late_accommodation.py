@@ -218,9 +218,9 @@ def existing_override_action(override: dict, user_id: int,
     already has one on the assignment (#511): ("repair", None) or ("skip", why).
 
     Only the tool's own late grace for this student alone is repaired, by late
-    grace. A reschedule is never redone: Canvas can return the assignment's dates
-    with the student's override already applied, so a second shift could move
-    them twice.
+    grace. A reschedule already made by this tool is left as it is: since #521 a
+    second run would compute the same dates, and a different shift means removing
+    the old one first (--remove), so the change is deliberate.
     """
     why = skip_reason(override, user_id)
     if why:
@@ -228,7 +228,8 @@ def existing_override_action(override: dict, user_id: int,
     title = override.get("title")
     if shifting:
         if title == _SHIFT_TITLE:
-            return "done", "already rescheduled by this tool; doing it again could move the dates twice"
+            return "done", ("already rescheduled by this tool; to shift it by a different "
+                            "number of days, --remove it first")
         return "skip", "already has late grace here; a reschedule would replace it"
     if title == _SHIFT_TITLE:
         return "skip", "already rescheduled here; late grace would replace the reschedule"
@@ -382,8 +383,9 @@ def fetch_published_assignments(base_url: str, course_id: str,
     """GET /courses/:id/assignments and return ONLY the published ones
     as full dicts (so callers can filter by due_at).
 
-    Paginates over all pages. The assignment's OWN dates: a teacher's read
-    applies overrides by default, so another student's would leak in (#521).
+    Paginates over all pages. The assignment's OWN dates: a read in the Teacher
+    role applies students' overrides by default, so another student's would leak
+    in (#521).
     """
     headers = {"Authorization": f"Bearer {token}"}
     out: list[dict] = []
@@ -408,9 +410,9 @@ def fetch_published_assignments(base_url: str, course_id: str,
 
 def fetch_assignment(base_url: str, course_id: str, assignment_id: int,
                      token: str) -> dict:
-    """The assignment with its OWN dates. A teacher's read applies overrides by
-    default, so the dates could be another student's, and every override built
-    from them would carry that student's dates (#521)."""
+    """The assignment with its OWN dates. A read in the Teacher role applies
+    students' overrides by default, so the dates could be another student's, and
+    every override built from them would carry that student's dates (#521)."""
     headers = {"Authorization": f"Bearer {token}"}
     r = requests.get(
         f"{base_url}/api/v1/courses/{course_id}/assignments/{assignment_id}",
