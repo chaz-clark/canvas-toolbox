@@ -349,7 +349,7 @@ def test_shift_negative_days_goes_backward():
 
 def test_shift_payload_includes_lock_at_unlike_default():
     """KEY DIFFERENCE from build_override_payload: this payload INCLUDES
-    lock_at (shifted). The default override drops lock_at entirely."""
+    lock_at (shifted). The default override sends lock_at empty (#505)."""
     assignment = {
         "unlock_at": "2026-04-01T00:00:00Z",
         "due_at": "2026-04-15T23:59:00Z",

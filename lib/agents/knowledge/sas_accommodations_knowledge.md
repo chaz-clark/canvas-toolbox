@@ -59,7 +59,7 @@ intent, not by the word "reschedule" (mis-picking these is what surfaced #178):
 
 | What the letter/instructor actually means | Use | What changes |
 |---|---|---|
-| **"Let the student submit late"** — open + due dates stay the same, they just need the submit button open past the close date | `occasional_extensions` | Drops `lock_at` only. `unlock_at` + `due_at` unchanged (gradebook keeps the original due date). |
+| **"Let the student submit late"** — open + due dates stay the same, they just need the submit button open past the close date | `occasional_extensions` | Removes the Until date by sending `lock_at` empty (#505). `unlock_at` + `due_at` unchanged (gradebook keeps the original due date). |
 | **"Move this student's exam/assignment later"** — they'll open it later and be graded against the new dates | `test_reschedule` | Shifts `unlock_at`, `due_at`, `lock_at` all forward by N days. |
 
 **Default to `occasional_extensions` for "allow late submission."** Shifting `due_at`
