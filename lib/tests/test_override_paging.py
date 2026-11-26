@@ -13,6 +13,8 @@ calls, so a regression fails instead of hanging the suite.
 import sys
 from pathlib import Path
 
+import pytest
+
 
 _TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(_TOOLS_DIR) not in sys.path:
@@ -141,16 +143,69 @@ def test_get_all_stops_on_a_next_link_it_has_already_read(monkeypatch):
     assert helper._get_all(loop, {}, 10) == [{"id": 1}] and len(calls) == 1
 
 
-def test_group_recalc_tool_uses_the_python_version(monkeypatch):
-    """The Rust binary still has the paging and touch bugs (#518): never run it."""
+def test_group_recalc_tool_uses_python_when_the_binary_isnt_trusted(monkeypatch):
     import fix_group_override_recalc as fg
     import _fix_group_override_recalc_python as py
     called = {}
+    monkeypatch.setattr(fg, "rust_binary_ok", lambda p: (False, "was built from older source"))
     monkeypatch.setattr(py, "run_python_fallback", lambda **k: called.update(k) or 0)
-    monkeypatch.setattr(fg.subprocess if hasattr(fg, "subprocess") else py, "run",
-                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("ran a subprocess")), raising=False)
+    monkeypatch.setattr(fg.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("ran Rust")))
     for k, v in {"CANVAS_BASE_URL": "http://127.0.0.1:9", "CANVAS_API_TOKEN": "x"}.items():
         monkeypatch.setenv(k, v)
     monkeypatch.setattr(sys, "argv", ["fix_group_override_recalc.py", "--course-id", "1",
                                       "--group-id", "42", "--dry-run"])
     assert fg.main() == 0 and called["group_id"] == 42
+
+
+def test_group_recalc_tool_runs_a_trusted_binary(monkeypatch):
+    import fix_group_override_recalc as fg
+    ran = []
+    monkeypatch.setattr(fg, "rust_binary_ok", lambda p: (True, ""))
+    monkeypatch.setattr(fg.subprocess, "run", lambda cmd, check: ran.append(cmd) or type("R", (), {"returncode": 0})())
+    for k, v in {"CANVAS_BASE_URL": "http://127.0.0.1:9", "CANVAS_API_TOKEN": "x"}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(sys, "argv", ["fix_group_override_recalc.py", "--course-id", "1", "--student-id", "7"])
+    assert fg.main() == 0 and ran[0][-2:] == ["--student-id", "7"]
+
+
+def _fake_binary(tmp_path, script):
+    b = tmp_path / "fix-override-recalc"
+    b.write_text("#!/bin/sh\n" + script + "\n")
+    b.chmod(0o755)
+    return b
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="shell-script stand-in for the binary")
+def test_rust_binary_ok_trusts_only_the_matching_version(tmp_path):
+    import fix_group_override_recalc as fg
+    assert fg.rust_binary_ok(tmp_path / "missing") == (False, "isn't built")
+    assert fg.rust_binary_ok(_fake_binary(tmp_path, f'echo "fix-override-recalc {fg._RUST_VERSION}"')) == (True, "")
+    ok, why = fg.rust_binary_ok(_fake_binary(tmp_path, 'echo "fix-override-recalc 0.1.0"'))
+    assert not ok and "0.1.0" in why
+    # A binary from before --version existed exits with an error, as 0.1.0 does.
+    ok, why = fg.rust_binary_ok(_fake_binary(tmp_path, 'echo "error: unexpected argument" >&2; exit 2'))
+    assert not ok and "unknown" in why
+
+
+def test_the_trusted_version_matches_the_rust_source():
+    """Bump _RUST_VERSION and Cargo.toml together, or the fixed binary is never used."""
+    import fix_group_override_recalc as fg
+    cargo = (_TOOLS_DIR / "fix_override_recalc_rs" / "Cargo.toml").read_text()
+    assert f'version = "{fg._RUST_VERSION}"' in cargo
+
+
+
+# The Rust source each trusted version was built from. Changing main.rs without
+# bumping the version would make the wrapper trust binaries built from the old
+# source (#518). So: change main.rs -> bump Cargo.toml's version and
+# _RUST_VERSION together -> record the new hash here.
+_RUST_SOURCE_SHA256 = {"0.2.0": "1782c46919f1960b5691df4d18e6202c28fa0721f5d463f349ffb48b8860b3fe"}
+
+
+def test_a_change_to_the_rust_source_needs_a_version_bump():
+    import hashlib
+    import fix_group_override_recalc as fg
+    src = (_TOOLS_DIR / "fix_override_recalc_rs" / "src" / "main.rs").read_bytes().replace(b"\r\n", b"\n")
+    assert hashlib.sha256(src).hexdigest() == _RUST_SOURCE_SHA256.get(fg._RUST_VERSION), (
+        "src/main.rs changed: bump the version in Cargo.toml and _RUST_VERSION in "
+        "fix_group_override_recalc.py, then record the new sha256 in _RUST_SOURCE_SHA256")

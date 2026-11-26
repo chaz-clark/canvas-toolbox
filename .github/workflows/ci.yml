@@ -124,3 +124,14 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --group dev
       - run: uv run pytest lib/tests/test_cb_secure_token.py lib/tests/test_env_loader.py -v
+
+  # The Rust group recalc (fix_override_recalc_rs): its unit tests cover the
+  # Link-header parsing and the touch form (#518). Built here so a change that
+  # breaks them, or breaks compiling, can't stay green.
+  rust-recalc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: cargo test (fix_override_recalc_rs)
+        run: cargo test --release --manifest-path lib/tools/fix_override_recalc_rs/Cargo.toml

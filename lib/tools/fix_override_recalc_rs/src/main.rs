@@ -3,11 +3,11 @@ use clap::Parser;
 use futures::future::join_all;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::time::Duration;
 
 #[derive(Parser, Debug)]
-#[command(name = "fix-override-recalc")]
+#[command(name = "fix-override-recalc", version)]
 #[command(about = "Force Canvas assignment override recalculation (Rust impl)")]
 struct Args {
     #[arg(long, help = "Canvas course ID")]
@@ -39,17 +39,27 @@ struct Assignment {
     name: String,
 }
 
+/// Tells a date the override leaves out (None) from one it sets to null
+/// (Some(None)): a late grace's Until date is overridden as null, and a PUT must
+/// send it back empty or Canvas puts the assignment's own Until date back (#518).
+fn present<'de, D>(d: D) -> std::result::Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<String>::deserialize(d).map(Some)
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct Override {
     id: u64,
     #[serde(default)]
     title: Option<String>,
-    #[serde(default)]
-    due_at: Option<String>,
-    #[serde(default)]
-    unlock_at: Option<String>,
-    #[serde(default)]
-    lock_at: Option<String>,
+    #[serde(default, deserialize_with = "present")]
+    due_at: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present")]
+    unlock_at: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present")]
+    lock_at: Option<Option<String>>,
     #[serde(default)]
     student_ids: Option<Vec<u64>>,
     #[serde(default)]
@@ -66,7 +76,7 @@ impl CanvasClient {
     fn new(base_url: String, token: String) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
-            .user_agent("canvas-toolbox-rust/0.1.0")
+            .user_agent(concat!("canvas-toolbox-rust/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("Failed to build HTTP client");
 
@@ -81,16 +91,21 @@ impl CanvasClient {
         &self,
         endpoint: &str,
     ) -> Result<Vec<T>> {
+        // Follow the Link header; never count pages. The overrides list ignores
+        // ?page= and returns the same overrides every time, so waiting for an
+        // empty page looped forever (#518, lesson L36).
         let mut all_items = Vec::new();
-        let mut page = 1;
+        let mut url = Some(format!("{}/api/v1/{}?per_page=100", self.base_url, endpoint));
+        let mut seen = HashSet::new();
 
-        loop {
-            let url = format!("{}/api/v1/{}", self.base_url, endpoint);
+        while let Some(current) = url.take() {
+            if !seen.insert(current.clone()) {
+                break; // a next link back to a page already read
+            }
             let response = self
                 .client
-                .get(&url)
+                .get(&current)
                 .bearer_auth(&self.token)
-                .query(&[("per_page", "100"), ("page", &page.to_string())])
                 .send()
                 .await
                 .context(format!("Failed to GET {}", endpoint))?;
@@ -99,17 +114,17 @@ impl CanvasClient {
                 anyhow::bail!("HTTP {} for {}", response.status(), endpoint);
             }
 
+            url = response
+                .headers()
+                .get(reqwest::header::LINK)
+                .and_then(|v| v.to_str().ok())
+                .and_then(next_link);
+
             let items: Vec<T> = response
                 .json()
                 .await
                 .context(format!("Failed to parse JSON from {}", endpoint))?;
-
-            if items.is_empty() {
-                break;
-            }
-
             all_items.extend(items);
-            page += 1;
         }
 
         Ok(all_items)
@@ -139,38 +154,7 @@ impl CanvasClient {
             self.base_url, course_id, assignment_id, override_data.id
         );
 
-        let mut form = HashMap::new();
-
-        // Preserve all existing values
-        if let Some(due_at) = &override_data.due_at {
-            form.insert("assignment_override[due_at]".to_string(), due_at.clone());
-        }
-        if let Some(unlock_at) = &override_data.unlock_at {
-            form.insert(
-                "assignment_override[unlock_at]".to_string(),
-                unlock_at.clone(),
-            );
-        }
-        if let Some(lock_at) = &override_data.lock_at {
-            form.insert("assignment_override[lock_at]".to_string(), lock_at.clone());
-        }
-        if let Some(title) = &override_data.title {
-            form.insert("assignment_override[title]".to_string(), title.clone());
-        }
-        if let Some(group_id) = override_data.group_id {
-            form.insert(
-                "assignment_override[group_id]".to_string(),
-                group_id.to_string(),
-            );
-        }
-        if let Some(student_ids) = &override_data.student_ids {
-            for sid in student_ids {
-                form.insert(
-                    "assignment_override[student_ids][]".to_string(),
-                    sid.to_string(),
-                );
-            }
-        }
+        let form = touch_form(override_data);
 
         let response = self
             .client
@@ -187,6 +171,45 @@ impl CanvasClient {
 
         Ok(())
     }
+}
+
+/// The URL of the `rel="next"` page in a Link header, if there is one.
+fn next_link(header: &str) -> Option<String> {
+    header.split(',').find_map(|part| {
+        let mut bits = part.split(';');
+        let url = bits.next()?.trim();
+        let is_next = bits.any(|b| b.trim() == "rel=\"next\"");
+        if is_next && url.starts_with('<') && url.ends_with('>') {
+            Some(url[1..url.len() - 1].to_string())
+        } else {
+            None
+        }
+    })
+}
+
+/// Form fields that re-send an override exactly as it is (#518). Canvas's
+/// docs: every overridden value must be sent again in a PUT to be kept. So
+/// every date the override has goes back, a null one as an empty value, and
+/// every student id goes back as its own field (one map key per id kept only
+/// the last, and the PUT dropped the other students). Matches the Python
+/// `_override_recalc_helper.build_touch_payload`.
+fn touch_form(o: &Override) -> Vec<(String, String)> {
+    let mut form = Vec::new();
+    for (name, date) in [("due_at", &o.due_at), ("unlock_at", &o.unlock_at), ("lock_at", &o.lock_at)] {
+        if let Some(value) = date {
+            form.push((format!("assignment_override[{}]", name), value.clone().unwrap_or_default()));
+        }
+    }
+    if let Some(title) = &o.title {
+        form.push(("assignment_override[title]".to_string(), title.clone()));
+    }
+    if let Some(group_id) = o.group_id {
+        form.push(("assignment_override[group_id]".to_string(), group_id.to_string()));
+    }
+    for sid in o.student_ids.iter().flatten() {
+        form.push(("assignment_override[student_ids][]".to_string(), sid.to_string()));
+    }
+    form
 }
 
 #[tokio::main]
@@ -337,4 +360,37 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(json: &str) -> Override {
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn next_link_is_found_or_absent() {
+        let h = r#"<https://x/api/v1/a?page=2&per_page=100>; rel="next", <https://x/api/v1/a?page=1>; rel="first""#;
+        assert_eq!(next_link(h).as_deref(), Some("https://x/api/v1/a?page=2&per_page=100"));
+        assert_eq!(next_link(r#"<https://x/a?page=1>; rel="current""#), None);
+        assert_eq!(next_link(""), None);
+    }
+
+    #[test]
+    fn a_shared_override_keeps_every_student() {
+        let f = touch_form(&parse(r#"{"id":1,"title":"3 students","student_ids":[100,200,300]}"#));
+        let ids: Vec<_> = f.iter().filter(|(k, _)| k == "assignment_override[student_ids][]").map(|(_, v)| v.as_str()).collect();
+        assert_eq!(ids, ["100", "200", "300"]);
+    }
+
+    #[test]
+    fn a_null_until_date_goes_back_empty_and_an_absent_one_is_not_sent() {
+        let f = touch_form(&parse(r#"{"id":1,"due_at":"2026-04-15T23:59:00Z","lock_at":null,"student_ids":[100]}"#));
+        assert!(f.contains(&("assignment_override[lock_at]".to_string(), String::new())));
+        assert!(f.contains(&("assignment_override[due_at]".to_string(), "2026-04-15T23:59:00Z".to_string())));
+        assert!(!f.iter().any(|(k, _)| k == "assignment_override[unlock_at]"));
+    }
 }

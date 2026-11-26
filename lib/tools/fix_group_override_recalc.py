@@ -81,12 +81,17 @@ IMPLEMENTATION NOTE (v1.5.1+)
     - Same functionality, just takes longer
 
   The tool automatically detects which implementation is available and uses the
-  fastest one. If Rust binary is missing, it warns you and falls back to Python
+  fastest one. If Rust binary is missing, it warns you and falls back to Python.
+  It also asks the binary its version and uses it only if it matches
+  _RUST_VERSION: a binary is built once per machine, so one built from older
+  source (before the #506/#518 fixes to paging and to the touch) is never run.
 """
 
 import argparse
 import os
+import subprocess
 import sys
+from pathlib import Path
 
 try:
     from _env_loader import load_env
@@ -134,11 +139,29 @@ def main() -> int:
         )
         return 2
 
-    # The Python version only, for now. The Rust version (fix_override_recalc_rs)
-    # still pages the overrides list by number, which Canvas ignores, so it loops
-    # forever; and its touch drops students from shared overrides and null dates
-    # from late grace. A binary is built once per machine, so fixing its source
-    # wouldn't reach binaries already built (#506; the Rust fix is #518).
+    rust_dir = Path(__file__).parent / "fix_override_recalc_rs"
+    rust_bin = rust_dir / "target" / "release" / "fix-override-recalc"
+    ok, why = rust_binary_ok(rust_bin)
+    if ok:
+        cmd = [str(rust_bin), "--course-id", str(args.course_id),
+               "--base-url", base_url, "--token", token]
+        if args.group_id:
+            cmd.extend(["--group-id", str(args.group_id)])
+        elif args.student_id:
+            cmd.extend(["--student-id", str(args.student_id)])
+        if args.dry_run:
+            cmd.append("--dry-run")
+        try:
+            return subprocess.run(cmd, check=False).returncode
+        except KeyboardInterrupt:
+            print("\nInterrupted by user", file=sys.stderr)
+            return 130
+
+    if why == "isn't built":
+        print("Using the Python version (the faster Rust version isn't built).", file=sys.stderr)
+    else:
+        print(f"Using the Python version: the faster Rust version here {why}. The agent "
+              f"can rebuild it with `cargo build --release` in {rust_dir}.", file=sys.stderr)
     from _fix_group_override_recalc_python import run_python_fallback
 
     return run_python_fallback(
@@ -150,6 +173,30 @@ def main() -> int:
         dry_run=args.dry_run,
         quiet=False,
     )
+
+# The Rust source's version this toolkit trusts (Cargo.toml's `version`; a test
+# keeps the two equal). Bump both whenever the Rust code's behaviour changes.
+_RUST_VERSION = "0.2.0"
+
+
+def rust_binary_ok(rust_bin: Path) -> tuple[bool, str]:
+    """(True, "") only if the binary exists and reports _RUST_VERSION; otherwise
+    (False, why). A binary built before #518 has the paging and touch bugs, and
+    rebuilding is the only way an existing install gets the fixed source."""
+    if not rust_bin.exists():
+        return False, "isn't built"
+    try:
+        r = subprocess.run([str(rust_bin), "--version"], capture_output=True,
+                           text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"couldn't be run ({exc})"
+    words = r.stdout.split() if r.returncode == 0 else []
+    version = words[-1] if words else ""
+    if version != _RUST_VERSION:
+        return False, (f"was built from older source (version {version or 'unknown'}; "
+                       f"this toolkit needs {_RUST_VERSION})")
+    return True, ""
+
 
 if __name__ == "__main__":
     sys.exit(main())

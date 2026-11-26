@@ -93,11 +93,12 @@ The concurrent operations are the bottleneck removers - instead of waiting for e
 The Python wrapper (`fix_group_override_recalc.py`) should remain stable. Updates to the Rust implementation only require:
 
 1. Edit `src/main.rs`
-2. Rebuild: `cargo build --release`
-3. Test: `uv run python lib/tools/fix_group_override_recalc.py --course-id ... --dry-run`
+2. Bump `version` in `Cargo.toml` and `_RUST_VERSION` in `fix_group_override_recalc.py` together, and record the new sha256 of `main.rs` in `lib/tests/test_override_paging.py` (`_RUST_SOURCE_SHA256`). The test fails until you do, so an old build is never trusted for new source.
+3. Rebuild and test: `cargo test --release && cargo build --release`
+4. Try it: `uv run python lib/tools/fix_group_override_recalc.py --course-id ... --dry-run`
 
 The CLI interface is defined in both the Rust binary (clap) and Python wrapper (argparse) - keep them in sync.
 
 ## Fallback
 
-If the Rust binary isn't built, the Python wrapper will error with build instructions. The original pure-Python implementation is saved as `fix_group_override_recalc.py.original` if needed for emergency fallback.
+The wrapper runs the binary only if `--version` reports the version it trusts (`_RUST_VERSION` in `fix_group_override_recalc.py`). If the binary isn't built, is out of date, or can't be run, the wrapper uses the Python version (`_fix_group_override_recalc_python.py`) and says why. Each machine builds its own binary, so a fixed source only reaches a machine when it rebuilds (#518).
