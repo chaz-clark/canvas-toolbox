@@ -382,7 +382,8 @@ def fetch_published_assignments(base_url: str, course_id: str,
     """GET /courses/:id/assignments and return ONLY the published ones
     as full dicts (so callers can filter by due_at).
 
-    Paginates over all pages.
+    Paginates over all pages. The assignment's OWN dates: a teacher's read
+    applies overrides by default, so another student's would leak in (#521).
     """
     headers = {"Authorization": f"Bearer {token}"}
     out: list[dict] = []
@@ -391,7 +392,7 @@ def fetch_published_assignments(base_url: str, course_id: str,
         r = requests.get(
             f"{base_url}/api/v1/courses/{course_id}/assignments",
             headers=headers,
-            params={"per_page": 100, "page": page},
+            params={"per_page": 100, "page": page, "override_assignment_dates": "false"},
             timeout=_TIMEOUT,
         )
         r.raise_for_status()
@@ -407,10 +408,13 @@ def fetch_published_assignments(base_url: str, course_id: str,
 
 def fetch_assignment(base_url: str, course_id: str, assignment_id: int,
                      token: str) -> dict:
+    """The assignment with its OWN dates. A teacher's read applies overrides by
+    default, so the dates could be another student's, and every override built
+    from them would carry that student's dates (#521)."""
     headers = {"Authorization": f"Bearer {token}"}
     r = requests.get(
         f"{base_url}/api/v1/courses/{course_id}/assignments/{assignment_id}",
-        headers=headers, timeout=_TIMEOUT,
+        headers=headers, params={"override_assignment_dates": "false"}, timeout=_TIMEOUT,
     )
     r.raise_for_status()
     return r.json()

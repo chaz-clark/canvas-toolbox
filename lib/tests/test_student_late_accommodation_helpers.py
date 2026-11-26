@@ -609,3 +609,33 @@ def test_late_grace_preview_says_no_until_date(monkeypatch, capsys):
     assert "would add late grace — Available from and Due unchanged, no Until date" in out
     assert "close" not in out  # the glossary's word is Until
     assert out.count("If the student already has an override") == 1
+
+
+# ---------------------------------------------------------------------------
+# #521: every override starts from the assignment's own dates
+# ---------------------------------------------------------------------------
+
+def test_both_assignment_reads_ask_for_the_assignments_own_dates(monkeypatch):
+    """A teacher's read applies overrides by default, so another student's dates
+    leaked into this student's override (#521)."""
+    import student_late_accommodation as sla
+    seen = []
+
+    class R:
+        status_code, links = 200, {}
+        def __init__(self, body):
+            self._b = body
+        def raise_for_status(self):
+            pass
+        def json(self):
+            return self._b
+
+    def get(url, headers=None, params=None, timeout=None):
+        seen.append((url.rsplit("/api/v1", 1)[1], dict(params or {})))
+        return R([{"id": 5, "published": True}] if url.endswith("/assignments") and len(seen) == 1 else
+                 ([] if url.endswith("/assignments") else {"id": 5}))
+    monkeypatch.setattr(sla.requests, "get", get)
+    sla.fetch_assignment("http://x", "1", 5, "t")
+    sla.fetch_published_assignments("http://x", "1", "t")
+    assert all(p.get("override_assignment_dates") == "false" for _, p in seen), seen
+    assert {u for u, _ in seen} == {"/courses/1/assignments/5", "/courses/1/assignments"}

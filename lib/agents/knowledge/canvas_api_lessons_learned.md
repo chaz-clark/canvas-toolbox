@@ -652,6 +652,15 @@ When building a new Canvas-touching tool, run through this checklist:
 
 **Provenance:** DS 250 sandbox, fixture New Quiz, Test Student, 2026-11-26; issue #513.
 
+
+### L39 — A teacher's read of an assignment applies other students' overrides
+
+**What Canvas does:** `GET /courses/:cid/assignments/:id` and `GET /courses/:cid/assignments` default to `override_assignment_dates=true`. For a teacher, the dates that come back can be a student's override, not the assignment's own: with one student's late grace on an assignment, its `lock_at` read as null; with `override_assignment_dates=false` it read as the assignment's own Until date.
+
+**Why it matters:** a tool that builds one student's override from those dates copies another student's. `student_late_accommodation` gave a reschedule no Until date after another student's late grace, and gave late grace another student's moved Due date. Read with `override_assignment_dates=false` whenever the dates will be written somewhere.
+
+**Provenance:** DS 250 sandbox and a local Canvas with two real student accounts, 2026-11-26; issue #521, fixed in 2.14.4.
+
 ---
 
 ## References
