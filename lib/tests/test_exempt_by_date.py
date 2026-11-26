@@ -123,3 +123,41 @@ def test_before_date_still_works(monkeypatch, env):
     assert _run(monkeypatch, "--user-id", "5", "--before-date", "2026-11-20",
                 "--apply") == 0
     assert env == [10]
+
+
+# --- #523: assignments are picked by THIS student's Due date ------------------
+
+def test_assignments_are_read_as_the_student_sees_them(monkeypatch):
+    """In the Teacher role, a course read applies other students' overrides
+    (lesson L39); the student's own view gives their own Due dates."""
+    calls = []
+
+    class R:
+        def __init__(self, body, nxt=None):
+            self._b, self.links = body, ({"next": {"url": nxt}} if nxt else {})
+        def raise_for_status(self):
+            pass
+        def json(self):
+            return self._b
+    first = "http://x/api/v1/users/900001/courses/1/assignments"
+    pages = {first: R([{"id": 1, "published": True, "due_at": "2026-02-01T06:59:00Z"}], first + "?page=2"),
+             first + "?page=2": R([{"id": 2, "published": True, "due_at": None},
+                                   {"id": 3, "published": False, "due_at": "2026-02-01T06:59:00Z"}])}
+
+    def get(url, headers=None, params=None, timeout=None):
+        calls.append(url)
+        return pages[url]
+    monkeypatch.setattr(ebd.requests, "get", get)
+    out = ebd.fetch_published_assignments("http://x", "1", "t", 900001)
+    assert [a["id"] for a in out] == [1]  # published and dated only
+    assert calls == [first, first + "?page=2"]  # the student's view, every page by the Link header
+
+
+def test_the_students_own_due_date_decides(monkeypatch, env):
+    """A student rescheduled past the cutoff still has that work to do."""
+    mine = [{"id": 10, "published": True, "due_at": "2026-02-20T06:59:00Z", "name": "moved for me"},
+            {"id": 11, "published": True, "due_at": "2026-02-01T06:59:00Z", "name": "due before"}]
+    monkeypatch.setattr(ebd, "fetch_published_assignments",
+                        lambda base, cid, tok, uid: mine if uid == 900001 else [])
+    assert _run(monkeypatch, "--user-id", "900001", "--before-date", "2026-02-15", "--apply") == 0
+    assert env == [11]

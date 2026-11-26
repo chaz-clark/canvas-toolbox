@@ -26,7 +26,8 @@ CANVAS BEHAVIOR
   terminology for the same status. There's only one Canvas behavior.
 
 HOW IT WORKS
-  1. Fetch all published assignments (assignments, quizzes, discussions)
+  1. Fetch all published assignments (assignments, quizzes, discussions) as
+     the student sees them, so each Due date is the student's own (#523)
   2. Filter to assignments with due_at before cutoff date
      (or, with --assignment-ids, to exactly the named published, dated ones)
   3. For each assignment, mark the student's submission as excused via Canvas
@@ -159,34 +160,31 @@ def week_number_to_cutoff_date(week: int, course_start_str: str) -> str:
 # ---------------------------------------------------------------------------
 
 def fetch_published_assignments(base_url: str, course_id: str,
-                                token: str) -> list[dict]:
-    """Fetch all published assignments (assignments, quizzes, discussions).
+                                token: str, user_id: int) -> list[dict]:
+    """The published, dated assignments AS THIS STUDENT SEES THEM (#523).
 
-    Returns list of assignment dicts with id, name, due_at, points_possible.
-    Only includes assignments that are published and have due dates.
+    GET /users/:user_id/courses/:course_id/assignments gives each assignment
+    with this student's own dates: their override's Due if they have one, the
+    assignment's own otherwise. A course read in the Teacher role applies other
+    students' overrides instead (lesson L39), so another student's later or
+    earlier Due could decide what this student is excused from. Assignments not
+    given to this student aren't listed, and can't be excused anyway. Follows
+    the Link header.
     """
     headers = {"Authorization": f"Bearer {token}"}
     out: list[dict] = []
-    page = 1
-
-    while True:
-        r = requests.get(
-            f"{base_url}/api/v1/courses/{course_id}/assignments",
-            headers=headers,
-            params={"per_page": 100, "page": page},
-            timeout=_TIMEOUT,
-        )
+    url: str | None = f"{base_url}/api/v1/users/{user_id}/courses/{course_id}/assignments"
+    params: dict | None = {"per_page": 100}
+    seen: set = set()
+    while url and url not in seen:
+        seen.add(url)
+        r = requests.get(url, headers=headers, params=params, timeout=_TIMEOUT)
         r.raise_for_status()
-        batch = r.json()
-        if not batch:
-            break
-
-        for a in batch:
+        for a in r.json() or []:
             # Only include published assignments with due dates
             if a.get("published") and a.get("due_at"):
                 out.append(a)
-        page += 1
-
+        url, params = r.links.get("next", {}).get("url"), None
     return out
 
 
@@ -414,12 +412,12 @@ def main() -> int:
             return 1
         print(f"Excusing {len(wanted)} specific assignment(s)")
         print("\nFetching published assignments...")
-        all_assignments = fetch_published_assignments(base_url, course_id, token)
+        all_assignments = fetch_published_assignments(base_url, course_id, token, user_id)
         target_assignments = [a for a in all_assignments if a["id"] in wanted]
         missing = wanted - {a["id"] for a in target_assignments}
         if missing:
-            print(f"ERROR: not a published, dated assignment in course "
-                  f"{course_id}: {sorted(missing)}", file=sys.stderr)
+            print(f"ERROR: not a published, dated assignment given to this student in "
+                  f"course {course_id}: {sorted(missing)}", file=sys.stderr)
             return 1
         scope_desc = f"assignments {sorted(wanted)}"
     else:
@@ -433,8 +431,9 @@ def main() -> int:
 
         # Fetch and filter assignments
         print("\nFetching published assignments...")
-        all_assignments = fetch_published_assignments(base_url, course_id, token)
-        print(f"Found {len(all_assignments)} published assignments with due dates")
+        all_assignments = fetch_published_assignments(base_url, course_id, token, user_id)
+        print(f"Found {len(all_assignments)} published assignments with due dates, "
+              f"by this student's own Due dates")
 
         target_assignments = filter_assignments_before_date(all_assignments, cutoff_date)
         print(f"Found {len(target_assignments)} assignments due before {cutoff_date}")
