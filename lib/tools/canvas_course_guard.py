@@ -243,7 +243,7 @@ def enforce(
 
     if per_student and verdict != ERROR:
         print(f"ℹ️  canvas_course_guard: {label} {course_id} ('{name}') — "
-              f"{'; '.join(reasons)}. An intervention for one student is written to the "
+              f"{'; '.join(reasons)}. An intervention for one student (or one group) is written to the "
               f"course they are enrolled in; proceeding.", file=sys.stderr)
         return
 

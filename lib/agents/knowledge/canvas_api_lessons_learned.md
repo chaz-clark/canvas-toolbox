@@ -514,7 +514,7 @@ Every create must check title-existence first. Reference: `canvas_pages.upsert_p
 
 ### P-LL4 — Startup safety guard for writes (defends L12)
 
-Every write tool wires in `canvas_course_guard.enforce()` before any mutation. Read tools call it advisory-only. A tool that writes an intervention for one student (an accommodation, marking work Excused, a submission on their behalf) passes `per_student=True`: a course with students enrolled is its normal target, so it gets an advisory, while the wrong-folder check still refuses (#475). The session-scope check reads the same environment the tool takes its course from, so for a tool that reads `CANVAS_COURSE_ID` it can't fail.
+Every write tool wires in `canvas_course_guard.enforce()` before any mutation. Read tools call it advisory-only. A tool that writes an intervention for one student (an accommodation, marking work Excused, a submission on their behalf) passes `per_student=True`: a course with students enrolled is its normal target, so it gets an advisory, while the wrong-folder check still refuses (#475). The session-scope check reads the same environment the tool takes its course from, so for a tool that reads `CANVAS_COURSE_ID` it can't fail. `fix_group_override_recalc` takes `--course-id` instead, so there the check does refuse a course outside the folder (#502). It passes `per_student=True` for a `--group-id` run as well: that changes a group's dates rather than one student's, but it's the same targeted change, and the tool has no `--allow-enrolled`.
 
 ### P-LL5 — Plan-first, apply-second with explicit confirmation (defends every L)
 

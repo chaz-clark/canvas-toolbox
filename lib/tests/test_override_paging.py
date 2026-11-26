@@ -147,6 +147,7 @@ def test_group_recalc_tool_uses_python_when_the_binary_isnt_trusted(monkeypatch)
     import fix_group_override_recalc as fg
     import _fix_group_override_recalc_python as py
     called = {}
+    monkeypatch.setattr(fg, "_course_guard", lambda *a, **k: None)  # tested in test_group_recalc_guard.py
     monkeypatch.setattr(fg, "rust_binary_ok", lambda p: (False, "was built from older source"))
     monkeypatch.setattr(py, "run_python_fallback", lambda **k: called.update(k) or 0)
     monkeypatch.setattr(fg.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("ran Rust")))
@@ -160,6 +161,7 @@ def test_group_recalc_tool_uses_python_when_the_binary_isnt_trusted(monkeypatch)
 def test_group_recalc_tool_runs_a_trusted_binary(monkeypatch):
     import fix_group_override_recalc as fg
     ran = []
+    monkeypatch.setattr(fg, "_course_guard", lambda *a, **k: None)  # tested in test_group_recalc_guard.py
     monkeypatch.setattr(fg, "rust_binary_ok", lambda p: (True, ""))
     monkeypatch.setattr(fg.subprocess, "run", lambda cmd, check: ran.append(cmd) or type("R", (), {"returncode": 0})())
     for k, v in {"CANVAS_BASE_URL": "http://127.0.0.1:9", "CANVAS_API_TOKEN": "x"}.items():
