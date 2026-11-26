@@ -2,8 +2,10 @@
 
 Instructors report the Canvas connection dropping during long tasks. Two rules:
 
-  * A read or an update (GET, PUT, DELETE, HEAD) gives the same result however
-    many times it's sent, so a dropped connection, a timeout, or a "slow down" /
+  * A read or an update (every method but POST: GET, PUT, PATCH, DELETE, HEAD)
+    gives the same result however
+    many times it's sent (a repeated DELETE that had landed comes back
+    "not found"), so a dropped connection, a timeout, or a "slow down" /
     "busy" answer (429, 502, 503, 504) is retried after a pause: up to 4
     attempts, waiting 2, 5 and 15 seconds, or as long as Canvas's Retry-After
     asks (at most 60).
@@ -12,7 +14,9 @@ Instructors report the Canvas connection dropping during long tasks. Two rules:
     drops or the gateway gives up (502/504). Sending it again is how
     announcements and assignments got duplicated (lesson L34). So it is retried
     only when Canvas certainly never received it: the connection was never made,
-    or Canvas refused with 429/503. Otherwise UnsureWrite is raised: the caller
+    or Canvas refused with 429/503 (Canvas's own "slow down" and "unavailable"
+    answers; a proxy that answers 503 after forwarding would be the rare
+    exception). Otherwise UnsureWrite is raised: the caller
     reports it as unsure and says to check Canvas before running it again.
 
     Pass safe_to_repeat=True for a POST that creates nothing new (an upload
@@ -33,6 +37,12 @@ _NOT_RECEIVED_STATUS = {429, 503}  # Canvas refused it: nothing was created
 _MAX_RETRY_AFTER = 60
 
 
+# A dropped or cut connection. A reply cut off partway (ChunkedEncodingError,
+# ContentDecodingError) means Canvas did receive the request.
+_DROPPED = (requests.exceptions.ConnectionError, requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError, requests.exceptions.ContentDecodingError)
+
+
 class UnsureWrite(Exception):
     """A create may or may not have reached Canvas; it was not sent again."""
 
@@ -51,7 +61,7 @@ def _never_sent(exc: Exception) -> bool:
 
 def _retry_after(resp) -> float | None:
     try:
-        return min(float(resp.headers.get("Retry-After", "")), _MAX_RETRY_AFTER)
+        return max(0.0, min(float(resp.headers.get("Retry-After", "")), _MAX_RETRY_AFTER))
     except (TypeError, ValueError):
         return None
 
@@ -77,7 +87,7 @@ def request(method: str, url: str, *, safe_to_repeat: bool | None = None,
             # requests.get/put/post/... by name (the same request as requests.request),
             # so callers' and tests' stubs of those functions still apply.
             resp = getattr(http, method.lower())(url, **kwargs)
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+        except _DROPPED as exc:
             if not repeatable and not _never_sent(exc):
                 raise UnsureWrite(
                     f"the connection to Canvas dropped during a create ({type(exc).__name__}); "

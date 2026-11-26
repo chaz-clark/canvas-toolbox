@@ -302,8 +302,9 @@ def _push_late_policy(lp: dict) -> tuple:
     base = f"{CANVAS_BASE_URL}/api/v1/courses/{CANVAS_COURSE_ID}/late_policy"
     existing = _http("GET", base, headers=_headers(), timeout=20)
     created = existing.status_code != 200
-    # A course has at most one late policy, so a repeated create fails rather
-    # than duplicating: safe to retry.
+    # A course has at most one late policy: a second create gets HTTP 400 "only
+    # one late policy per course is allowed" (checked on a local Canvas, #445), so
+    # a retried create can't duplicate it.
     resp = _http("POST" if created else "PATCH", base, headers=_headers(),
                        json={"late_policy": lp}, timeout=20, safe_to_repeat=True)
     return resp, created
@@ -1558,6 +1559,13 @@ def cmd_migrate_from(source_course_id: str, new_course_id: str,
     })
     mig_id = (res or {}).get("id")
     if not mig_id:
+        if (res or {}).get("unsure"):
+            # The costliest duplicate: a second whole-course copy (#445).
+            print("  UNSURE: the connection dropped while starting the copy. Canvas may "
+                  "have started it. Check the target course's import history (Settings "
+                  "→ Import Course Content) before running it again.")
+            _report_unsure()
+            return 2
         print(f"  ERROR: could not start migration: {str(res)[:300]}")
         return 2
 
@@ -1946,7 +1954,8 @@ def _push_newquiz_content(filepath: Path, meta: dict) -> bool:
     if settings_payload:
         url = f"{CANVAS_BASE_URL}/api/quiz/v1/courses/{CANVAS_COURSE_ID}/quizzes/{quiz_id}"
         try:
-            resp = requests.patch(
+            resp = _http(
+                "PATCH",
                 url,
                 headers={
                     "Authorization": f"Bearer {CANVAS_API_TOKEN}",
@@ -2148,14 +2157,25 @@ def cmd_push(target: Optional[str] = None):
             ok = True
             lp = data.get("late_policy", {})
             if lp:
-                resp, created = _push_late_policy(lp)
-                if resp.status_code < 400:
+                try:
+                    resp, created = _push_late_policy(lp)
+                except _cr.requests.RequestException as exc:
+                    resp, created = None, False
+                    ok = False
+                    print(f"    FAILED late_policy: Canvas didn't answer ({type(exc).__name__}); "
+                          f"not done, safe to run again")
+                if resp is None:
+                    pass
+                elif resp.status_code < 400:
                     print(f"    OK (late_policy {'created' if created else 'updated'})")
                 else:
                     ok = False
                     print(f"    FAILED late_policy: {resp.text[:200]}")
             # Course dates (#182). Verified by read-back — see _push_course_dates.
-            dates_ok, msg = _push_course_dates(data)
+            try:
+                dates_ok, msg = _push_course_dates(data)
+            except _cr.requests.RequestException as exc:
+                dates_ok, msg = False, f"Canvas didn't answer ({type(exc).__name__}); not done, safe to run again"
             if msg != "no date fields in _course.json":
                 print(f"    {'OK (' + msg + ')' if dates_ok else 'NOT APPLIED: ' + msg}")
             ok = ok and dates_ok
@@ -2240,9 +2260,19 @@ def cmd_push(target: Optional[str] = None):
 
     pushed = 0
     not_done: list[str] = []
-    for filepath_str, (path, meta) in push_candidates.items():
+    unsure_files: list[str] = []
+    no_answer_in_a_row = 0  # Canvas down: stop instead of waiting out every file (#445)
+    items = list(push_candidates.items())
+    for i, (filepath_str, (path, meta)) in enumerate(items):
+        if no_answer_in_a_row >= 3:
+            print(f"\nCanvas hasn't answered for {no_answer_in_a_row} files in a row; "
+                  f"stopping. The rest weren't tried.")
+            not_done.extend(f for f, _ in items[i:])
+            break
         item_type = meta.get("type")
         print(f"  [{item_type}] {filepath_str}")
+        unsure_before = len(_UNSURE)
+        no_answer = False
 
         ok = False
         try:
@@ -2271,6 +2301,8 @@ def cmd_push(target: Optional[str] = None):
             # to repeat, and the hash isn't saved, so the next run sends it again.
             print(f"    Canvas didn't answer ({type(exc).__name__})")
             ok = False
+            no_answer = True
+        no_answer_in_a_row = no_answer_in_a_row + 1 if no_answer else 0
 
         if ok:
             index["files"][filepath_str]["hash"] = _file_hash(path)
@@ -2281,8 +2313,13 @@ def cmd_push(target: Optional[str] = None):
             print(f"    OK")
             pushed += 1
         else:
-            print(f"    FAILED — hash not updated, will retry on the next update")
-            not_done.append(filepath_str)
+            if len(_UNSURE) > unsure_before:
+                # A create in this file may have landed: never "safe to send again".
+                print(f"    UNSURE — a create may have reached Canvas; check before updating again")
+                unsure_files.append(filepath_str)
+            else:
+                print(f"    FAILED — hash not updated, will retry on the next update")
+                not_done.append(filepath_str)
 
     _save_index(index)
     _log_push(summary, comment, list(push_candidates.keys()), direction="update")
@@ -2293,6 +2330,11 @@ def cmd_push(target: Optional[str] = None):
         print(f"Not done: {len(not_done)} file(s). They stay marked as changed, so the "
               f"next update sends only these again:")
         for f in not_done[:10]:
+            print(f"  - {f}")
+    if unsure_files:
+        print(f"Unsure: {len(unsure_files)} file(s) where a create may have reached Canvas; "
+              f"check them in Canvas before updating again:")
+        for f in unsure_files[:10]:
             print(f"  - {f}")
     _report_unsure()
     print(f"Logged to {PUSH_LOG}")
@@ -2412,7 +2454,7 @@ def cmd_upload(target: str, folder: str = "course_assets") -> None:
             index["files_uploaded"][str(local_path)] = meta
             _vprint(f"    ✓ canvas_file_id={meta['canvas_file_id']}  url={meta['url']}")
             uploaded += 1
-        except RuntimeError as exc:
+        except (RuntimeError, _cr.requests.RequestException) as exc:
             print(f"  ERROR uploading {local_path.name}: {exc}")
             failed += 1
 

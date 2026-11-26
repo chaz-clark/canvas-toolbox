@@ -126,3 +126,65 @@ def test_the_retry_line_names_the_next_attempt(monkeypatch, capsys):
     _fake(monkeypatch, [requests.exceptions.ConnectionError("reset"), _Resp(200)])
     cr.request("GET", "https://x", sleep=lambda s: None)
     assert "trying again in 2 s (attempt 2 of 4)" in capsys.readouterr().err
+
+
+def test_a_reply_cut_partway_is_unsure_for_a_create_and_retried_for_a_read(monkeypatch):
+    calls = _fake(monkeypatch, [requests.exceptions.ChunkedEncodingError("cut"), _Resp(201)])
+    with pytest.raises(cr.UnsureWrite):
+        cr.request("POST", "https://x", sleep=lambda s: None)
+    assert calls == ["POST"]
+    calls = _fake(monkeypatch, [requests.exceptions.ChunkedEncodingError("cut"), _Resp(200)])
+    assert cr.request("GET", "https://x", sleep=lambda s: None).status_code == 200
+
+
+def test_a_negative_retry_after_falls_back_to_the_usual_wait(monkeypatch):
+    _fake(monkeypatch, [_Resp(429, {"Retry-After": "-5"}), _Resp(200)])
+    waits = []
+    cr.request("GET", "https://x", sleep=waits.append)
+    assert waits == [2]
+
+
+# --- the update run's closing lines and its stop --------------------------------
+
+def _push(monkeypatch, tmp_path, capsys, page_result):
+    import canvas_sync as cs
+    files = {}
+    for n in range(5):
+        f = tmp_path / f"page{n}.html"
+        f.write_text(f"<p>{n}</p>", encoding="utf-8")
+        files[str(f)] = {"type": "Page", "hash": "old"}
+    monkeypatch.setattr(cs, "_check_env", lambda: None)
+    monkeypatch.setattr(cs, "_load_index", lambda: {"files": files})
+    monkeypatch.setattr(cs, "_save_index", lambda index: None)
+    monkeypatch.setattr(cs, "_log_push", lambda *a, **k: None)
+    monkeypatch.setattr(cs, "_push_page", page_result)
+    monkeypatch.setattr(cs, "_UNSURE", [])
+    monkeypatch.setenv("CANVAS_SYNC_NO_PROMPT", "test")
+    cs.cmd_push()
+    return capsys.readouterr().out, cs
+
+
+def test_an_update_run_stops_when_canvas_stops_answering(monkeypatch, tmp_path, capsys):
+    tried = []
+
+    def down(path, meta):
+        tried.append(path)
+        raise requests.exceptions.ConnectionError("down")
+    out, _ = _push(monkeypatch, tmp_path, capsys, down)
+    assert len(tried) == 3  # not all 5: stop instead of waiting out every file
+    assert "hasn't answered for 3 files in a row" in out
+    assert "Not done: 5 file(s)" in out
+
+
+def test_a_file_whose_create_may_have_landed_is_unsure_not_not_done(monkeypatch, tmp_path, capsys):
+    import canvas_sync as cs
+
+    def first_unsure(path, meta):
+        if path.name == "page0.html":
+            cs._UNSURE.append("POST /quiz/items")
+            return False
+        return True
+    out, _ = _push(monkeypatch, tmp_path, capsys, first_unsure)
+    assert "Unsure: 1 file(s)" in out and "page0.html" in out.split("Unsure: 1 file(s)")[1]
+    assert "Not done" not in out
+    assert "Updated 4/5 files" in out

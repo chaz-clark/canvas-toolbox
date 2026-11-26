@@ -74,7 +74,7 @@ have already succeeded.
 update through a dropped connection, printing one "trying again" line per pause. It
 never re-sends a create that may have reached Canvas. Its closing lines tell you what to say:
 - **"Not done: N file(s)"**: those updates didn't go through. They stay marked as changed, and
-  an update is safe to repeat, so running the push again sends only those.
+  an update is safe to repeat, so running the update again sends only those.
 - **"Unsure: N create(s)"**: Canvas may have made them before the connection dropped.
   Check Canvas (match by title) before running them again, or they may be duplicated.
 
