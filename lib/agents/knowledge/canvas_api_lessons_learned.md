@@ -614,7 +614,7 @@ When building a new Canvas-touching tool, run through this checklist:
 
 **Why it matters:** a retry loop that simply re-runs the request double-posts announcements and duplicates assignments. Resuming a batch from the start repeats every item already done.
 
-**Defence:** after any ambiguous failure, read back state (match by title) before re-issuing; resume only items verified as missing; bound retries, then report done / not done / unsure. Since 2.15.0 `lib/tools/_canvas_retry.py` does the tool side (#445): reads and updates are retried through a dropped connection; a create that may have reached Canvas is never sent again and is reported as unsure. `canvas_sync` uses it; other tools move to it one at a time. Checked on a local Canvas through a proxy that cut the reply to a create: Canvas made it once, the toolkit didn't resend it.
+**Defence:** after any ambiguous failure, read back state (match by title) before re-issuing; resume only items verified as missing; bound retries, then report done / not done / unsure. Since 2.15.0 `lib/tools/_canvas_retry.py` does the tool side (#445): reads and updates are retried through a dropped connection; a create that may have reached Canvas is never sent again and is reported as unsure. `canvas_sync` uses it, and `sync_to_new` too since 2.15.1, which also reads what the target course already has and reuses a same-titled item instead of creating it again, so a re-run continues where a dropped run stopped. Other tools move to it one at a time. Checked on a local Canvas through a proxy that cut the reply to a create: Canvas made it once, the toolkit didn't resend it.
 
 **Provenance:** field reports from faculty training, issue #445.
 
