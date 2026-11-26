@@ -571,3 +571,41 @@ def test_apply_with_no_existing_override_still_fails(monkeypatch, capsys):
     code, sent, out, err = _run_add(monkeypatch, capsys, [])
     assert code == 1 and sent == [] and "failed" in err
     assert "Re-run to retry" not in err and "only if that reason was temporary" in err
+
+
+# ---------------------------------------------------------------------------
+# #507: the preview says what --apply will do
+# ---------------------------------------------------------------------------
+
+_ASG = {"id": 5, "unlock_at": "2026-04-01T00:00:00Z", "due_at": "2026-04-15T23:59:00Z",
+        "lock_at": "2026-04-16T23:59:00Z"}
+
+
+def _preview(monkeypatch, capsys, extra):
+    import student_late_accommodation as sla
+    monkeypatch.setattr(sla, "_course_guard", lambda *a, **k: None)
+    monkeypatch.setattr(sla, "fetch_assignment", lambda *a, **k: dict(_ASG))
+    monkeypatch.setattr(sla, "fetch_student_modules", lambda *a, **k: [])
+    monkeypatch.setattr(sla, "post_override", lambda *a, **k: (_ for _ in ()).throw(AssertionError("wrote")))
+    for k, v in {"CANVAS_BASE_URL": "http://127.0.0.1:9", "CANVAS_COURSE_ID": "1", "CANVAS_API_TOKEN": "x"}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(sys, "argv", ["student_late_accommodation.py", "--user-id", "100",
+                                      "--assignment-id", "5", *extra])
+    assert sla.main() == 0
+    return capsys.readouterr().out
+
+
+def test_reschedule_preview_shows_the_shifted_dates(monkeypatch, capsys):
+    out = _preview(monkeypatch, capsys, ["--shift-by-days", "7"])
+    assert "would reschedule by +7 days" in out
+    assert "Available from 2026-04-01T00:00:00Z → 2026-04-08T00:00:00Z" in out
+    assert "Due 2026-04-15T23:59:00Z → 2026-04-22T23:59:00Z" in out
+    assert "Until 2026-04-16T23:59:00Z → 2026-04-23T23:59:00Z" in out
+    assert "late grace" not in out.split("If the student")[0]  # not described as late grace
+
+
+def test_late_grace_preview_says_no_until_date(monkeypatch, capsys):
+    out = _preview(monkeypatch, capsys, [])
+    assert "would add late grace — Available from and Due unchanged, no Until date" in out
+    assert "close" not in out  # the glossary's word is Until
+    assert out.count("If the student already has an override") == 1

@@ -658,10 +658,18 @@ def main() -> int:
                 print(f"  [{ok}] {aid}: removed override {o['id']} (HTTP {code})")
         else:
             if not args.apply:
-                print(f"  [DRY] {aid}: would add override — keep open/due, "
-                      "remove close (lock=null). If the student already has an "
-                      "override here, --apply repairs the tool's own late grace "
-                      "or leaves it alone with the reason (#511).")
+                if args.shift_by_days:
+                    # The same dates the write starts from (#507).
+                    a = by_id.get(aid) or fetch_assignment(base_url, course_id, aid, token)
+                    moved = ", ".join(
+                        f"{label} {a.get(f) or 'none'} → "
+                        f"{shift_iso_timestamp(a.get(f), args.shift_by_days) or 'none'}"
+                        for label, f in (("Available from", "unlock_at"), ("Due", "due_at"),
+                                         ("Until", "lock_at")))
+                    print(f"  [DRY] {aid}: would reschedule by {args.shift_by_days:+d} days — {moved}")
+                else:
+                    print(f"  [DRY] {aid}: would add late grace — Available from and Due "
+                          f"unchanged, no Until date")
                 continue
             assignment = fetch_assignment(base_url, course_id, aid, token)
             if args.shift_by_days:
@@ -740,6 +748,9 @@ def main() -> int:
     elif repaired or skipped or already:
         print(f"\nRepaired {repaired} existing late grace; {already} already in place; "
               f"{skipped} left for you in Canvas's Assign To.")
+    if not args.apply and not args.remove:
+        print("\nIf the student already has an override on one of these, --apply repairs "
+              "the tool's own late grace or leaves it alone with the reason (#511).")
     if warned:
         print(f"\n{warned} assignment(s) where the student's module will still lock them out "
               f"(see [WARN]). A module can't have dates for one student: change the module's "
