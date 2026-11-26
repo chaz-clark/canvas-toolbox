@@ -491,11 +491,16 @@ def test_existing_late_grace_is_repaired_by_late_grace():
     assert existing_override_action(_OLD_LATE, 100, shifting=False) == ("repair", None)
 
 
+def test_existing_overrides_already_in_place():
+    assert existing_override_action(_OLD_SHIFT, 100, shifting=True)[0] == "done"
+    new_late = {**_OLD_LATE, "lock_at": None}  # made by 2.13.4+: lock_at present and null
+    assert existing_override_action(new_late, 100, shifting=False) == ("done", "already has late grace with no Until date")
+
+
 def test_existing_overrides_that_are_skipped():
     cases = [
         (_OLD_LATE, True, "replace"),                                     # reschedule over late grace
         (_OLD_SHIFT, False, "replace"),                                   # late grace over a reschedule
-        (_OLD_SHIFT, True, "twice"),                                      # reschedule again
         ({**_OLD_LATE, "student_ids": [100, 200]}, False, "other student"),  # shared
         ({**_OLD_LATE, "title": "1 student"}, False, "not made by this tool"),  # hand-made
     ]
@@ -504,13 +509,24 @@ def test_existing_overrides_that_are_skipped():
         assert action == "skip" and words in why, (override["title"], shifting, why)
 
 
+# Canvas's refusal of a second override, recorded on a local Canvas (2026-11-26).
+_REFUSED = {"errors": {"assignment_override_students": [{
+    "attribute": "assignment_override_students",
+    "message": "already belongs to an assignment override", "type": "taken"}]}}
+
+
 def _run_add(monkeypatch, capsys, existing, extra=()):
     import student_late_accommodation as sla
     sent = []
     monkeypatch.setattr(sla, "_course_guard", lambda *a, **k: None)
     monkeypatch.setattr(sla, "fetch_assignment", lambda *a, **k: {"id": 5, "due_at": "2026-04-15T23:59:00Z"})
-    monkeypatch.setattr(sla, "post_override", lambda *a, **k: (400, {"errors": {"assignment_override_students": "taken"}}))
-    monkeypatch.setattr(sla, "list_overrides", lambda *a, **k: existing)
+    monkeypatch.setattr(sla, "post_override", lambda *a, **k: (400, _REFUSED))
+    if isinstance(existing, Exception):
+        def boom(*a, **k):
+            raise existing
+        monkeypatch.setattr(sla, "list_overrides", boom)
+    else:
+        monkeypatch.setattr(sla, "list_overrides", lambda *a, **k: existing)
     monkeypatch.setattr(sla, "put_override", lambda base, cid, aid, oid, payload, tok: sent.append((oid, payload)) or (200, {"id": oid}))
     for k, v in {"CANVAS_BASE_URL": "http://127.0.0.1:9", "CANVAS_COURSE_ID": "1", "CANVAS_API_TOKEN": "x"}.items():
         monkeypatch.setenv(k, v)
@@ -530,15 +546,28 @@ def test_apply_repairs_the_tools_old_late_grace(monkeypatch, capsys):
 
 def test_apply_leaves_a_shared_override_alone(monkeypatch, capsys):
     code, sent, out, err = _run_add(monkeypatch, capsys, [{**_OLD_LATE, "student_ids": [100, 200]}])
-    assert code == 0 and sent == []
-    assert "[SKIP]" in out and "Nothing sent" in out and "Re-run" not in err
+    assert code == 3 and sent == []  # not done for the student: the dispatcher must not log APPLIED
+    assert "[SKIP]" in out and "Nothing sent" in out and "need a look" in err
 
 
 def test_apply_does_not_reschedule_twice(monkeypatch, capsys):
     code, sent, out, err = _run_add(monkeypatch, capsys, [_OLD_SHIFT], extra=("--shift-by-days", "7"))
-    assert code == 0 and sent == [] and "twice" in out
+    assert code == 0 and sent == [] and "twice" in out and "already in place" in out
+
+
+def test_apply_leaves_correct_late_grace_alone(monkeypatch, capsys):
+    code, sent, out, err = _run_add(monkeypatch, capsys, [{**_OLD_LATE, "lock_at": None}])
+    assert code == 0 and sent == [] and "no Until date. Nothing sent" in out
+
+
+def test_apply_survives_a_failed_override_listing(monkeypatch, capsys):
+    import requests
+    code, sent, out, err = _run_add(monkeypatch, capsys, requests.HTTPError("403 Forbidden"))
+    assert code == 1 and sent == [] and "couldn't read the overrides" in out
+    assert "already belongs to an assignment override" in out  # Canvas's reason on the FAIL line
 
 
 def test_apply_with_no_existing_override_still_fails(monkeypatch, capsys):
     code, sent, out, err = _run_add(monkeypatch, capsys, [])
     assert code == 1 and sent == [] and "failed" in err
+    assert "Re-run to retry" not in err and "only if that reason was temporary" in err
