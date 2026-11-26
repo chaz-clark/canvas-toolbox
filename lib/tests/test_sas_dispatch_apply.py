@@ -116,3 +116,25 @@ def test_a_tool_that_hangs_is_stopped_and_logged_failed(tmp_path, monkeypatch, c
     assert "no answer after 30 minutes" in out and "before running it again" in out
     assert "still paging" in out and "last output: [OK ] quiz 1: +15 min" in out
     assert "\tFAILED\t" in log.read_text() and "\tAPPLIED\t" not in log.read_text()
+
+
+def test_the_tools_module_warnings_reach_the_instructor(tmp_path, monkeypatch, capsys):
+    """#508: on success the dispatcher hides the tool's output, but not its warnings."""
+    import subprocess
+    import apply_sas_accommodations as sas
+
+    def ok(cmd, **kwargs):
+        out = ("  [OK ] 5: override id=1\n  [WARN] 3 assignment(s) (5, 6, 7): its module 'Week 2' stays "
+               "locked until the student finishes 'Week 1'.\nModules unlock in order: the student needs "
+               "to finish 'Week 1' first.\n")
+        return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+    monkeypatch.setattr(sas.subprocess, "run", ok)
+    handoff = tmp_path / "sas.yml"
+    handoff.write_text("- deid_code: S-000001\n  accommodations:\n    - key: occasional_extensions\n",
+                       encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["apply_sas_accommodations.py", "--file", str(handoff),
+                                      "--audit-log", str(tmp_path / "log"), "--apply"])
+    assert sas.main() == 0
+    out = capsys.readouterr().out
+    assert "[WARN] 3 assignment(s)" in out and "needs to finish 'Week 1' first" in out
+    assert "[OK ] 5" not in out  # the rest of the tool's output stays hidden

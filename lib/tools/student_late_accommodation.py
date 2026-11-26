@@ -107,7 +107,7 @@ except ImportError:
 import csv
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -257,6 +257,45 @@ def build_repair_payload(override: dict, user_id: int) -> dict:
     return data
 
 
+def module_blocks(modules: list[dict], assignment: dict,
+                  new_available_from: str | None, now: str) -> list[str]:
+    """Why the student's modules will still lock them out of this assignment (#508).
+
+    A module that opens later wins over a student's earlier Available from, and
+    a module whose prerequisites the student hasn't finished stays locked
+    (lesson L37). Canvas has no per-student dates on a module, so the tool can
+    only say so. Flagged: a module that opens after the student's new Available
+    from (`new_available_from` is None for late grace, which keeps the
+    assignment's own); and a module past its opening that is still locked for
+    the student, which means unfinished prerequisites. A module that simply
+    hasn't opened yet isn't flagged for late grace: it takes effect then.
+    `modules` is GET /modules?student_id=…&include[]=items; a Classic Quiz is
+    listed there as type "Quiz" with its quiz id.
+    """
+    keys = {("Assignment", assignment.get("id"))}
+    if assignment.get("quiz_id"):
+        keys.add(("Quiz", assignment["quiz_id"]))
+    topic = (assignment.get("discussion_topic") or {}).get("id")
+    if topic:
+        keys.add(("Discussion", topic))
+    names = {m.get("id"): m.get("name") for m in modules}
+    out = []
+    for m in modules:
+        if m.get("state") != "locked":
+            continue
+        if not any((i.get("type"), i.get("content_id")) in keys for i in m.get("items") or []):
+            continue
+        opens = m.get("unlock_at")
+        if opens and opens > now:
+            if new_available_from and new_available_from < opens:
+                out.append(f"its module {m.get('name')!r} opens {opens}, after the student's "
+                           f"new Available from ({new_available_from}); they can't open it before then")
+        elif m.get("prerequisite_module_ids"):
+            needs = ", ".join(repr(names.get(i, i)) for i in m["prerequisite_module_ids"])
+            out.append(f"its module {m.get('name')!r} stays locked until the student finishes {needs}")
+    return out
+
+
 def cutoff_from_days_ago(days: int, today: date | None = None) -> str:
     """Return YYYY-MM-DD for (today - days). The `today` parameter
     exists for testability — defaults to actual today."""
@@ -391,6 +430,33 @@ def post_override(base_url: str, course_id: str, assignment_id: int,
     return r.status_code, body
 
 
+def fetch_student_modules(base_url: str, course_id: str, user_id: int,
+                          token: str) -> list[dict]:
+    """The course's modules as this student sees them (state, prerequisites), with
+    their items. Canvas may leave out a module's items "if it deems them too
+    numerous", so those are fetched separately. Follows the Link header."""
+    headers = {"Authorization": f"Bearer {token}"}
+
+    def get_all(url: str, params: dict) -> list[dict]:
+        out: list[dict] = []
+        seen: set = set()
+        p: dict | None = {**params, "per_page": 100}
+        while url and url not in seen:
+            seen.add(url)
+            r = requests.get(url, headers=headers, params=p, timeout=_TIMEOUT)
+            r.raise_for_status()
+            out += r.json() or []
+            url, p = r.links.get("next", {}).get("url"), None
+        return out
+
+    base = f"{base_url}/api/v1/courses/{course_id}/modules"
+    modules = get_all(base, {"student_id": user_id, "include[]": "items"})
+    for m in modules:
+        if "items" not in m:
+            m["items"] = get_all(f"{base}/{m['id']}/items", {"student_id": user_id})
+    return modules
+
+
 def put_override(base_url: str, course_id: str, assignment_id: int,
                  override_id: int, payload: dict, token: str) -> tuple[int, dict]:
     headers = {"Authorization": f"Bearer {token}"}
@@ -502,6 +568,7 @@ def main() -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 2
 
+    assignments: list[dict] = []
     if args.assignment_id:
         assignment_ids = [args.assignment_id]
         scope_label = f"assignment {args.assignment_id}"
@@ -530,6 +597,38 @@ def main() -> int:
     if not assignment_ids:
         print("No assignments matched the scope. Nothing to do.")
         return 0
+
+    # The student's modules, once, before anything is written (#508).
+    modules: list[dict] = []
+    by_id = {a["id"]: a for a in assignments}
+    if not args.remove:
+        try:
+            modules = fetch_student_modules(base_url, course_id, uid, token)
+            if args.assignment_id:
+                by_id[args.assignment_id] = fetch_assignment(base_url, course_id,
+                                                             args.assignment_id, token)
+        except requests.RequestException as exc:
+            print(f"  [--] couldn't check the student's modules ({exc}); going ahead")
+            modules = []
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Checked for every assignment first, then one line per reason (a student who
+    # is behind can have most of a course locked by one unfinished module).
+    blocked: dict[str, list[int]] = {}
+    for aid in assignment_ids if modules else []:
+        a = by_id.get(aid, {"id": aid})
+        new_from = (shift_iso_timestamp(a.get("unlock_at"), args.shift_by_days)
+                    if args.shift_by_days else None)
+        for why in module_blocks(modules, a, new_from, now):
+            blocked.setdefault(why, []).append(aid)
+    for why, aids in blocked.items():
+        shown = ", ".join(str(x) for x in aids[:5]) + (", …" if len(aids) > 5 else "")
+        print(f"  [WARN] {len(aids)} assignment(s) ({shown}): {why}.")
+    warned = sum(len(v) for v in blocked.values())
+    state = {m.get("id"): m.get("state") for m in modules}
+    names = {m.get("id"): m.get("name") for m in modules}
+    to_finish = sorted({names.get(pid, str(pid)) for m in modules if m.get("state") == "locked"
+                        for pid in m.get("prerequisite_module_ids") or []
+                        if state.get(pid) in ("unlocked", "started")}) if blocked else []
 
     fails = 0
     removed = skipped = repaired = already = 0
@@ -641,6 +740,13 @@ def main() -> int:
     elif repaired or skipped or already:
         print(f"\nRepaired {repaired} existing late grace; {already} already in place; "
               f"{skipped} left for you in Canvas's Assign To.")
+    if warned:
+        print(f"\n{warned} assignment(s) where the student's module will still lock them out "
+              f"(see [WARN]). A module can't have dates for one student: change the module's "
+              f"Lock until date for everyone, or move the item to another module.")
+        if to_finish:
+            print(f"Modules unlock in order: the student needs to finish "
+                  f"{', '.join(repr(n) for n in to_finish)} first.")
     if fails:
         print(f"\n{fails} operation(s) failed; Canvas's reason is on each FAIL line. "
               f"A re-run helps only if that reason was temporary.", file=sys.stderr)
