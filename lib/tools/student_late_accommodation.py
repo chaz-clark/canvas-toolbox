@@ -410,12 +410,17 @@ def list_overrides(base_url: str, course_id: str, assignment_id: int,
     """SLOW on some courses — used by --remove, and by --apply only after Canvas
     refuses a new override (#511)."""
     headers = {"Authorization": f"Bearer {token}"}
-    r = requests.get(
-        f"{base_url}/api/v1/courses/{course_id}/assignments/{assignment_id}/overrides",
-        headers=headers, params={"per_page": 100}, timeout=_TIMEOUT,
-    )
-    r.raise_for_status()
-    return r.json() or []
+    # Every page, by the Link header: the overrides list ignores ?page= (#506).
+    out: list[dict] = []
+    url: str | None = f"{base_url}/api/v1/courses/{course_id}/assignments/{assignment_id}/overrides"
+    params: dict | None = {"per_page": 100}
+    while url:
+        r = requests.get(url, headers=headers, params=params, timeout=_TIMEOUT)
+        r.raise_for_status()
+        out += r.json() or []
+        url = r.links.get("next", {}).get("url")
+        params = None
+    return out
 
 
 def delete_override(base_url: str, course_id: str, assignment_id: int,

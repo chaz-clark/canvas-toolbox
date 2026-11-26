@@ -44,29 +44,21 @@ class CanvasClient:
 
     def get_paginated(self, endpoint: str) -> list[dict[str, Any]]:
         """Fetch all pages from a Canvas API endpoint."""
+        # Follow the Link header; never count pages. The overrides list ignores
+        # ?page= and returns the same overrides every time, so waiting for an
+        # empty page looped forever (#506, lesson L36).
         all_items = []
-        page = 1
-
-        while True:
-            url = f"{self.base_url}/api/v1/{endpoint}"
-            response = self.session.get(
-                url,
-                params={"per_page": 100, "page": page},
-                timeout=30,
-            )
-
+        url: str | None = f"{self.base_url}/api/v1/{endpoint}"
+        params: dict | None = {"per_page": 100}
+        while url:
+            response = self.session.get(url, params=params, timeout=30)
             if not response.ok:
                 raise RuntimeError(
                     f"HTTP {response.status_code} for GET {endpoint}"
                 )
-
-            items = response.json()
-            if not items:
-                break
-
-            all_items.extend(items)
-            page += 1
-
+            all_items.extend(response.json() or [])
+            url = response.links.get("next", {}).get("url")
+            params = None
         return all_items
 
     def get_assignments(self, course_id: int) -> list[dict[str, Any]]:

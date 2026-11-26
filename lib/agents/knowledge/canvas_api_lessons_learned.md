@@ -632,7 +632,7 @@ When building a new Canvas-touching tool, run through this checklist:
 
 **Why it matters:** a loop that counts pages until one comes back empty never ends once an assignment has any override. `force_recalc_for_student` hung for 15+ minutes this way (likely the "10+ minute hangs" in `docs/research/accommodation-recalc-findings.md`). Follow the `Link` header instead of counting pages.
 
-**Provenance:** DS 250 sandbox, 2026-11-25; issue #506.
+**Provenance:** DS 250 sandbox, 2026-11-25; issue #506. Fixed in 2.14.1: `_override_recalc_helper`, the group recalc tool and `student_late_accommodation.list_overrides` follow the Link header. Assignments, quizzes, discussion topics and modules were probed the same way and do honor `?page=`.
 
 ### L37 — A module's Lock until date wins over a student's override
 

@@ -95,6 +95,9 @@ except ImportError:
 
 _DEFAULT_HANDOFF = Path("grading/.sas_accommodations.yml")
 _DEFAULT_AUDIT_LOG = Path("grading/.sas_accommodations_applied.log")
+# Longest one tool may run before it's stopped (#506): long enough for --all on a
+# large course, short enough that a hang can't sit unnoticed.
+_TOOL_TIMEOUT_S = 30 * 60
 # The tools this dispatches to sit beside it, in either layout (#503).
 _TOOLS_DIR = Path(__file__).resolve().parent
 
@@ -340,7 +343,20 @@ def main() -> int:
             audit_lines.append(render_audit_line(plan, "PLANNED", timestamp))
             continue
 
-        result = subprocess.run(plan.command, capture_output=True, text=True)
+        try:
+            result = subprocess.run(plan.command, capture_output=True, text=True,
+                                    timeout=_TOOL_TIMEOUT_S)
+        except subprocess.TimeoutExpired as exc:
+            tail = exc.stderr or b""
+            tail = tail.decode(errors="replace") if isinstance(tail, bytes) else tail
+            print(f"    FAIL (no answer after {_TOOL_TIMEOUT_S // 60} minutes; stopped)")
+            print("    It may have written part of this already: check the student's "
+                  "quizzes or assignments in Canvas before running it again.")
+            if tail.strip():
+                print(f"    stderr: {tail.strip()[-300:]}")
+            fails += 1
+            audit_lines.append(render_audit_line(plan, "FAILED", timestamp))
+            continue
         if result.returncode == 0:
             print("    OK")
             audit_lines.append(render_audit_line(plan, "APPLIED", timestamp))

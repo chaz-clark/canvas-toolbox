@@ -84,6 +84,23 @@ def _request_with_backoff(method: str, url: str, **kwargs) -> requests.Response:
     raise RuntimeError("Exhausted retries (should have raised HTTPError)")
 
 
+def _get_all(url: str, headers: dict, timeout: int) -> list:
+    """GET every page of a Canvas list by following the `Link: rel="next"` header.
+
+    Never count pages: the overrides list ignores `?page=` and returns the same
+    overrides for every page number, so a loop that waits for an empty page never
+    ends once an assignment has an override (#506, lesson L36).
+    """
+    out: list = []
+    params: dict | None = {"per_page": 100}
+    while url:
+        r = _request_with_backoff("GET", url, headers=headers, params=params, timeout=timeout)
+        out += r.json() or []
+        url = r.links.get("next", {}).get("url")
+        params = None  # the next link already carries them
+    return out
+
+
 def verify_override_updated(
     base: str,
     headers: dict,
@@ -229,21 +246,8 @@ def force_recalc_for_student(
         assignments_to_check = [{"id": assignment_id}]
     else:
         # Get all assignments (paginated)
-        assignments_to_check = []
-        page = 1
-        while True:
-            r = _request_with_backoff(
-                "GET",
-                f"{base}/api/v1/courses/{course_id}/assignments",
-                headers=headers,
-                params={"per_page": 100, "page": page},
-                timeout=timeout,
-            )
-            batch = r.json()
-            if not batch:
-                break
-            assignments_to_check += batch
-            page += 1
+        assignments_to_check = _get_all(
+            f"{base}/api/v1/courses/{course_id}/assignments", headers, timeout)
 
     # Find and touch overrides
     touched_count = 0
@@ -251,21 +255,9 @@ def force_recalc_for_student(
         asg_id = asg["id"]
 
         # Get overrides for this assignment
-        overrides = []
-        page = 1
-        while True:
-            r = _request_with_backoff(
-                "GET",
-                f"{base}/api/v1/courses/{course_id}/assignments/{asg_id}/overrides",
-                headers=headers,
-                params={"per_page": 100, "page": page},
-                timeout=timeout,
-            )
-            batch = r.json()
-            if not batch:
-                break
-            overrides += batch
-            page += 1
+        overrides = _get_all(
+            f"{base}/api/v1/courses/{course_id}/assignments/{asg_id}/overrides",
+            headers, timeout)
 
         # Check if any override targets our student
         student_overrides = [
@@ -328,21 +320,8 @@ def force_recalc_for_group(
         assignments_to_check = [{"id": assignment_id}]
     else:
         # Get all assignments (paginated)
-        assignments_to_check = []
-        page = 1
-        while True:
-            r = _request_with_backoff(
-                "GET",
-                f"{base}/api/v1/courses/{course_id}/assignments",
-                headers=headers,
-                params={"per_page": 100, "page": page},
-                timeout=timeout,
-            )
-            batch = r.json()
-            if not batch:
-                break
-            assignments_to_check += batch
-            page += 1
+        assignments_to_check = _get_all(
+            f"{base}/api/v1/courses/{course_id}/assignments", headers, timeout)
 
     # Find and touch overrides
     touched_count = 0
@@ -350,21 +329,9 @@ def force_recalc_for_group(
         asg_id = asg["id"]
 
         # Get overrides for this assignment
-        overrides = []
-        page = 1
-        while True:
-            r = _request_with_backoff(
-                "GET",
-                f"{base}/api/v1/courses/{course_id}/assignments/{asg_id}/overrides",
-                headers=headers,
-                params={"per_page": 100, "page": page},
-                timeout=timeout,
-            )
-            batch = r.json()
-            if not batch:
-                break
-            overrides += batch
-            page += 1
+        overrides = _get_all(
+            f"{base}/api/v1/courses/{course_id}/assignments/{asg_id}/overrides",
+            headers, timeout)
 
         # Check if any override targets our group
         group_overrides = [o for o in overrides if o.get("group_id") == group_id]
