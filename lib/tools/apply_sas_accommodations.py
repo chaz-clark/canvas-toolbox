@@ -364,6 +364,10 @@ def main() -> int:
             continue
         if result.returncode == 0:
             print("    OK")
+            # The tool's warnings (#508): a module that will still lock the student out.
+            for line in result.stdout.splitlines():
+                if "[WARN]" in line or line.startswith("Modules unlock in order"):
+                    print(f"    {line.strip()}")
             audit_lines.append(render_audit_line(plan, "APPLIED", timestamp))
         else:
             print(f"    FAIL (exit {result.returncode})")

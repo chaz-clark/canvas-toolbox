@@ -37,6 +37,7 @@ Output discipline: ✅ "Applied 1.5× time for deid_code S-68BC40" · ❌ "…fo
 
 ## Discipline
 
+- **A `[WARN]` about a module means the student still won't see the change.** A module that opens later wins over an earlier Available from, and a module whose prerequisites the student hasn't finished stays locked (lesson L37). Canvas has no per-student module dates, so tell the instructor the two options the tool names: change the module's Lock until date for everyone, or move the item. The line "the student needs to finish …" names where a chain of locked modules starts. The change is still written; it takes effect when the module unlocks.
 - **`--apply` is the write gate.** Every tool defaults to a dry-run preview; nothing
   reaches Canvas until `--apply`. Preview first, confirm the target student + change,
   then apply.

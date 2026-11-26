@@ -640,7 +640,7 @@ When building a new Canvas-touching tool, run through this checklist:
 
 **What Canvas does:** an item in a module that opens later stays locked for a student whose own override gives an earlier Available from. Read as the student, the item has the override's `unlock_at`, but `locked_for_user: true` and `lock_info.context_module` names the module. This is the same whether the override was saved through the overrides API or `date_details` (the Assign To tray's API). Canvas has no per-student date on a module.
 
-**Why it matters:** a tool that gives a student early access reports OK, and the override shows on the page, but the student can't open the item. Check the item's modules before promising early access.
+**Why it matters:** a tool that gives a student early access reports OK, and the override shows on the page, but the student can't open the item. A module whose prerequisites the student hasn't finished stays locked the same way, which can defeat late grace for a student who is behind. Canvas has **no per-student dates on a module**: a module override (`PUT /courses/:id/modules/:id/assignment_overrides`) takes only `student_ids`, `course_section_id` and `group_id`, never a date (`module_assignment_overrides_controller.rb`). Since 2.14.2, `student_late_accommodation` reads the student's module state (`GET /modules?student_id=…`, which gives `state`, `unlock_at` and `prerequisite_module_ids`) and warns before writing.
 
 **Provenance:** DS 250 sandbox and a local Canvas with real student accounts, 2026-11-25/26; issue #508.
 
