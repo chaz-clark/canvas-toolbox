@@ -20,7 +20,7 @@ import sync_to_new as stn  # noqa: E402
 def test_create_assignment_group_sends_flat_payload_not_wrapped(monkeypatch):
     seen = {}
 
-    def fake_post(url, payload, token):
+    def fake_post(url, payload, token, **kwargs):
         seen["payload"] = payload
         return {"success": True, "data": {"id": 1, **payload}}
 
