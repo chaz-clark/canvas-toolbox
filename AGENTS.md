@@ -503,7 +503,7 @@ How the course terms map to settings and folders:
 
 - **Canvas API knowledge:** [`lib/agents/knowledge/canvas_api_knowledge.md`](lib/agents/knowledge/canvas_api_knowledge.md)
   (documented surface) + [`canvas_api_lessons_learned.md`](lib/agents/knowledge/canvas_api_lessons_learned.md)
-  (17 empirical lessons — form-encoding, date trios, quiz dual-IDs, blueprint orphans).
+  (empirical lessons — form-encoding, date trios, quiz dual-IDs, blueprint orphans, override dates).
   Read both before a Canvas write or audit; the relevant ones are surfaced in the
   `course-build` and `audit` skills.
 - **Instructional-design frameworks:** [`lib/agents/knowledge/README.md`](lib/agents/knowledge/README.md).

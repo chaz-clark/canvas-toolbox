@@ -618,6 +618,38 @@ When building a new Canvas-touching tool, run through this checklist:
 
 **Provenance:** field reports from faculty training, issue #445.
 
+### L35 — An override date you leave out isn't overridden
+
+**What Canvas does:** a per-student assignment override applies only the dates it sends. Leave `assignment_override[lock_at]` out and the override's JSON has no `lock_at` key: the assignment's own Until date still applies to that student. Send it as an empty value to mean "no Until date".
+
+**Why it matters:** `student_late_accommodation` left `lock_at` out on purpose, believing Canvas read it as none. The override was listed on the assignment, so it looked right, but the student stayed locked out: their submission was refused (HTTP 403). Instructors saw accommodations "added correctly but not recognized", and fixing them by hand in Assign To worked because the tray sends the Until date empty.
+
+**Provenance:** issue #505 (fixed in 2.13.4). Checked with a real student account on a local Canvas, and as the Test Student on a hosted sandbox.
+
+### L36 — The overrides list ignores `?page=`
+
+**What Canvas does:** `GET /courses/:cid/assignments/:id/overrides` returns the same overrides for `page=1`, `2`, `3` or `50`, with no `Link: next` header.
+
+**Why it matters:** a loop that counts pages until one comes back empty never ends once an assignment has any override. `force_recalc_for_student` hung for 15+ minutes this way (likely the "10+ minute hangs" in `docs/research/accommodation-recalc-findings.md`). Follow the `Link` header instead of counting pages.
+
+**Provenance:** DS 250 sandbox, 2026-11-25; issue #506.
+
+### L37 — A module's Lock until date wins over a student's override
+
+**What Canvas does:** an item in a module that opens later stays locked for a student whose own override gives an earlier Available from. Read as the student, the item has the override's `unlock_at`, but `locked_for_user: true` and `lock_info.context_module` names the module. This is the same whether the override was saved through the overrides API or `date_details` (the Assign To tray's API). Canvas has no per-student date on a module.
+
+**Why it matters:** a tool that gives a student early access reports OK, and the override shows on the page, but the student can't open the item. Check the item's modules before promising early access.
+
+**Provenance:** DS 250 sandbox and a local Canvas with real student accounts, 2026-11-25/26; issue #508.
+
+### L38 — New Quizzes accommodations can't be read back, and "successful" isn't proof
+
+**What Canvas does:** extra time and attempts on New Quizzes go through `POST /api/quiz/v1/courses/:cid/quizzes/:assignment_id/accommodations` (JSON array, `extra_time` in minutes). The response lists `successful` and `failed`, and a 200 can contain failures. There is no GET for accommodations, and the classic `/quizzes/:id/extensions` endpoint doesn't apply to New Quizzes.
+
+**Why it matters:** a 200 with the student under `successful` still showed the base time limit when the student had no attempt left. Once an extra attempt was added, the student saw the extra time and the timer began with it. Check `failed` on every response, and confirm in Moderate or as the student. The Assign To tray won't take the Test Student, but this API does.
+
+**Provenance:** DS 250 sandbox, fixture New Quiz, Test Student, 2026-11-26; issue #513.
+
 ---
 
 ## References
