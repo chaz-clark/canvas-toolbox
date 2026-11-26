@@ -10,8 +10,10 @@ HOW THE OVERRIDE IS BUILT
   For each target assignment, write a per-student assignment override that:
     - keeps the assignment's normal `unlock_at` (open date)
     - keeps the assignment's normal `due_at`    (due date)
-    - omits `lock_at` (no close date) → student can submit after the due
-      date; submission shows up marked "late" but is still accepted
+    - sets `lock_at` explicitly EMPTY (no Until date) → student can submit
+      after the due date; submission shows up marked "late" but is still
+      accepted. Leaving `lock_at` out does NOT do this: Canvas then keeps the
+      assignment's own Until date for the student (#505).
 
 The student STILL sees the original due date in their student-view (no
 artificial deadline extension shown); they just don't get locked out
@@ -162,8 +164,10 @@ def build_override_payload(assignment: dict, user_id: int,
                            title: str = _OVERRIDE_TITLE) -> dict:
     """Build the POST body for a late-work accommodation override.
 
-    Keeps `unlock_at` + `due_at` from the assignment; omits `lock_at`
-    so Canvas treats it as null (no close date). Returns form-encoded
+    Keeps `unlock_at` + `due_at` from the assignment and sends `lock_at`
+    EMPTY, so the student has no Until date. A missing `lock_at` is not
+    overridden: the assignment's own Until date would still apply (#505).
+    Returns form-encoded
     field/value pairs (the Canvas API quirk: array fields use [] suffix).
     """
     data: dict[str, str | int] = {
@@ -174,7 +178,8 @@ def build_override_payload(assignment: dict, user_id: int,
         data["assignment_override[due_at]"] = assignment["due_at"]
     if assignment.get("unlock_at"):
         data["assignment_override[unlock_at]"] = assignment["unlock_at"]
-    # lock_at intentionally OMITTED → null → no close date
+    # Sent EMPTY on purpose: omitting it keeps the assignment's Until date (#505)
+    data["assignment_override[lock_at]"] = ""
     return data
 
 
