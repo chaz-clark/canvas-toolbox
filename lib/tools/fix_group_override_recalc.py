@@ -93,6 +93,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from canvas_course_guard import enforce as _course_guard  # set for an intervention (#502)
+
 try:
     from _env_loader import load_env
     load_env()
@@ -138,6 +140,13 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+
+    # The course guard, before the Rust or the Python version starts (#502). This
+    # tool takes --course-id on the command line, so the out-of-folder check is
+    # the one that matters: a mistyped id refuses, CB_COURSE_SWITCH allows it.
+    # Set for an intervention: a course with students is the normal target.
+    _course_guard(base_url, {"Authorization": f"Bearer {token}"}, str(args.course_id),
+                  mode="read" if args.dry_run else "write", per_student=True)
 
     rust_dir = Path(__file__).parent / "fix_override_recalc_rs"
     rust_bin = rust_dir / "target" / "release" / "fix-override-recalc"
