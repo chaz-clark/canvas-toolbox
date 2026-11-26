@@ -192,3 +192,20 @@ def test_the_trusted_version_matches_the_rust_source():
     import fix_group_override_recalc as fg
     cargo = (_TOOLS_DIR / "fix_override_recalc_rs" / "Cargo.toml").read_text()
     assert f'version = "{fg._RUST_VERSION}"' in cargo
+
+
+
+# The Rust source each trusted version was built from. Changing main.rs without
+# bumping the version would make the wrapper trust binaries built from the old
+# source (#518). So: change main.rs -> bump Cargo.toml's version and
+# _RUST_VERSION together -> record the new hash here.
+_RUST_SOURCE_SHA256 = {"0.2.0": "1782c46919f1960b5691df4d18e6202c28fa0721f5d463f349ffb48b8860b3fe"}
+
+
+def test_a_change_to_the_rust_source_needs_a_version_bump():
+    import hashlib
+    import fix_group_override_recalc as fg
+    src = (_TOOLS_DIR / "fix_override_recalc_rs" / "src" / "main.rs").read_bytes().replace(b"\r\n", b"\n")
+    assert hashlib.sha256(src).hexdigest() == _RUST_SOURCE_SHA256.get(fg._RUST_VERSION), (
+        "src/main.rs changed: bump the version in Cargo.toml and _RUST_VERSION in "
+        "fix_group_override_recalc.py, then record the new sha256 in _RUST_SOURCE_SHA256")

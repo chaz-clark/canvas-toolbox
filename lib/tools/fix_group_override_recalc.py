@@ -157,8 +157,11 @@ def main() -> int:
             print("\nInterrupted by user", file=sys.stderr)
             return 130
 
-    print(f"Using the Python version: the faster Rust version {why}. To use it, run: "
-          f"cd {rust_dir} && cargo build --release", file=sys.stderr)
+    if why == "isn't built":
+        print("Using the Python version (the faster Rust version isn't built).", file=sys.stderr)
+    else:
+        print(f"Using the Python version: the faster Rust version here {why}. The agent "
+              f"can rebuild it with `cargo build --release` in {rust_dir}.", file=sys.stderr)
     from _fix_group_override_recalc_python import run_python_fallback
 
     return run_python_fallback(
