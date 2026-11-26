@@ -344,7 +344,7 @@ def main() -> int:
             audit_lines.append(render_audit_line(plan, "APPLIED", timestamp))
         else:
             print(f"    FAIL (exit {result.returncode})")
-            print(f"    stderr: {result.stderr.strip()[:300]}")
+            print(f"    stderr: {result.stderr.strip()[-300:]}")  # the end holds the outcome (#511)
             fails += 1
             audit_lines.append(render_audit_line(plan, "FAILED", timestamp))
 
