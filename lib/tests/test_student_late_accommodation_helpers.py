@@ -24,6 +24,8 @@ from student_late_accommodation import (  # noqa: E402
     filter_assignments_by_due_from,
     filter_my_overrides,
     skip_reason,
+    build_repair_payload,
+    existing_override_action,
     resolve_user_id_from_master,
     shift_iso_timestamp,
 )
@@ -458,3 +460,85 @@ def test_remove_apply_deletes_only_the_tools_own_override(monkeypatch, capsys):
     assert "override 3" in out and "not made by this tool" in out
     assert "override 4" not in out  # not this student's at all
     assert "Removed 1; skipped 2, left in Canvas." in out
+
+
+# ---------------------------------------------------------------------------
+# #511: repairing late grace given before 2.13.4
+# ---------------------------------------------------------------------------
+
+_OLD_LATE = {"id": 7, "title": "Late-work accommodation (no close date)", "student_ids": [100],
+             "due_at": "2026-04-15T23:59:00Z", "unlock_at": "2026-04-01T00:00:00Z"}
+_OLD_SHIFT = {"id": 8, "title": "Test reschedule (date-shifted)", "student_ids": [100],
+              "due_at": "2026-04-22T23:59:00Z", "lock_at": "2026-04-23T23:59:00Z"}
+
+
+def test_repair_payload_keeps_the_overrides_own_dates_and_empties_until():
+    """Canvas drops any overridden date a PUT leaves out, so send them all back."""
+    p = build_repair_payload(_OLD_LATE, user_id=100)
+    assert p["assignment_override[student_ids][]"] == 100
+    assert p["assignment_override[title]"] == "Late-work accommodation (no close date)"
+    assert p["assignment_override[due_at]"] == "2026-04-15T23:59:00Z"
+    assert p["assignment_override[unlock_at]"] == "2026-04-01T00:00:00Z"
+    assert p["assignment_override[lock_at]"] == ""
+
+
+def test_repair_payload_sends_no_date_the_override_doesnt_have():
+    p = build_repair_payload({**_OLD_LATE, "unlock_at": None}, user_id=100)
+    assert "assignment_override[unlock_at]" not in p
+
+
+def test_existing_late_grace_is_repaired_by_late_grace():
+    assert existing_override_action(_OLD_LATE, 100, shifting=False) == ("repair", None)
+
+
+def test_existing_overrides_that_are_skipped():
+    cases = [
+        (_OLD_LATE, True, "replace"),                                     # reschedule over late grace
+        (_OLD_SHIFT, False, "replace"),                                   # late grace over a reschedule
+        (_OLD_SHIFT, True, "twice"),                                      # reschedule again
+        ({**_OLD_LATE, "student_ids": [100, 200]}, False, "other student"),  # shared
+        ({**_OLD_LATE, "title": "1 student"}, False, "not made by this tool"),  # hand-made
+    ]
+    for override, shifting, words in cases:
+        action, why = existing_override_action(override, 100, shifting=shifting)
+        assert action == "skip" and words in why, (override["title"], shifting, why)
+
+
+def _run_add(monkeypatch, capsys, existing, extra=()):
+    import student_late_accommodation as sla
+    sent = []
+    monkeypatch.setattr(sla, "_course_guard", lambda *a, **k: None)
+    monkeypatch.setattr(sla, "fetch_assignment", lambda *a, **k: {"id": 5, "due_at": "2026-04-15T23:59:00Z"})
+    monkeypatch.setattr(sla, "post_override", lambda *a, **k: (400, {"errors": {"assignment_override_students": "taken"}}))
+    monkeypatch.setattr(sla, "list_overrides", lambda *a, **k: existing)
+    monkeypatch.setattr(sla, "put_override", lambda base, cid, aid, oid, payload, tok: sent.append((oid, payload)) or (200, {"id": oid}))
+    for k, v in {"CANVAS_BASE_URL": "http://127.0.0.1:9", "CANVAS_COURSE_ID": "1", "CANVAS_API_TOKEN": "x"}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(sys, "argv", ["student_late_accommodation.py", "--user-id", "100",
+                                      "--assignment-id", "5", "--apply", *extra])
+    code = sla.main()
+    captured = capsys.readouterr()
+    return code, sent, captured.out, captured.err
+
+
+def test_apply_repairs_the_tools_old_late_grace(monkeypatch, capsys):
+    code, sent, out, err = _run_add(monkeypatch, capsys, [_OLD_LATE])
+    assert code == 0 and [oid for oid, _ in sent] == [7]
+    assert sent[0][1]["assignment_override[lock_at]"] == ""
+    assert "Until date removed" in out and "Re-run" not in err
+
+
+def test_apply_leaves_a_shared_override_alone(monkeypatch, capsys):
+    code, sent, out, err = _run_add(monkeypatch, capsys, [{**_OLD_LATE, "student_ids": [100, 200]}])
+    assert code == 0 and sent == []
+    assert "[SKIP]" in out and "Nothing sent" in out and "Re-run" not in err
+
+
+def test_apply_does_not_reschedule_twice(monkeypatch, capsys):
+    code, sent, out, err = _run_add(monkeypatch, capsys, [_OLD_SHIFT], extra=("--shift-by-days", "7"))
+    assert code == 0 and sent == [] and "twice" in out
+
+
+def test_apply_with_no_existing_override_still_fails(monkeypatch, capsys):
+    code, sent, out, err = _run_add(monkeypatch, capsys, [])
+    assert code == 1 and sent == [] and "failed" in err

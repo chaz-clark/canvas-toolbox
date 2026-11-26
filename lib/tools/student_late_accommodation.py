@@ -204,11 +204,51 @@ def skip_reason(override: dict, user_id: int) -> str | None:
     """
     others = [s for s in (override.get("student_ids") or []) if s != user_id]
     if others:
-        return (f"shared with {len(others)} other student(s); deleting it would "
-                f"remove their dates too")
+        return (f"shared with {len(others)} other student(s); changing or deleting it would "
+                f"change their dates too")
     if override.get("title") not in _TOOL_TITLES:
         return f"not made by this tool (title {override.get('title')!r})"
     return None
+
+
+def existing_override_action(override: dict, user_id: int,
+                             shifting: bool) -> tuple[str, str | None]:
+    """What --apply does when Canvas refuses a new override because the student
+    already has one on the assignment (#511): ("repair", None) or ("skip", why).
+
+    Only the tool's own late grace for this student alone is repaired, by late
+    grace. A reschedule is never redone: Canvas can return the assignment's dates
+    with the student's override already applied, so a second shift could move
+    them twice.
+    """
+    why = skip_reason(override, user_id)
+    if why:
+        return "skip", why
+    title = override.get("title")
+    if shifting:
+        if title == _SHIFT_TITLE:
+            return "skip", "already rescheduled by this tool; doing it again could move the dates twice"
+        return "skip", "already has late grace here; a reschedule would replace it"
+    if title == _SHIFT_TITLE:
+        return "skip", "already rescheduled here; late grace would replace the reschedule"
+    return "repair", None
+
+
+def build_repair_payload(override: dict, user_id: int) -> dict:
+    """PUT body that gives an existing late-grace override no Until date (#511).
+
+    Canvas drops any overridden date a PUT leaves out, so the override's own
+    Due and Available from dates are sent back unchanged, with lock_at empty.
+    """
+    data: dict[str, str | int] = {
+        "assignment_override[student_ids][]": user_id,
+        "assignment_override[title]": override.get("title") or _OVERRIDE_TITLE,
+        "assignment_override[lock_at]": "",
+    }
+    for field in ("due_at", "unlock_at"):
+        if override.get(field):
+            data[f"assignment_override[{field}]"] = override[field]
+    return data
 
 
 def cutoff_from_days_ago(days: int, today: date | None = None) -> str:
@@ -345,6 +385,20 @@ def post_override(base_url: str, course_id: str, assignment_id: int,
     return r.status_code, body
 
 
+def put_override(base_url: str, course_id: str, assignment_id: int,
+                 override_id: int, payload: dict, token: str) -> tuple[int, dict]:
+    headers = {"Authorization": f"Bearer {token}"}
+    r = requests.put(
+        f"{base_url}/api/v1/courses/{course_id}/assignments/{assignment_id}/overrides/{override_id}",
+        headers=headers, data=payload, timeout=_TIMEOUT,
+    )
+    try:
+        body = r.json()
+    except ValueError:
+        body = {}
+    return r.status_code, body
+
+
 def list_overrides(base_url: str, course_id: str, assignment_id: int,
                    token: str) -> list[dict]:
     """SLOW on some courses — only used by the --remove path."""
@@ -464,7 +518,7 @@ def main() -> int:
         return 0
 
     fails = 0
-    removed = skipped = 0
+    removed = skipped = repaired = 0
     for aid in assignment_ids:
         if args.remove:
             overrides = list_overrides(base_url, course_id, aid, token)
@@ -500,6 +554,27 @@ def main() -> int:
             else:
                 payload = build_override_payload(assignment, uid)
             code, body = post_override(base_url, course_id, aid, payload, token)
+            if code not in (200, 201):
+                # Canvas refuses a second override for the same student. Look
+                # only now, so the normal path never lists overrides (#511).
+                mine = filter_my_overrides(list_overrides(base_url, course_id, aid, token), uid)
+                if mine:
+                    o = mine[0]
+                    label = (f"override {o['id']} {o.get('title')!r} "
+                             f"({len(o.get('student_ids') or [])} student(s))")
+                    action, why = existing_override_action(o, uid, bool(args.shift_by_days))
+                    if action == "skip":
+                        print(f"  [SKIP] {aid}: the student already has {label}: {why}. "
+                              f"Nothing sent; change it in Canvas's Assign To if needed.")
+                        skipped += 1
+                        continue
+                    code, body = put_override(base_url, course_id, aid, o["id"],
+                                              build_repair_payload(o, uid), token)
+                    if code in (200, 201):
+                        print(f"  [FIXED] {aid}: {label} was already there; "
+                              f"Until date removed (due={body.get('due_at')})")
+                        repaired += 1
+                        continue
             ok = "OK " if code in (200, 201) else "FAIL"
             if code not in (200, 201):
                 fails += 1
@@ -537,6 +612,8 @@ def main() -> int:
     if args.remove:
         print(f"\n{'Removed' if args.apply else 'Would remove'} {removed - fails}; "
               f"skipped {skipped}, left in Canvas.")
+    elif repaired or skipped:
+        print(f"\nRepaired {repaired} existing late grace; skipped {skipped}, left in Canvas.")
     if fails:
         print(f"\n{fails} operation(s) failed. Re-run to retry.", file=sys.stderr)
         return 1
