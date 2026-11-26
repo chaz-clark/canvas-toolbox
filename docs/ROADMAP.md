@@ -136,10 +136,11 @@ items 4–5 candidate, Tier 2, M–L.**
 4. **Accommodations (M).** Partly built. Guarded course-level and quiz-level
    tools for extra time, extra attempts, reduced answer choices, and optional
    application to in-progress sessions on New Quizzes specifically — today,
-   `student_quiz_time_extension.py` covers Classic quizzes only (extra time, and
-   per-quiz extra attempts / manual unlock since #421); New Quiz
-   per-student time extensions are still Moderation-UI-only (see README's
-   "Note on New Quizzes (LTI)"). Per-student Canvas writing — must use the
+   `student_quiz_time_extension.py` covers Classic Quizzes (time extensions, and
+   per-quiz extra attempts / manual unlock since #421) and, since 2.14.0 (#513),
+   New Quizzes (time extensions and extra attempts, per quiz). Still not built:
+   course-level New Quizzes accommodations, reduced answer choices, and applying
+   to in-progress sessions (see README's "Note on New Quizzes"). Per-student Canvas writing — must use the
    accommodations workflow and explicit scope confirmation.
 5. **Cross-course propagation (L).** Clone-into-a-new-course is built (#367):
    `sync_to_new.py` creates New Quizzes on by default (opt out with

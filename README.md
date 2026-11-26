@@ -572,7 +572,7 @@ uv run python lib/tools/student_quiz_time_extension.py \
   --deid-code S-68BC40 --multiplier 1.5 --all-timed --apply --force-recalc
 ```
 
-> **Note on New Quizzes (LTI):** this tool covers classic Canvas quizzes only. New Quizzes use a different API path; per-student time multipliers there are currently set via the New Quizzes Moderation UI. New Quizzes API support is a follow-up.
+> **Note on New Quizzes:** since 2.14.0 this tool covers New Quizzes too (#513): `--all-timed` includes timed New Quizzes, and `--new-quiz-id <assignment id>` targets one. It uses the New Quizzes accommodations API, per quiz. Canvas can't be asked whether a New Quiz time extension applied, so confirm on the quiz's Moderate page or in Student View. On a New Quiz, `--extra-attempts N` sets the total of extra attempts rather than adding to it.
 
 ---
 

@@ -214,7 +214,8 @@ def _build_canvas_command(deid_code: str, key: str,
             "--deid-code", deid_code,
             "--multiplier", "1.5",
             "--all-timed"]
-        note = "Canvas: +50% extra time on all timed classic quizzes."
+        note = ("Canvas: a +50% time extension on all timed quizzes (Classic Quizzes and New Quizzes). "
+                "New Quizzes: confirm in the quiz's Moderate page or Student View.")
         return cmd, note
 
     if key == "extra_time_2.0x":
@@ -222,7 +223,8 @@ def _build_canvas_command(deid_code: str, key: str,
             "--deid-code", deid_code,
             "--multiplier", "2.0",
             "--all-timed"]
-        note = "Canvas: +100% (double time) on all timed classic quizzes."
+        note = ("Canvas: a +100% time extension (double time) on all timed quizzes (Classic Quizzes and New Quizzes). "
+                "New Quizzes: confirm in the quiz's Moderate page or Student View.")
         return cmd, note
 
     if key == "occasional_extensions":
