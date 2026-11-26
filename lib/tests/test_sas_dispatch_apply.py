@@ -92,3 +92,27 @@ def test_a_dry_run_runs_nothing_and_says_planned(tmp_path):
     assert r.returncode == 0, (r.stdout, r.stderr)
     assert "REFUSING WRITE" not in r.stdout and "--apply" not in r.stdout
     assert log.count("\tPLANNED\t") == 2 and "\tAPPLIED\t" not in log
+
+
+def test_a_tool_that_hangs_is_stopped_and_logged_failed(tmp_path, monkeypatch, capsys):
+    """#506: each dispatched tool gets a timeout; a hang is FAILED, never APPLIED."""
+    import subprocess
+    import apply_sas_accommodations as sas
+
+    def hang(cmd, **kwargs):
+        assert kwargs.get("timeout") == sas._TOOL_TIMEOUT_S
+        assert kwargs["env"].get("PYTHONUNBUFFERED") == "1"  # so its progress survives the stop
+        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"], output=b"  [OK ] quiz 1: +15 min",
+                                        stderr=b"[recalc] still paging")
+    monkeypatch.setattr(sas.subprocess, "run", hang)
+    handoff = tmp_path / "sas.yml"
+    handoff.write_text("- deid_code: S-000001\n  accommodations:\n    - key: extra_time_1.5x\n",
+                       encoding="utf-8")
+    log = tmp_path / "applied.log"
+    monkeypatch.setattr(sys, "argv", ["apply_sas_accommodations.py", "--file", str(handoff),
+                                      "--audit-log", str(log), "--apply"])
+    assert sas.main() == 1
+    out = capsys.readouterr().out
+    assert "no answer after 30 minutes" in out and "before running it again" in out
+    assert "still paging" in out and "last output: [OK ] quiz 1: +15 min" in out
+    assert "\tFAILED\t" in log.read_text() and "\tAPPLIED\t" not in log.read_text()

@@ -66,6 +66,7 @@ try:
 except ImportError:
     def force_utf8_console() -> None:
         pass  # No-op if _env_loader not available
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -95,6 +96,9 @@ except ImportError:
 
 _DEFAULT_HANDOFF = Path("grading/.sas_accommodations.yml")
 _DEFAULT_AUDIT_LOG = Path("grading/.sas_accommodations_applied.log")
+# Longest one tool may run before it's stopped (#506): long enough for --all on a
+# large course, short enough that a hang can't sit unnoticed.
+_TOOL_TIMEOUT_S = 30 * 60
 # The tools this dispatches to sit beside it, in either layout (#503).
 _TOOLS_DIR = Path(__file__).resolve().parent
 
@@ -340,7 +344,24 @@ def main() -> int:
             audit_lines.append(render_audit_line(plan, "PLANNED", timestamp))
             continue
 
-        result = subprocess.run(plan.command, capture_output=True, text=True)
+        try:
+            # Unbuffered, so a tool stopped by the timeout has already shown
+            # how far it got.
+            result = subprocess.run(plan.command, capture_output=True, text=True,
+                                    timeout=_TOOL_TIMEOUT_S,
+                                    env={**os.environ, "PYTHONUNBUFFERED": "1"})
+        except subprocess.TimeoutExpired as exc:
+            def _text(b):
+                return (b.decode(errors="replace") if isinstance(b, bytes) else b or "").strip()
+            print(f"    FAIL (no answer after {_TOOL_TIMEOUT_S // 60} minutes; stopped)")
+            print("    It may have written part of this already: check the student's "
+                  "quizzes or assignments in Canvas before running it again.")
+            for name, stream in (("last output", exc.stdout), ("stderr", exc.stderr)):
+                if _text(stream):
+                    print(f"    {name}: {_text(stream)[-300:]}")
+            fails += 1
+            audit_lines.append(render_audit_line(plan, "FAILED", timestamp))
+            continue
         if result.returncode == 0:
             print("    OK")
             audit_lines.append(render_audit_line(plan, "APPLIED", timestamp))

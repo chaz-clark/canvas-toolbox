@@ -84,6 +84,48 @@ def _request_with_backoff(method: str, url: str, **kwargs) -> requests.Response:
     raise RuntimeError("Exhausted retries (should have raised HTTPError)")
 
 
+def _get_all(url: str, headers: dict, timeout: int) -> list:
+    """GET every page of a Canvas list by following the `Link: rel="next"` header.
+
+    Never count pages: the overrides list ignores `?page=` and returns the same
+    overrides for every page number, so a loop that waits for an empty page never
+    ends once an assignment has an override (#506, lesson L36).
+    """
+    out: list = []
+    params: dict | None = {"per_page": 100}
+    seen: set = set()
+    while url and url not in seen:  # a next link back to a page already read ends it
+        seen.add(url)
+        r = _request_with_backoff("GET", url, headers=headers, params=params, timeout=timeout)
+        out += r.json() or []
+        url = r.links.get("next", {}).get("url")
+        params = None  # the next link already carries them
+    return out
+
+
+def build_touch_payload(override: dict) -> list[tuple[str, object]]:
+    """Form fields that re-send an override exactly as it is (#506).
+
+    Canvas's docs: every overridden value must be sent again in a PUT to be kept.
+    So every date the override has goes back, a null one as an empty value (a
+    late grace's Until date is overridden as null; leaving it out would put the
+    assignment's own Until date back). Every student id goes back as its own
+    field: one key per id would keep only the last, and the PUT would drop the
+    other students from the override.
+    """
+    fields: list[tuple[str, object]] = []
+    for date in ("due_at", "unlock_at", "lock_at"):
+        if date in override:
+            fields.append((f"assignment_override[{date}]", override[date] or ""))
+    if "title" in override:
+        fields.append(("assignment_override[title]", override["title"]))
+    if "group_id" in override:
+        fields.append(("assignment_override[group_id]", override["group_id"]))
+    for sid in override.get("student_ids") or []:
+        fields.append(("assignment_override[student_ids][]", sid))
+    return fields
+
+
 def verify_override_updated(
     base: str,
     headers: dict,
@@ -157,32 +199,7 @@ def touch_override(
         The updated override dict from Canvas
     """
     override_id = override["id"]
-
-    # Build the payload - preserve all existing values
-    payload = {}
-
-    # The Canvas API requires all current values to be included or they'll be unset
-    if "due_at" in override and override["due_at"] is not None:
-        payload["assignment_override[due_at]"] = override["due_at"]
-
-    if "unlock_at" in override and override["unlock_at"] is not None:
-        payload["assignment_override[unlock_at]"] = override["unlock_at"]
-
-    if "lock_at" in override and override["lock_at"] is not None:
-        payload["assignment_override[lock_at]"] = override["lock_at"]
-
-    # Title is required for group/section overrides
-    if "title" in override:
-        payload["assignment_override[title]"] = override["title"]
-
-    # Preserve group_id (though it can't be changed)
-    if "group_id" in override:
-        payload["assignment_override[group_id]"] = override["group_id"]
-
-    # Preserve student_ids (though they can't be changed)
-    if "student_ids" in override and override["student_ids"]:
-        for sid in override["student_ids"]:
-            payload[f"assignment_override[student_ids][]"] = sid
+    payload = build_touch_payload(override)  # the override exactly as it is (#506)
 
     r = _request_with_backoff(
         "PUT",
@@ -229,21 +246,8 @@ def force_recalc_for_student(
         assignments_to_check = [{"id": assignment_id}]
     else:
         # Get all assignments (paginated)
-        assignments_to_check = []
-        page = 1
-        while True:
-            r = _request_with_backoff(
-                "GET",
-                f"{base}/api/v1/courses/{course_id}/assignments",
-                headers=headers,
-                params={"per_page": 100, "page": page},
-                timeout=timeout,
-            )
-            batch = r.json()
-            if not batch:
-                break
-            assignments_to_check += batch
-            page += 1
+        assignments_to_check = _get_all(
+            f"{base}/api/v1/courses/{course_id}/assignments", headers, timeout)
 
     # Find and touch overrides
     touched_count = 0
@@ -251,21 +255,9 @@ def force_recalc_for_student(
         asg_id = asg["id"]
 
         # Get overrides for this assignment
-        overrides = []
-        page = 1
-        while True:
-            r = _request_with_backoff(
-                "GET",
-                f"{base}/api/v1/courses/{course_id}/assignments/{asg_id}/overrides",
-                headers=headers,
-                params={"per_page": 100, "page": page},
-                timeout=timeout,
-            )
-            batch = r.json()
-            if not batch:
-                break
-            overrides += batch
-            page += 1
+        overrides = _get_all(
+            f"{base}/api/v1/courses/{course_id}/assignments/{asg_id}/overrides",
+            headers, timeout)
 
         # Check if any override targets our student
         student_overrides = [
@@ -328,21 +320,8 @@ def force_recalc_for_group(
         assignments_to_check = [{"id": assignment_id}]
     else:
         # Get all assignments (paginated)
-        assignments_to_check = []
-        page = 1
-        while True:
-            r = _request_with_backoff(
-                "GET",
-                f"{base}/api/v1/courses/{course_id}/assignments",
-                headers=headers,
-                params={"per_page": 100, "page": page},
-                timeout=timeout,
-            )
-            batch = r.json()
-            if not batch:
-                break
-            assignments_to_check += batch
-            page += 1
+        assignments_to_check = _get_all(
+            f"{base}/api/v1/courses/{course_id}/assignments", headers, timeout)
 
     # Find and touch overrides
     touched_count = 0
@@ -350,21 +329,9 @@ def force_recalc_for_group(
         asg_id = asg["id"]
 
         # Get overrides for this assignment
-        overrides = []
-        page = 1
-        while True:
-            r = _request_with_backoff(
-                "GET",
-                f"{base}/api/v1/courses/{course_id}/assignments/{asg_id}/overrides",
-                headers=headers,
-                params={"per_page": 100, "page": page},
-                timeout=timeout,
-            )
-            batch = r.json()
-            if not batch:
-                break
-            overrides += batch
-            page += 1
+        overrides = _get_all(
+            f"{base}/api/v1/courses/{course_id}/assignments/{asg_id}/overrides",
+            headers, timeout)
 
         # Check if any override targets our group
         group_overrides = [o for o in overrides if o.get("group_id") == group_id]

@@ -624,15 +624,17 @@ When building a new Canvas-touching tool, run through this checklist:
 
 **Why it matters:** `student_late_accommodation` left `lock_at` out on purpose, believing Canvas read it as none. The override was listed on the assignment, so it looked right, but the student stayed locked out: their submission was refused (HTTP 403). Instructors saw accommodations "added correctly but not recognized", and fixing them by hand in Assign To worked because the tray sends the Until date empty.
 
+**The same holds for a PUT.** Every overridden date must be sent again, with a null one sent empty, and every student id as its own field. On a local Canvas, a touch that left out a late grace's null Until date put the assignment's Until date back, and one form key per student id kept only the last, so the PUT removed the other students (#506).
+
 **Provenance:** issue #505 (fixed in 2.13.4). Checked with a real student account on a local Canvas, and as the Test Student on a hosted sandbox.
 
 ### L36 — The overrides list ignores `?page=`
 
-**What Canvas does:** `GET /courses/:cid/assignments/:id/overrides` returns the same overrides for `page=1`, `2`, `3` or `50`, with no `Link: next` header.
+**What Canvas does:** `GET /courses/:cid/assignments/:id/overrides` returns the same overrides for `page=1`, `2`, `3`, `50` or `500`, with no `Link: next` header.
 
 **Why it matters:** a loop that counts pages until one comes back empty never ends once an assignment has any override. `force_recalc_for_student` hung for 15+ minutes this way (likely the "10+ minute hangs" in `docs/research/accommodation-recalc-findings.md`). Follow the `Link` header instead of counting pages.
 
-**Provenance:** DS 250 sandbox, 2026-11-25; issue #506.
+**Provenance:** DS 250 sandbox, 2026-11-25; issue #506. Fixed in 2.14.1: `_override_recalc_helper`, the group recalc tool's Python version and `student_late_accommodation.list_overrides` follow the Link header. The Rust version still counts pages and isn't called (#518). Assignments, quizzes, discussion topics and modules were probed the same way and do honor `?page=`.
 
 ### L37 — A module's Lock until date wins over a student's override
 
