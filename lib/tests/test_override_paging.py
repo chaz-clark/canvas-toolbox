@@ -1,7 +1,7 @@
 """Tests — paging the overrides list ends (#506).
 
 Canvas's GET /assignments/:id/overrides ignores ?page=: on a hosted sandbox,
-pages 1, 2, 3 and 50 all returned the same override with no `Link: next`
+pages 1, 2, 3, 50 and 500 all returned the same override with no `Link: next`
 (lesson L36). A loop that counts pages until one comes back empty therefore
 never ended once an assignment had an override; student_quiz_time_extension's
 force-recalc hung for 15+ minutes that way.
@@ -100,3 +100,57 @@ def test_group_recalc_tool_paging_ends(monkeypatch):
     monkeypatch.setattr(api.session, "get", get)
     assert api.get_overrides(1, 5) == [OVERRIDE]
     assert len(calls) == 1
+
+
+# --- the touch re-sends the override exactly as it is (#506) --------------------
+
+from _override_recalc_helper import build_touch_payload  # noqa: E402
+
+
+def test_touch_keeps_every_student_on_a_shared_override():
+    """One key per id kept only the last student; the PUT dropped the others."""
+    fields = build_touch_payload({"id": 1, "title": "3 students", "student_ids": [100, 200, 300]})
+    assert [v for k, v in fields if k == "assignment_override[student_ids][]"] == [100, 200, 300]
+
+
+def test_touch_keeps_a_late_grace_with_no_until_date():
+    """lock_at overridden as null must go back empty, or the assignment's Until date returns."""
+    fields = dict(build_touch_payload({"id": 1, "title": "Late-work accommodation (no close date)",
+                                       "due_at": "2026-04-15T23:59:00Z", "lock_at": None,
+                                       "student_ids": [100]}))
+    assert fields["assignment_override[lock_at]"] == ""
+    assert fields["assignment_override[due_at]"] == "2026-04-15T23:59:00Z"
+    assert "assignment_override[unlock_at]" not in fields  # not overridden: not sent
+
+
+def test_group_tool_touch_keeps_a_null_until_date(monkeypatch):
+    api = CanvasClient("http://x", "t")
+    sent = {}
+
+    class Ok:
+        ok = True
+    monkeypatch.setattr(api.session, "put", lambda url, data, timeout: sent.update(data) or Ok())
+    api.touch_override(1, 5, {"id": 9, "title": "g", "group_id": 42, "lock_at": None, "due_at": "d"})
+    assert sent["assignment_override[lock_at]"] == "" and sent["assignment_override[due_at]"] == "d"
+
+
+def test_get_all_stops_on_a_next_link_it_has_already_read(monkeypatch):
+    loop = "http://x/a?page=1"
+    get, calls = _ignores_page([], pages={loop: ([{"id": 1}], loop)})
+    monkeypatch.setattr(helper, "_request_with_backoff", lambda m, url, **k: get(url, **k))
+    assert helper._get_all(loop, {}, 10) == [{"id": 1}] and len(calls) == 1
+
+
+def test_group_recalc_tool_uses_the_python_version(monkeypatch):
+    """The Rust binary still has the paging and touch bugs (#518): never run it."""
+    import fix_group_override_recalc as fg
+    import _fix_group_override_recalc_python as py
+    called = {}
+    monkeypatch.setattr(py, "run_python_fallback", lambda **k: called.update(k) or 0)
+    monkeypatch.setattr(fg.subprocess if hasattr(fg, "subprocess") else py, "run",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("ran a subprocess")), raising=False)
+    for k, v in {"CANVAS_BASE_URL": "http://127.0.0.1:9", "CANVAS_API_TOKEN": "x"}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(sys, "argv", ["fix_group_override_recalc.py", "--course-id", "1",
+                                      "--group-id", "42", "--dry-run"])
+    assert fg.main() == 0 and called["group_id"] == 42

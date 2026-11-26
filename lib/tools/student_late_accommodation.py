@@ -414,7 +414,9 @@ def list_overrides(base_url: str, course_id: str, assignment_id: int,
     out: list[dict] = []
     url: str | None = f"{base_url}/api/v1/courses/{course_id}/assignments/{assignment_id}/overrides"
     params: dict | None = {"per_page": 100}
-    while url:
+    seen: set = set()
+    while url and url not in seen:
+        seen.add(url)
         r = requests.get(url, headers=headers, params=params, timeout=_TIMEOUT)
         r.raise_for_status()
         out += r.json() or []

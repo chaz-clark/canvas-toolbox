@@ -66,6 +66,7 @@ try:
 except ImportError:
     def force_utf8_console() -> None:
         pass  # No-op if _env_loader not available
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -344,16 +345,20 @@ def main() -> int:
             continue
 
         try:
+            # Unbuffered, so a tool stopped by the timeout has already shown
+            # how far it got.
             result = subprocess.run(plan.command, capture_output=True, text=True,
-                                    timeout=_TOOL_TIMEOUT_S)
+                                    timeout=_TOOL_TIMEOUT_S,
+                                    env={**os.environ, "PYTHONUNBUFFERED": "1"})
         except subprocess.TimeoutExpired as exc:
-            tail = exc.stderr or b""
-            tail = tail.decode(errors="replace") if isinstance(tail, bytes) else tail
+            def _text(b):
+                return (b.decode(errors="replace") if isinstance(b, bytes) else b or "").strip()
             print(f"    FAIL (no answer after {_TOOL_TIMEOUT_S // 60} minutes; stopped)")
             print("    It may have written part of this already: check the student's "
                   "quizzes or assignments in Canvas before running it again.")
-            if tail.strip():
-                print(f"    stderr: {tail.strip()[-300:]}")
+            for name, stream in (("last output", exc.stdout), ("stderr", exc.stderr)):
+                if _text(stream):
+                    print(f"    {name}: {_text(stream)[-300:]}")
             fails += 1
             audit_lines.append(render_audit_line(plan, "FAILED", timestamp))
             continue

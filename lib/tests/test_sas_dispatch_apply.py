@@ -101,7 +101,9 @@ def test_a_tool_that_hangs_is_stopped_and_logged_failed(tmp_path, monkeypatch, c
 
     def hang(cmd, **kwargs):
         assert kwargs.get("timeout") == sas._TOOL_TIMEOUT_S
-        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"], stderr=b"[recalc] still paging")
+        assert kwargs["env"].get("PYTHONUNBUFFERED") == "1"  # so its progress survives the stop
+        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"], output=b"  [OK ] quiz 1: +15 min",
+                                        stderr=b"[recalc] still paging")
     monkeypatch.setattr(sas.subprocess, "run", hang)
     handoff = tmp_path / "sas.yml"
     handoff.write_text("- deid_code: S-000001\n  accommodations:\n    - key: extra_time_1.5x\n",
@@ -112,5 +114,5 @@ def test_a_tool_that_hangs_is_stopped_and_logged_failed(tmp_path, monkeypatch, c
     assert sas.main() == 1
     out = capsys.readouterr().out
     assert "no answer after 30 minutes" in out and "before running it again" in out
-    assert "still paging" in out
+    assert "still paging" in out and "last output: [OK ] quiz 1: +15 min" in out
     assert "\tFAILED\t" in log.read_text() and "\tAPPLIED\t" not in log.read_text()

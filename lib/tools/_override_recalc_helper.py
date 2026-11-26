@@ -93,12 +93,37 @@ def _get_all(url: str, headers: dict, timeout: int) -> list:
     """
     out: list = []
     params: dict | None = {"per_page": 100}
-    while url:
+    seen: set = set()
+    while url and url not in seen:  # a next link back to a page already read ends it
+        seen.add(url)
         r = _request_with_backoff("GET", url, headers=headers, params=params, timeout=timeout)
         out += r.json() or []
         url = r.links.get("next", {}).get("url")
         params = None  # the next link already carries them
     return out
+
+
+def build_touch_payload(override: dict) -> list[tuple[str, object]]:
+    """Form fields that re-send an override exactly as it is (#506).
+
+    Canvas's docs: every overridden value must be sent again in a PUT to be kept.
+    So every date the override has goes back, a null one as an empty value (a
+    late grace's Until date is overridden as null; leaving it out would put the
+    assignment's own Until date back). Every student id goes back as its own
+    field: one key per id would keep only the last, and the PUT would drop the
+    other students from the override.
+    """
+    fields: list[tuple[str, object]] = []
+    for date in ("due_at", "unlock_at", "lock_at"):
+        if date in override:
+            fields.append((f"assignment_override[{date}]", override[date] or ""))
+    if "title" in override:
+        fields.append(("assignment_override[title]", override["title"]))
+    if "group_id" in override:
+        fields.append(("assignment_override[group_id]", override["group_id"]))
+    for sid in override.get("student_ids") or []:
+        fields.append(("assignment_override[student_ids][]", sid))
+    return fields
 
 
 def verify_override_updated(
@@ -174,32 +199,7 @@ def touch_override(
         The updated override dict from Canvas
     """
     override_id = override["id"]
-
-    # Build the payload - preserve all existing values
-    payload = {}
-
-    # The Canvas API requires all current values to be included or they'll be unset
-    if "due_at" in override and override["due_at"] is not None:
-        payload["assignment_override[due_at]"] = override["due_at"]
-
-    if "unlock_at" in override and override["unlock_at"] is not None:
-        payload["assignment_override[unlock_at]"] = override["unlock_at"]
-
-    if "lock_at" in override and override["lock_at"] is not None:
-        payload["assignment_override[lock_at]"] = override["lock_at"]
-
-    # Title is required for group/section overrides
-    if "title" in override:
-        payload["assignment_override[title]"] = override["title"]
-
-    # Preserve group_id (though it can't be changed)
-    if "group_id" in override:
-        payload["assignment_override[group_id]"] = override["group_id"]
-
-    # Preserve student_ids (though they can't be changed)
-    if "student_ids" in override and override["student_ids"]:
-        for sid in override["student_ids"]:
-            payload[f"assignment_override[student_ids][]"] = sid
+    payload = build_touch_payload(override)  # the override exactly as it is (#506)
 
     r = _request_with_backoff(
         "PUT",

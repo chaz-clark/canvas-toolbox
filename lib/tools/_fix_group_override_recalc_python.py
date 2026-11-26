@@ -50,7 +50,9 @@ class CanvasClient:
         all_items = []
         url: str | None = f"{self.base_url}/api/v1/{endpoint}"
         params: dict | None = {"per_page": 100}
-        while url:
+        seen: set = set()
+        while url and url not in seen:
+            seen.add(url)
             response = self.session.get(url, params=params, timeout=30)
             if not response.ok:
                 raise RuntimeError(
@@ -89,12 +91,12 @@ class CanvasClient:
         # Build form data preserving all existing values
         form: dict[str, Any] = {}
 
-        if "due_at" in override_data and override_data["due_at"] is not None:
-            form["assignment_override[due_at]"] = override_data["due_at"]
-        if "unlock_at" in override_data and override_data["unlock_at"] is not None:
-            form["assignment_override[unlock_at]"] = override_data["unlock_at"]
-        if "lock_at" in override_data and override_data["lock_at"] is not None:
-            form["assignment_override[lock_at]"] = override_data["lock_at"]
+        # Every date the override has, a null one as empty: a date left out of
+        # the PUT stops being overridden (a late grace's null Until date would
+        # turn back into the assignment's own) (#506).
+        for date in ("due_at", "unlock_at", "lock_at"):
+            if date in override_data:
+                form[f"assignment_override[{date}]"] = override_data[date] or ""
         if "title" in override_data and override_data["title"] is not None:
             form["assignment_override[title]"] = override_data["title"]
         if "group_id" in override_data and override_data["group_id"] is not None:

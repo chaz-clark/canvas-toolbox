@@ -86,9 +86,7 @@ IMPLEMENTATION NOTE (v1.5.1+)
 
 import argparse
 import os
-import subprocess
 import sys
-from pathlib import Path
 
 try:
     from _env_loader import load_env
@@ -136,76 +134,22 @@ def main() -> int:
         )
         return 2
 
-    # Find the Rust binary
-    script_dir = Path(__file__).parent
-    rust_bin = script_dir / "fix_override_recalc_rs" / "target" / "release" / "fix-override-recalc"
+    # The Python version only, for now. The Rust version (fix_override_recalc_rs)
+    # still pages the overrides list by number, which Canvas ignores, so it loops
+    # forever; and its touch drops students from shared overrides and null dates
+    # from late grace. A binary is built once per machine, so fixing its source
+    # wouldn't reach binaries already built (#506; the Rust fix is #518).
+    from _fix_group_override_recalc_python import run_python_fallback
 
-    if not rust_bin.exists():
-        # Rust binary not found - fall back to Python implementation
-        print(
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            file=sys.stderr,
-        )
-        print("⚠ Rust binary not found — falling back to Python", file=sys.stderr)
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
-        print(file=sys.stderr)
-        print("Python fallback is SLOW for large courses (5-10 min for 100+ assignments).", file=sys.stderr)
-        print("For 10-100x speedup, install Rust:", file=sys.stderr)
-        print("  cb-init --with-rust", file=sys.stderr)
-        print(file=sys.stderr)
-        print("Or manually:", file=sys.stderr)
-        print(f"  cd {script_dir / 'fix_override_recalc_rs'} && cargo build --release", file=sys.stderr)
-        print(file=sys.stderr)
-        print("Proceeding with Python fallback...", file=sys.stderr)
-        print(file=sys.stderr)
-
-        # Import and run Python fallback
-        try:
-            from _fix_group_override_recalc_python import run_python_fallback
-        except ImportError as e:
-            print(f"ERROR: Failed to import Python fallback: {e}", file=sys.stderr)
-            return 2
-
-        return run_python_fallback(
-            course_id=args.course_id,
-            base_url=base_url,
-            token=token,
-            student_id=args.student_id,
-            group_id=args.group_id,
-            dry_run=args.dry_run,
-            quiet=False,
-        )
-
-    # Build command args
-    cmd = [
-        str(rust_bin),
-        "--course-id", str(args.course_id),
-        "--base-url", base_url,
-        "--token", token,
-    ]
-
-    if args.group_id:
-        cmd.extend(["--group-id", str(args.group_id)])
-    elif args.student_id:
-        cmd.extend(["--student-id", str(args.student_id)])
-
-    if args.dry_run:
-        cmd.append("--dry-run")
-
-    # Execute Rust binary and stream output
-    try:
-        result = subprocess.run(cmd, check=False)
-        return result.returncode
-    except FileNotFoundError:
-        print(
-            f"ERROR: Failed to execute Rust binary at {rust_bin}",
-            file=sys.stderr,
-        )
-        return 2
-    except KeyboardInterrupt:
-        print("\nInterrupted by user", file=sys.stderr)
-        return 130
-
+    return run_python_fallback(
+        course_id=args.course_id,
+        base_url=base_url,
+        token=token,
+        student_id=args.student_id,
+        group_id=args.group_id,
+        dry_run=args.dry_run,
+        quiet=False,
+    )
 
 if __name__ == "__main__":
     sys.exit(main())
