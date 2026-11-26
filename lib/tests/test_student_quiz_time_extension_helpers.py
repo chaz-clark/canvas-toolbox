@@ -215,17 +215,17 @@ from student_quiz_time_extension import (  # noqa: E402
 )
 
 # Shapes from GET /api/quiz/v1/courses/:id/quizzes and the accommodations POST,
-# as the DS 250 sandbox returned them (2026-11-26).
-_NQ_TIMED = {"id": "17741295", "title": "FIXTURE: New Quiz",
+# as a hosted sandbox returned them (2026-11-26); ids replaced with fake ones.
+_NQ_TIMED = {"id": "900501", "title": "FIXTURE: New Quiz",
              "quiz_settings": {"has_time_limit": True, "session_time_limit_in_seconds": 600}}
-_NQ_UNTIMED = {"id": "17741296", "title": "Untimed",
+_NQ_UNTIMED = {"id": "900502", "title": "Untimed",
                "quiz_settings": {"has_time_limit": False, "session_time_limit_in_seconds": 0}}
-_OK = {"message": "Accommodations processed", "successful": [{"user_id": 946791}], "failed": []}
+_OK = {"message": "Accommodations processed", "successful": [{"user_id": 900001}], "failed": []}
 
 
 def test_timed_new_quizzes_keeps_timed_ones_in_minutes():
     out = timed_new_quizzes([_NQ_TIMED, _NQ_UNTIMED, {"id": "3", "title": "no settings"}])
-    assert out == [{"id": 17741295, "title": "FIXTURE: New Quiz", "time_limit": 10.0, "new_quiz": True}]
+    assert out == [{"id": 900501, "title": "FIXTURE: New Quiz", "time_limit": 10.0, "new_quiz": True}]
 
 
 def test_new_quiz_extra_minutes_use_its_own_limit():
@@ -235,13 +235,13 @@ def test_new_quiz_extra_minutes_use_its_own_limit():
 
 
 def test_accommodation_counts_only_when_the_student_is_successful():
-    assert accommodation_result(200, _OK, 946791) == (True, "")
+    assert accommodation_result(200, _OK, 900001) == (True, "")
     # A 200 can still list the student as failed: that is a failure.
     bad = {"message": "Accommodations processed", "successful": [],
-           "failed": [{"user_id": 946791, "error": "User not found"}]}
-    assert accommodation_result(200, bad, 946791) == (False, "User not found")
-    assert accommodation_result(401, {"message": "User does not have permission"}, 946791)[0] is False
-    assert accommodation_result(200, {"successful": [{"user_id": 1}], "failed": []}, 946791)[0] is False
+           "failed": [{"user_id": 900001, "error": "User not found"}]}
+    assert accommodation_result(200, bad, 900001) == (False, "User not found")
+    assert accommodation_result(401, {"message": "User does not have permission"}, 900001)[0] is False
+    assert accommodation_result(200, {"successful": [{"user_id": 1}], "failed": []}, 900001)[0] is False
 
 
 def _run(monkeypatch, capsys, argv, classic=(), new=(), nq_reply=(200, _OK)):
@@ -255,7 +255,7 @@ def _run(monkeypatch, capsys, argv, classic=(), new=(), nq_reply=(200, _OK)):
                         lambda b, c, aid, body, t: sent["new"].append((aid, body)) or nq_reply)
     for k, v in {"CANVAS_BASE_URL": "http://127.0.0.1:9", "CANVAS_COURSE_ID": "1", "CANVAS_API_TOKEN": "x"}.items():
         monkeypatch.setenv(k, v)
-    monkeypatch.setattr(sys, "argv", ["student_quiz_time_extension.py", "--user-id", "946791", *argv])
+    monkeypatch.setattr(sys, "argv", ["student_quiz_time_extension.py", "--user-id", "900001", *argv])
     code = sqt.main()
     out = capsys.readouterr()
     return code, sent, out.out, out.err
@@ -267,18 +267,18 @@ def test_all_timed_covers_classic_and_new_quizzes(monkeypatch, capsys):
                                                       "--no-force-recalc"], classic=classic, new=[_NQ_TIMED, _NQ_UNTIMED])
     assert code == 0
     assert [q for q, _ in sent["classic"]] == [1]
-    assert sent["new"] == [(17741295, [{"user_id": 946791, "extra_time": 5}])]
+    assert sent["new"] == [(900501, [{"user_id": 900001, "extra_time": 5}])]
     assert "Moderate" in out  # Canvas can't be asked whether it applied: say how to check
 
 
 def test_all_timed_preview_lists_new_quizzes_and_sends_nothing(monkeypatch, capsys):
     code, sent, out, err = _run(monkeypatch, capsys, ["--multiplier", "2.0", "--all-timed"], new=[_NQ_TIMED])
     assert code == 0 and sent == {"classic": [], "new": []}
-    assert "New Quiz 17741295" in out and "+10 min" in out
+    assert "New Quiz 900501" in out and "+10 min" in out
 
 
 def test_a_failed_student_in_a_200_is_a_failure(monkeypatch, capsys):
-    bad = (200, {"successful": [], "failed": [{"user_id": 946791, "error": "User not found"}]})
+    bad = (200, {"successful": [], "failed": [{"user_id": 900001, "error": "User not found"}]})
     code, sent, out, err = _run(monkeypatch, capsys, ["--multiplier", "1.5", "--all-timed", "--apply"],
                                 new=[_NQ_TIMED], nq_reply=bad)
     assert code == 1 and "User not found" in out
@@ -287,13 +287,74 @@ def test_a_failed_student_in_a_200_is_a_failure(monkeypatch, capsys):
 def test_one_new_quiz_with_an_extra_attempt(monkeypatch, capsys):
     import student_quiz_time_extension as sqt
     monkeypatch.setattr(sqt, "fetch_new_quiz", lambda *a, **k: _NQ_TIMED)
-    code, sent, out, err = _run(monkeypatch, capsys, ["--new-quiz-id", "17741295", "--multiplier", "1.5",
+    code, sent, out, err = _run(monkeypatch, capsys, ["--new-quiz-id", "900501", "--multiplier", "1.5",
                                                       "--extra-attempts", "1", "--apply"])
     assert code == 0
-    assert sent["new"] == [(17741295, [{"user_id": 946791, "extra_time": 5, "extra_attempts": 1}])]
+    assert sent["new"] == [(900501, [{"user_id": 900001, "extra_time": 5, "extra_attempts": 1}])]
 
 
 def test_classic_only_options_are_refused_for_a_new_quiz(monkeypatch, capsys):
     for flag in (["--manually-unlock"], ["--extend-from-end-at", "10"]):
-        code, sent, out, err = _run(monkeypatch, capsys, ["--new-quiz-id", "17741295", *flag, "--apply"])
-        assert code == 2 and "classic quizzes only" in err and sent == {"classic": [], "new": []}
+        code, sent, out, err = _run(monkeypatch, capsys, ["--new-quiz-id", "900501", *flag, "--apply"])
+        assert code == 2 and "Classic Quizzes only" in err and sent == {"classic": [], "new": []}
+
+
+def test_a_limit_that_isnt_whole_minutes_rounds_up():
+    q = timed_new_quizzes([{"id": "9", "title": "t", "quiz_settings":
+                            {"has_time_limit": True, "session_time_limit_in_seconds": 90}}])[0]
+    assert q["time_limit"] == 1.5 and compute_extra_minutes(q["time_limit"], 1.5) == 1
+
+
+def test_accommodation_404_is_a_failure():
+    assert accommodation_result(404, {"message": "Not found"}, 900001) == (False, "Not found")
+
+
+def test_listing_new_quizzes_404_means_none(monkeypatch):
+    """A Canvas without New Quizzes answers with 404 and an HTML page (local Canvas, 2026-11-26)."""
+    import student_quiz_time_extension as sqt
+
+    class R:
+        status_code, links = 404, {}
+        def raise_for_status(self):
+            raise AssertionError("404 must not raise")
+    monkeypatch.setattr(sqt.requests, "get", lambda *a, **k: R())
+    assert sqt.fetch_new_quizzes("http://127.0.0.1:9", "1", "x") == []
+
+
+def test_a_failed_new_quiz_listing_still_does_classic_quizzes(monkeypatch, capsys):
+    import requests
+    import student_quiz_time_extension as sqt
+
+    def boom(*a, **k):
+        raise requests.HTTPError("403 Forbidden")
+    classic = [{"id": 1, "title": "Classic", "time_limit": 30}]
+    code, sent, out, err = _run(monkeypatch, capsys, ["--multiplier", "1.5", "--all-timed", "--apply",
+                                                      "--no-force-recalc"], classic=classic)
+    assert code == 0  # baseline: fetch_new_quizzes returns [] in _run
+    monkeypatch.setattr(sqt, "fetch_new_quizzes", boom)
+    monkeypatch.setattr(sys, "argv", ["student_quiz_time_extension.py", "--user-id", "900001",
+                                      "--multiplier", "1.5", "--all-timed", "--apply", "--no-force-recalc"])
+    sent["classic"].clear()
+    assert sqt.main() == 1
+    out = capsys.readouterr()
+    assert [q for q, _ in sent["classic"]] == [1]  # Classic Quizzes were still done
+    assert "couldn't list New Quizzes" in out.err and "Re-run to retry" not in out.err
+
+
+def test_a_new_quiz_failure_reason_reaches_the_error_output(monkeypatch, capsys):
+    bad = (200, {"successful": [], "failed": [{"user_id": 900001, "error": "User not found"}]})
+    code, sent, out, err = _run(monkeypatch, capsys, ["--multiplier", "1.5", "--all-timed", "--apply"],
+                                new=[_NQ_TIMED], nq_reply=bad)
+    assert code == 1 and "User not found" in err and "only if that reason was temporary" in err
+
+
+def test_preview_says_how_to_confirm_a_new_quiz(monkeypatch, capsys):
+    code, sent, out, err = _run(monkeypatch, capsys, ["--multiplier", "1.5", "--all-timed"], new=[_NQ_TIMED])
+    assert "After --apply" in out and "Moderate" in out
+
+
+def test_an_untimed_new_quiz_says_so(monkeypatch, capsys):
+    import student_quiz_time_extension as sqt
+    monkeypatch.setattr(sqt, "fetch_new_quiz", lambda *a, **k: _NQ_UNTIMED)
+    code, sent, out, err = _run(monkeypatch, capsys, ["--new-quiz-id", "900502", "--multiplier", "1.5", "--apply"])
+    assert code == 0 and "has no time limit" in out and sent["new"] == []

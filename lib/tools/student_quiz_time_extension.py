@@ -21,7 +21,7 @@ HOW THE EXTENSION IS BUILT
   (in MINUTES). extra_time = ceil(quiz.time_limit * (multiplier - 1)).
 
 NEW QUIZZES (#513)
-  New Quizzes take extra time and attempts through a separate API:
+  New Quizzes take time extensions and attempts through a separate API:
     POST /api/quiz/v1/courses/:cid/quizzes/:assignment_id/accommodations
   with a JSON array [{"user_id", "extra_time" (MINUTES), "extra_attempts"}].
   --all-timed covers timed Classic Quizzes AND timed New Quizzes; --new-quiz-id
@@ -33,6 +33,11 @@ NEW QUIZZES (#513)
   again to a student who already had 1 gives them nothing new. Extra time
   shows only to a student with an attempt left.
   --manually-unlock and --extend-from-end-at are Classic Quizzes only.
+  Per quiz, not course-level: the multiplier needs each quiz's own time
+  limit, the course-level call can't give attempts, and how the two levels
+  combine is undocumented, so this tool never uses the course-level call.
+  A course without New Quizzes answers the listing with 404: that means none,
+  and Classic Quizzes go ahead.
 
 PII-FREE LOOKUP
   --user-id 123456        bare Canvas user_id
@@ -41,7 +46,7 @@ PII-FREE LOOKUP
                           only the user_id column)
 
 USAGE — dry-run by default (use --apply to actually write)
-  # Preview: 1.5x on every timed classic quiz in the course
+  # Preview: 1.5x on every timed quiz in the course (Classic Quizzes and New Quizzes)
   uv run python lib/tools/student_quiz_time_extension.py \\
     --deid-code S-68BC40 --multiplier 1.5 --all-timed
 
@@ -302,6 +307,8 @@ def fetch_new_quizzes(base_url: str, course_id: str, token: str) -> list[dict]:
     params = {"per_page": 100}
     while url:
         r = requests.get(url, headers=headers, params=params, timeout=_TIMEOUT)
+        if r.status_code == 404 and not out:
+            return []  # New Quizzes isn't available in this course: none to extend
         r.raise_for_status()
         out.extend(r.json())
         url, params = r.links.get("next", {}).get("url"), None
@@ -386,8 +393,8 @@ def main() -> int:
               file=sys.stderr)
         return 2
     if args.new_quiz_id and (args.manually_unlock or args.extend_from_end_at is not None):
-        print("ERROR: --manually-unlock and --extend-from-end-at are for classic quizzes only; "
-              "New Quizzes take extra time and --extra-attempts.", file=sys.stderr)
+        print("ERROR: --manually-unlock and --extend-from-end-at are for Classic Quizzes only; "
+              "New Quizzes take a time extension (--multiplier) and --extra-attempts.", file=sys.stderr)
         return 2
     if args.extra_attempts is not None and args.extra_attempts < 1:
         print("ERROR: --extra-attempts must be >= 1.", file=sys.stderr)
@@ -422,15 +429,25 @@ def main() -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 2
 
+    listing_failed = ""
     if args.all_timed:
         quizzes = fetch_timed_quizzes(base_url, course_id, token)
-        quizzes += timed_new_quizzes(fetch_new_quizzes(base_url, course_id, token))
+        try:
+            quizzes += timed_new_quizzes(fetch_new_quizzes(base_url, course_id, token))
+        except (requests.RequestException, ValueError) as exc:
+            # Classic Quizzes still go ahead; the run is reported as failed.
+            listing_failed = f"couldn't list New Quizzes ({exc})"
+            print(f"  [FAIL] {listing_failed}; Classic Quizzes only")
     elif args.new_quiz_id:
         nq = fetch_new_quiz(base_url, course_id, args.new_quiz_id, token)
         timed = timed_new_quizzes([nq])
         # Attempt grants apply to untimed quizzes too.
         quizzes = timed or ([{"id": args.new_quiz_id, "title": nq.get("title", ""),
                               "time_limit": None, "new_quiz": True}] if attempt_opts else [])
+        if not quizzes:
+            print(f"New Quiz {args.new_quiz_id} has no time limit, so extra time changes "
+                  f"nothing. Nothing to do.")
+            return 0
     else:
         one = fetch_quiz(base_url, course_id, args.quiz_id, token)
         # Attempt grants apply to untimed quizzes too.
@@ -441,11 +458,12 @@ def main() -> int:
     print(f"student user_id={uid} | {len(quizzes)} quiz(zes) "
           f"| {mult} | {apply_}")
 
-    if not quizzes:
+    if not quizzes and not listing_failed:
         print("No timed quizzes matched. Nothing to do.")
         return 0
 
-    fails = 0
+    fails = 1 if listing_failed else 0
+    reasons = [listing_failed] if listing_failed else []
     new_quizzes_done = 0
     assignment_ids = []  # Track assignment IDs from graded quizzes
     for q in quizzes:
@@ -480,13 +498,17 @@ def main() -> int:
                 acc["extra_time"] = extra
             if args.extra_attempts is not None:
                 acc["extra_attempts"] = args.extra_attempts
-            code, body = post_new_quiz_accommodation(base_url, course_id, qid, [acc], token)
-            done, reason = accommodation_result(code, body, uid)
+            try:
+                code, body = post_new_quiz_accommodation(base_url, course_id, qid, [acc], token)
+                done, reason = accommodation_result(code, body, uid)
+            except requests.RequestException as exc:
+                code, done, reason = 0, False, f"no answer from Canvas ({exc})"
             if done:
                 new_quizzes_done += 1
                 print(f"  [OK ] New Quiz {qid} ({title}): {what} (HTTP {code})")
             else:
                 fails += 1
+                reasons.append(f"New Quiz {qid}: {reason[:120]}")
                 print(f"  [FAIL] New Quiz {qid} ({title}): {what}: {reason[:200]}")
             continue
         payload = build_extension_payload(
@@ -496,6 +518,7 @@ def main() -> int:
         ok = "OK " if code in (200, 201) else "FAIL"
         if code not in (200, 201):
             fails += 1
+            reasons.append(f"quiz {qid}: HTTP {code}")
         print(f"  [{ok}] quiz {qid} ({title}): {what} (HTTP {code})")
 
         # Track assignment_id for graded quizzes (needed for recalc)
@@ -530,13 +553,16 @@ def main() -> int:
             print(f"  [recalc] Fallback: Run fix_group_override_recalc.py --course-id {course_id} "
                   f"--student-id {uid}", file=sys.stderr)
 
-    if new_quizzes_done:
-        print(f"\n{new_quizzes_done} New Quiz accommodation(s) accepted. Canvas can't be "
-              f"asked whether one applied: check the quiz's Moderate page, or open it in "
-              f"Student View, once the student has an attempt available.")
+    if any(q.get("new_quiz") for q in quizzes):
+        lead = (f"{new_quizzes_done} New Quiz change(s) accepted. " if args.apply
+                else "After --apply: ")
+        print(f"\n{lead}Canvas can't be asked whether a New Quiz change applied: "
+              f"check the quiz's Moderate page, or open it in Student View, once the "
+              f"student has an attempt available.")
 
     if fails:
-        print(f"\n{fails} operation(s) failed. Re-run to retry.", file=sys.stderr)
+        print(f"\n{fails} operation(s) failed: {'; '.join(reasons)}. "
+              f"A re-run helps only if that reason was temporary.", file=sys.stderr)
         return 1
 
     return 0
