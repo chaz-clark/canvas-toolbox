@@ -51,9 +51,11 @@ Output discipline: ✅ "Applied 1.5× time for deid_code S-68BC40" · ❌ "…fo
   guard couldn't reach Canvas ("could not verify"). It **refuses** `--apply` from a
   folder opened above several courses. These tools write to `CANVAS_COURSE_ID`; never
   set it on the command line to reach another course.
-  `fix_group_override_recalc` runs it too (#502). It takes `--course-id` on the
-  command line, so the guard also **refuses** a course outside this folder's `.env`;
-  `CB_COURSE_SWITCH=<id>` is only for the instructor's explicit say-so.
+  `fix_group_override_recalc` runs it too (#502), for a student or a group. It
+  writes on a plain run (`--dry-run` previews), so a plain run is the guarded write.
+  It takes `--course-id` on the command line, so the guard also **refuses** a course
+  outside this folder's `.env`; `CB_COURSE_SWITCH=<id>` is only for the instructor's
+  explicit say-so.
 - **Canvas write lessons that bite here:** overrides + due-date changes need the full
   `due_at`/`lock_at`/`unlock_at` trio, and a group override sometimes needs a forced
   recalc before Canvas honors it (`fix_group_override_recalc.py`).
