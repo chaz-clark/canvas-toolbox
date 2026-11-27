@@ -32,6 +32,7 @@ Output discipline: ✅ "Applied 1.5× time for deid_code S-68BC40" · ❌ "…fo
 | Late-work grace / reopen past-due assignments | `student_late_accommodation.py --deid-code <code> --from-days-ago 14 --apply` |
 | SAS / disability-office accommodation dispatcher (processes letters) | `apply_sas_accommodations.py --apply` |
 | Exempt a student from an assignment by date | `exempt_by_date.py …` |
+| Excuse one student from specific assignments | `exempt_by_date.py --user-id <id> --assignment-ids <id>[,<id>] --apply` — refuses the Test Student, an inactive student, or someone not in the course (#443) |
 | Student can't submit / override not taking effect / force recalc | `fix_group_override_recalc.py --course-id <id> --student-id <id>` |
 | Submit an artifact on a student's behalf | `submit_on_behalf.py …` |
 
