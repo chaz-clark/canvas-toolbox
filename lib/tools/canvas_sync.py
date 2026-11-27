@@ -1535,6 +1535,60 @@ def cmd_rebind(new_course_id: str, apply: bool = False) -> int:
     return 0
 
 
+# What a target course holds that a content migration would duplicate (#456).
+# Assignment groups aren't counted: every new course has a default one, and a copy
+# into a course with only groups is harmless.
+_TARGET_KINDS = (("modules", "module(s)"), ("assignments", "assignment(s)"),
+                 ("pages", "page(s)"), ("quizzes", "quiz(zes)"),
+                 ("discussion_topics", "discussion(s)"), ("files", "file(s)"))
+
+
+def _read_all(url: str) -> tuple[list, str]:
+    """(every item, "") from a Canvas list, or ([], why) when it couldn't be read.
+    _get returns [] on an error; this checks each answer, so a failed read is never
+    taken for an empty list."""
+    items, params, seen = [], {"per_page": 100}, set()
+    while url and url not in seen:
+        seen.add(url)
+        try:
+            resp = _http("GET", url, headers=_headers(), params=params, timeout=20)
+            if resp.status_code >= 400:
+                return [], f"HTTP {resp.status_code}"
+            items += resp.json() or []
+        except _cr.requests.RequestException as exc:
+            return [], f"Canvas didn't answer ({type(exc).__name__})"
+        url, params = resp.links.get("next", {}).get("url"), None
+    return items, ""
+
+
+def _target_contents(course_id: str) -> tuple[dict, str]:
+    """({kind: count}, "") for the target course, or ({}, why) when it couldn't be read."""
+    counts: dict = {}
+    for kind, _ in _TARGET_KINDS:
+        items, why = _read_all(f"{CANVAS_BASE_URL}/api/v1/courses/{course_id}/{kind}")
+        if why:
+            return {}, f"{kind}: {why}"
+        counts[kind] = len(items)
+    return counts, ""
+
+
+def _copy_history(course_id: str) -> tuple[set, bool, str]:
+    """(source ids of completed course copies into this course, whether a copy into it
+    is still queued or running, "") or (set(), False, why)."""
+    items, why = _read_all(f"{CANVAS_BASE_URL}/api/v1/courses/{course_id}/content_migrations")
+    if why:
+        return set(), False, f"import history: {why}"
+    copies = [m for m in items if m.get("migration_type") == "course_copy_importer"]
+    done = {str((m.get("settings") or {}).get("source_course_id"))
+            for m in copies if m.get("workflow_state") == "completed"}
+    running = any(m.get("workflow_state") not in ("completed", "failed") for m in copies)
+    return done, running, ""
+
+
+def _describe(counts: dict) -> str:
+    return ", ".join(f"{counts[k]} {label}" for k, label in _TARGET_KINDS if counts.get(k))
+
+
 def cmd_migrate_from(source_course_id: str, new_course_id: str,
                      apply: bool = False, timeout_s: int = 900) -> int:
     """Copy a course via Canvas, then rebind local state to the copy (#294).
@@ -1544,9 +1598,46 @@ def cmd_migrate_from(source_course_id: str, new_course_id: str,
     would also drop rubrics, question banks and file attachments. Both field
     workarounds — `create_content_migration()` and .imscc export/import — are this
     same mechanism, done by hand."""
+    # Into a course with its own content, the copy duplicates anything with the same
+    # title (checked on a local Canvas). Copying the same course again into its own
+    # copy doesn't: Canvas updates what it copied before. So the target must be empty,
+    # or hold an earlier copy of this same course (#456).
+    counts, why = _target_contents(new_course_id)
+    blocked, recopy = "", False
+    sources, running, hwhy = _copy_history(new_course_id)
+    if why or hwhy:
+        blocked = f"couldn't check course {new_course_id} ({why or hwhy})"
+    elif running:
+        # A queued copy has brought nothing in yet, so the course can look empty:
+        # starting another alongside it would copy everything twice.
+        blocked = (f"a copy into course {new_course_id} is still queued or running; wait for "
+                   f"it to finish (Settings → Import Course Content shows it)")
+    elif any(counts.values()):
+        if str(source_course_id) in sources:
+            recopy = True
+        else:
+            blocked = f"course {new_course_id} isn't empty: it has {_describe(counts)}"
+    if blocked:
+        print(f"{'REFUSED' if apply else 'DRY RUN — would refuse'}: {blocked}. Nothing was copied.")
+        if not running:
+            print("  A course copy into a course with its own content makes a second copy of "
+                  "anything with the same title. Copy into an empty course instead.")
+            print("  (If new courses in this account come with template content, every one "
+                  "will be refused: ask your Canvas admin for a blank course.)")
+        return 2 if apply else 0
+    if recopy:
+        print(f"Course {new_course_id} already holds a copy of course {source_course_id} "
+              f"({_describe(counts)}). Copying it again updates what Canvas copied before "
+              f"rather than duplicating it, and that REPLACES any edits made to those items in "
+              f"{new_course_id}; items deleted there may come back. Items made in "
+              f"{new_course_id} by hand aren't touched, but any with the same title as one in "
+              f"{source_course_id} will appear twice.")
+
     if not apply:
         print(f"DRY RUN — would copy course {source_course_id} → {new_course_id} "
               f"via Canvas content migration, then rebind local state to it.")
+        if not recopy:
+            print(f"  Course {new_course_id} is empty, so the copy can't duplicate anything.")
         print("  Canvas creates the content (including New Quizzes); the rebind "
               "re-points local ids at it.")
         print("  Re-run with --apply to start the copy.")
