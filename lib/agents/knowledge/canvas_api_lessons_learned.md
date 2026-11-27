@@ -670,6 +670,15 @@ When building a new Canvas-touching tool, run through this checklist:
 
 **Provenance:** local Canvas (production mode) with real student accounts, 2026-11-26; issue #509.
 
+
+### L41 — A course copy duplicates a target's own same-titled items, but not its own earlier copy
+
+**What Canvas does:** a content migration (`course_copy_importer`) into a course that has its own content adds everything again: a module or assignment with the same title as one already there now appears twice. Copying the **same** source course again into a course that holds an earlier copy of it doesn't duplicate: Canvas updates the items it copied before. The target's import history (`GET /courses/:id/content_migrations`) records each completed copy's `settings.source_course_id`.
+
+**Why it matters:** `canvas_sync --migrate-from` into a course that wasn't empty silently mixed in duplicates. Since 2.15.2 it refuses a target that has content, unless that content came from an earlier copy of the same course. A read that fails refuses too, because an error must never look like an empty course.
+
+**Provenance:** local Canvas, 2026-11-27; issue #456.
+
 ---
 
 ## References
