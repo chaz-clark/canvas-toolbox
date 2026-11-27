@@ -63,6 +63,8 @@ def env(monkeypatch):
     monkeypatch.setenv("CANVAS_COURSE_ID", "1")
     monkeypatch.setattr(ebd, "load_env", lambda: None)
     monkeypatch.setattr(ebd, "fetch_published_assignments", lambda *a: ASSIGNMENTS)
+    # The students these tests use are active (#443 checks who it is first).
+    monkeypatch.setattr(ebd, "fetch_active_filter", lambda *a, **k: ({5, 900001}, {}, 999))
     excused = []
     monkeypatch.setattr(
         ebd, "excuse_submission",
@@ -178,3 +180,48 @@ def test_paging_stops_on_a_next_link_already_read(monkeypatch):
     monkeypatch.setattr(ebd.requests, "get", lambda url, **k: calls.append(url) or R())
     assert [a["id"] for a in ebd.fetch_published_assignments("http://x", "1", "t", 900001)] == [1]
     assert len(calls) == 1
+
+
+
+# --- #443: only an active, real student --------------------------------------
+
+def _who(monkeypatch, env, uid, *flags, inactive=None):
+    monkeypatch.setattr(ebd, "fetch_active_filter",
+                        lambda *a, **k: ({5}, inactive or {}, 999))
+    return _run(monkeypatch, "--user-id", str(uid), *flags)
+
+
+def test_the_test_student_is_refused(monkeypatch, env, capsys):
+    assert _who(monkeypatch, env, 999, "--assignment-ids", "11", "--apply") == 1
+    assert env == [] and "Test Student" in capsys.readouterr().err
+
+
+def test_an_inactive_student_is_refused(monkeypatch, env, capsys):
+    assert _who(monkeypatch, env, 7, "--assignment-ids", "11", "--apply", inactive={7: "completed"}) == 1
+    assert env == [] and "completed" in capsys.readouterr().err
+
+
+def test_someone_who_isnt_a_student_here_is_refused(monkeypatch, env, capsys):
+    assert _who(monkeypatch, env, 12345, "--before-date", "2026-12-01", "--apply") == 1
+    assert env == [] and "isn't a student in course" in capsys.readouterr().err
+
+
+def test_an_active_student_goes_ahead(monkeypatch, env):
+    assert _who(monkeypatch, env, 5, "--assignment-ids", "11", "--apply") == 0
+    assert env == [11]
+
+
+def test_a_failed_check_refuses(monkeypatch, env, capsys):
+    import requests
+
+    def boom(*a, **k):
+        raise requests.exceptions.ConnectionError("down")
+    monkeypatch.setattr(ebd, "fetch_active_filter", boom)
+    assert _run(monkeypatch, "--user-id", "5", "--assignment-ids", "11", "--apply") == 1
+    assert env == [] and "couldn't check" in capsys.readouterr().err
+
+
+def test_undo_allows_an_inactive_student(monkeypatch, env):
+    monkeypatch.setattr(ebd, "fetch_active_filter", lambda *a, **k: (set(), {7: "inactive"}, 999))
+    monkeypatch.setattr(ebd, "fetch_excused_assignments", lambda *a, **k: [])
+    assert _run(monkeypatch, "--user-id", "7", "--undo") == 0

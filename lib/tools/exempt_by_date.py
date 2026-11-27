@@ -97,6 +97,7 @@ except ImportError:
     raise SystemExit(1) from None
 
 from canvas_course_guard import enforce as _course_guard  # set for an intervention (#475)
+from grader_push import fetch_active_filter  # who is an active student, and the Test Student (#443)
 
 try:
     from _env_loader import force_utf8_console, load_env
@@ -373,6 +374,30 @@ def main() -> int:
     else:
         user_id = args.user_id
         print(f"Using user_id {user_id}")
+
+    # Only an active, real student of this course (#443). Excusing work for the Test
+    # Student, a withdrawn student or someone who isn't here changes the wrong record.
+    try:
+        active, inactive, test_student = fetch_active_filter(
+            base_url, course_id, {"Authorization": f"Bearer {token}"})
+    except requests.RequestException as exc:
+        print(f"ERROR: couldn't check that user {user_id} is a student in course {course_id} "
+              f"({type(exc).__name__}). Nothing was changed.", file=sys.stderr)
+        return 1
+    uid = int(user_id)
+    if test_student is not None and uid == test_student:
+        print(f"ERROR: user {user_id} is the course's Test Student. Nothing was changed.",
+              file=sys.stderr)
+        return 1
+    if uid in inactive and not args.undo:
+        print(f"ERROR: user {user_id}'s enrollment in course {course_id} is "
+              f"{inactive[uid]}, not active. Nothing was changed. (--undo still works, to "
+              f"reverse an earlier excusal.)", file=sys.stderr)
+        return 1
+    if uid not in active and uid not in inactive:
+        print(f"ERROR: user {user_id} isn't a student in course {course_id}. Nothing was "
+              f"changed.", file=sys.stderr)
+        return 1
 
     # Handle --undo
     if args.undo:
