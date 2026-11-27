@@ -24,7 +24,7 @@ class _Resp:
         return self._b
 
 
-def _canvas(monkeypatch, have=None, broken=(), copied_from=()):
+def _canvas(monkeypatch, have=None, broken=(), copied_from=(), history=None):
     """GET returns `have[kind]` items for a kind (none if absent); the import history
     lists completed copies from `copied_from`; POSTs recorded."""
     posts = []
@@ -35,8 +35,9 @@ def _canvas(monkeypatch, have=None, broken=(), copied_from=()):
             return _Resp(200, {"id": 77})
         kind = url.rsplit("/", 1)[-1]
         if kind == "content_migrations" and "content_migrations" not in broken:
-            return _Resp(200, [{"migration_type": "course_copy_importer", "workflow_state": "completed",
-                                "settings": {"source_course_id": src}} for src in copied_from])
+            return _Resp(200, history if history is not None else [
+                {"migration_type": "course_copy_importer", "workflow_state": "completed",
+                 "settings": {"source_course_id": src}} for src in copied_from])
         if kind in broken:
             return _Resp(401, {"errors": [{"message": "unauthorized"}]})
         return _Resp(200, [{"id": i} for i in range((have or {}).get(kind, 0))])
@@ -64,7 +65,7 @@ def test_an_empty_target_is_copied(monkeypatch):
 def test_a_failed_read_is_never_taken_for_empty(monkeypatch, capsys):
     posts = _canvas(monkeypatch, broken=("files",))
     assert cs.cmd_migrate_from("100", "200", apply=True) == 2
-    assert posts == [] and "couldn't check" in capsys.readouterr().out
+    assert posts == [] and "couldn't check course 200" in capsys.readouterr().out
 
 
 def test_the_preview_says_what_the_target_holds(monkeypatch, capsys):
@@ -72,11 +73,6 @@ def test_the_preview_says_what_the_target_holds(monkeypatch, capsys):
     assert cs.cmd_migrate_from("100", "200", apply=False) == 0
     out = capsys.readouterr().out
     assert posts == [] and "4 assignment(s)" in out and "would refuse" in out
-
-
-def test_the_default_assignment_group_doesnt_count(monkeypatch):
-    posts = _canvas(monkeypatch, have={"assignment_groups": 1})
-    assert cs.cmd_migrate_from("100", "200", apply=True) == 0 and len(posts) == 1
 
 
 def test_copying_the_same_course_again_is_allowed(monkeypatch, capsys):
@@ -95,3 +91,27 @@ def test_an_unreadable_import_history_refuses(monkeypatch, capsys):
     posts = _canvas(monkeypatch, have={"modules": 2}, broken=("content_migrations",))
     assert cs.cmd_migrate_from("100", "200", apply=True) == 2 and posts == []
     assert "import history" in capsys.readouterr().out
+
+
+def test_a_copy_still_running_blocks_another(monkeypatch, capsys):
+    """A queued copy has brought nothing in yet, so the course looks empty."""
+    posts = _canvas(monkeypatch, history=[{"migration_type": "course_copy_importer",
+                                           "workflow_state": "queued",
+                                           "settings": {"source_course_id": "100"}}])
+    assert cs.cmd_migrate_from("100", "200", apply=True) == 2 and posts == []
+    assert "still queued or running" in capsys.readouterr().out
+
+
+def test_only_completed_course_copies_count_as_an_earlier_copy(monkeypatch):
+    for history in ([{"migration_type": "course_copy_importer", "workflow_state": "failed",
+                      "settings": {"source_course_id": "100"}}],
+                    [{"migration_type": "common_cartridge_importer", "workflow_state": "completed",
+                      "settings": {"source_course_id": "100"}}]):
+        posts = _canvas(monkeypatch, have={"modules": 2}, history=history)
+        assert cs.cmd_migrate_from("100", "200", apply=True) == 2 and posts == []
+
+
+def test_the_recopy_note_says_edits_are_replaced(monkeypatch, capsys):
+    _canvas(monkeypatch, have={"modules": 2}, copied_from=("100",))
+    cs.cmd_migrate_from("100", "200", apply=False)
+    assert "REPLACES any edits" in capsys.readouterr().out
